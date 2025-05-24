@@ -83,7 +83,9 @@ func (t *StdioTransport) Start(ctx context.Context, handler RequestHandler) erro
 					JSONRPC: "2.0",
 					Error:   protocol.NewJSONRPCError(protocol.ParseError, "Parse error", err.Error()),
 				}
-				t.sendResponse(errResp)
+				if err := t.sendResponse(errResp); err != nil {
+					return fmt.Errorf("failed to send error response: %w", err)
+				}
 				continue
 			}
 

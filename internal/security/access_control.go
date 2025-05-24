@@ -454,13 +454,17 @@ func (acm *AccessControlManager) logAccess(userID, action, resource, result stri
 
 func generateSecureID() string {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		panic("failed to read random bytes: " + err.Error())
+	}
 	return hex.EncodeToString(bytes)
 }
 
 func generateSecureToken() string {
 	bytes := make([]byte, 32)
-	rand.Read(bytes)
+	if _, err := rand.Read(bytes); err != nil {
+		panic("failed to read random bytes: " + err.Error())
+	}
 	hash := sha256.Sum256(bytes)
 	return hex.EncodeToString(hash[:])
 }

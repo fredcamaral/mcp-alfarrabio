@@ -42,7 +42,9 @@ func NewEncryptionManager(masterPassword string) *EncryptionManager {
 	if em.enabled {
 		// Derive master key from password
 		salt := make([]byte, em.saltLength)
-		rand.Read(salt)
+		if _, err := rand.Read(salt); err != nil {
+			panic("failed to read random bytes: " + err.Error())
+		}
 		em.masterKey = pbkdf2.Key([]byte(masterPassword), salt, em.iterations, em.keyLength, sha256.New)
 	}
 	
@@ -317,7 +319,9 @@ func (em *EncryptionManager) RotateKey(newPassword string) error {
 	
 	// Generate new master key
 	salt := make([]byte, em.saltLength)
-	rand.Read(salt)
+	if _, err := rand.Read(salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
 	newKey := pbkdf2.Key([]byte(newPassword), salt, em.iterations, em.keyLength, sha256.New)
 	
 	// In production, you'd need to re-encrypt all existing data here
@@ -339,7 +343,9 @@ func (em *EncryptionManager) Enable(masterPassword string) error {
 	
 	// Generate master key
 	salt := make([]byte, em.saltLength)
-	rand.Read(salt)
+	if _, err := rand.Read(salt); err != nil {
+		return fmt.Errorf("failed to generate salt: %w", err)
+	}
 	em.masterKey = pbkdf2.Key([]byte(masterPassword), salt, em.iterations, em.keyLength, sha256.New)
 	em.enabled = true
 	

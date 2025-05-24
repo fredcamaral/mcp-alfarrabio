@@ -254,7 +254,7 @@ func (cs *ContextSuggester) generateSimilarProblemSuggestions(ctx context.Contex
 			suggestion := ContextSuggestion{
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypeSimilarProblem,
-				Title:         fmt.Sprintf("Similar problem resolved previously"),
+				Title:         "Similar problem resolved previously",
 				Description:   cs.buildSimilarProblemDescription(chunk, solutionChunks),
 				Relevance:     cs.calculateRelevance(content, chunk.Content),
 				Source:        SourceVectorSearch,

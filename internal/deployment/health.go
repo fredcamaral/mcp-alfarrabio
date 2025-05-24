@@ -223,7 +223,10 @@ func (hm *HealthManager) HTTPHandler() http.HandlerFunc {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 		
-		json.NewEncoder(w).Encode(health)
+		if err := json.NewEncoder(w).Encode(health); err != nil {
+			http.Error(w, "Failed to encode health data", http.StatusInternalServerError)
+			return
+		}
 	}
 }
 
@@ -240,10 +243,14 @@ func (hm *HealthManager) ReadinessHandler() http.HandlerFunc {
 		// Readiness is stricter - only healthy is ready
 		if health.Status == HealthStatusHealthy {
 			w.WriteHeader(http.StatusOK)
-			fmt.Fprintf(w, `{"status":"ready","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
+			if _, err := fmt.Fprintf(w, `{"status":"ready","timestamp":"%s"}`, time.Now().Format(time.RFC3339)); err != nil {
+				http.Error(w, "Failed to write response", http.StatusInternalServerError)
+			}
 		} else {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			fmt.Fprintf(w, `{"status":"not_ready","timestamp":"%s"}`, time.Now().Format(time.RFC3339))
+			if _, err := fmt.Fprintf(w, `{"status":"not_ready","timestamp":"%s"}`, time.Now().Format(time.RFC3339)); err != nil {
+				http.Error(w, "Failed to write response", http.StatusInternalServerError)
+			}
 		}
 	}
 }
@@ -254,8 +261,10 @@ func (hm *HealthManager) LivenessHandler() http.HandlerFunc {
 		// Liveness just checks if the service is running
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprintf(w, `{"status":"alive","timestamp":"%s","uptime":"%s"}`, 
-			time.Now().Format(time.RFC3339), time.Since(hm.startTime))
+		if _, err := fmt.Fprintf(w, `{"status":"alive","timestamp":"%s","uptime":"%s"}`, 
+			time.Now().Format(time.RFC3339), time.Since(hm.startTime)); err != nil {
+			http.Error(w, "Failed to write response", http.StatusInternalServerError)
+		}
 	}
 }
 

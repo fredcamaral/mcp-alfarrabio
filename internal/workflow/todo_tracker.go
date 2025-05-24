@@ -397,7 +397,7 @@ func (tt *TodoTracker) buildSessionSummaryContent(session *TodoSession) string {
 	}
 	
 	// Tools and files summary
-	content.WriteString(fmt.Sprintf("## Impact\n"))
+	content.WriteString("## Impact\n")
 	content.WriteString(fmt.Sprintf("- **Tools Used**: %d (%s)\n", len(session.ToolsUsed), strings.Join(session.ToolsUsed, ", ")))
 	content.WriteString(fmt.Sprintf("- **Files Changed**: %d\n", len(session.FilesChanged)))
 	

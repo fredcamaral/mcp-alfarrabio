@@ -2,6 +2,7 @@ package intelligence
 
 import (
 	"context"
+	"math"
 	"testing"
 	"time"
 
@@ -413,7 +414,7 @@ func TestGetCrossRepoInsights(t *testing.T) {
 		t.Error("Expected avg_success_rate to be float64")
 	} else {
 		expected := (0.9 + 0.8) / 2.0
-		if avgSuccessRate != expected {
+		if math.Abs(avgSuccessRate - expected) > 0.001 {
 			t.Errorf("Expected average success rate %f, got %f", expected, avgSuccessRate)
 		}
 	}

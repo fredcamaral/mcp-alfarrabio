@@ -303,8 +303,8 @@ func TestQueryGraph(t *testing.T) {
 		UsageCount:  3,
 	}
 	
-	builder.AddNode(conceptNode)
-	builder.AddNode(fileNode)
+	_ = builder.AddNode(conceptNode) // test - ignore error
+	_ = builder.AddNode(fileNode) // test - ignore error
 	
 	// Query for concept nodes
 	query := GraphQuery{
@@ -350,8 +350,8 @@ func TestGetStats(t *testing.T) {
 	node1 := &KnowledgeNode{ID: "node1", Type: NodeTypeConcept, Name: "Concept1"}
 	node2 := &KnowledgeNode{ID: "node2", Type: NodeTypeFile, Name: "File1"}
 	
-	builder.AddNode(node1)
-	builder.AddNode(node2)
+	_ = builder.AddNode(node1) // test - ignore error
+	_ = builder.AddNode(node2) // test - ignore error
 	
 	relation := &KnowledgeRelation{
 		ID:         "rel1",
@@ -359,7 +359,7 @@ func TestGetStats(t *testing.T) {
 		ToNodeID:   "node2",
 		Type:       RelationReferences,
 	}
-	builder.AddRelation(relation)
+	_ = builder.AddRelation(relation) // test - ignore error
 	
 	stats := builder.GetStats()
 	

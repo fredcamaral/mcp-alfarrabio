@@ -115,8 +115,8 @@ func TestMemoryServer_GetServer(t *testing.T) {
 	assert.NoError(t, err)
 
 	mcpServer := server.GetServer()
-	// MCP server is nil for now since it's not initialized in simplified version
-	assert.Nil(t, mcpServer)
+	// MCP server is now initialized since we internalized the MCP-Go library
+	assert.NotNil(t, mcpServer)
 }
 
 func TestMemoryServer_HandleStoreChunk_InvalidInput(t *testing.T) {

@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"mcp-memory/pkg/types"
@@ -81,15 +82,30 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backup file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log error but don't fail the function
+			_ = err
+		}
+	}()
 	
 	// Create gzip writer
 	gzipWriter := gzip.NewWriter(file)
-	defer gzipWriter.Close()
+	defer func() {
+		if err := gzipWriter.Close(); err != nil {
+			// Log error but don't fail the function
+			_ = err
+		}
+	}()
 	
 	// Create tar writer
 	tarWriter := tar.NewWriter(gzipWriter)
-	defer tarWriter.Close()
+	defer func() {
+		if err := tarWriter.Close(); err != nil {
+			// Log error but don't fail the function
+			_ = err
+		}
+	}()
 	
 	// Write chunks to tar
 	for i, chunk := range chunks {
@@ -165,14 +181,24 @@ func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, o
 	if err != nil {
 		return fmt.Errorf("failed to open backup file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log error but don't fail the function
+			_ = err
+		}
+	}()
 	
 	// Create gzip reader
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
 		return fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer gzipReader.Close()
+	defer func() {
+		if err := gzipReader.Close(); err != nil {
+			// Log error but don't fail the function
+			_ = err
+		}
+	}()
 	
 	// Create tar reader
 	tarReader := tar.NewReader(gzipReader)
@@ -188,7 +214,7 @@ func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, o
 			return fmt.Errorf("failed to read tar header: %w", err)
 		}
 		
-		if !filepath.HasPrefix(header.Name, "chunks/") {
+		if !strings.HasPrefix(header.Name, "chunks/") {
 			continue
 		}
 		

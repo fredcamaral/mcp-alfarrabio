@@ -3,6 +3,7 @@ package intelligence
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -359,7 +360,7 @@ func TestObjectiveProgressUpdate(t *testing.T) {
 	
 	// Check that progress was calculated
 	expectedProgress := 0.7 // 70% of target
-	if testObjective.Progress != expectedProgress {
+	if math.Abs(testObjective.Progress - expectedProgress) > 0.001 {
 		t.Errorf("Expected progress %f, got %f", expectedProgress, testObjective.Progress)
 	}
 }

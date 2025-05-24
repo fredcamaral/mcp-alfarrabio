@@ -126,7 +126,7 @@ func TestFlowDetector_SegmentTransitions(t *testing.T) {
 	// Step 2: Investigation (should trigger new segment)
 	detector.ProcessMessage(sessionID, "Let me investigate this issue by checking the logs", "Grep", nil)
 	
-	session, _ := detector.GetSession(sessionID)
+	_, _ = detector.GetSession(sessionID) // test variable - unused
 	
 	// Should have finished the problem segment and started investigation
 	assert.NotNil(t, detector.currentSegment)
@@ -139,7 +139,7 @@ func TestFlowDetector_SegmentTransitions(t *testing.T) {
 	// End session to finalize segments
 	detector.EndSession(sessionID, types.OutcomeSuccess)
 	
-	session, _ = detector.GetSession(sessionID)
+	session, _ := detector.GetSession(sessionID)
 	assert.NotNil(t, session.EndTime)
 	assert.GreaterOrEqual(t, len(session.Segments), 2) // Should have multiple segments
 	assert.GreaterOrEqual(t, len(session.Transitions), 1) // Should have transitions

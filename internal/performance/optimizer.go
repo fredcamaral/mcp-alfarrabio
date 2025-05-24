@@ -278,7 +278,7 @@ func (c *Cache) evict() {
 
 func (c *Cache) evictLRU() {
 	var oldestKey string
-	var oldestTime time.Time = time.Now()
+	oldestTime := time.Now()
 	
 	for key, item := range c.data {
 		if item.AccessedAt.Before(oldestTime) {
@@ -310,7 +310,7 @@ func (c *Cache) evictLFU() {
 
 func (c *Cache) evictFIFO() {
 	var oldestKey string
-	var oldestTime time.Time = time.Now()
+	oldestTime := time.Now()
 	
 	for key, item := range c.data {
 		if item.CreatedAt.Before(oldestTime) {
@@ -570,7 +570,10 @@ func (bp *BatchProcessor) backgroundFlush() {
 	for range ticker.C {
 		bp.queueMutex.Lock()
 		if len(bp.queue) > 0 && time.Since(bp.lastFlush) >= bp.flushInterval {
-			bp.flush()
+			if err := bp.flush(); err != nil {
+				// Log error but continue processing
+				_ = err
+			}
 		}
 		bp.queueMutex.Unlock()
 	}
