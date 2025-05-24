@@ -7,7 +7,7 @@ services:
     container_name: mcp-chroma
     restart: unless-stopped
     ports:
-      - "9000:8000"
+      - "${CHROMA_HOST_PORT:-9000}:8000"
     environment:
       - CHROMA_SERVER_HOST=0.0.0.0
       - CHROMA_SERVER_HTTP_PORT=8000
@@ -16,10 +16,10 @@ services:
       - chroma_data:/chroma/chroma
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-10s}
     networks:
       - mcp_network
 
@@ -31,9 +31,9 @@ services:
     container_name: mcp-memory-server
     restart: unless-stopped
     ports:
-      - "9080:9080" # Main MCP API port
-      - "9081:8081" # Health check port
-      - "9082:8082" # Metrics port (optional)
+      - "${MCP_HOST_PORT:-9080}:9080" # Main MCP API port
+      - "${MCP_HEALTH_PORT:-9081}:8081" # Health check port
+      - "${MCP_METRICS_PORT:-9082}:8082" # Metrics port (optional)
     environment:
       - MCP_MEMORY_DATA_DIR=/app/data
       - MCP_MEMORY_CONFIG_DIR=/app/config
@@ -62,9 +62,9 @@ services:
       - ./configs/docker/config.yaml:/app/config/config.yaml:ro
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:9080/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: 40s
     networks:
       - mcp_network

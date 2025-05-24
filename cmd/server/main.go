@@ -138,7 +138,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		}
 
 		// Send initial connection message
-		fmt.Fprintf(w, "data: {\"type\":\"connected\",\"server\":\"mcp-memory\"}\n\n")
+		_, _ = fmt.Fprintf(w, "data: {\"type\":\"connected\",\"server\":\"mcp-memory\"}\n\n")
 		flusher.Flush()
 
 		// Keep connection open
@@ -148,7 +148,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"status": "healthy", "server": "mcp-memory"}`)
+		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "mcp-memory"}`)
 	})
 
 	server := &http.Server{

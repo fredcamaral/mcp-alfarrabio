@@ -185,6 +185,18 @@ func loadFromEnv(config *Config) error {
 		config.Server.Host = host
 	}
 
+	// Server timeouts
+	if readTimeout := os.Getenv("MCP_MEMORY_READ_TIMEOUT_SECONDS"); readTimeout != "" {
+		if rt, err := strconv.Atoi(readTimeout); err == nil {
+			config.Server.ReadTimeout = rt
+		}
+	}
+	if writeTimeout := os.Getenv("MCP_MEMORY_WRITE_TIMEOUT_SECONDS"); writeTimeout != "" {
+		if wt, err := strconv.Atoi(writeTimeout); err == nil {
+			config.Server.WriteTimeout = wt
+		}
+	}
+
 	// Chroma configuration - check both prefixed and non-prefixed env vars
 	if endpoint := os.Getenv("MCP_MEMORY_CHROMA_ENDPOINT"); endpoint != "" {
 		config.Chroma.Endpoint = endpoint
@@ -196,11 +208,35 @@ func loadFromEnv(config *Config) error {
 	} else if collection := os.Getenv("CHROMA_COLLECTION"); collection != "" {
 		config.Chroma.Collection = collection
 	}
+	if healthCheck := os.Getenv("MCP_MEMORY_CHROMA_HEALTH_CHECK"); healthCheck != "" {
+		if hc, err := strconv.ParseBool(healthCheck); err == nil {
+			config.Chroma.HealthCheck = hc
+		}
+	}
+	if retryAttempts := os.Getenv("MCP_MEMORY_CHROMA_RETRY_ATTEMPTS"); retryAttempts != "" {
+		if ra, err := strconv.Atoi(retryAttempts); err == nil {
+			config.Chroma.RetryAttempts = ra
+		}
+	}
+	if timeoutSeconds := os.Getenv("MCP_MEMORY_CHROMA_TIMEOUT_SECONDS"); timeoutSeconds != "" {
+		if ts, err := strconv.Atoi(timeoutSeconds); err == nil {
+			config.Chroma.TimeoutSeconds = ts
+		}
+	}
+	// Docker configuration
+	if dockerEnabled := os.Getenv("MCP_MEMORY_CHROMA_DOCKER_ENABLED"); dockerEnabled != "" {
+		if de, err := strconv.ParseBool(dockerEnabled); err == nil {
+			config.Chroma.Docker.Enabled = de
+		}
+	}
 	if containerName := os.Getenv("CHROMA_CONTAINER_NAME"); containerName != "" {
 		config.Chroma.Docker.ContainerName = containerName
 	}
 	if volumePath := os.Getenv("CHROMA_VOLUME_PATH"); volumePath != "" {
 		config.Chroma.Docker.VolumePath = volumePath
+	}
+	if image := os.Getenv("MCP_MEMORY_CHROMA_IMAGE"); image != "" {
+		config.Chroma.Docker.Image = image
 	}
 
 	// OpenAI configuration
@@ -210,11 +246,79 @@ func loadFromEnv(config *Config) error {
 	if model := os.Getenv("OPENAI_EMBEDDING_MODEL"); model != "" {
 		config.OpenAI.EmbeddingModel = model
 	}
+	if maxTokens := os.Getenv("MCP_MEMORY_OPENAI_MAX_TOKENS"); maxTokens != "" {
+		if mt, err := strconv.Atoi(maxTokens); err == nil {
+			config.OpenAI.MaxTokens = mt
+		}
+	}
+	if temperature := os.Getenv("MCP_MEMORY_OPENAI_TEMPERATURE"); temperature != "" {
+		if temp, err := strconv.ParseFloat(temperature, 64); err == nil {
+			config.OpenAI.Temperature = temp
+		}
+	}
+	if requestTimeout := os.Getenv("MCP_MEMORY_OPENAI_REQUEST_TIMEOUT_SECONDS"); requestTimeout != "" {
+		if rt, err := strconv.Atoi(requestTimeout); err == nil {
+			config.OpenAI.RequestTimeout = rt
+		}
+	}
+	if rateLimitRPM := os.Getenv("MCP_MEMORY_OPENAI_RATE_LIMIT_RPM"); rateLimitRPM != "" {
+		if rl, err := strconv.Atoi(rateLimitRPM); err == nil {
+			config.OpenAI.RateLimitRPM = rl
+		}
+	}
 
 	// Storage configuration
+	if provider := os.Getenv("MCP_MEMORY_STORAGE_PROVIDER"); provider != "" {
+		config.Storage.Provider = provider
+	}
 	if retention := os.Getenv("RETENTION_DAYS"); retention != "" {
 		if r, err := strconv.Atoi(retention); err == nil {
 			config.Storage.RetentionDays = r
+		}
+	}
+	if backupEnabled := os.Getenv("MCP_MEMORY_BACKUP_ENABLED"); backupEnabled != "" {
+		if be, err := strconv.ParseBool(backupEnabled); err == nil {
+			config.Storage.BackupEnabled = be
+		}
+	}
+	if backupInterval := os.Getenv("MCP_MEMORY_BACKUP_INTERVAL_HOURS"); backupInterval != "" {
+		if bi, err := strconv.Atoi(backupInterval); err == nil {
+			config.Storage.BackupInterval = bi
+		}
+	}
+
+	// Chunking configuration
+	if strategy := os.Getenv("MCP_MEMORY_CHUNKING_STRATEGY"); strategy != "" {
+		config.Chunking.Strategy = strategy
+	}
+	if minLength := os.Getenv("MCP_MEMORY_CHUNKING_MIN_LENGTH"); minLength != "" {
+		if ml, err := strconv.Atoi(minLength); err == nil {
+			config.Chunking.MinContentLength = ml
+		}
+	}
+	if maxLength := os.Getenv("MCP_MEMORY_CHUNKING_MAX_LENGTH"); maxLength != "" {
+		if ml, err := strconv.Atoi(maxLength); err == nil {
+			config.Chunking.MaxContentLength = ml
+		}
+	}
+	if todoTrigger := os.Getenv("MCP_MEMORY_CHUNKING_TODO_TRIGGER"); todoTrigger != "" {
+		if tt, err := strconv.ParseBool(todoTrigger); err == nil {
+			config.Chunking.TodoCompletionTrigger = tt
+		}
+	}
+	if fileThreshold := os.Getenv("MCP_MEMORY_CHUNKING_FILE_THRESHOLD"); fileThreshold != "" {
+		if ft, err := strconv.Atoi(fileThreshold); err == nil {
+			config.Chunking.FileChangeThreshold = ft
+		}
+	}
+	if timeThreshold := os.Getenv("MCP_MEMORY_CHUNKING_TIME_THRESHOLD_MINUTES"); timeThreshold != "" {
+		if tt, err := strconv.Atoi(timeThreshold); err == nil {
+			config.Chunking.TimeThresholdMinutes = tt
+		}
+	}
+	if similarity := os.Getenv("MCP_MEMORY_CHUNKING_SIMILARITY_THRESHOLD"); similarity != "" {
+		if st, err := strconv.ParseFloat(similarity, 64); err == nil {
+			config.Chunking.SimilarityThreshold = st
 		}
 	}
 
@@ -227,6 +331,21 @@ func loadFromEnv(config *Config) error {
 	}
 	if file := os.Getenv("LOG_FILE"); file != "" {
 		config.Logging.File = file
+	}
+	if maxSize := os.Getenv("MCP_MEMORY_LOG_MAX_SIZE_MB"); maxSize != "" {
+		if ms, err := strconv.Atoi(maxSize); err == nil {
+			config.Logging.MaxSize = ms
+		}
+	}
+	if maxBackups := os.Getenv("MCP_MEMORY_LOG_MAX_BACKUPS"); maxBackups != "" {
+		if mb, err := strconv.Atoi(maxBackups); err == nil {
+			config.Logging.MaxBackups = mb
+		}
+	}
+	if maxAge := os.Getenv("MCP_MEMORY_LOG_MAX_AGE_DAYS"); maxAge != "" {
+		if ma, err := strconv.Atoi(maxAge); err == nil {
+			config.Logging.MaxAge = ma
+		}
 	}
 
 	return nil
