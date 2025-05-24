@@ -13,7 +13,10 @@
       "WebFetch(domain:raw.githubusercontent.com)",
       "WebFetch(domain:developer.hashicorp.com)",
       "WebFetch(domain:k33g.hashnode.dev)",
-      "Bash(touch:*)"
+      "Bash(touch:*)",
+      "Bash(echo \"Build status: $?\")",
+      "Bash(./demo:*)",
+      "WebFetch(domain:spec.modelcontextprotocol.io)"
     ],
     "deny": []
   }

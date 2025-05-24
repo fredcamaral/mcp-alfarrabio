@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/fredcamaral/mcp-memory/internal/logging"
+	"mcp-memory/internal/logging"
 )
 
 // MonitoringManager handles application monitoring and metrics
@@ -210,11 +210,35 @@ func (mm *MonitoringManager) collectMetrics(ctx context.Context) {
 	// Collect health metrics if health manager is available
 	if mm.healthMgr != nil {
 		health := mm.healthMgr.CheckHealth(ctx)
-		mm.metrics.SetGauge("health.overall.score", float64(health.OverallHealth))
 		
-		for name, checker := range health.Checks {
-			mm.metrics.SetGauge(fmt.Sprintf("health.%s.score", name), float64(checker.Score))
-			mm.metrics.SetGauge(fmt.Sprintf("health.%s.response_time", name), checker.ResponseTime.Seconds())
+		// Convert health status to numeric score
+		var healthScore float64
+		switch health.Status {
+		case HealthStatusHealthy:
+			healthScore = 1.0
+		case HealthStatusDegraded:
+			healthScore = 0.5
+		case HealthStatusUnhealthy:
+			healthScore = 0.0
+		default:
+			healthScore = 0.0
+		}
+		mm.metrics.SetGauge("health.overall.score", healthScore)
+		
+		for _, check := range health.Checks {
+			var checkScore float64
+			switch check.Status {
+			case HealthStatusHealthy:
+				checkScore = 1.0
+			case HealthStatusDegraded:
+				checkScore = 0.5
+			case HealthStatusUnhealthy:
+				checkScore = 0.0
+			default:
+				checkScore = 0.0
+			}
+			mm.metrics.SetGauge(fmt.Sprintf("health.%s.score", check.Name), checkScore)
+			mm.metrics.SetGauge(fmt.Sprintf("health.%s.response_time", check.Name), check.Duration.Seconds())
 		}
 	}
 }

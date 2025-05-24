@@ -14,10 +14,12 @@ import (
 	"mcp-memory/internal/persistence"
 	"mcp-memory/internal/storage"
 	"mcp-memory/internal/workflow"
+	"mcp-memory/pkg/mcp"
+	"mcp-memory/pkg/mcp/protocol"
+	"mcp-memory/pkg/mcp/server"
 	"mcp-memory/pkg/types"
 	"strings"
 	"time"
-	// "github.com/mark3labs/mcp-go/server" // TODO: Re-enable when MCP integration is complete
 )
 
 // MemoryServer implements the MCP server for Claude memory
@@ -30,7 +32,7 @@ type MemoryServer struct {
 	backupManager    *persistence.BackupManager
 	learningEngine   *intelligence.LearningEngine
 	patternAnalyzer  *workflow.PatternAnalyzer
-	mcpServer        interface{} // *server.Server - simplified for now
+	mcpServer        *server.Server
 }
 
 // NewMemoryServer creates a new memory MCP server
@@ -66,15 +68,11 @@ func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
 		patternAnalyzer:  patternAnalyzer,
 	}
 
-	// Create MCP server (simplified for now)
-	// mcpServer := server.NewServer(server.Options{
-	//     Name:    "claude-memory",
-	//     Version: "1.0.0",
-	// })
-
-	// memServer.mcpServer = mcpServer
-	// memServer.registerTools()
-	// memServer.registerResources()
+	// Create MCP server
+	mcpServer := mcp.NewServer("claude-memory", "1.0.0")
+	memServer.mcpServer = mcpServer
+	memServer.registerTools()
+	memServer.registerResources()
 
 	return memServer, nil
 }
@@ -99,376 +97,229 @@ func (ms *MemoryServer) Start(ctx context.Context) error {
 	return nil
 }
 
+// GetMCPServer returns the underlying MCP server for testing
+func (ms *MemoryServer) GetMCPServer() *server.Server {
+	return ms.mcpServer
+}
+
 // registerTools registers all MCP tools
 func (ms *MemoryServer) registerTools() {
-	// TODO: Implement MCP tool registration
-	// Core tools for Claude would be registered here
-	/*
-		ms.mcpServer.AddTool(server.Tool{
-			Name:        "memory_store_chunk",
-			Description: "Store a conversation chunk in memory with automatic analysis and embedding generation",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"content": map[string]interface{}{
-						"type":        "string",
-						"description": "The conversation content to store",
-					},
-					"session_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Session identifier for grouping related chunks",
-					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository name (optional)",
-					},
-					"branch": map[string]interface{}{
-						"type":        "string",
-						"description": "Git branch name (optional)",
-					},
-					"files_modified": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": "List of files that were modified",
-					},
-					"tools_used": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": "List of tools that were used",
-					},
-					"tags": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": "Additional tags for categorization",
-					},
-				},
-				"required": []string{"content", "session_id"},
-			},
-		}, ms.handleStoreChunk)
+	// Register all MCP tools with proper schemas
+	
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_store_chunk",
+		"Store a conversation chunk in memory with automatic analysis and embedding generation",
+		mcp.ObjectSchema("Store memory chunk parameters", map[string]interface{}{
+			"content": mcp.StringParam("The conversation content to store", true),
+			"session_id": mcp.StringParam("Session identifier for grouping related chunks", true),
+			"repository": mcp.StringParam("Repository name (optional)", false),
+			"branch": mcp.StringParam("Git branch name (optional)", false),
+			"files_modified": mcp.ArraySchema("List of files that were modified", map[string]interface{}{"type": "string"}),
+			"tools_used": mcp.ArraySchema("List of tools that were used", map[string]interface{}{"type": "string"}),
+			"tags": mcp.ArraySchema("Additional tags for categorization", map[string]interface{}{"type": "string"}),
+		}, []string{"content", "session_id"}),
+	), mcp.ToolHandlerFunc(ms.handleStoreChunk))
 
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_search",
-			Description: "Search for similar conversation chunks based on natural language query",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"query": map[string]interface{}{
-						"type":        "string",
-						"description": "Natural language search query",
-					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Filter by repository name (optional)",
-					},
-					"recency": map[string]interface{}{
-						"type":        "string",
-						"enum":        []string{"recent", "last_month", "all_time"},
-						"description": "Time filter for results",
-						"default":     "recent",
-					},
-					"types": map[string]interface{}{
-						"type":        "array",
-						"items":       map[string]interface{}{"type": "string"},
-						"description": "Filter by chunk types",
-					},
-					"limit": map[string]interface{}{
-						"type":        "integer",
-						"description": "Maximum number of results",
-						"default":     10,
-						"minimum":     1,
-						"maximum":     50,
-					},
-					"min_relevance": map[string]interface{}{
-						"type":        "number",
-						"description": "Minimum relevance score (0-1)",
-						"default":     0.7,
-						"minimum":     0,
-						"maximum":     1,
-					},
-				},
-				"required": []string{"query"},
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_search",
+		"Search for similar conversation chunks based on natural language query",
+		mcp.ObjectSchema("Search memory parameters", map[string]interface{}{
+			"query": mcp.StringParam("Natural language search query", true),
+			"repository": mcp.StringParam("Filter by repository name (optional)", false),
+			"recency": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"recent", "last_month", "all_time"},
+				"description": "Time filter for results",
+				"default": "recent",
 			},
-		}, ms.handleSearch)
+			"types": mcp.ArraySchema("Filter by chunk types", map[string]interface{}{"type": "string"}),
+			"limit": map[string]interface{}{
+				"type": "integer",
+				"description": "Maximum number of results",
+				"default": 10,
+				"minimum": 1,
+				"maximum": 50,
+			},
+			"min_relevance": map[string]interface{}{
+				"type": "number",
+				"description": "Minimum relevance score (0-1)",
+				"default": 0.7,
+				"minimum": 0,
+				"maximum": 1,
+			},
+		}, []string{"query"}),
+	), mcp.ToolHandlerFunc(ms.handleSearch))
 
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_get_context",
-			Description: "Get project context and recent activity for session initialization",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository name to get context for",
-					},
-					"recent_days": map[string]interface{}{
-						"type":        "integer",
-						"description": "Number of recent days to include",
-						"default":     7,
-						"minimum":     1,
-						"maximum":     90,
-					},
-				},
-				"required": []string{"repository"},
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_get_context",
+		"Get project context and recent activity for session initialization",
+		mcp.ObjectSchema("Get context parameters", map[string]interface{}{
+			"repository": mcp.StringParam("Repository name to get context for", true),
+			"recent_days": map[string]interface{}{
+				"type": "integer",
+				"description": "Number of recent days to include",
+				"default": 7,
+				"minimum": 1,
+				"maximum": 90,
 			},
-		}, ms.handleGetContext)
+		}, []string{"repository"}),
+	), mcp.ToolHandlerFunc(ms.handleGetContext))
 
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_find_similar",
-			Description: "Find similar past problems and their solutions",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"problem": map[string]interface{}{
-						"type":        "string",
-						"description": "Description of the current problem or error",
-					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository context (optional)",
-					},
-					"limit": map[string]interface{}{
-						"type":        "integer",
-						"description": "Maximum number of similar problems to return",
-						"default":     5,
-						"minimum":     1,
-						"maximum":     20,
-					},
-				},
-				"required": []string{"problem"},
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_find_similar",
+		"Find similar past problems and their solutions",
+		mcp.ObjectSchema("Find similar parameters", map[string]interface{}{
+			"problem": mcp.StringParam("Description of the current problem or error", true),
+			"repository": mcp.StringParam("Repository context (optional)", false),
+			"limit": map[string]interface{}{
+				"type": "integer",
+				"description": "Maximum number of similar problems to return",
+				"default": 5,
+				"minimum": 1,
+				"maximum": 20,
 			},
-		}, ms.handleFindSimilar)
+		}, []string{"problem"}),
+	), mcp.ToolHandlerFunc(ms.handleFindSimilar))
 
-		// Advanced tools
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_store_decision",
-			Description: "Store an architectural decision with rationale",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"decision": map[string]interface{}{
-						"type":        "string",
-						"description": "The architectural decision made",
-					},
-					"rationale": map[string]interface{}{
-						"type":        "string",
-						"description": "Reasoning behind the decision",
-					},
-					"context": map[string]interface{}{
-						"type":        "string",
-						"description": "Additional context and alternatives considered",
-					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository this decision applies to",
-					},
-					"session_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Session identifier",
-					},
-				},
-				"required": []string{"decision", "rationale", "session_id"},
-			},
-		}, ms.handleStoreDecision)
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_store_decision",
+		"Store an architectural decision with rationale",
+		mcp.ObjectSchema("Store decision parameters", map[string]interface{}{
+			"decision": mcp.StringParam("The architectural decision made", true),
+			"rationale": mcp.StringParam("Reasoning behind the decision", true),
+			"context": mcp.StringParam("Additional context and alternatives considered", false),
+			"repository": mcp.StringParam("Repository this decision applies to", false),
+			"session_id": mcp.StringParam("Session identifier", true),
+		}, []string{"decision", "rationale", "session_id"}),
+	), mcp.ToolHandlerFunc(ms.handleStoreDecision))
 
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_get_patterns",
-			Description: "Identify recurring patterns in project history",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository to analyze",
-					},
-					"timeframe": map[string]interface{}{
-						"type":        "string",
-						"enum":        []string{"week", "month", "quarter", "all"},
-						"description": "Time period to analyze",
-						"default":     "month",
-					},
-				},
-				"required": []string{"repository"},
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_get_patterns",
+		"Identify recurring patterns in project history",
+		mcp.ObjectSchema("Get patterns parameters", map[string]interface{}{
+			"repository": mcp.StringParam("Repository to analyze", true),
+			"timeframe": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"week", "month", "quarter", "all"},
+				"description": "Time period to analyze",
+				"default": "month",
 			},
-		}, ms.handleGetPatterns)
+		}, []string{"repository"}),
+	), mcp.ToolHandlerFunc(ms.handleGetPatterns))
 
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_health",
-			Description: "Check the health status of the memory system",
-			InputSchema: map[string]interface{}{
-				"type":       "object",
-				"properties": map[string]interface{}{},
-			},
-		}, ms.handleHealth)
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_health",
+		"Check the health status of the memory system",
+		mcp.ObjectSchema("Health check parameters", map[string]interface{}{}, []string{}),
+	), mcp.ToolHandlerFunc(ms.handleHealth))
 
-		// Phase 3.2: Advanced MCP Tools
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_suggest_related",
-			Description: "Get AI-powered suggestions for related context based on current work",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"current_context": map[string]interface{}{
-						"type":        "string",
-						"description": "Current work context or conversation content",
-					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository to search for related context",
-					},
-					"max_suggestions": map[string]interface{}{
-						"type":        "integer",
-						"description": "Maximum number of suggestions to return",
-						"minimum":     1,
-						"maximum":     10,
-						"default":     5,
-					},
-					"include_patterns": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Include pattern-based suggestions",
-						"default":     true,
-					},
-					"session_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Session identifier",
-					},
-				},
-				"required": []string{"current_context", "session_id"},
+	// Phase 3.2: Advanced MCP Tools
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_suggest_related",
+		"Get AI-powered suggestions for related context based on current work",
+		mcp.ObjectSchema("Suggest related parameters", map[string]interface{}{
+			"current_context": mcp.StringParam("Current work context or conversation content", true),
+			"repository": mcp.StringParam("Repository to search for related context", false),
+			"max_suggestions": map[string]interface{}{
+				"type": "integer",
+				"description": "Maximum number of suggestions to return",
+				"minimum": 1,
+				"maximum": 10,
+				"default": 5,
 			},
-		}, ms.handleSuggestRelated)
+			"include_patterns": mcp.BooleanParam("Include pattern-based suggestions", false),
+			"session_id": mcp.StringParam("Session identifier", true),
+		}, []string{"current_context", "session_id"}),
+	), mcp.ToolHandlerFunc(ms.handleSuggestRelated))
 
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_export_project",
-			Description: "Export all memory data for a project in various formats",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository to export",
-					},
-					"format": map[string]interface{}{
-						"type":        "string",
-						"description": "Export format: json, markdown, or archive",
-						"enum":        []string{"json", "markdown", "archive"},
-						"default":     "json",
-					},
-					"include_vectors": map[string]interface{}{
-						"type":        "boolean",
-						"description": "Include vector embeddings in export",
-						"default":     false,
-					},
-					"date_range": map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"start": map[string]interface{}{
-								"type":        "string",
-								"description": "Start date (ISO 8601 format)",
-							},
-							"end": map[string]interface{}{
-								"type":        "string",
-								"description": "End date (ISO 8601 format)",
-							},
-						},
-					},
-					"session_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Session identifier",
-					},
-				},
-				"required": []string{"repository", "session_id"},
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_export_project",
+		"Export all memory data for a project in various formats",
+		mcp.ObjectSchema("Export project parameters", map[string]interface{}{
+			"repository": mcp.StringParam("Repository to export", true),
+			"format": map[string]interface{}{
+				"type": "string",
+				"description": "Export format: json, markdown, or archive",
+				"enum": []string{"json", "markdown", "archive"},
+				"default": "json",
 			},
-		}, ms.handleExportProject)
+			"include_vectors": mcp.BooleanParam("Include vector embeddings in export", false),
+			"date_range": mcp.ObjectSchema("Date range filter", map[string]interface{}{
+				"start": mcp.StringParam("Start date (ISO 8601 format)", false),
+				"end": mcp.StringParam("End date (ISO 8601 format)", false),
+			}, []string{}),
+			"session_id": mcp.StringParam("Session identifier", true),
+		}, []string{"repository", "session_id"}),
+	), mcp.ToolHandlerFunc(ms.handleExportProject))
 
-		ms.mcpServer.AddTool(mcp.Tool{
-			Name:        "memory_import_context",
-			Description: "Import conversation context from external source",
-			InputSchema: map[string]interface{}{
-				"type": "object",
-				"properties": map[string]interface{}{
-					"source": map[string]interface{}{
-						"type":        "string",
-						"description": "Source type: conversation, file, or archive",
-						"enum":        []string{"conversation", "file", "archive"},
-						"default":     "conversation",
-					},
-					"data": map[string]interface{}{
-						"type":        "string",
-						"description": "Data to import (conversation text, file content, or base64 archive)",
-					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Target repository for imported data",
-					},
-					"metadata": map[string]interface{}{
-						"type": "object",
-						"properties": map[string]interface{}{
-							"source_system": map[string]interface{}{
-								"type":        "string",
-								"description": "Name of the source system",
-							},
-							"import_date": map[string]interface{}{
-								"type":        "string",
-								"description": "Original date of the content",
-							},
-							"tags": map[string]interface{}{
-								"type":        "array",
-								"items":       map[string]interface{}{"type": "string"},
-								"description": "Tags to apply to imported content",
-							},
-						},
-					},
-					"chunking_strategy": map[string]interface{}{
-						"type":        "string",
-						"description": "How to chunk the imported data",
-						"enum":        []string{"auto", "paragraph", "fixed_size", "conversation_turns"},
-						"default":     "auto",
-					},
-					"session_id": map[string]interface{}{
-						"type":        "string",
-						"description": "Session identifier",
-					},
-				},
-				"required": []string{"source", "data", "repository", "session_id"},
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"memory_import_context",
+		"Import conversation context from external source",
+		mcp.ObjectSchema("Import context parameters", map[string]interface{}{
+			"source": map[string]interface{}{
+				"type": "string",
+				"description": "Source type: conversation, file, or archive",
+				"enum": []string{"conversation", "file", "archive"},
+				"default": "conversation",
 			},
-		}, ms.handleImportContext)
-	*/
+			"data": mcp.StringParam("Data to import (conversation text, file content, or base64 archive)", true),
+			"repository": mcp.StringParam("Target repository for imported data", true),
+			"metadata": mcp.ObjectSchema("Import metadata", map[string]interface{}{
+				"source_system": mcp.StringParam("Name of the source system", false),
+				"import_date": mcp.StringParam("Original date of the content", false),
+				"tags": mcp.ArraySchema("Tags to apply to imported content", map[string]interface{}{"type": "string"}),
+			}, []string{}),
+			"chunking_strategy": map[string]interface{}{
+				"type": "string",
+				"description": "How to chunk the imported data",
+				"enum": []string{"auto", "paragraph", "fixed_size", "conversation_turns"},
+				"default": "auto",
+			},
+			"session_id": mcp.StringParam("Session identifier", true),
+		}, []string{"source", "data", "repository", "session_id"}),
+	), mcp.ToolHandlerFunc(ms.handleImportContext))
 }
 
 // registerResources registers MCP resources for browsing memory
 func (ms *MemoryServer) registerResources() {
-	// TODO: Implement MCP resource registration
-	/*
-		resources := []server.Resource{
-			{
-				URI:         "memory://recent/{repository}",
-				Name:        "Recent Activity",
-				Description: "Recent conversation chunks for a repository",
-				MimeType:    "application/json",
-			},
-			{
-				URI:         "memory://patterns/{repository}",
-				Name:        "Common Patterns",
-				Description: "Identified patterns in project history",
-				MimeType:    "application/json",
-			},
-			{
-				URI:         "memory://decisions/{repository}",
-				Name:        "Architectural Decisions",
-				Description: "Key architectural decisions made",
-				MimeType:    "application/json",
-			},
-			{
-				URI:         "memory://global/insights",
-				Name:        "Global Insights",
-				Description: "Cross-project insights and patterns",
-				MimeType:    "application/json",
-			},
-		}
+	// Register MCP resources for browsing memory data
+	
+	resources := []struct {
+		uri         string
+		name        string
+		description string
+		mimeType    string
+	}{
+		{
+			uri:         "memory://recent/{repository}",
+			name:        "Recent Activity",
+			description: "Recent conversation chunks for a repository",
+			mimeType:    "application/json",
+		},
+		{
+			uri:         "memory://patterns/{repository}",
+			name:        "Common Patterns",
+			description: "Identified patterns in project history",
+			mimeType:    "application/json",
+		},
+		{
+			uri:         "memory://decisions/{repository}",
+			name:        "Architectural Decisions",
+			description: "Key architectural decisions made",
+			mimeType:    "application/json",
+		},
+		{
+			uri:         "memory://global/insights",
+			name:        "Global Insights",
+			description: "Cross-project insights and patterns",
+			mimeType:    "application/json",
+		},
+	}
 
-		for _, resource := range resources {
-			ms.mcpServer.AddResource(resource, ms.handleResourceRead)
-		}
-	*/
+	for _, res := range resources {
+		resource := mcp.NewResource(res.uri, res.name, res.description, res.mimeType)
+		ms.mcpServer.AddResource(resource, mcp.ResourceHandlerFunc(ms.handleResourceRead))
+	}
 }
 
 // Tool handlers
@@ -863,7 +714,7 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 
 // Resource handler
 
-func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) (interface{}, error) {
+func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]protocol.Content, error) {
 	parts := strings.Split(uri, "/")
 	if len(parts) < 3 {
 		return nil, fmt.Errorf("invalid resource URI: %s", uri)
@@ -881,7 +732,8 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) (int
 		if err != nil {
 			return nil, err
 		}
-		return chunks, nil
+		chunksJSON, _ := json.Marshal(chunks)
+		return []protocol.Content{protocol.NewContent(string(chunksJSON))}, nil
 
 	case "patterns":
 		if len(parts) < 4 {
@@ -893,10 +745,12 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) (int
 			return nil, err
 		}
 		patterns := ms.analyzePatterns(chunks)
-		return map[string]interface{}{
+		result := map[string]interface{}{
 			"repository": repository,
 			"patterns":   patterns,
-		}, nil
+		}
+		resultJSON, _ := json.Marshal(result)
+		return []protocol.Content{protocol.NewContent(string(resultJSON))}, nil
 
 	case "decisions":
 		if len(parts) < 4 {
@@ -930,10 +784,12 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) (int
 			})
 		}
 
-		return map[string]interface{}{
+		result := map[string]interface{}{
 			"repository": repository,
 			"decisions":  decisions,
-		}, nil
+		}
+		resultJSON, _ := json.Marshal(result)
+		return []protocol.Content{protocol.NewContent(string(resultJSON))}, nil
 
 	case "global":
 		if len(parts) < 4 || parts[3] != "insights" {
@@ -942,10 +798,12 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) (int
 
 		// Get global insights across all repositories
 		// This is a simplified implementation
-		return map[string]interface{}{
+		result := map[string]interface{}{
 			"message": "Global insights feature coming soon",
 			"status":  "not_implemented",
-		}, nil
+		}
+		resultJSON, _ := json.Marshal(result)
+		return []protocol.Content{protocol.NewContent(string(resultJSON))}, nil
 
 	default:
 		return nil, fmt.Errorf("unknown resource type: %s", resourceType)
@@ -1012,6 +870,430 @@ func (ms *MemoryServer) extractTechStack(chunks []types.ConversationChunk) []str
 	}
 
 	return techStack
+}
+
+// Phase 3.2: Advanced MCP Tool Handlers
+
+// handleSuggestRelated provides AI-powered context suggestions
+func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	currentContext, ok := params["current_context"].(string)
+	if !ok {
+		return nil, fmt.Errorf("current_context is required")
+	}
+
+	sessionID, ok := params["session_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("session_id is required")
+	}
+
+	repository := ""
+	if repo, exists := params["repository"].(string); exists {
+		repository = repo
+	}
+
+	maxSuggestions := 5
+	if max, exists := params["max_suggestions"].(float64); exists {
+		maxSuggestions = int(max)
+	}
+
+	includePatterns := true
+	if include, exists := params["include_patterns"].(bool); exists {
+		includePatterns = include
+	}
+
+	// Generate embedding for current context
+	embedding, err := ms.embeddingService.GenerateEmbedding(ctx, currentContext)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embedding: %w", err)
+	}
+
+	// Search for similar content
+	query := types.NewMemoryQuery(currentContext)
+	query.Repository = &repository
+	query.Limit = maxSuggestions * 2 // Get more to filter from
+	query.MinRelevanceScore = 0.6
+
+	results, err := ms.vectorStore.Search(ctx, *query, embedding)
+	if err != nil {
+		return nil, fmt.Errorf("search failed: %w", err)
+	}
+
+	suggestions := []map[string]interface{}{}
+	for i, result := range results.Results {
+		if i >= maxSuggestions {
+			break
+		}
+
+		suggestion := map[string]interface{}{
+			"content":         result.Chunk.Content,
+			"summary":         result.Chunk.Summary,
+			"relevance_score": result.Score,
+			"timestamp":       result.Chunk.Timestamp,
+			"type":            "semantic_match",
+			"chunk_id":        result.Chunk.ID,
+		}
+
+		if result.Chunk.Metadata.Repository != "" {
+			suggestion["repository"] = result.Chunk.Metadata.Repository
+		}
+
+		suggestions = append(suggestions, suggestion)
+	}
+
+	// Add pattern-based suggestions if enabled
+	// Note: Pattern analysis temporarily disabled due to interface compatibility
+	// TODO: Fix interface compatibility and re-enable pattern-based suggestions
+	if includePatterns && ms.patternAnalyzer != nil {
+		// patterns := ms.patternAnalyzer.AnalyzePatterns(currentContext)
+		// Add a simple pattern-based suggestion for now
+		if len(suggestions) < maxSuggestions {
+			suggestion := map[string]interface{}{
+				"content":         "Pattern-based suggestions coming soon",
+				"summary":         "AI pattern analysis",
+				"relevance_score": 0.5,
+				"type":            "pattern_match",
+				"pattern_type":    "placeholder",
+			}
+			suggestions = append(suggestions, suggestion)
+		}
+	}
+
+	return map[string]interface{}{
+		"suggestions":      suggestions,
+		"total_found":      len(suggestions),
+		"search_context":   currentContext,
+		"include_patterns": includePatterns,
+		"session_id":       sessionID,
+	}, nil
+}
+
+// handleExportProject exports all memory data for a project
+func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	repository, ok := params["repository"].(string)
+	if !ok {
+		return nil, fmt.Errorf("repository is required")
+	}
+
+	sessionID, ok := params["session_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("session_id is required")
+	}
+
+	format := "json"
+	if f, exists := params["format"].(string); exists {
+		format = f
+	}
+
+	includeVectors := false
+	if include, exists := params["include_vectors"].(bool); exists {
+		includeVectors = include
+	}
+
+	// Get all chunks for the repository
+	chunks, err := ms.vectorStore.ListByRepository(ctx, repository, 10000, 0) // Large limit for export
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve repository data: %w", err)
+	}
+
+	switch format {
+	case "json":
+		exportData := map[string]interface{}{
+			"repository":      repository,
+			"export_date":     time.Now().Format(time.RFC3339),
+			"total_chunks":    len(chunks),
+			"include_vectors": includeVectors,
+			"chunks":          chunks,
+		}
+
+		// Remove vector data if not requested
+		if !includeVectors {
+			for i := range chunks {
+				chunks[i].Embeddings = nil
+			}
+		}
+
+		exportJSON, err := json.Marshal(exportData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal export data: %w", err)
+		}
+
+		return map[string]interface{}{
+			"format":      "json",
+			"data":        string(exportJSON),
+			"size_bytes":  len(exportJSON),
+			"chunks":      len(chunks),
+			"repository":  repository,
+			"session_id":  sessionID,
+		}, nil
+
+	case "markdown":
+		var markdown strings.Builder
+		markdown.WriteString(fmt.Sprintf("# Memory Export: %s\n\n", repository))
+		markdown.WriteString(fmt.Sprintf("**Export Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
+		markdown.WriteString(fmt.Sprintf("**Total Chunks:** %d\n\n", len(chunks)))
+
+		for _, chunk := range chunks {
+			markdown.WriteString(fmt.Sprintf("## %s\n\n", chunk.Summary))
+			markdown.WriteString(fmt.Sprintf("**ID:** %s\n", chunk.ID))
+			markdown.WriteString(fmt.Sprintf("**Type:** %s\n", chunk.Type))
+			markdown.WriteString(fmt.Sprintf("**Timestamp:** %s\n\n", chunk.Timestamp.Format("2006-01-02 15:04:05")))
+			markdown.WriteString(fmt.Sprintf("%s\n\n", chunk.Content))
+			
+			if len(chunk.Metadata.Tags) > 0 {
+				markdown.WriteString(fmt.Sprintf("**Tags:** %s\n\n", strings.Join(chunk.Metadata.Tags, ", ")))
+			}
+			
+			markdown.WriteString("---\n\n")
+		}
+
+		markdownData := markdown.String()
+		return map[string]interface{}{
+			"format":      "markdown",
+			"data":        markdownData,
+			"size_bytes":  len(markdownData),
+			"chunks":      len(chunks),
+			"repository":  repository,
+			"session_id":  sessionID,
+		}, nil
+
+	case "archive":
+		// Use backup manager to create compressed archive
+		if ms.backupManager == nil {
+			return nil, fmt.Errorf("backup manager not available")
+		}
+
+		// Create a filtered backup for this repository only
+		backupData := map[string]interface{}{
+			"repository":     repository,
+			"export_date":    time.Now().Format(time.RFC3339),
+			"chunks":         chunks,
+			"metadata": map[string]interface{}{
+				"export_type": "project_export",
+				"session_id":  sessionID,
+			},
+		}
+
+		archiveJSON, err := json.Marshal(backupData)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create archive data: %w", err)
+		}
+
+		// Encode as base64 for transport
+		archiveB64 := base64.StdEncoding.EncodeToString(archiveJSON)
+
+		return map[string]interface{}{
+			"format":      "archive",
+			"data":        archiveB64,
+			"size_bytes":  len(archiveJSON),
+			"chunks":      len(chunks),
+			"repository":  repository,
+			"session_id":  sessionID,
+			"encoding":    "base64",
+		}, nil
+
+	default:
+		return nil, fmt.Errorf("unsupported format: %s", format)
+	}
+}
+
+// handleImportContext imports conversation context from external source
+func (ms *MemoryServer) handleImportContext(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	source, ok := params["source"].(string)
+	if !ok {
+		return nil, fmt.Errorf("source is required")
+	}
+
+	data, ok := params["data"].(string)
+	if !ok {
+		return nil, fmt.Errorf("data is required")
+	}
+
+	repository, ok := params["repository"].(string)
+	if !ok {
+		return nil, fmt.Errorf("repository is required")
+	}
+
+	sessionID, ok := params["session_id"].(string)
+	if !ok {
+		return nil, fmt.Errorf("session_id is required")
+	}
+
+	chunkingStrategy := "auto"
+	if strategy, exists := params["chunking_strategy"].(string); exists {
+		chunkingStrategy = strategy
+	}
+
+	// Parse metadata if provided
+	metadata := map[string]interface{}{}
+	if meta, exists := params["metadata"].(map[string]interface{}); exists {
+		metadata = meta
+	}
+
+	var importedChunks []types.ConversationChunk
+	var err error
+
+	switch source {
+	case "conversation":
+		// Import conversation text
+		importedChunks, err = ms.importConversationText(ctx, data, repository, chunkingStrategy, metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to import conversation: %w", err)
+		}
+
+	case "file":
+		// Import file content
+		importedChunks, err = ms.importFileContent(ctx, data, repository, chunkingStrategy, metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to import file: %w", err)
+		}
+
+	case "archive":
+		// Import from base64 encoded archive
+		importedChunks, err = ms.importArchiveData(ctx, data, repository, metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to import archive: %w", err)
+		}
+
+	default:
+		return nil, fmt.Errorf("unsupported source type: %s", source)
+	}
+
+	// Store imported chunks
+	storedCount := 0
+	for _, chunk := range importedChunks {
+		// Generate embedding for the chunk
+		embedding, err := ms.embeddingService.GenerateEmbedding(ctx, chunk.Content)
+		if err != nil {
+			log.Printf("Failed to generate embedding for chunk %s: %v", chunk.ID, err)
+			continue
+		}
+
+		chunk.Embeddings = embedding
+		
+		// Store chunk
+		if err := ms.vectorStore.Store(ctx, chunk); err != nil {
+			log.Printf("Failed to store chunk %s: %v", chunk.ID, err)
+			continue
+		}
+
+		storedCount++
+	}
+
+	return map[string]interface{}{
+		"source":           source,
+		"repository":       repository,
+		"chunks_processed": len(importedChunks),
+		"chunks_stored":    storedCount,
+		"chunking_strategy": chunkingStrategy,
+		"session_id":       sessionID,
+		"import_date":      time.Now().Format(time.RFC3339),
+	}, nil
+}
+
+// Helper methods for import functionality
+
+func (ms *MemoryServer) importConversationText(ctx context.Context, data, repository, _ string, metadata map[string]interface{}) ([]types.ConversationChunk, error) {
+	// Create conversation chunks using the chunking service
+	chunkMetadata := types.ChunkMetadata{
+		Repository: repository,
+		Tags:       []string{"imported", "conversation"},
+	}
+
+	// Add tags from metadata
+	if tags, exists := metadata["tags"].([]interface{}); exists {
+		for _, tag := range tags {
+			if tagStr, ok := tag.(string); ok {
+				chunkMetadata.Tags = append(chunkMetadata.Tags, tagStr)
+			}
+		}
+	}
+
+	// Add source system as a tag since no dedicated field exists
+	if sourceSystem, exists := metadata["source_system"].(string); exists {
+		chunkMetadata.Tags = append(chunkMetadata.Tags, "source:"+sourceSystem)
+	}
+
+	chunkData, err := ms.chunkingService.CreateChunk(ctx, "import", data, chunkMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	return []types.ConversationChunk{*chunkData}, nil
+}
+
+func (ms *MemoryServer) importFileContent(ctx context.Context, data, repository, _ string, metadata map[string]interface{}) ([]types.ConversationChunk, error) {
+	// Create file chunks using the chunking service
+	chunkMetadata := types.ChunkMetadata{
+		Repository: repository,
+		Tags:       []string{"imported", "file"},
+	}
+
+	// Add tags from metadata
+	if tags, exists := metadata["tags"].([]interface{}); exists {
+		for _, tag := range tags {
+			if tagStr, ok := tag.(string); ok {
+				chunkMetadata.Tags = append(chunkMetadata.Tags, tagStr)
+			}
+		}
+	}
+
+	// Add source system as a tag since no dedicated field exists
+	if sourceSystem, exists := metadata["source_system"].(string); exists {
+		chunkMetadata.Tags = append(chunkMetadata.Tags, "source:"+sourceSystem)
+	}
+
+	chunkData, err := ms.chunkingService.CreateChunk(ctx, "import", data, chunkMetadata)
+	if err != nil {
+		return nil, err
+	}
+
+	// Set chunk type to analysis (closest to knowledge)
+	chunkData.Type = types.ChunkTypeAnalysis
+
+	return []types.ConversationChunk{*chunkData}, nil
+}
+
+func (ms *MemoryServer) importArchiveData(_ context.Context, data, repository string, metadata map[string]interface{}) ([]types.ConversationChunk, error) {
+	// Decode base64 archive data
+	archiveData, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode archive data: %w", err)
+	}
+
+	// Parse JSON archive
+	var archiveContent map[string]interface{}
+	if err := json.Unmarshal(archiveData, &archiveContent); err != nil {
+		return nil, fmt.Errorf("failed to parse archive JSON: %w", err)
+	}
+
+	// Extract chunks from archive
+	chunksData, exists := archiveContent["chunks"]
+	if !exists {
+		return nil, fmt.Errorf("no chunks found in archive")
+	}
+
+	chunksJSON, err := json.Marshal(chunksData)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal chunks data: %w", err)
+	}
+
+	var chunks []types.ConversationChunk
+	if err := json.Unmarshal(chunksJSON, &chunks); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal chunks: %w", err)
+	}
+
+	// Update repository and add import metadata
+	for i := range chunks {
+		chunks[i].Metadata.Repository = repository
+		chunks[i].Metadata.Tags = append(chunks[i].Metadata.Tags, "imported", "archive")
+		
+		// Apply additional metadata
+		if sourceSystem, exists := metadata["source_system"].(string); exists {
+			chunks[i].Metadata.Tags = append(chunks[i].Metadata.Tags, "source:"+sourceSystem)
+		}
+	}
+
+	return chunks, nil
 }
 
 // GetServer returns the underlying MCP server

@@ -7,7 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"io"
+	"regexp"
 	"strings"
 
 	"golang.org/x/crypto/pbkdf2"
@@ -217,7 +217,7 @@ func (em *EncryptionManager) DecryptSensitiveFields(content string) (string, err
 	for _, match := range matches {
 		if len(match) >= 3 {
 			placeholder := match[0]
-			fieldType := match[1]
+			_ = match[1] // fieldType
 			encryptedData := match[2]
 			
 			// Decrypt the value

@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/fredcamaral/mcp-memory/internal/logging"
+	"mcp-memory/internal/logging"
 )
 
 // ShutdownManager handles graceful shutdown of the application

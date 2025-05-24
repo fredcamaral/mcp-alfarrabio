@@ -8,6 +8,7 @@ require (
 	github.com/joho/godotenv v1.5.1
 	github.com/sashabaranov/go-openai v1.40.0
 	github.com/stretchr/testify v1.10.0
+	golang.org/x/crypto v0.31.0
 )
 
 require (
