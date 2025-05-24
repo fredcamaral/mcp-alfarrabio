@@ -35,11 +35,12 @@ type ChromaDocument struct {
 }
 
 // ChromaResponse represents a response from Chroma API
+// Note: Chroma returns arrays of arrays for query results
 type ChromaResponse struct {
-	IDs       []string                 `json:"ids"`
-	Documents []string                 `json:"documents"`
-	Metadatas []map[string]interface{} `json:"metadatas"`
-	Distances []float64                `json:"distances,omitempty"`
+	IDs       [][]string                 `json:"ids"`
+	Documents [][]string                 `json:"documents"`
+	Metadatas [][]map[string]interface{} `json:"metadatas"`
+	Distances [][]float64                `json:"distances,omitempty"`
 }
 
 // ChromaCollection represents a Chroma collection
@@ -243,31 +244,59 @@ func (cs *ChromaStore) Search(ctx context.Context, query types.MemoryQuery, embe
 	}
 
 	// Convert response to search results
+	// Chroma returns nested arrays, so we need to flatten them
+	var totalResults int
+	for i := range chromaResp.IDs {
+		totalResults += len(chromaResp.IDs[i])
+	}
+
 	results := &types.SearchResults{
 		Results:   []types.SearchResult{},
-		Total:     len(chromaResp.IDs),
+		Total:     totalResults,
 		QueryTime: time.Since(start),
 	}
 
-	for i, id := range chromaResp.IDs {
-		chunk, err := cs.documentToChunk(id, chromaResp.Documents[i], chromaResp.Metadatas[i])
-		if err != nil {
-			log.Printf("Failed to convert document to chunk: %v", err)
-			continue
+	logging.Info("ChromaStore: Processing search response", "result_batches", len(chromaResp.IDs), "total_results", totalResults)
+
+	// Process each batch of results (Chroma returns array of arrays)
+	for batchIdx := range chromaResp.IDs {
+		ids := chromaResp.IDs[batchIdx]
+		documents := chromaResp.Documents[batchIdx]
+		metadatas := chromaResp.Metadatas[batchIdx]
+		
+		var distances []float64
+		if batchIdx < len(chromaResp.Distances) {
+			distances = chromaResp.Distances[batchIdx]
 		}
 
-		score := 1.0 // Default score
-		if i < len(chromaResp.Distances) {
-			// Convert distance to similarity score (1 - normalized_distance)
-			score = 1.0 - chromaResp.Distances[i]
-		}
+		// Process each result in the batch
+		for i, id := range ids {
+			if i >= len(documents) || i >= len(metadatas) {
+				continue
+			}
 
-		// Filter by minimum relevance score
-		if score >= query.MinRelevanceScore {
-			results.Results = append(results.Results, types.SearchResult{
-				Chunk: *chunk,
-				Score: score,
-			})
+			chunk, err := cs.documentToChunk(id, documents[i], metadatas[i])
+			if err != nil {
+				logging.Error("ChromaStore: Failed to convert document to chunk", "error", err, "id", id)
+				continue
+			}
+
+			score := 1.0 // Default score
+			if i < len(distances) {
+				// Convert distance to similarity score (1 - normalized_distance)
+				score = 1.0 - distances[i]
+			}
+
+			// Filter by minimum relevance score
+			if score >= query.MinRelevanceScore {
+				results.Results = append(results.Results, types.SearchResult{
+					Chunk: *chunk,
+					Score: score,
+				})
+				logging.Info("ChromaStore: Added result", "id", id, "score", score)
+			} else {
+				logging.Info("ChromaStore: Filtered out low relevance result", "id", id, "score", score, "min_required", query.MinRelevanceScore)
+			}
 		}
 	}
 
@@ -305,11 +334,12 @@ func (cs *ChromaStore) GetByID(ctx context.Context, id string) (*types.Conversat
 		return nil, fmt.Errorf("failed to parse get response: %w", err)
 	}
 
-	if len(chromaResp.IDs) == 0 {
+	if len(chromaResp.IDs) == 0 || len(chromaResp.IDs[0]) == 0 {
 		return nil, fmt.Errorf("chunk not found: %s", id)
 	}
 
-	return cs.documentToChunk(chromaResp.IDs[0], chromaResp.Documents[0], chromaResp.Metadatas[0])
+	// Access the first result from the first batch
+	return cs.documentToChunk(chromaResp.IDs[0][0], chromaResp.Documents[0][0], chromaResp.Metadatas[0][0])
 }
 
 // ListByRepository lists chunks for a specific repository
@@ -353,14 +383,33 @@ func (cs *ChromaStore) ListByRepository(ctx context.Context, repository string, 
 		return nil, fmt.Errorf("failed to parse list response: %w", err)
 	}
 
-	chunks := make([]types.ConversationChunk, 0, len(chromaResp.IDs))
-	for i, id := range chromaResp.IDs {
-		chunk, err := cs.documentToChunk(id, chromaResp.Documents[i], chromaResp.Metadatas[i])
-		if err != nil {
-			log.Printf("Failed to convert document to chunk: %v", err)
-			continue
+	// Calculate total results across all batches
+	var totalResults int
+	for i := range chromaResp.IDs {
+		totalResults += len(chromaResp.IDs[i])
+	}
+
+	chunks := make([]types.ConversationChunk, 0, totalResults)
+	
+	// Process each batch of results
+	for batchIdx := range chromaResp.IDs {
+		ids := chromaResp.IDs[batchIdx]
+		documents := chromaResp.Documents[batchIdx]
+		metadatas := chromaResp.Metadatas[batchIdx]
+
+		// Process each result in the batch
+		for i, id := range ids {
+			if i >= len(documents) || i >= len(metadatas) {
+				continue
+			}
+
+			chunk, err := cs.documentToChunk(id, documents[i], metadatas[i])
+			if err != nil {
+				log.Printf("Failed to convert document to chunk: %v", err)
+				continue
+			}
+			chunks = append(chunks, *chunk)
 		}
-		chunks = append(chunks, *chunk)
 	}
 
 	return chunks, nil

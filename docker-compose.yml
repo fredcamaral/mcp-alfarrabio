@@ -151,16 +151,27 @@ networks:
   mcp_network:
     driver: bridge
 
-# Volumes
+# Volumes - CRITICAL: These contain all your memory data. NEVER DELETE!
 volumes:
+  # CRITICAL: Chroma vector database - Contains all embeddings and search indices
   chroma_data:
     driver: local
+    name: mcp_memory_chroma_vector_db_NEVER_DELETE
+    
+  # CRITICAL: MCP server data - Contains SQLite database and app data  
   mcp_data:
     driver: local
+    name: mcp_memory_app_data_NEVER_DELETE
+    
+  # Application logs - Safe to recreate but useful for debugging
   mcp_logs:
     driver: local
+    name: mcp_memory_logs
+    
+  # Backup storage - Contains automated backups of your data
   mcp_backups:
     driver: local
+    name: mcp_memory_backups_NEVER_DELETE
   # Optional production volumes (uncomment if needed)
   # postgres_data:
   #   driver: local
