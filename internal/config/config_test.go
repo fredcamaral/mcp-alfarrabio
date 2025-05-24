@@ -19,7 +19,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, 30, cfg.Server.WriteTimeout)
 
 	// Chroma defaults
-	assert.Equal(t, "http://localhost:8000", cfg.Chroma.Endpoint)
+	assert.Equal(t, "http://localhost:9000", cfg.Chroma.Endpoint)
 	assert.Equal(t, "claude_memory", cfg.Chroma.Collection)
 	assert.True(t, cfg.Chroma.HealthCheck)
 	assert.Equal(t, 3, cfg.Chroma.RetryAttempts)

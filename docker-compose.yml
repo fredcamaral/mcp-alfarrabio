@@ -1,9 +1,28 @@
-version: '3.8'
-
-# Claude Vector Memory MCP Server - Docker Compose Configuration
-# Inspired by HashiCorp's multi-service architecture patterns
+# Claude Vector Memory MCP Server
 
 services:
+  # Chroma Vector Database - Required for embeddings and vector search
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: mcp-chroma
+    restart: unless-stopped
+    ports:
+      - "9000:8000"
+    environment:
+      - CHROMA_SERVER_HOST=0.0.0.0
+      - CHROMA_SERVER_HTTP_PORT=8000
+      - PERSIST_DIRECTORY=/chroma/chroma
+    volumes:
+      - chroma_data:/chroma/chroma
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    networks:
+      - mcp_network
+
   # Main MCP Memory Server
   mcp-memory-server:
     build:
@@ -12,9 +31,9 @@ services:
     container_name: mcp-memory-server
     restart: unless-stopped
     ports:
-      - "8080:8080"  # Main API port
-      - "8081:8081"  # Health check port
-      - "8082:8082"  # Metrics port
+      - "9080:9080" # Main MCP API port
+      - "9081:8081" # Health check port
+      - "9082:8082" # Metrics port (optional)
     environment:
       - MCP_MEMORY_DATA_DIR=/app/data
       - MCP_MEMORY_CONFIG_DIR=/app/config
@@ -22,160 +41,134 @@ services:
       - MCP_MEMORY_HTTP_PORT=8080
       - MCP_MEMORY_HEALTH_PORT=8081
       - MCP_MEMORY_METRICS_PORT=8082
+      # Chroma vector database configuration
+      - MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
+      - MCP_MEMORY_CHROMA_COLLECTION=claude_memory
       - MCP_MEMORY_VECTOR_DIM=1536
-      - MCP_MEMORY_VECTOR_ENGINE=faiss
+      # SQLite storage (no PostgreSQL needed)
       - MCP_MEMORY_DB_TYPE=sqlite
       - MCP_MEMORY_DB_PATH=/app/data/memory.db
+      # Security and backup settings
       - MCP_MEMORY_ENCRYPTION_ENABLED=true
       - MCP_MEMORY_BACKUP_ENABLED=true
       - MCP_MEMORY_BACKUP_INTERVAL=24h
       - MCP_MEMORY_ACCESS_CONTROL_ENABLED=true
+      # OpenAI API configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - mcp_data:/app/data
       - mcp_logs:/app/logs
       - mcp_backups:/app/backups
       - ./configs/docker/config.yaml:/app/config/config.yaml:ro
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:9080/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 40s
     networks:
       - mcp_network
-    depends_on:
-      - postgres
-      - redis
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.mcp-memory.rule=Host(`mcp-memory.local`)"
-      - "traefik.http.services.mcp-memory.loadbalancer.server.port=8080"
 
-  # PostgreSQL Database (optional, for production use)
-  postgres:
-    image: postgres:15-alpine
-    container_name: mcp-postgres
-    restart: unless-stopped
-    environment:
-      - POSTGRES_DB=mcp_memory
-      - POSTGRES_USER=mcpuser
-      - POSTGRES_PASSWORD=mcppassword
-      - POSTGRES_INITDB_ARGS="--encoding=UTF-8 --lc-collate=C --lc-ctype=C"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    ports:
-      - "5432:5432"
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U mcpuser -d mcp_memory"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - mcp_network
+# Optional production services (can be enabled if needed)
+# Uncomment sections below for full production monitoring stack
 
-  # Redis Cache (optional, for distributed caching)
-  redis:
-    image: redis:7-alpine
-    container_name: mcp-redis
-    restart: unless-stopped
-    command: redis-server --appendonly yes --requirepass redispassword
-    volumes:
-      - redis_data:/data
-    ports:
-      - "6379:6379"
-    healthcheck:
-      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
-    networks:
-      - mcp_network
+# # PostgreSQL Database (optional, for production use)
+# postgres:
+#   image: postgres:15-alpine
+#   container_name: mcp-postgres
+#   restart: unless-stopped
+#   environment:
+#     - POSTGRES_DB=mcp_memory
+#     - POSTGRES_USER=mcpuser
+#     - POSTGRES_PASSWORD=mcppassword
+#   volumes:
+#     - postgres_data:/var/lib/postgresql/data
+#   ports:
+#     - "5432:5432"
+#   networks:
+#     - mcp_network
 
-  # Prometheus (for metrics collection)
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: mcp-prometheus
-    restart: unless-stopped
-    ports:
-      - "9090:9090"
-    volumes:
-      - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
-    networks:
-      - mcp_network
+# # Redis Cache (optional, for distributed caching)
+# redis:
+#   image: redis:7-alpine
+#   container_name: mcp-redis
+#   restart: unless-stopped
+#   command: redis-server --appendonly yes --requirepass redispassword
+#   volumes:
+#     - redis_data:/data
+#   ports:
+#     - "6379:6379"
+#   networks:
+#     - mcp_network
 
-  # Grafana (for metrics visualization)
-  grafana:
-    image: grafana/grafana:latest
-    container_name: mcp-grafana
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=admin
-      - GF_SECURITY_ADMIN_PASSWORD=grafanapassword
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./configs/grafana/provisioning:/etc/grafana/provisioning:ro
-      - ./configs/grafana/dashboards:/var/lib/grafana/dashboards:ro
-    networks:
-      - mcp_network
-    depends_on:
-      - prometheus
+# # Prometheus (for metrics collection)
+# prometheus:
+#   image: prom/prometheus:latest
+#   container_name: mcp-prometheus
+#   restart: unless-stopped
+#   ports:
+#     - "9090:9090"
+#   volumes:
+#     - ./configs/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+#     - prometheus_data:/prometheus
+#   networks:
+#     - mcp_network
 
-  # Traefik (reverse proxy and load balancer)
-  traefik:
-    image: traefik:v3.0
-    container_name: mcp-traefik
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-      - "8080:8080"  # Traefik dashboard
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
-      - ./configs/traefik/dynamic:/etc/traefik/dynamic:ro
-      - traefik_certs:/etc/traefik/certs
-    networks:
-      - mcp_network
-    labels:
-      - "traefik.enable=true"
-      - "traefik.http.routers.dashboard.rule=Host(`traefik.local`)"
-      - "traefik.http.routers.dashboard.service=api@internal"
+# # Grafana (for metrics visualization)
+# grafana:
+#   image: grafana/grafana:latest
+#   container_name: mcp-grafana
+#   restart: unless-stopped
+#   ports:
+#     - "3000:3000"
+#   environment:
+#     - GF_SECURITY_ADMIN_USER=admin
+#     - GF_SECURITY_ADMIN_PASSWORD=grafanapassword
+#   volumes:
+#     - grafana_data:/var/lib/grafana
+#   networks:
+#     - mcp_network
+#   depends_on:
+#     - prometheus
+
+# # Traefik (reverse proxy and load balancer)
+# traefik:
+#   image: traefik:v3.0
+#   container_name: mcp-traefik
+#   restart: unless-stopped
+#   ports:
+#     - "80:80"
+#     - "443:443"
+#     - "8080:8080"  # Traefik dashboard
+#   volumes:
+#     - /var/run/docker.sock:/var/run/docker.sock:ro
+#     - ./configs/traefik/traefik.yml:/etc/traefik/traefik.yml:ro
+#   networks:
+#     - mcp_network
 
 # Networks
 networks:
   mcp_network:
     driver: bridge
-    ipam:
-      config:
-        - subnet: 172.20.0.0/16
 
 # Volumes
 volumes:
+  chroma_data:
+    driver: local
   mcp_data:
     driver: local
   mcp_logs:
     driver: local
   mcp_backups:
     driver: local
-  postgres_data:
-    driver: local
-  redis_data:
-    driver: local
-  prometheus_data:
-    driver: local
-  grafana_data:
-    driver: local
-  traefik_certs:
-    driver: local
+  # Optional production volumes (uncomment if needed)
+  # postgres_data:
+  #   driver: local
+  # redis_data:
+  #   driver: local
+  # prometheus_data:
+  #   driver: local
+  # grafana_data:
+  #   driver: local
+  # traefik_certs:
+  #   driver: local

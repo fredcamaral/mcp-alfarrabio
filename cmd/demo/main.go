@@ -22,7 +22,7 @@ func main() {
 		// Use default config for demo
 		cfg = &config.Config{
 			Chroma: config.ChromaConfig{
-				Endpoint:   "http://localhost:8000",
+				Endpoint:   "http://localhost:9000",
 				Collection: "memory",
 			},
 			OpenAI: config.OpenAIConfig{

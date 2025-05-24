@@ -103,7 +103,7 @@ func DefaultConfig() *Config {
 			WriteTimeout: 30,
 		},
 		Chroma: ChromaConfig{
-			Endpoint:       "http://localhost:8000",
+			Endpoint:       "http://localhost:9000",
 			Collection:     "claude_memory",
 			HealthCheck:    true,
 			RetryAttempts:  3,
@@ -185,11 +185,15 @@ func loadFromEnv(config *Config) error {
 		config.Server.Host = host
 	}
 
-	// Chroma configuration
-	if endpoint := os.Getenv("CHROMA_ENDPOINT"); endpoint != "" {
+	// Chroma configuration - check both prefixed and non-prefixed env vars
+	if endpoint := os.Getenv("MCP_MEMORY_CHROMA_ENDPOINT"); endpoint != "" {
+		config.Chroma.Endpoint = endpoint
+	} else if endpoint := os.Getenv("CHROMA_ENDPOINT"); endpoint != "" {
 		config.Chroma.Endpoint = endpoint
 	}
-	if collection := os.Getenv("CHROMA_COLLECTION"); collection != "" {
+	if collection := os.Getenv("MCP_MEMORY_CHROMA_COLLECTION"); collection != "" {
+		config.Chroma.Collection = collection
+	} else if collection := os.Getenv("CHROMA_COLLECTION"); collection != "" {
 		config.Chroma.Collection = collection
 	}
 	if containerName := os.Getenv("CHROMA_CONTAINER_NAME"); containerName != "" {

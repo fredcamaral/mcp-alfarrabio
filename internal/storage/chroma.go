@@ -16,10 +16,13 @@ import (
 
 // ChromaStore implements VectorStore interface for Chroma vector database
 type ChromaStore struct {
-	client     *resty.Client
-	config     *config.ChromaConfig
-	collection string
-	metrics    *StorageMetrics
+	client       *resty.Client
+	config       *config.ChromaConfig
+	collection   string
+	collectionID string
+	tenant       string
+	database     string
+	metrics      *StorageMetrics
 }
 
 // ChromaDocument represents a document in Chroma format
@@ -62,6 +65,8 @@ func NewChromaStore(cfg *config.ChromaConfig) *ChromaStore {
 		client:     client,
 		config:     cfg,
 		collection: cfg.Collection,
+		tenant:     "default_tenant",
+		database:   "default_database",
 		metrics: &StorageMetrics{
 			OperationCounts:  make(map[string]int64),
 			AverageLatency:   make(map[string]float64),
@@ -76,27 +81,31 @@ func (cs *ChromaStore) Initialize(ctx context.Context) error {
 	start := time.Now()
 	defer cs.updateMetrics("initialize", start, nil)
 
-	// Check if collection exists
+	// Try to list collections to see if ours exists
 	resp, err := cs.client.R().
 		SetContext(ctx).
-		Get("/api/v1/collections")
+		Get(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections", cs.tenant, cs.database))
 
-	if err != nil {
-		cs.metrics.ConnectionStatus = "error"
-		return fmt.Errorf("failed to list collections: %w", err)
-	}
-
-	var collections []ChromaCollection
-	if err := json.Unmarshal(resp.Body(), &collections); err != nil {
-		return fmt.Errorf("failed to parse collections response: %w", err)
-	}
-
-	// Check if our collection exists
-	for _, coll := range collections {
-		if coll.Name == cs.collection {
-			cs.metrics.ConnectionStatus = "connected"
-			return nil
+	var collectionExists bool
+	if err == nil && resp.StatusCode() == 200 {
+		// Parse response to check if our collection exists
+		var collections []map[string]interface{}
+		if parseErr := json.Unmarshal(resp.Body(), &collections); parseErr == nil {
+			for _, coll := range collections {
+				if name, ok := coll["name"].(string); ok && name == cs.collection {
+					if id, ok := coll["id"].(string); ok {
+						cs.collectionID = id
+						collectionExists = true
+						break
+					}
+				}
+			}
 		}
+	}
+
+	if collectionExists {
+		cs.metrics.ConnectionStatus = "connected"
+		return nil
 	}
 
 	// Create collection if it doesn't exist
@@ -106,13 +115,14 @@ func (cs *ChromaStore) Initialize(ctx context.Context) error {
 			"description": "Claude conversation memory storage",
 			"created_at":  time.Now().UTC().Format(time.RFC3339),
 		},
+		"get_or_create": true,
 	}
 
 	resp, err = cs.client.R().
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(createReq).
-		Post("/api/v1/collections")
+		Post(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections", cs.tenant, cs.database))
 
 	if err != nil {
 		cs.metrics.ConnectionStatus = "error"
@@ -121,6 +131,14 @@ func (cs *ChromaStore) Initialize(ctx context.Context) error {
 
 	if resp.StatusCode() != 200 && resp.StatusCode() != 201 {
 		return fmt.Errorf("failed to create collection, status: %d, body: %s", resp.StatusCode(), string(resp.Body()))
+	}
+
+	// Parse the response to get the collection ID
+	var createdCollection map[string]interface{}
+	if parseErr := json.Unmarshal(resp.Body(), &createdCollection); parseErr == nil {
+		if id, ok := createdCollection["id"].(string); ok {
+			cs.collectionID = id
+		}
 	}
 
 	cs.metrics.ConnectionStatus = "connected"
@@ -155,7 +173,7 @@ func (cs *ChromaStore) Store(ctx context.Context, chunk types.ConversationChunk)
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(addReq).
-		Post(fmt.Sprintf("/api/v1/collections/%s/add", cs.collection))
+		Post(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s/add", cs.tenant, cs.database, cs.collectionID))
 
 	if err != nil {
 		cs.updateMetrics("store", start, err)
@@ -205,7 +223,7 @@ func (cs *ChromaStore) Search(ctx context.Context, query types.MemoryQuery, embe
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(searchReq).
-		Post(fmt.Sprintf("/api/v1/collections/%s/query", cs.collection))
+		Post(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s/query", cs.tenant, cs.database, cs.collectionID))
 
 	if err != nil {
 		cs.updateMetrics("search", start, err)
@@ -268,7 +286,7 @@ func (cs *ChromaStore) GetByID(ctx context.Context, id string) (*types.Conversat
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(getReq).
-		Post(fmt.Sprintf("/api/v1/collections/%s/get", cs.collection))
+		Post(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s/get", cs.tenant, cs.database, cs.collectionID))
 
 	if err != nil {
 		cs.updateMetrics("get_by_id", start, err)
@@ -316,7 +334,7 @@ func (cs *ChromaStore) ListByRepository(ctx context.Context, repository string, 
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(getReq).
-		Post(fmt.Sprintf("/api/v1/collections/%s/get", cs.collection))
+		Post(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s/get", cs.tenant, cs.database, cs.collectionID))
 
 	if err != nil {
 		cs.updateMetrics("list_by_repository", start, err)
@@ -360,7 +378,7 @@ func (cs *ChromaStore) Delete(ctx context.Context, id string) error {
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(deleteReq).
-		Post(fmt.Sprintf("/api/v1/collections/%s/delete", cs.collection))
+		Post(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s/delete", cs.tenant, cs.database, cs.collectionID))
 
 	if err != nil {
 		cs.updateMetrics("delete", start, err)
@@ -401,7 +419,7 @@ func (cs *ChromaStore) HealthCheck(ctx context.Context) error {
 
 	resp, err := cs.client.R().
 		SetContext(ctx).
-		Get("/api/v1/heartbeat")
+		Get("/api/v2/heartbeat")
 
 	if err != nil {
 		cs.metrics.ConnectionStatus = "error"
@@ -428,7 +446,7 @@ func (cs *ChromaStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	// Get collection info
 	_, err := cs.client.R().
 		SetContext(ctx).
-		Get(fmt.Sprintf("/api/v1/collections/%s", cs.collection))
+		Get(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s", cs.tenant, cs.database, cs.collectionID))
 
 	if err != nil {
 		cs.updateMetrics("get_stats", start, err)
@@ -470,7 +488,7 @@ func (cs *ChromaStore) Cleanup(ctx context.Context, retentionDays int) (int, err
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(getReq).
-		Post(fmt.Sprintf("/api/v1/collections/%s/get", cs.collection))
+		Post(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s/get", cs.tenant, cs.database, cs.collectionID))
 
 	if err != nil {
 		cs.updateMetrics("cleanup", start, err)
@@ -495,7 +513,7 @@ func (cs *ChromaStore) Cleanup(ctx context.Context, retentionDays int) (int, err
 		SetContext(ctx).
 		SetHeader("Content-Type", "application/json").
 		SetBody(deleteReq).
-		Post(fmt.Sprintf("/api/v1/collections/%s/delete", cs.collection))
+		Post(fmt.Sprintf("/api/v2/tenants/%s/databases/%s/collections/%s/delete", cs.tenant, cs.database, cs.collectionID))
 
 	if err != nil {
 		cs.updateMetrics("cleanup", start, err)

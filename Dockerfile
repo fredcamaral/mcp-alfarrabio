@@ -2,7 +2,7 @@
 # This follows HashiCorp's containerization best practices for security and efficiency
 
 # Build stage
-FROM golang:1.21-alpine AS builder
+FROM golang:1.24-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -33,8 +33,7 @@ RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     ./cmd/server
 
 # Verify the binary
-RUN file mcp-memory-server && \
-    ls -la mcp-memory-server
+RUN ls -la mcp-memory-server
 
 # Production stage
 FROM alpine:3.19
@@ -68,11 +67,11 @@ WORKDIR /app
 USER mcpuser
 
 # Create health check script
-RUN echo '#!/bin/sh\ncurl -f http://localhost:8080/health || exit 1' > /app/healthcheck.sh && \
+RUN echo '#!/bin/sh\ncurl -f http://localhost:9080/health || exit 1' > /app/healthcheck.sh && \
     chmod +x /app/healthcheck.sh
 
 # Expose ports
-EXPOSE 8080 8081 8082
+EXPOSE 9080 8081 8082
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
@@ -103,4 +102,4 @@ ENV MCP_MEMORY_DATA_DIR=/app/data \
 
 # Define the command
 ENTRYPOINT ["/app/mcp-memory-server"]
-CMD ["--config", "/app/config/config.yaml"]
+CMD ["-mode=http", "-addr=:9080"]
