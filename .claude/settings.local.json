@@ -7,7 +7,13 @@
       "Bash(make test:*)",
       "mcp__ide__getDiagnostics",
       "Bash(make fmt:*)",
-      "Bash(make:*)"
+      "Bash(make:*)",
+      "Bash(sed:*)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "WebFetch(domain:developer.hashicorp.com)",
+      "WebFetch(domain:k33g.hashnode.dev)",
+      "Bash(touch:*)"
     ],
     "deny": []
   }

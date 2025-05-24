@@ -97,7 +97,7 @@ func (tt *TodoTracker) ProcessToolUsage(sessionID string, toolName string, conte
 }
 
 // captureCompletedWork creates a conversation chunk from completed todo work
-func (tt *TodoTracker) captureCompletedWork(ctx context.Context, session *TodoSession, completedTodo TodoItem) error {
+func (tt *TodoTracker) captureCompletedWork(_ context.Context, session *TodoSession, completedTodo TodoItem) error {
 	// Build comprehensive content from the todo journey
 	content := tt.buildTodoJourneyContent(session, completedTodo)
 	
@@ -300,7 +300,7 @@ func (tt *TodoTracker) assessDifficulty(session *TodoSession, todo TodoItem) typ
 }
 
 // calculateTimeSpent estimates time spent on a todo
-func (tt *TodoTracker) calculateTimeSpent(session *TodoSession, todo TodoItem) time.Duration {
+func (tt *TodoTracker) calculateTimeSpent(session *TodoSession, _ TodoItem) time.Duration {
 	// Simple estimation based on session duration
 	// In a real implementation, we'd track individual todo timestamps
 	return time.Since(session.StartTime)

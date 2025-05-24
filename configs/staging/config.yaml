@@ -1,0 +1,99 @@
+# Claude Vector Memory MCP Server - Staging Configuration
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+
+health:
+  enabled: true
+  port: 8081
+  path: "/health"
+
+metrics:
+  enabled: true
+  port: 8082
+  path: "/metrics"
+  interval: 30s
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  structured: true
+  fields:
+    service: "mcp-memory-server"
+    environment: "staging"
+
+storage:
+  type: "postgres"
+  postgres:
+    host: "postgres"
+    port: 5432
+    database: "mcp_memory_staging"
+    username: "mcpuser"
+    password: "${MCP_DB_PASSWORD}"
+    ssl_mode: "require"
+    max_connections: 20
+
+vector:
+  engine: "faiss"
+  dimension: 1536
+  persist_path: "/app/data/vectors"
+  cache_size: 5000
+
+memory:
+  conversation_history_limit: 500
+  max_memory_entries: 50000
+  cleanup_interval: 1h
+
+intelligence:
+  pattern_recognition:
+    enabled: true
+    min_pattern_frequency: 3
+  knowledge_graph:
+    enabled: true
+    max_entities: 25000
+  context_suggestion:
+    enabled: true
+    max_suggestions: 8
+  learning:
+    enabled: true
+
+caching:
+  memory:
+    enabled: true
+    size: 500
+    ttl: 30m
+  redis:
+    enabled: true
+    host: "redis"
+    port: 6379
+    password: "${MCP_REDIS_PASSWORD}"
+
+security:
+  encryption:
+    enabled: true
+  access_control:
+    enabled: true
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 120
+
+backup:
+  enabled: true
+  interval: 12h
+  retention_days: 14
+
+monitoring:
+  enabled: true
+  interval: 30s
+
+development:
+  debug: false
+  profiling: false
+  cors:
+    enabled: true
+    allowed_origins: ["https://staging.example.com"]

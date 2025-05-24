@@ -1,0 +1,171 @@
+# Claude Vector Memory MCP Server - Docker Configuration
+# Optimized for containerized deployment
+
+server:
+  host: "0.0.0.0"
+  port: 8080
+  read_timeout: 30s
+  write_timeout: 30s
+  idle_timeout: 120s
+  max_header_bytes: 1048576
+
+health:
+  enabled: true
+  port: 8081
+  path: "/health"
+  checks:
+    - name: "database"
+      enabled: true
+      timeout: 5s
+    - name: "vector_storage" 
+      enabled: true
+      timeout: 5s
+    - name: "memory"
+      enabled: true
+      timeout: 2s
+
+metrics:
+  enabled: true
+  port: 8082
+  path: "/metrics"
+  interval: 30s
+
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  structured: true
+  fields:
+    service: "mcp-memory-server"
+    version: "1.0.0"
+    environment: "docker"
+
+storage:
+  type: "sqlite"
+  sqlite:
+    path: "/app/data/memory.db"
+    max_connections: 25
+    max_idle_connections: 10
+    connection_max_lifetime: 300s
+    pragmas:
+      journal_mode: "WAL"
+      synchronous: "NORMAL"
+      cache_size: -64000
+      temp_store: "MEMORY"
+
+vector:
+  engine: "faiss"
+  dimension: 1536
+  index_type: "IVF"
+  nlist: 100
+  nprobe: 10
+  distance_metric: "cosine"
+  cache_size: 10000
+  persist_path: "/app/data/vectors"
+
+memory:
+  conversation_history_limit: 1000
+  max_memory_entries: 100000
+  cleanup_interval: 1h
+  retention_policy:
+    default_ttl: 720h  # 30 days
+    max_ttl: 8760h     # 365 days
+    cleanup_batch_size: 1000
+
+intelligence:
+  pattern_recognition:
+    enabled: true
+    min_pattern_frequency: 3
+    max_patterns: 10000
+    similarity_threshold: 0.8
+  
+  knowledge_graph:
+    enabled: true
+    max_entities: 50000
+    max_relationships: 100000
+    relationship_threshold: 0.7
+  
+  context_suggestion:
+    enabled: true
+    max_suggestions: 10
+    relevance_threshold: 0.6
+    temporal_weight: 0.3
+  
+  learning:
+    enabled: true
+    feedback_weight: 0.1
+    adaptation_rate: 0.05
+
+caching:
+  memory:
+    enabled: true
+    type: "lru"
+    size: 1000
+    ttl: 1h
+  
+  query:
+    enabled: true
+    type: "lfu"
+    size: 500
+    ttl: 30m
+  
+  vector:
+    enabled: true
+    type: "fifo"
+    size: 100
+    ttl: 15m
+
+security:
+  encryption:
+    enabled: true
+    algorithm: "aes-gcm"
+    key_derivation: "pbkdf2"
+    iterations: 100000
+    sensitive_fields:
+      - "api_key"
+      - "password"
+      - "token"
+      - "secret"
+  
+  access_control:
+    enabled: true
+    default_permissions: ["read"]
+    session_timeout: 24h
+    max_sessions_per_user: 5
+  
+  rate_limiting:
+    enabled: true
+    requests_per_minute: 60
+    burst_size: 10
+
+backup:
+  enabled: true
+  interval: 24h
+  retention_days: 30
+  compression: true
+  encryption: true
+  path: "/app/backups"
+  
+monitoring:
+  enabled: true
+  interval: 30s
+  alerts:
+    memory_threshold: 80
+    cpu_threshold: 80
+    disk_threshold: 85
+    error_rate_threshold: 5
+
+performance:
+  max_concurrent_requests: 100
+  request_timeout: 30s
+  batch_size: 100
+  worker_pool_size: 10
+
+development:
+  debug: false
+  profiling: false
+  cors:
+    enabled: true
+    allowed_origins: ["*"]
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["*"]

@@ -18,12 +18,15 @@ const (
 	ChunkTypeDiscussion           ChunkType = "discussion"
 	ChunkTypeArchitectureDecision ChunkType = "architecture_decision"
 	ChunkTypeSessionSummary       ChunkType = "session_summary"
+	ChunkTypeAnalysis             ChunkType = "analysis"
+	ChunkTypeVerification         ChunkType = "verification"
+	ChunkTypeQuestion             ChunkType = "question"
 )
 
 // Valid returns true if the chunk type is valid
 func (ct ChunkType) Valid() bool {
 	switch ct {
-	case ChunkTypeProblem, ChunkTypeSolution, ChunkTypeCodeChange, ChunkTypeDiscussion, ChunkTypeArchitectureDecision, ChunkTypeSessionSummary:
+	case ChunkTypeProblem, ChunkTypeSolution, ChunkTypeCodeChange, ChunkTypeDiscussion, ChunkTypeArchitectureDecision, ChunkTypeSessionSummary, ChunkTypeAnalysis, ChunkTypeVerification, ChunkTypeQuestion:
 		return true
 	}
 	return false

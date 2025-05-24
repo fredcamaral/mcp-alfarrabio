@@ -3,12 +3,17 @@ package mcp
 
 import (
 	"context"
+	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"log"
 	"mcp-memory/internal/chunking"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/embeddings"
+	"mcp-memory/internal/intelligence"
+	"mcp-memory/internal/persistence"
 	"mcp-memory/internal/storage"
+	"mcp-memory/internal/workflow"
 	"mcp-memory/pkg/types"
 	"strings"
 	"time"
@@ -21,6 +26,10 @@ type MemoryServer struct {
 	vectorStore      storage.VectorStore
 	embeddingService embeddings.EmbeddingService
 	chunkingService  *chunking.ChunkingService
+	contextSuggester *workflow.ContextSuggester
+	backupManager    *persistence.BackupManager
+	learningEngine   *intelligence.LearningEngine
+	patternAnalyzer  *workflow.PatternAnalyzer
 	mcpServer        interface{} // *server.Server - simplified for now
 }
 
@@ -35,11 +44,26 @@ func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
 	// Initialize chunking service
 	chunkingService := chunking.NewChunkingService(&cfg.Chunking, embeddingService)
 
+	// Initialize intelligence layer components
+	todoTracker := workflow.NewTodoTracker()
+	flowDetector := workflow.NewFlowDetector()
+	patternAnalyzer := workflow.NewPatternAnalyzer()
+	// Note: Using nil for now due to interface compatibility issues - will be fixed in integration
+	contextSuggester := workflow.NewContextSuggester(nil, patternAnalyzer, todoTracker, flowDetector)
+	backupManager := persistence.NewBackupManager(nil, "./backups")
+	patternEngine := intelligence.NewPatternEngine(nil)
+	graphBuilder := intelligence.NewGraphBuilder(patternEngine)
+	learningEngine := intelligence.NewLearningEngine(patternEngine, graphBuilder)
+
 	memServer := &MemoryServer{
 		config:           cfg,
 		vectorStore:      vectorStore,
 		embeddingService: embeddingService,
 		chunkingService:  chunkingService,
+		contextSuggester: contextSuggester,
+		backupManager:    backupManager,
+		learningEngine:   learningEngine,
+		patternAnalyzer:  patternAnalyzer,
 	}
 
 	// Create MCP server (simplified for now)
@@ -275,6 +299,138 @@ func (ms *MemoryServer) registerTools() {
 				"properties": map[string]interface{}{},
 			},
 		}, ms.handleHealth)
+
+		// Phase 3.2: Advanced MCP Tools
+		ms.mcpServer.AddTool(mcp.Tool{
+			Name:        "memory_suggest_related",
+			Description: "Get AI-powered suggestions for related context based on current work",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"current_context": map[string]interface{}{
+						"type":        "string",
+						"description": "Current work context or conversation content",
+					},
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Repository to search for related context",
+					},
+					"max_suggestions": map[string]interface{}{
+						"type":        "integer",
+						"description": "Maximum number of suggestions to return",
+						"minimum":     1,
+						"maximum":     10,
+						"default":     5,
+					},
+					"include_patterns": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Include pattern-based suggestions",
+						"default":     true,
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Session identifier",
+					},
+				},
+				"required": []string{"current_context", "session_id"},
+			},
+		}, ms.handleSuggestRelated)
+
+		ms.mcpServer.AddTool(mcp.Tool{
+			Name:        "memory_export_project",
+			Description: "Export all memory data for a project in various formats",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Repository to export",
+					},
+					"format": map[string]interface{}{
+						"type":        "string",
+						"description": "Export format: json, markdown, or archive",
+						"enum":        []string{"json", "markdown", "archive"},
+						"default":     "json",
+					},
+					"include_vectors": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Include vector embeddings in export",
+						"default":     false,
+					},
+					"date_range": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"start": map[string]interface{}{
+								"type":        "string",
+								"description": "Start date (ISO 8601 format)",
+							},
+							"end": map[string]interface{}{
+								"type":        "string",
+								"description": "End date (ISO 8601 format)",
+							},
+						},
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Session identifier",
+					},
+				},
+				"required": []string{"repository", "session_id"},
+			},
+		}, ms.handleExportProject)
+
+		ms.mcpServer.AddTool(mcp.Tool{
+			Name:        "memory_import_context",
+			Description: "Import conversation context from external source",
+			InputSchema: map[string]interface{}{
+				"type": "object",
+				"properties": map[string]interface{}{
+					"source": map[string]interface{}{
+						"type":        "string",
+						"description": "Source type: conversation, file, or archive",
+						"enum":        []string{"conversation", "file", "archive"},
+						"default":     "conversation",
+					},
+					"data": map[string]interface{}{
+						"type":        "string",
+						"description": "Data to import (conversation text, file content, or base64 archive)",
+					},
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Target repository for imported data",
+					},
+					"metadata": map[string]interface{}{
+						"type": "object",
+						"properties": map[string]interface{}{
+							"source_system": map[string]interface{}{
+								"type":        "string",
+								"description": "Name of the source system",
+							},
+							"import_date": map[string]interface{}{
+								"type":        "string",
+								"description": "Original date of the content",
+							},
+							"tags": map[string]interface{}{
+								"type":        "array",
+								"items":       map[string]interface{}{"type": "string"},
+								"description": "Tags to apply to imported content",
+							},
+						},
+					},
+					"chunking_strategy": map[string]interface{}{
+						"type":        "string",
+						"description": "How to chunk the imported data",
+						"enum":        []string{"auto", "paragraph", "fixed_size", "conversation_turns"},
+						"default":     "auto",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Session identifier",
+					},
+				},
+				"required": []string{"source", "data", "repository", "session_id"},
+			},
+		}, ms.handleImportContext)
 	*/
 }
 

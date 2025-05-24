@@ -1,0 +1,172 @@
+groups:
+  - name: mcp-memory-server.rules
+    rules:
+      # High-level health alerts
+      - alert: MCPMemoryServerDown
+        expr: up{job="mcp-memory-server"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "MCP Memory Server is down"
+          description: "MCP Memory Server has been down for more than 1 minute"
+
+      - alert: MCPMemoryHealthLow
+        expr: health_overall_score < 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "MCP Memory Server health is degraded"
+          description: "Health score is {{ $value }}% (below 50%)"
+
+      # Memory and resource alerts
+      - alert: HighMemoryUsage
+        expr: (system_memory_used / system_memory_total) * 100 > 85
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is {{ $value }}% (above 85%)"
+
+      - alert: CriticalMemoryUsage
+        expr: (system_memory_used / system_memory_total) * 100 > 95
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Critical memory usage detected"
+          description: "Memory usage is {{ $value }}% (above 95%)"
+
+      - alert: HighGoroutineCount
+        expr: system_goroutines > 1000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of goroutines"
+          description: "Goroutine count is {{ $value }} (above 1000)"
+
+      # Performance alerts
+      - alert: HighResponseTime
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s (above 5s)"
+
+      - alert: HighErrorRate
+        expr: (rate(http_requests_total{status=~"5.."}[5m]) / rate(http_requests_total[5m])) * 100 > 5
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}% (above 5%)"
+
+      - alert: LowCacheHitRate
+        expr: (rate(cache_hits_total[5m]) / (rate(cache_hits_total[5m]) + rate(cache_misses_total[5m]))) * 100 < 60
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Low cache hit rate"
+          description: "Cache hit rate is {{ $value }}% (below 60%)"
+
+      # Database alerts
+      - alert: DatabaseConnectionsHigh
+        expr: database_connections_active > 40
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of database connections"
+          description: "Active database connections: {{ $value }} (above 40)"
+
+      - alert: DatabaseUnreachable
+        expr: health_database_score < 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database is unreachable"
+          description: "Database health check is failing"
+
+      # Vector storage alerts
+      - alert: VectorStorageUnreachable
+        expr: health_vector_storage_score < 1
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Vector storage is unreachable"
+          description: "Vector storage health check is failing"
+
+      - alert: HighVectorOperationLatency
+        expr: histogram_quantile(0.95, rate(vector_operation_duration_seconds_bucket[5m])) > 2
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High vector operation latency"
+          description: "95th percentile vector operation time is {{ $value }}s (above 2s)"
+
+      # Memory system alerts
+      - alert: MemoryEntriesHigh
+        expr: memory_entries_total > 90000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of memory entries"
+          description: "Memory entries count is {{ $value }} (approaching limit of 100,000)"
+
+      - alert: ConversationHistoryCleanupFailed
+        expr: increase(memory_cleanup_errors_total[1h]) > 5
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Memory cleanup errors detected"
+          description: "{{ $value }} cleanup errors in the last hour"
+
+      # Intelligence system alerts
+      - alert: PatternRecognitionErrors
+        expr: increase(pattern_recognition_errors_total[1h]) > 10
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Pattern recognition errors detected"
+          description: "{{ $value }} pattern recognition errors in the last hour"
+
+      - alert: KnowledgeGraphErrors
+        expr: increase(knowledge_graph_errors_total[1h]) > 10
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Knowledge graph errors detected"
+          description: "{{ $value }} knowledge graph errors in the last hour"
+
+      # Backup alerts
+      - alert: BackupFailed
+        expr: increase(backup_failures_total[24h]) > 0
+        for: 0m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Backup failure detected"
+          description: "{{ $value }} backup failures in the last 24 hours"
+
+      - alert: BackupOld
+        expr: time() - backup_last_success_timestamp > 86400 * 2  # 2 days
+        for: 0m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Backup is too old"
+          description: "Last successful backup was {{ $value | humanizeDuration }} ago"
