@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"mcp-memory/internal/logging"
 	"mcp-memory/pkg/mcp/protocol"
 )
 
@@ -20,6 +21,8 @@ func NewMCPToolExecutor(server *MemoryServer) *MCPToolExecutor {
 
 // ExecuteTool executes a named MCP tool with given parameters
 func (executor *MCPToolExecutor) ExecuteTool(ctx context.Context, toolName string, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP EXECUTOR: Executing tool", "tool_name", toolName, "params", params)
+	
 	// Create an MCP tools/call request
 	req := &protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -31,13 +34,19 @@ func (executor *MCPToolExecutor) ExecuteTool(ctx context.Context, toolName strin
 		},
 	}
 
+	logging.Info("MCP EXECUTOR: Sending request to server", "method", req.Method, "tool_name", toolName)
+	
 	// Handle the request using our MCP server
 	response := executor.server.mcpServer.HandleRequest(ctx, req)
 	
+	logging.Info("MCP EXECUTOR: Received response", "has_error", response.Error != nil, "tool_name", toolName)
+	
 	if response.Error != nil {
+		logging.Error("MCP EXECUTOR: Tool execution failed", "error", response.Error.Message, "code", response.Error.Code, "tool_name", toolName)
 		return nil, fmt.Errorf("tool execution failed: %s", response.Error.Message)
 	}
 
+	logging.Info("MCP EXECUTOR: Tool execution successful", "tool_name", toolName)
 	return response.Result, nil
 }
 
@@ -94,16 +103,16 @@ func (executor *MCPToolExecutor) GetToolInfo(toolName string) map[string]interfa
 // getToolDescription returns a description for each tool
 func getToolDescription(toolName string) string {
 	descriptions := map[string]string{
-		"memory_store_chunk":      "Store a conversation chunk in memory with automatic analysis and embedding generation",
-		"memory_search":           "Search for similar conversation chunks using semantic similarity",
-		"memory_get_context":      "Get conversation context and recent activity for a repository",
-		"memory_find_similar":     "Find similar past problems and solutions",
-		"memory_store_decision":   "Store an architectural decision with rationale",
-		"memory_get_patterns":     "Identify recurring patterns in project history",
-		"memory_health":           "Check the health status of the memory system",
-		"memory_suggest_related":  "Get AI-powered suggestions for related context based on current work",
-		"memory_export_project":   "Export all memory data for a project in various formats",
-		"memory_import_context":   "Import conversation context from external source",
+		"mcp__memory__memory_store_chunk":      "Store a conversation chunk in memory with automatic analysis and embedding generation",
+		"mcp__memory__memory_search":           "Search for similar conversation chunks using semantic similarity",
+		"mcp__memory__memory_get_context":      "Get conversation context and recent activity for a repository",
+		"mcp__memory__memory_find_similar":     "Find similar past problems and solutions",
+		"mcp__memory__memory_store_decision":   "Store an architectural decision with rationale",
+		"mcp__memory__memory_get_patterns":     "Identify recurring patterns in project history",
+		"mcp__memory__memory_health":           "Check the health status of the memory system",
+		"mcp__memory__memory_suggest_related":  "Get AI-powered suggestions for related context based on current work",
+		"mcp__memory__memory_export_project":   "Export all memory data for a project in various formats",
+		"mcp__memory__memory_import_context":   "Import conversation context from external source",
 	}
 
 	if desc, exists := descriptions[toolName]; exists {
@@ -117,11 +126,11 @@ func (executor *MCPToolExecutor) DemoAllTools(ctx context.Context) map[string]in
 	results := make(map[string]interface{})
 
 	// Demo memory_health (simplest tool)
-	healthResult, err := executor.ExecuteTool(ctx, "memory_health", map[string]interface{}{})
+	healthResult, err := executor.ExecuteTool(ctx, "mcp__memory__memory_health", map[string]interface{}{})
 	if err != nil {
-		results["memory_health"] = map[string]interface{}{"error": err.Error()}
+		results["mcp__memory__memory_health"] = map[string]interface{}{"error": err.Error()}
 	} else {
-		results["memory_health"] = healthResult
+		results["mcp__memory__memory_health"] = healthResult
 	}
 
 	// Demo memory_suggest_related
@@ -132,11 +141,11 @@ func (executor *MCPToolExecutor) DemoAllTools(ctx context.Context) map[string]in
 		"include_patterns":  true,
 		"session_id":        "demo-session-001",
 	}
-	suggestResult, err := executor.ExecuteTool(ctx, "memory_suggest_related", suggestParams)
+	suggestResult, err := executor.ExecuteTool(ctx, "mcp__memory__memory_suggest_related", suggestParams)
 	if err != nil {
-		results["memory_suggest_related"] = map[string]interface{}{"error": err.Error()}
+		results["mcp__memory__memory_suggest_related"] = map[string]interface{}{"error": err.Error()}
 	} else {
-		results["memory_suggest_related"] = suggestResult
+		results["mcp__memory__memory_suggest_related"] = suggestResult
 	}
 
 	// Demo memory_export_project
@@ -146,11 +155,11 @@ func (executor *MCPToolExecutor) DemoAllTools(ctx context.Context) map[string]in
 		"include_vectors":  false,
 		"session_id":       "demo-session-001",
 	}
-	exportResult, err := executor.ExecuteTool(ctx, "memory_export_project", exportParams)
+	exportResult, err := executor.ExecuteTool(ctx, "mcp__memory__memory_export_project", exportParams)
 	if err != nil {
-		results["memory_export_project"] = map[string]interface{}{"error": err.Error()}
+		results["mcp__memory__memory_export_project"] = map[string]interface{}{"error": err.Error()}
 	} else {
-		results["memory_export_project"] = exportResult
+		results["mcp__memory__memory_export_project"] = exportResult
 	}
 
 	// Demo memory_import_context
@@ -165,11 +174,11 @@ func (executor *MCPToolExecutor) DemoAllTools(ctx context.Context) map[string]in
 		},
 		"session_id": "demo-session-001",
 	}
-	importResult, err := executor.ExecuteTool(ctx, "memory_import_context", importParams)
+	importResult, err := executor.ExecuteTool(ctx, "mcp__memory__memory_import_context", importParams)
 	if err != nil {
-		results["memory_import_context"] = map[string]interface{}{"error": err.Error()}
+		results["mcp__memory__memory_import_context"] = map[string]interface{}{"error": err.Error()}
 	} else {
-		results["memory_import_context"] = importResult
+		results["mcp__memory__memory_import_context"] = importResult
 	}
 
 	return results

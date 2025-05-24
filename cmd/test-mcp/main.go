@@ -100,13 +100,13 @@ func main() {
 	}
 
 	// Test 3: Call a tool
-	fmt.Println("\n🔧 Test 3: Call Tool (memory_health)")
+	fmt.Println("\n🔧 Test 3: Call Tool (mcp__memory__memory_health)")
 	callReq := &protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      3,
 		Method:  "tools/call",
 		Params: protocol.ToolCallRequest{
-			Name:      "memory_health",
+			Name:      "mcp__memory__memory_health",
 			Arguments: map[string]interface{}{},
 		},
 	}

@@ -11,6 +11,7 @@ import (
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/embeddings"
 	"mcp-memory/internal/intelligence"
+	"mcp-memory/internal/logging"
 	"mcp-memory/internal/persistence"
 	"mcp-memory/internal/storage"
 	"mcp-memory/internal/workflow"
@@ -325,15 +326,21 @@ func (ms *MemoryServer) registerResources() {
 // Tool handlers
 
 func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_store_chunk called", "params", params)
+	
 	content, ok := params["content"].(string)
 	if !ok || content == "" {
+		logging.Error("memory_store_chunk failed: missing content parameter")
 		return nil, fmt.Errorf("content is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
+		logging.Error("memory_store_chunk failed: missing session_id parameter")
 		return nil, fmt.Errorf("session_id is required")
 	}
+	
+	logging.Info("Processing chunk storage", "content_length", len(content), "session_id", sessionID)
 
 	// Build metadata from parameters
 	metadata := types.ChunkMetadata{
@@ -374,15 +381,21 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 	}
 
 	// Create and store chunk
+	logging.Info("Creating conversation chunk", "session_id", sessionID)
 	chunk, err := ms.chunkingService.CreateChunk(ctx, sessionID, content, metadata)
 	if err != nil {
+		logging.Error("Failed to create chunk", "error", err, "session_id", sessionID)
 		return nil, fmt.Errorf("failed to create chunk: %w", err)
 	}
+	logging.Info("Chunk created successfully", "chunk_id", chunk.ID, "type", chunk.Type)
 
+	logging.Info("Storing chunk in vector store", "chunk_id", chunk.ID)
 	if err := ms.vectorStore.Store(ctx, *chunk); err != nil {
+		logging.Error("Failed to store chunk", "error", err, "chunk_id", chunk.ID)
 		return nil, fmt.Errorf("failed to store chunk: %w", err)
 	}
 
+	logging.Info("memory_store_chunk completed successfully", "chunk_id", chunk.ID, "session_id", sessionID)
 	return map[string]interface{}{
 		"chunk_id":  chunk.ID,
 		"type":      string(chunk.Type),
@@ -392,10 +405,15 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 }
 
 func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_search called", "params", params)
+	
 	query, ok := params["query"].(string)
 	if !ok || query == "" {
+		logging.Error("memory_search failed: missing query parameter")
 		return nil, fmt.Errorf("query is required")
 	}
+	
+	logging.Info("Processing search query", "query", query)
 
 	// Build memory query
 	memQuery := types.NewMemoryQuery(query)
@@ -425,16 +443,22 @@ func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]inte
 	}
 
 	// Generate embeddings for query
+	logging.Info("Generating embeddings for search query", "query", query)
 	embeddings, err := ms.embeddingService.GenerateEmbedding(ctx, query)
 	if err != nil {
+		logging.Error("Failed to generate embeddings", "error", err, "query", query)
 		return nil, fmt.Errorf("failed to generate query embeddings: %w", err)
 	}
+	logging.Info("Embeddings generated successfully", "dimension", len(embeddings))
 
 	// Search vector store
+	logging.Info("Searching vector store", "query", memQuery.Query, "limit", memQuery.Limit, "min_relevance", memQuery.MinRelevanceScore)
 	results, err := ms.vectorStore.Search(ctx, *memQuery, embeddings)
 	if err != nil {
+		logging.Error("Vector store search failed", "error", err, "query", query)
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
+	logging.Info("Search completed", "total_results", results.Total, "query_time", results.QueryTime)
 
 	// Format results for response
 	response := map[string]interface{}{
@@ -458,6 +482,7 @@ func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]inte
 		response["results"] = append(response["results"].([]map[string]interface{}), resultMap)
 	}
 
+	logging.Info("memory_search completed successfully", "total_results", results.Total, "query", query)
 	return response, nil
 }
 
@@ -525,10 +550,15 @@ func (ms *MemoryServer) handleGetContext(ctx context.Context, params map[string]
 }
 
 func (ms *MemoryServer) handleFindSimilar(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_find_similar called", "params", params)
+	
 	problem, ok := params["problem"].(string)
 	if !ok || problem == "" {
+		logging.Error("memory_find_similar failed: missing problem parameter")
 		return nil, fmt.Errorf("problem description is required")
 	}
+	
+	logging.Info("Processing similar problem search", "problem", problem)
 
 	limit := 5
 	if l, ok := params["limit"].(float64); ok {
@@ -546,15 +576,21 @@ func (ms *MemoryServer) handleFindSimilar(ctx context.Context, params map[string
 	}
 
 	// Generate embeddings and search
+	logging.Info("Generating embeddings for similar problem search", "problem", problem)
 	embeddings, err := ms.embeddingService.GenerateEmbedding(ctx, problem)
 	if err != nil {
+		logging.Error("Failed to generate embeddings for problem search", "error", err, "problem", problem)
 		return nil, fmt.Errorf("failed to generate embeddings: %w", err)
 	}
+	logging.Info("Embeddings generated for problem search", "dimension", len(embeddings))
 
+	logging.Info("Searching for similar problems", "problem", problem, "limit", limit)
 	results, err := ms.vectorStore.Search(ctx, *memQuery, embeddings)
 	if err != nil {
+		logging.Error("Similar problem search failed", "error", err, "problem", problem)
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
+	logging.Info("Similar problem search completed", "total_results", results.Total)
 
 	// Group problems with their solutions
 	similarProblems := []map[string]interface{}{}
@@ -574,6 +610,7 @@ func (ms *MemoryServer) handleFindSimilar(ctx context.Context, params map[string
 		similarProblems = append(similarProblems, problemData)
 	}
 
+	logging.Info("memory_find_similar completed successfully", "total_found", len(similarProblems), "problem", problem)
 	return map[string]interface{}{
 		"problem":          problem,
 		"similar_problems": similarProblems,
@@ -672,6 +709,8 @@ func (ms *MemoryServer) handleGetPatterns(ctx context.Context, params map[string
 }
 
 func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_health called")
+	
 	health := map[string]interface{}{
 		"status":    "healthy",
 		"timestamp": time.Now().Format(time.RFC3339),
@@ -679,26 +718,32 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 	}
 
 	// Check vector store
+	logging.Info("Checking vector store health")
 	if err := ms.vectorStore.HealthCheck(ctx); err != nil {
+		logging.Error("Vector store health check failed", "error", err)
 		health["services"].(map[string]interface{})["vector_store"] = map[string]interface{}{
 			"status": "unhealthy",
 			"error":  err.Error(),
 		}
 		health["status"] = "degraded"
 	} else {
+		logging.Info("Vector store health check passed")
 		health["services"].(map[string]interface{})["vector_store"] = map[string]interface{}{
 			"status": "healthy",
 		}
 	}
 
 	// Check embedding service
+	logging.Info("Checking embedding service health")
 	if err := ms.embeddingService.HealthCheck(ctx); err != nil {
+		logging.Error("Embedding service health check failed", "error", err)
 		health["services"].(map[string]interface{})["embedding_service"] = map[string]interface{}{
 			"status": "unhealthy",
 			"error":  err.Error(),
 		}
 		health["status"] = "degraded"
 	} else {
+		logging.Info("Embedding service health check passed")
 		health["services"].(map[string]interface{})["embedding_service"] = map[string]interface{}{
 			"status": "healthy",
 		}
@@ -707,8 +752,12 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 	// Get statistics
 	if stats, err := ms.vectorStore.GetStats(ctx); err == nil {
 		health["stats"] = stats
+		logging.Info("Vector store statistics retrieved", "stats", stats)
+	} else {
+		logging.Error("Failed to retrieve vector store statistics", "error", err)
 	}
 
+	logging.Info("memory_health completed", "status", health["status"])
 	return health, nil
 }
 
@@ -876,15 +925,21 @@ func (ms *MemoryServer) extractTechStack(chunks []types.ConversationChunk) []str
 
 // handleSuggestRelated provides AI-powered context suggestions
 func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_suggest_related called", "params", params)
+	
 	currentContext, ok := params["current_context"].(string)
 	if !ok {
+		logging.Error("memory_suggest_related failed: missing current_context parameter")
 		return nil, fmt.Errorf("current_context is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok {
+		logging.Error("memory_suggest_related failed: missing session_id parameter")
 		return nil, fmt.Errorf("session_id is required")
 	}
+	
+	logging.Info("Processing context suggestions", "context_length", len(currentContext), "session_id", sessionID)
 
 	repository := ""
 	if repo, exists := params["repository"].(string); exists {
@@ -902,12 +957,16 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 	}
 
 	// Generate embedding for current context
+	logging.Info("Generating embedding for context suggestions", "context_length", len(currentContext))
 	embedding, err := ms.embeddingService.GenerateEmbedding(ctx, currentContext)
 	if err != nil {
+		logging.Error("Failed to generate embedding for context suggestions", "error", err)
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
 	}
+	logging.Info("Embedding generated for context suggestions", "dimension", len(embedding))
 
 	// Search for similar content
+	logging.Info("Searching for related context", "repository", repository, "max_suggestions", maxSuggestions)
 	query := types.NewMemoryQuery(currentContext)
 	query.Repository = &repository
 	query.Limit = maxSuggestions * 2 // Get more to filter from
@@ -915,8 +974,10 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 
 	results, err := ms.vectorStore.Search(ctx, *query, embedding)
 	if err != nil {
+		logging.Error("Context suggestion search failed", "error", err)
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
+	logging.Info("Context suggestion search completed", "total_results", results.Total)
 
 	suggestions := []map[string]interface{}{}
 	for i, result := range results.Results {
@@ -958,6 +1019,7 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 		}
 	}
 
+	logging.Info("memory_suggest_related completed successfully", "total_suggestions", len(suggestions), "session_id", sessionID)
 	return map[string]interface{}{
 		"suggestions":      suggestions,
 		"total_found":      len(suggestions),

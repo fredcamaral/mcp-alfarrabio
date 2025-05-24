@@ -1,8 +1,0 @@
-{
-  "mcpServers": {
-    "memory": {
-      "command": "node",
-      "args": ["/Users/fredamaral/Repos/fredcamaral/mcp-memory/mcp-proxy.js"]
-    }
-  }
-}

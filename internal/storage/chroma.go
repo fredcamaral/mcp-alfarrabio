@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"mcp-memory/internal/config"
+	"mcp-memory/internal/logging"
 	"mcp-memory/pkg/types"
 	"strconv"
 	"strings"
@@ -651,8 +652,13 @@ func (cs *ChromaStore) documentToChunk(id, document string, metadata map[string]
 func (cs *ChromaStore) buildWhereClause(query types.MemoryQuery) map[string]interface{} {
 	where := make(map[string]interface{})
 
-	if query.Repository != nil {
-		where["repository"] = *query.Repository
+	logging.Info("ChromaStore: Building where clause", "repository", query.Repository, "types", query.Types, "recency", query.Recency)
+
+	if query.Repository != nil && *query.Repository != "" {
+		where["repository"] = map[string]interface{}{
+			"$eq": *query.Repository,
+		}
+		logging.Info("ChromaStore: Added repository filter", "repository", *query.Repository)
 	}
 
 	if len(query.Types) > 0 {
@@ -663,26 +669,35 @@ func (cs *ChromaStore) buildWhereClause(query types.MemoryQuery) map[string]inte
 		where["type"] = map[string]interface{}{
 			"$in": typeStrings,
 		}
+		logging.Info("ChromaStore: Added type filter", "types", typeStrings)
 	}
 
 	// Add time-based filtering based on recency
+	// TODO: Fix timestamp filtering - Chroma doesn't support $gte operator
+	// Temporarily disabled until we implement proper Chroma query syntax
 	switch query.Recency {
 	case types.RecencyRecent:
-		recentTime := time.Now().AddDate(0, 0, -7).Format(time.RFC3339)
-		where["timestamp"] = map[string]interface{}{
-			"$gt": recentTime,
-		}
+		logging.Info("ChromaStore: Timestamp filtering temporarily disabled for RecencyRecent")
+		// recentTime := time.Now().AddDate(0, 0, -7).Format(time.RFC3339)
+		// where["timestamp"] = map[string]interface{}{
+		// 	"$gte": recentTime,
+		// }
 	case types.RecencyLastMonth:
-		monthTime := time.Now().AddDate(0, -1, 0).Format(time.RFC3339)
-		where["timestamp"] = map[string]interface{}{
-			"$gt": monthTime,
-		}
+		logging.Info("ChromaStore: Timestamp filtering temporarily disabled for RecencyLastMonth")
+		// monthTime := time.Now().AddDate(0, -1, 0).Format(time.RFC3339)
+		// where["timestamp"] = map[string]interface{}{
+		// 	"$gte": monthTime,
+		// }
+	case types.RecencyAllTime:
+		logging.Info("ChromaStore: No time filter (all time)")
 	}
 
 	if len(where) == 0 {
+		logging.Info("ChromaStore: No where clause needed, searching all documents")
 		return nil
 	}
 
+	logging.Info("ChromaStore: Final where clause", "where", where)
 	return where
 }
 
