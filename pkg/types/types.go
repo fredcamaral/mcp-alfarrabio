@@ -12,17 +12,18 @@ import (
 type ChunkType string
 
 const (
-	ChunkTypeProblem             ChunkType = "problem"
-	ChunkTypeSolution           ChunkType = "solution"
-	ChunkTypeCodeChange         ChunkType = "code_change"
-	ChunkTypeDiscussion         ChunkType = "discussion"
+	ChunkTypeProblem              ChunkType = "problem"
+	ChunkTypeSolution             ChunkType = "solution"
+	ChunkTypeCodeChange           ChunkType = "code_change"
+	ChunkTypeDiscussion           ChunkType = "discussion"
 	ChunkTypeArchitectureDecision ChunkType = "architecture_decision"
+	ChunkTypeSessionSummary       ChunkType = "session_summary"
 )
 
 // Valid returns true if the chunk type is valid
 func (ct ChunkType) Valid() bool {
 	switch ct {
-	case ChunkTypeProblem, ChunkTypeSolution, ChunkTypeCodeChange, ChunkTypeDiscussion, ChunkTypeArchitectureDecision:
+	case ChunkTypeProblem, ChunkTypeSolution, ChunkTypeCodeChange, ChunkTypeDiscussion, ChunkTypeArchitectureDecision, ChunkTypeSessionSummary:
 		return true
 	}
 	return false
@@ -32,10 +33,10 @@ func (ct ChunkType) Valid() bool {
 type Outcome string
 
 const (
-	OutcomeSuccess     Outcome = "success"
-	OutcomeInProgress  Outcome = "in_progress"
-	OutcomeFailed      Outcome = "failed"
-	OutcomeAbandoned   Outcome = "abandoned"
+	OutcomeSuccess    Outcome = "success"
+	OutcomeInProgress Outcome = "in_progress"
+	OutcomeFailed     Outcome = "failed"
+	OutcomeAbandoned  Outcome = "abandoned"
 )
 
 // Valid returns true if the outcome is valid
@@ -192,24 +193,24 @@ func (cc *ConversationChunk) Validate() error {
 // ProjectContext represents context about a project
 type ProjectContext struct {
 	Repository             string    `json:"repository"`
-	LastAccessed          time.Time `json:"last_accessed"`
-	TotalSessions         int       `json:"total_sessions"`
-	CommonPatterns        []string  `json:"common_patterns"`
+	LastAccessed           time.Time `json:"last_accessed"`
+	TotalSessions          int       `json:"total_sessions"`
+	CommonPatterns         []string  `json:"common_patterns"`
 	ArchitecturalDecisions []string  `json:"architectural_decisions"`
-	TechStack             []string  `json:"tech_stack"`
-	TeamPreferences       []string  `json:"team_preferences"`
+	TechStack              []string  `json:"tech_stack"`
+	TeamPreferences        []string  `json:"team_preferences"`
 }
 
 // NewProjectContext creates a new project context
 func NewProjectContext(repository string) *ProjectContext {
 	return &ProjectContext{
 		Repository:             repository,
-		LastAccessed:          time.Now().UTC(),
-		TotalSessions:         0,
-		CommonPatterns:        []string{},
+		LastAccessed:           time.Now().UTC(),
+		TotalSessions:          0,
+		CommonPatterns:         []string{},
 		ArchitecturalDecisions: []string{},
-		TechStack:             []string{},
-		TeamPreferences:       []string{},
+		TechStack:              []string{},
+		TeamPreferences:        []string{},
 	}
 }
 

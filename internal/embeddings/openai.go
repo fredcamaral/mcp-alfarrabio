@@ -16,26 +16,26 @@ import (
 type EmbeddingService interface {
 	// Generate embeddings for a single text
 	GenerateEmbedding(ctx context.Context, text string) ([]float64, error)
-	
+
 	// Generate embeddings for multiple texts in batch
 	GenerateBatchEmbeddings(ctx context.Context, texts []string) ([][]float64, error)
-	
+
 	// Get the dimension of embeddings produced by this service
 	GetDimension() int
-	
+
 	// Get the model name
 	GetModel() string
-	
+
 	// Health check
 	HealthCheck(ctx context.Context) error
 }
 
 // OpenAIEmbeddingService implements EmbeddingService using OpenAI's API
 type OpenAIEmbeddingService struct {
-	client    *openai.Client
-	config    *config.OpenAIConfig
-	cache     map[string][]float64
-	cacheMu   sync.RWMutex
+	client      *openai.Client
+	config      *config.OpenAIConfig
+	cache       map[string][]float64
+	cacheMu     sync.RWMutex
 	rateLimiter *RateLimiter
 }
 
@@ -67,7 +67,7 @@ func (rl *RateLimiter) Allow() bool {
 	// Refill tokens based on elapsed time
 	elapsed := now.Sub(rl.lastRefill)
 	tokensToAdd := int(elapsed / rl.refillRate)
-	
+
 	if tokensToAdd > 0 {
 		rl.tokens = min(rl.maxTokens, rl.tokens+tokensToAdd)
 		rl.lastRefill = now
@@ -87,7 +87,7 @@ func (rl *RateLimiter) Wait(ctx context.Context) error {
 		if rl.Allow() {
 			return nil
 		}
-		
+
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
@@ -100,10 +100,15 @@ func (rl *RateLimiter) Wait(ctx context.Context) error {
 // NewOpenAIEmbeddingService creates a new OpenAI embedding service
 func NewOpenAIEmbeddingService(cfg *config.OpenAIConfig) *OpenAIEmbeddingService {
 	client := openai.NewClient(cfg.APIKey)
-	
+
 	// Create rate limiter: allow 1 request per minute / max_rpm
-	refillRate := time.Minute / time.Duration(cfg.RateLimitRPM)
-	rateLimiter := NewRateLimiter(cfg.RateLimitRPM, refillRate)
+	// Ensure RateLimitRPM is at least 1 to avoid divide by zero
+	rpm := cfg.RateLimitRPM
+	if rpm <= 0 {
+		rpm = 60 // Default to 60 RPM if not configured
+	}
+	refillRate := time.Minute / time.Duration(rpm)
+	rateLimiter := NewRateLimiter(rpm, refillRate)
 
 	return &OpenAIEmbeddingService{
 		client:      client,
@@ -151,11 +156,17 @@ func (oes *OpenAIEmbeddingService) GenerateEmbedding(ctx context.Context, text s
 	}
 
 	embedding := resp.Data[0].Embedding
-	
+
+	// Convert []float32 to []float64
+	embeddingFloat64 := make([]float64, len(embedding))
+	for i, v := range embedding {
+		embeddingFloat64[i] = float64(v)
+	}
+
 	// Cache the result
-	oes.putInCache(cacheKey, embedding)
-	
-	return embedding, nil
+	oes.putInCache(cacheKey, embeddingFloat64)
+
+	return embeddingFloat64, nil
 }
 
 // GenerateBatchEmbeddings generates embeddings for multiple texts
@@ -216,12 +227,19 @@ func (oes *OpenAIEmbeddingService) GenerateBatchEmbeddings(ctx context.Context, 
 	// Place embeddings in correct positions and cache them
 	for i, embeddingData := range resp.Data {
 		embedding := embeddingData.Embedding
+
+		// Convert []float32 to []float64
+		embeddingFloat64 := make([]float64, len(embedding))
+		for j, v := range embedding {
+			embeddingFloat64[j] = float64(v)
+		}
+
 		resultIndex := uncachedIndices[i]
-		results[resultIndex] = embedding
-		
+		results[resultIndex] = embeddingFloat64
+
 		// Cache the result
 		cacheKey := oes.getCacheKey(uncachedTexts[i])
-		oes.putInCache(cacheKey, embedding)
+		oes.putInCache(cacheKey, embeddingFloat64)
 	}
 
 	return results, nil
@@ -265,26 +283,26 @@ func (oes *OpenAIEmbeddingService) getCacheKey(text string) string {
 func (oes *OpenAIEmbeddingService) getFromCache(key string) []float64 {
 	oes.cacheMu.RLock()
 	defer oes.cacheMu.RUnlock()
-	
+
 	if embedding, exists := oes.cache[key]; exists {
 		// Return a copy to prevent modification
 		result := make([]float64, len(embedding))
 		copy(result, embedding)
 		return result
 	}
-	
+
 	return nil
 }
 
 func (oes *OpenAIEmbeddingService) putInCache(key string, embedding []float64) {
 	oes.cacheMu.Lock()
 	defer oes.cacheMu.Unlock()
-	
+
 	// Store a copy to prevent external modification
 	cached := make([]float64, len(embedding))
 	copy(cached, embedding)
 	oes.cache[key] = cached
-	
+
 	// Simple cache size management - remove oldest entries if cache gets too large
 	if len(oes.cache) > 1000 {
 		// Remove random entries (in practice, you'd want LRU or similar)
@@ -311,7 +329,7 @@ func (oes *OpenAIEmbeddingService) ClearCache() {
 func (oes *OpenAIEmbeddingService) GetCacheStats() map[string]interface{} {
 	oes.cacheMu.RLock()
 	defer oes.cacheMu.RUnlock()
-	
+
 	return map[string]interface{}{
 		"cache_size": len(oes.cache),
 		"model":      oes.config.EmbeddingModel,

@@ -24,10 +24,10 @@ type ChromaStore struct {
 
 // ChromaDocument represents a document in Chroma format
 type ChromaDocument struct {
-	ID         string                 `json:"id"`
-	Embedding  []float64              `json:"embedding"`
-	Document   string                 `json:"document"`
-	Metadata   map[string]interface{} `json:"metadata"`
+	ID        string                 `json:"id"`
+	Embedding []float64              `json:"embedding"`
+	Document  string                 `json:"document"`
+	Metadata  map[string]interface{} `json:"metadata"`
 }
 
 // ChromaResponse represents a response from Chroma API
@@ -307,8 +307,8 @@ func (cs *ChromaStore) ListByRepository(ctx context.Context, repository string, 
 	}
 
 	getReq := map[string]interface{}{
-		"where": whereClause,
-		"limit": limit,
+		"where":  whereClause,
+		"limit":  limit,
 		"offset": offset,
 	}
 
@@ -426,7 +426,7 @@ func (cs *ChromaStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	defer cs.updateMetrics("get_stats", start, nil)
 
 	// Get collection info
-	resp, err := cs.client.R().
+	_, err := cs.client.R().
 		SetContext(ctx).
 		Get(fmt.Sprintf("/api/v1/collections/%s", cs.collection))
 
@@ -525,16 +525,16 @@ func (cs *ChromaStore) chunkToDocument(chunk types.ConversationChunk) ChromaDocu
 	content := fmt.Sprintf("Type: %s\nContent: %s\nSummary: %s", chunk.Type, chunk.Content, chunk.Summary)
 
 	metadata := map[string]interface{}{
-		"session_id":   chunk.SessionID,
-		"timestamp":    chunk.Timestamp.Format(time.RFC3339),
-		"type":         string(chunk.Type),
-		"summary":      chunk.Summary,
-		"repository":   chunk.Metadata.Repository,
-		"branch":       chunk.Metadata.Branch,
-		"outcome":      string(chunk.Metadata.Outcome),
-		"difficulty":   string(chunk.Metadata.Difficulty),
-		"tags":         strings.Join(chunk.Metadata.Tags, ","),
-		"tools_used":   strings.Join(chunk.Metadata.ToolsUsed, ","),
+		"session_id":     chunk.SessionID,
+		"timestamp":      chunk.Timestamp.Format(time.RFC3339),
+		"type":           string(chunk.Type),
+		"summary":        chunk.Summary,
+		"repository":     chunk.Metadata.Repository,
+		"branch":         chunk.Metadata.Branch,
+		"outcome":        string(chunk.Metadata.Outcome),
+		"difficulty":     string(chunk.Metadata.Difficulty),
+		"tags":           strings.Join(chunk.Metadata.Tags, ","),
+		"tools_used":     strings.Join(chunk.Metadata.ToolsUsed, ","),
 		"files_modified": strings.Join(chunk.Metadata.FilesModified, ","),
 	}
 
@@ -672,7 +672,7 @@ func (cs *ChromaStore) updateMetrics(operation string, start time.Time, err erro
 	duration := time.Since(start)
 
 	cs.metrics.OperationCounts[operation]++
-	
+
 	// Update average latency
 	if currentLatency, exists := cs.metrics.AverageLatency[operation]; exists {
 		count := cs.metrics.OperationCounts[operation]

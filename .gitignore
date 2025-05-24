@@ -10,6 +10,14 @@
 
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
+coverage.html
+
+# Project binaries
+mcp-memory
+mcp-memory_unix
+mcp-memory-server
+/bin/
+/server
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
@@ -42,3 +50,5 @@ Thumbs.db
 # Local development
 /dist/
 /tmp/
+PLAN.md
+vector-memory-mcp-design.md

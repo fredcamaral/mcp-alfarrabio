@@ -11,12 +11,12 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server    ServerConfig    `json:"server"`
-	Chroma    ChromaConfig    `json:"chroma"`
-	OpenAI    OpenAIConfig    `json:"openai"`
-	Storage   StorageConfig   `json:"storage"`
-	Chunking  ChunkingConfig  `json:"chunking"`
-	Logging   LoggingConfig   `json:"logging"`
+	Server   ServerConfig   `json:"server"`
+	Chroma   ChromaConfig   `json:"chroma"`
+	OpenAI   OpenAIConfig   `json:"openai"`
+	Storage  StorageConfig  `json:"storage"`
+	Chunking ChunkingConfig `json:"chunking"`
+	Logging  LoggingConfig  `json:"logging"`
 }
 
 // ServerConfig represents server configuration
@@ -29,12 +29,12 @@ type ServerConfig struct {
 
 // ChromaConfig represents Chroma vector database configuration
 type ChromaConfig struct {
-	Endpoint        string       `json:"endpoint"`
-	Collection      string       `json:"collection"`
-	Docker          DockerConfig `json:"docker"`
-	HealthCheck     bool         `json:"health_check"`
-	RetryAttempts   int          `json:"retry_attempts"`
-	TimeoutSeconds  int          `json:"timeout_seconds"`
+	Endpoint       string       `json:"endpoint"`
+	Collection     string       `json:"collection"`
+	Docker         DockerConfig `json:"docker"`
+	HealthCheck    bool         `json:"health_check"`
+	RetryAttempts  int          `json:"retry_attempts"`
+	TimeoutSeconds int          `json:"timeout_seconds"`
 }
 
 // DockerConfig represents Docker-specific configuration
@@ -47,21 +47,21 @@ type DockerConfig struct {
 
 // OpenAIConfig represents OpenAI API configuration
 type OpenAIConfig struct {
-	APIKey           string `json:"-"` // Never serialize API key
-	EmbeddingModel   string `json:"embedding_model"`
-	MaxTokens        int    `json:"max_tokens"`
-	Temperature      float64 `json:"temperature"`
-	RequestTimeout   int    `json:"request_timeout_seconds"`
-	RateLimitRPM     int    `json:"rate_limit_rpm"`
+	APIKey         string  `json:"-"` // Never serialize API key
+	EmbeddingModel string  `json:"embedding_model"`
+	MaxTokens      int     `json:"max_tokens"`
+	Temperature    float64 `json:"temperature"`
+	RequestTimeout int     `json:"request_timeout_seconds"`
+	RateLimitRPM   int     `json:"rate_limit_rpm"`
 }
 
 // StorageConfig represents storage configuration
 type StorageConfig struct {
-	Provider         string            `json:"provider"`
-	RetentionDays    int               `json:"retention_days"`
-	BackupEnabled    bool              `json:"backup_enabled"`
-	BackupInterval   int               `json:"backup_interval_hours"`
-	Repositories     map[string]RepoConfig `json:"repositories"`
+	Provider       string                `json:"provider"`
+	RetentionDays  int                   `json:"retention_days"`
+	BackupEnabled  bool                  `json:"backup_enabled"`
+	BackupInterval int                   `json:"backup_interval_hours"`
+	Repositories   map[string]RepoConfig `json:"repositories"`
 }
 
 // RepoConfig represents repository-specific configuration
@@ -116,11 +116,11 @@ func DefaultConfig() *Config {
 			},
 		},
 		OpenAI: OpenAIConfig{
-			EmbeddingModel:     "text-embedding-ada-002",
-			MaxTokens:          8191,
-			Temperature:        0.0,
-			RequestTimeout:     60,
-			RateLimitRPM:       60,
+			EmbeddingModel: "text-embedding-ada-002",
+			MaxTokens:      8191,
+			Temperature:    0.0,
+			RequestTimeout: 60,
+			RateLimitRPM:   60,
 		},
 		Storage: StorageConfig{
 			Provider:       "chroma",
@@ -282,18 +282,18 @@ func (c *Config) GetDataDir() (string, error) {
 	if dataDir == "" {
 		dataDir = "./data"
 	}
-	
+
 	// Convert to absolute path
 	absPath, err := filepath.Abs(dataDir)
 	if err != nil {
 		return "", fmt.Errorf("failed to get absolute path for data directory: %w", err)
 	}
-	
+
 	// Create directory if it doesn't exist
 	if err := os.MkdirAll(absPath, 0755); err != nil {
 		return "", fmt.Errorf("failed to create data directory: %w", err)
 	}
-	
+
 	return absPath, nil
 }
 
@@ -302,7 +302,7 @@ func (c *Config) GetRepoConfig(repository string) RepoConfig {
 	if repoConfig, exists := c.Storage.Repositories[repository]; exists {
 		return repoConfig
 	}
-	
+
 	// Return default repo config
 	return RepoConfig{
 		Enabled:         true,

@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(rm:*)",
+      "Bash(ls:*)",
+      "Bash(make test:*)",
+      "mcp__ide__getDiagnostics",
+      "Bash(make fmt:*)",
+      "Bash(make:*)"
     ],
     "deny": []
   }

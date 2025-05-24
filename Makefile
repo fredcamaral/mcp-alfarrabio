@@ -1,4 +1,4 @@
-.PHONY: build run test clean docker-up docker-down install-deps lint
+.PHONY: build run test clean docker-up docker-down install-deps lint vet
 
 # Go parameters
 GOCMD=go
@@ -27,16 +27,48 @@ dev:
 test:
 	$(GOTEST) -v ./...
 
-# Test with coverage
+# Test with coverage (excluding cmd/server)
 test-coverage:
-	$(GOTEST) -v -coverprofile=coverage.out ./...
-	$(GOCMD) tool cover -html=coverage.out
+	$(GOTEST) -v -coverprofile=coverage.out ./internal/... ./pkg/...
+	$(GOCMD) tool cover -html=coverage.out -o coverage.html
+	@echo "Coverage report generated: coverage.html"
+
+# Test with coverage percentage (excluding cmd/server)
+test-cover:
+	$(GOTEST) -v -coverprofile=coverage.out ./internal/... ./pkg/...
+	$(GOCMD) tool cover -func=coverage.out
+
+# Test coverage with target percentage (excluding cmd/server)
+test-cover-check:
+	$(GOTEST) -v -coverprofile=coverage.out ./internal/... ./pkg/...
+	@COVERAGE=$$($(GOCMD) tool cover -func=coverage.out | grep total | awk '{print $$3}' | sed 's/%//'); \
+	echo "Total coverage: $$COVERAGE%"; \
+	if [ $$(echo "$$COVERAGE >= 70.0" | bc -l) -eq 1 ]; then \
+		echo "✅ Coverage target achieved (≥70%)"; \
+	else \
+		echo "❌ Coverage target not met (<70%)"; \
+		exit 1; \
+	fi
+
+# Run tests with race detection
+test-race:
+	$(GOTEST) -v -race ./...
+
+# Test specific package
+test-pkg:
+	@read -p "Enter package (e.g., ./pkg/types): " pkg; \
+	$(GOTEST) -v $$pkg
 
 # Clean build artifacts
 clean:
 	$(GOCLEAN)
 	rm -f $(BINARY_NAME)
 	rm -f $(BINARY_UNIX)
+	rm -f *.out
+	rm -f coverage.html
+	rm -rf bin/
+	rm -rf dist/
+	@echo "✅ All artifacts cleaned!"
 
 # Install dependencies
 install-deps:
@@ -47,9 +79,26 @@ install-deps:
 lint:
 	golangci-lint run
 
+# Lint with fixes
+lint-fix:
+	golangci-lint run --fix
+
+# Install linting tools
+install-lint:
+	@if ! command -v golangci-lint &> /dev/null; then \
+		echo "Installing golangci-lint..."; \
+		curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $$(go env GOPATH)/bin v1.55.2; \
+	else \
+		echo "golangci-lint already installed"; \
+	fi
+
 # Format code
 fmt:
 	$(GOCMD) fmt ./...
+
+# Vet code
+vet:
+	$(GOCMD) vet ./...
 
 # Build for Linux
 build-linux:
@@ -64,6 +113,10 @@ docker-down:
 
 docker-logs:
 	docker-compose logs -f
+
+# Quality check (run all checks)
+quality: fmt vet lint test-cover-check
+	@echo "✅ All quality checks passed!"
 
 # Development workflow
 setup: install-deps docker-up
