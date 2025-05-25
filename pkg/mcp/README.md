@@ -245,10 +245,24 @@ server.OnResponse(func(ctx context.Context, method string, duration time.Duratio
 
 ## 📚 Documentation
 
-- [**Tutorial**](TUTORIAL.md) - Step-by-step guide to building your first MCP server
-- [**Advanced Guide**](ADVANCED.md) - Complex scenarios and best practices
+All documentation is organized in the `docs/` directory. See the [Documentation Index](docs/README.md) for a complete overview.
+
+### Quick Links
+- [**Tutorial**](docs/guides/TUTORIAL.md) - Step-by-step guide to building your first MCP server
+- [**Advanced Guide**](docs/guides/ADVANCED.md) - Complex scenarios and best practices
+- [**API Design**](docs/reference/API_DESIGN.md) - Core design principles
 - [**API Reference**](https://pkg.go.dev/github.com/yourusername/mcp-go) - Complete API documentation
 - [**Examples**](examples/) - Runnable example servers
+
+### Integration Guides
+- [Claude Integration](docs/integration/INTEGRATION_CLAUDE.md) - Integrate with Claude Desktop
+- [LLM Integration](docs/integration/INTEGRATION_LLM.md) - Integrate with other LLMs
+- [Client Development](docs/integration/INTEGRATION_CLIENT.md) - Build MCP clients
+
+### Operations
+- [Deployment Guide](docs/operations/DEPLOYMENT.md) - Production deployment
+- [Monitoring Setup](docs/operations/MONITORING.md) - Metrics and observability
+- [Security Guide](docs/operations/SECURITY.md) - Security best practices
 
 ## 🎯 Examples
 

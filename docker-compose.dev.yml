@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  mcp-memory-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: mcp-memory-server
+    volumes:
+      # Mount source code for hot reload
+      - ./cmd:/app/cmd:ro
+      - ./internal:/app/internal:ro
+      - ./pkg:/app/pkg:ro
+      - ./go.mod:/app/go.mod:ro
+      - ./go.sum:/app/go.sum:ro
+      # Data volumes
+      - mcp_memory_data:/app/data
+      - mcp_memory_logs:/app/logs
+      - mcp_memory_backups:/app/backups
+    ports:
+      - "9080:9080"  # MCP HTTP endpoint
+      - "9090:9090"  # Metrics endpoint
+    environment:
+      - MCP_MEMORY_LOG_LEVEL=debug
+      - MCP_MEMORY_ENVIRONMENT=development
+      - MCP_MEMORY_STORAGE_TYPE=chroma
+      - MCP_MEMORY_CHROMA_ENDPOINT=http://mcp-chroma:8000
+      - MCP_MEMORY_CHROMA_API_KEY=test-token
+      - MCP_MEMORY_CHROMA_COLLECTION=claude_memory
+      - MCP_MEMORY_CHROMA_DOCKER_ENABLED=false
+      - MCP_MEMORY_SERVER_HOST=0.0.0.0
+      - MCP_MEMORY_SERVER_PORT=9080
+      - MCP_MEMORY_HEALTH_ENABLED=true
+      - MCP_MEMORY_HEALTH_PORT=9080
+      - MCP_MEMORY_METRICS_ENABLED=true
+      - MCP_MEMORY_METRICS_PORT=9090
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
+    depends_on:
+      - mcp-chroma
+    networks:
+      - mcp_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+  mcp-chroma:
+    image: chromadb/chroma:latest
+    container_name: mcp-chroma
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    environment:
+      - IS_PERSISTENT=TRUE
+      - CHROMA_SERVER_AUTH_PROVIDER=chromadb.auth.token_authn.TokenAuthenticationServerProvider
+      - CHROMA_SERVER_AUTH_CREDENTIALS_PROVIDER=chromadb.auth.token_authn.TokenConfigServerCredentialsProvider
+      - CHROMA_SERVER_AUTH_TOKEN_TRANSPORT_HEADER=X-Chroma-Token
+      - 'CHROMA_SERVER_AUTH_CREDENTIALS={"test-token": "test-token"}'
+    networks:
+      - mcp_network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  mcp_memory_data:
+  mcp_memory_logs:
+  mcp_memory_backups:
+  chroma_data:
+
+networks:
+  mcp_network:
+    driver: bridge

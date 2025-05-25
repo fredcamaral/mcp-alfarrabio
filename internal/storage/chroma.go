@@ -181,6 +181,11 @@ func (cs *ChromaStore) processQueryResults(qr chromav2.QueryResult, query *types
 	distances := qr.GetDistancesGroups()
 	ids := qr.GetIDGroups()
 	
+	// Ensure all result groups have data
+	if len(metadatas) == 0 || len(distances) == 0 || len(ids) == 0 {
+		return results
+	}
+	
 	for i := 0; i < len(docs[0]); i++ {
 		result := cs.processSearchResult(i, ids[0], docs[0], cs.convertMetadatas(metadatas[0]), cs.convertDistances(distances[0]), query.MinRelevanceScore)
 		if result != nil {

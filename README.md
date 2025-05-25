@@ -92,6 +92,16 @@ A high-performance Model Context Protocol (MCP) server that provides intelligent
    curl http://localhost:8082/metrics
    ```
 
+## 📚 Documentation
+
+All documentation is organized in the `docs/` directory. See the [Documentation Index](docs/README.md) for a complete overview.
+
+- [Development Setup](docs/DEV-HOT-RELOAD.md) - Hot reload development environment
+- [Deployment Guide](docs/DEPLOYMENT.md) - Production deployment instructions
+- [API Reference](docs/website/api-reference.md) - Complete API documentation
+- [Development Roadmap](docs/ROADMAP.md) - Current priorities and future plans
+- [Monitoring Setup](docs/MONITORING.md) - Observability and metrics configuration
+
 ## 🔧 Configuration
 
 ### Environment Variables

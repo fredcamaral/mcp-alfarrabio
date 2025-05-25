@@ -37,7 +37,8 @@ RESET := \033[0m
 
 .PHONY: help build clean test lint fmt dev docker-compose-up docker-compose-down setup-env \
 	test-integration test-e2e benchmark security-scan test-race check-mod \
-	install uninstall proto generate release changelog
+	install uninstall proto generate release changelog dev-up dev-down dev-logs \
+	dev-restart dev-shell
 
 # Default target - show help
 help: ## Show this help message
@@ -174,6 +175,30 @@ docker-compose-down: ## Stop services with docker-compose
 
 docker-logs: ## View docker-compose logs
 	docker-compose logs -f
+
+## Development Mode Commands (with Hot Reload)
+dev-up: ensure-env ## Start development mode with hot reload
+	@echo "$(GREEN)Starting development mode with hot reload...$(RESET)"
+	docker-compose -f docker-compose.dev.yml up -d
+	@echo "$(GREEN)✓ Development server started with hot reload!$(RESET)"
+	@echo "$(GREEN)✓ MCP endpoint: http://localhost:9080/mcp$(RESET)"
+	@echo "$(GREEN)✓ Health check: http://localhost:9080/health$(RESET)"
+	@echo "$(YELLOW)📝 Edit any Go file and the server will automatically reload$(RESET)"
+
+dev-down: ## Stop development mode
+	@echo "$(GREEN)Stopping development mode...$(RESET)"
+	docker-compose -f docker-compose.dev.yml down
+
+dev-logs: ## View development mode logs
+	docker-compose -f docker-compose.dev.yml logs -f mcp-memory-server-dev
+
+dev-restart: ## Restart development server (manual reload)
+	@echo "$(GREEN)Restarting development server...$(RESET)"
+	docker-compose -f docker-compose.dev.yml restart mcp-memory-server-dev
+
+dev-shell: ## Open shell in development container
+	@echo "$(GREEN)Opening shell in development container...$(RESET)"
+	docker-compose -f docker-compose.dev.yml exec mcp-memory-server-dev sh
 
 ## Utility Commands
 deps: ## Download and verify dependencies

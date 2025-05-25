@@ -69,6 +69,7 @@ func main() {
 
 	case "http":
 		log.Printf("🚀 Starting MCP Memory Server in HTTP mode on %s", *addr)
+		log.Printf("📡 Ready to receive requests from mcp-proxy.js")
 		// Set up HTTP server for MCP-over-HTTP
 		if err := startHTTPServer(ctx, mcpServer, *addr); err != nil {
 			if !errors.Is(err, context.Canceled) {
@@ -156,7 +157,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	// Health check endpoint
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "mcp-memory"}`)
+		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "mcp-memory", "mode": "development with hot-reload"}`)
 	})
 
 	server := &http.Server{

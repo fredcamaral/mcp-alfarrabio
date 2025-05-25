@@ -1,20 +1,20 @@
 # Claude Vector Memory MCP Server - Development Configuration
 
 server:
-  host: "localhost"
-  port: 8080
+  host: "0.0.0.0"
+  port: 9080
   read_timeout: 30s
   write_timeout: 30s
   idle_timeout: 120s
 
 health:
   enabled: true
-  port: 8081
+  port: 9080
   path: "/health"
 
 metrics:
   enabled: true
-  port: 8082
+  port: 9090
   path: "/metrics"
   interval: 15s
 
@@ -25,17 +25,12 @@ logging:
   structured: false
 
 storage:
-  type: "sqlite"
-  sqlite:
-    path: "./data/memory_dev.db"
-    max_connections: 10
-    connection_max_lifetime: 300s
-
-vector:
-  engine: "faiss"
-  dimension: 1536
-  persist_path: "./data/vectors_dev"
-  cache_size: 1000
+  type: "chroma"
+  chroma:
+    url: "http://mcp-chroma:8000"
+    api_key: "test-token"
+    collection_name: "claude_memory"
+    dimension: 1536
 
 memory:
   conversation_history_limit: 100

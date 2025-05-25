@@ -1,0 +1,51 @@
+FROM golang:1.24-alpine
+
+# Install required packages
+RUN apk add --no-cache \
+    git \
+    gcc \
+    musl-dev \
+    ca-certificates \
+    tzdata \
+    curl \
+    nodejs \
+    npm \
+    && update-ca-certificates
+
+# Install Air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+# Create non-root user
+RUN addgroup -g 1001 -S mcpuser && \
+    adduser -u 1001 -S mcpuser -G mcpuser
+
+# Set working directory
+WORKDIR /app
+
+# Create necessary directories
+RUN mkdir -p /app/data /app/config /app/logs /app/backups /app/tmp && \
+    chown -R mcpuser:mcpuser /app
+
+# Create Go module cache directory with proper permissions
+RUN mkdir -p /go/pkg/mod && \
+    chown -R mcpuser:mcpuser /go
+
+# Copy config files
+COPY --chown=mcpuser:mcpuser configs/dev/ /app/config/
+COPY --chown=mcpuser:mcpuser .air.toml /app/
+COPY --chown=mcpuser:mcpuser mcp-proxy.js /app/
+
+# Switch to non-root user
+USER mcpuser
+
+# Expose ports
+EXPOSE 9080 9090
+
+# Set environment variables
+ENV GO111MODULE=on
+ENV CGO_ENABLED=1
+ENV GOOS=linux
+ENV CONFIG_PATH=/app/config/config.yaml
+
+# Command to run Air
+CMD ["air", "-c", ".air.toml"]

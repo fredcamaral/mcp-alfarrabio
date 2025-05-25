@@ -50,6 +50,10 @@ Thumbs.db
 # Local development
 /dist/
 /tmp/
+
+# Air hot reload temp files
+tmp/
+*.tmp
 PLAN.md
 vector-memory-mcp-design.md
 .claude/
