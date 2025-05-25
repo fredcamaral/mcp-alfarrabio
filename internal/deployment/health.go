@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"runtime"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -204,7 +206,8 @@ func (hm *HealthManager) StartPeriodicChecks(ctx context.Context, interval time.
 // HTTPHandler returns an HTTP handler for health checks
 func (hm *HealthManager) HTTPHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		timeout := getEnvDuration("MCP_MEMORY_HEALTH_CHECK_TIMEOUT_SECONDS", 30)
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		
 		health := hm.CheckHealth(ctx)
@@ -233,7 +236,8 @@ func (hm *HealthManager) HTTPHandler() http.HandlerFunc {
 // ReadinessHandler returns a readiness check handler
 func (hm *HealthManager) ReadinessHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+		timeout := getEnvDuration("MCP_MEMORY_READINESS_TIMEOUT_SECONDS", 10)
+		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
 		
 		health := hm.CheckHealth(ctx)
@@ -310,7 +314,8 @@ func (dhc *DatabaseHealthChecker) Name() string {
 func (dhc *DatabaseHealthChecker) Check(ctx context.Context) HealthCheck {
 	start := time.Now()
 	
-	checkCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	timeout := getEnvDuration("MCP_MEMORY_DB_CHECK_TIMEOUT_SECONDS", 5)
+	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	
 	err := dhc.ping(checkCtx)
@@ -330,7 +335,8 @@ func (dhc *DatabaseHealthChecker) Check(ctx context.Context) HealthCheck {
 	message := "Database connection is healthy"
 	
 	// Check response time
-	if duration > 1*time.Second {
+	slowThreshold := getEnvDuration("MCP_MEMORY_DB_SLOW_THRESHOLD_SECONDS", 1)
+	if duration > slowThreshold {
 		status = HealthStatusDegraded
 		message = fmt.Sprintf("Database response time is slow: %v", duration)
 	}
@@ -362,7 +368,8 @@ func (vshc *VectorStorageHealthChecker) Name() string {
 func (vshc *VectorStorageHealthChecker) Check(ctx context.Context) HealthCheck {
 	start := time.Now()
 	
-	checkCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	timeout := getEnvDuration("MCP_MEMORY_VECTOR_CHECK_TIMEOUT_SECONDS", 10)
+	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 	
 	err := vshc.ping(checkCtx)
@@ -382,7 +389,8 @@ func (vshc *VectorStorageHealthChecker) Check(ctx context.Context) HealthCheck {
 	message := "Vector storage is healthy"
 	
 	// Check response time
-	if duration > 2*time.Second {
+	slowThreshold := getEnvDuration("MCP_MEMORY_VECTOR_SLOW_THRESHOLD_SECONDS", 2)
+	if duration > slowThreshold {
 		status = HealthStatusDegraded
 		message = fmt.Sprintf("Vector storage response time is slow: %v", duration)
 	}
@@ -427,7 +435,7 @@ func (mhc *MemoryHealthChecker) Check(ctx context.Context) HealthCheck {
 		if allocMB > mhc.maxMemoryMB {
 			status = HealthStatusUnhealthy
 			message = fmt.Sprintf("Memory usage exceeded limit: %d MB > %d MB", allocMB, mhc.maxMemoryMB)
-		} else if allocMB > mhc.maxMemoryMB*80/100 {
+		} else if allocMB > uint64(float64(mhc.maxMemoryMB)*getEnvFloat("MCP_MEMORY_MEMORY_DEGRADED_THRESHOLD_PERCENT", 80)/100) {
 			status = HealthStatusDegraded
 			message = fmt.Sprintf("Memory usage is high: %d MB (limit: %d MB)", allocMB, mhc.maxMemoryMB)
 		}
@@ -447,4 +455,24 @@ func (mhc *MemoryHealthChecker) Check(ctx context.Context) HealthCheck {
 			"goroutines":   runtime.NumGoroutine(),
 		},
 	}
+}
+
+// getEnvDuration gets a duration from environment variable with a default
+func getEnvDuration(key string, defaultSeconds int) time.Duration {
+	if val := os.Getenv(key); val != "" {
+		if seconds, err := strconv.Atoi(val); err == nil {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return time.Duration(defaultSeconds) * time.Second
+}
+
+// getEnvFloat gets a float64 from environment variable with a default
+func getEnvFloat(key string, defaultValue float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+	}
+	return defaultValue
 }

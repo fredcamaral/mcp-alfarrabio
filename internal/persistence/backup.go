@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,7 +47,7 @@ func NewBackupManager(storage VectorStorage, backupDir string) *BackupManager {
 	return &BackupManager{
 		storage:       storage,
 		backupDir:     backupDir,
-		retentionDays: 30, // Default 30 days retention
+		retentionDays: getEnvInt("MCP_MEMORY_BACKUP_RETENTION_DAYS", 30), // Default 30 days retention
 	}
 }
 
@@ -136,7 +137,7 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 	}
 	
 	metadata := &BackupMetadata{
-		Version:    "1.0",
+		Version:    getEnv("MCP_MEMORY_BACKUP_VERSION", "1.0"),
 		CreatedAt:  time.Now(),
 		ChunkCount: len(chunks),
 		Size:       stat.Size(),
@@ -451,4 +452,21 @@ func (bm *BackupManager) SetRetentionDays(days int) {
 // GetBackupDir returns the backup directory path
 func (bm *BackupManager) GetBackupDir() string {
 	return bm.backupDir
+}
+
+// Helper functions for environment variables
+func getEnv(key, defaultValue string) string {
+	if val := os.Getenv(key); val != "" {
+		return val
+	}
+	return defaultValue
+}
+
+func getEnvInt(key string, defaultValue int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return defaultValue
 }

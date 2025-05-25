@@ -3,7 +3,9 @@ package performance
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -133,14 +135,14 @@ type ConnectionPool struct {
 // NewPerformanceOptimizer creates a new performance optimizer
 func NewPerformanceOptimizer() *PerformanceOptimizer {
 	return &PerformanceOptimizer{
-		vectorCache:       NewCache(CacheConfig{MaxSize: 1000, TTL: 30 * time.Minute, EvictionPolicy: "lru", Enabled: true}),
-		patternCache:      NewCache(CacheConfig{MaxSize: 500, TTL: 1 * time.Hour, EvictionPolicy: "lfu", Enabled: true}),
-		queryCache:        NewCache(CacheConfig{MaxSize: 200, TTL: 15 * time.Minute, EvictionPolicy: "lru", Enabled: true}),
+		vectorCache:       NewCache(CacheConfig{MaxSize: getEnvInt("MCP_MEMORY_VECTOR_CACHE_MAX_SIZE", 1000), TTL: getEnvDurationMinutes("MCP_MEMORY_VECTOR_CACHE_TTL_MINUTES", 30), EvictionPolicy: "lru", Enabled: true}),
+		patternCache:      NewCache(CacheConfig{MaxSize: getEnvInt("MCP_MEMORY_PATTERN_CACHE_MAX_SIZE", 500), TTL: getEnvDurationMinutes("MCP_MEMORY_PATTERN_CACHE_TTL_MINUTES", 60), EvictionPolicy: "lfu", Enabled: true}),
+		queryCache:        NewCache(CacheConfig{MaxSize: getEnvInt("MCP_MEMORY_QUERY_CACHE_MAX_SIZE", 200), TTL: getEnvDurationMinutes("MCP_MEMORY_QUERY_CACHE_TTL_MINUTES", 15), EvictionPolicy: "lru", Enabled: true}),
 		metrics:           make(map[string]*PerformanceMetric),
 		rules:             make(map[string]*OptimizationRule),
 		enabled:           true,
-		metricsInterval:   30 * time.Second,
-		optimizeInterval:  5 * time.Minute,
+		metricsInterval:   getEnvDurationSeconds("MCP_MEMORY_METRICS_INTERVAL_SECONDS", 30),
+		optimizeInterval:  getEnvDurationMinutes("MCP_MEMORY_OPTIMIZE_INTERVAL_MINUTES", 5),
 		lastOptimization:  time.Now(),
 		optimizationCount: 0,
 	}
@@ -456,7 +458,7 @@ func (po *PerformanceOptimizer) ruleApplies(rule *OptimizationRule) bool {
 	case "low_cache_hit_rate":
 		stats := po.vectorCache.GetStats()
 		if hitRate, ok := stats["hit_rate"].(float64); ok {
-			return hitRate < 0.7
+			return hitRate < getEnvFloat("MCP_MEMORY_CACHE_HIT_RATE_THRESHOLD", 0.7)
 		}
 	case "high_memory_usage":
 		if metric, exists := po.metrics["memory_usage"]; exists {
@@ -680,4 +682,41 @@ func (po *PerformanceOptimizer) GetPerformanceReport() map[string]any {
 	report["total_rules"] = len(po.rules)
 	
 	return report
+}
+
+// Helper functions for environment variables
+func getEnvInt(key string, defaultValue int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return defaultValue
+}
+
+func getEnvDurationMinutes(key string, defaultMinutes int) time.Duration {
+	if val := os.Getenv(key); val != "" {
+		if minutes, err := strconv.Atoi(val); err == nil {
+			return time.Duration(minutes) * time.Minute
+		}
+	}
+	return time.Duration(defaultMinutes) * time.Minute
+}
+
+func getEnvDurationSeconds(key string, defaultSeconds int) time.Duration {
+	if val := os.Getenv(key); val != "" {
+		if seconds, err := strconv.Atoi(val); err == nil {
+			return time.Duration(seconds) * time.Second
+		}
+	}
+	return time.Duration(defaultSeconds) * time.Second
+}
+
+func getEnvFloat(key string, defaultValue float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+	}
+	return defaultValue
 }

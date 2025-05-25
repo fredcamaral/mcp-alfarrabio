@@ -1,0 +1,153 @@
+# Default values for mcp-go.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+replicaCount: 1
+
+image:
+  repository: mcp-go/server
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  # Specifies whether a service account should be created
+  create: true
+  # Annotations to add to the service account
+  annotations: {}
+  # The name of the service account to use.
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+  metricsPort: 9090
+
+ingress:
+  enabled: false
+  className: "nginx"
+  annotations: {}
+    # kubernetes.io/ingress.class: nginx
+    # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: mcp.example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  #  - secretName: mcp-tls
+  #    hosts:
+  #      - mcp.example.com
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# MCP server configuration
+mcpConfig:
+  serverType: "echo"  # Options: echo, calculator, file-manager, weather
+  logLevel: "info"
+  logFormat: "json"
+  maxConnections: 1000
+  timeout: "30s"
+  
+  # Feature flags
+  features:
+    rateLimiting: true
+    metrics: true
+    tracing: false
+  
+  # Protocol settings
+  protocol:
+    version: "1.0"
+    capabilities:
+      tools:
+        list: true
+        call: true
+      resources:
+        list: true
+        read: true
+        subscribe: true
+      prompts:
+        list: true
+        get: true
+
+# Application-specific configurations
+apps:
+  echo:
+    maxMessageSize: 1048576
+    echoDelay: 0
+  
+  calculator:
+    precision: 10
+    maxValue: 1e100
+  
+  fileManager:
+    rootDirectory: /var/lib/mcp/files
+    maxFileSize: 10485760
+    allowedExtensions:
+      - .txt
+      - .json
+      - .yaml
+      - .xml
+  
+  weather:
+    apiKey: ""  # Set via --set or secrets
+    cacheDuration: 3600
+    apiTimeout: "10s"
+
+# Persistence
+persistence:
+  enabled: false
+  storageClass: "standard"
+  accessMode: ReadWriteOnce
+  size: 10Gi
+  mountPath: /var/lib/mcp
+
+# Monitoring
+monitoring:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+  
+  prometheusRule:
+    enabled: false
+    rules: []

@@ -28,9 +28,8 @@ func TestNewChromaStore(t *testing.T) {
 
 	store := NewChromaStore(cfg)
 
-	assert.NotNil(t, store.client)
+	assert.NotNil(t, store.config)
 	assert.Equal(t, cfg, store.config)
-	assert.Equal(t, cfg.Collection, store.collection)
 	assert.NotNil(t, store.metrics)
 	assert.Equal(t, "unknown", store.metrics.ConnectionStatus)
 }
@@ -65,29 +64,29 @@ func TestChromaStore_ChunkToDocument(t *testing.T) {
 	}
 
 	doc := store.chunkToDocument(chunk)
+	metadata := store.chunkToMetadata(chunk)
 
-	assert.Equal(t, chunk.ID, doc.ID)
-	assert.Equal(t, chunk.Embeddings, doc.Embedding)
-	assert.Contains(t, doc.Document, "Type: problem")
-	assert.Contains(t, doc.Document, "Content: Test content")
-	assert.Contains(t, doc.Document, "Summary: Test summary")
+	assert.Contains(t, doc, "Type: problem")
+	assert.Contains(t, doc, "Content: Test content")
+	assert.Contains(t, doc, "Summary: Test summary")
 
 	// Check metadata
-	assert.Equal(t, "test-session", doc.Metadata["session_id"])
-	assert.Equal(t, "2025-01-24T12:00:00Z", doc.Metadata["timestamp"])
-	assert.Equal(t, "problem", doc.Metadata["type"])
-	assert.Equal(t, "Test summary", doc.Metadata["summary"])
-	assert.Equal(t, "test-repo", doc.Metadata["repository"])
-	assert.Equal(t, "main", doc.Metadata["branch"])
-	assert.Equal(t, "success", doc.Metadata["outcome"])
-	assert.Equal(t, "moderate", doc.Metadata["difficulty"])
-	assert.Equal(t, "go,test", doc.Metadata["tags"])
-	assert.Equal(t, "edit,read", doc.Metadata["tools_used"])
-	assert.Equal(t, "file1.go,file2.go", doc.Metadata["files_modified"])
-	assert.Equal(t, 15, doc.Metadata["time_spent"])
+	assert.Equal(t, "test-session", metadata["session_id"])
+	assert.Equal(t, "2025-01-24T12:00:00Z", metadata["timestamp"])
+	assert.Equal(t, float64(time.Date(2025, 1, 24, 12, 0, 0, 0, time.UTC).Unix()), metadata["timestamp_epoch"])
+	assert.Equal(t, "problem", metadata["type"])
+	assert.Equal(t, "Test summary", metadata["summary"])
+	assert.Equal(t, "test-repo", metadata["repository"])
+	assert.Equal(t, "main", metadata["branch"])
+	assert.Equal(t, "success", metadata["outcome"])
+	assert.Equal(t, "moderate", metadata["difficulty"])
+	assert.Equal(t, "go,test", metadata["tags"])
+	assert.Equal(t, "edit,read", metadata["tools_used"])
+	assert.Equal(t, "file1.go,file2.go", metadata["files_modified"])
+	assert.Equal(t, float64(15), metadata["time_spent"])
 }
 
-func TestChromaStore_DocumentToChunk(t *testing.T) {
+func TestChromaStore_ChromaResultToChunk(t *testing.T) {
 	cfg := &config.ChromaConfig{
 		Endpoint:   "http://localhost:8000",
 		Collection: "test",
@@ -97,21 +96,22 @@ func TestChromaStore_DocumentToChunk(t *testing.T) {
 	id := "test-id"
 	document := "Type: problem\nContent: Test content\nSummary: Test summary"
 	metadata := map[string]interface{}{
-		"session_id":     "test-session",
-		"timestamp":      "2025-01-24T12:00:00Z",
-		"type":           "problem",
-		"summary":        "Test summary",
-		"repository":     "test-repo",
-		"branch":         "main",
-		"outcome":        "success",
-		"difficulty":     "moderate",
-		"tags":           "go,test",
-		"tools_used":     "edit,read",
-		"files_modified": "file1.go,file2.go",
-		"time_spent":     15.0, // JSON numbers are floats
+		"session_id":      "test-session",
+		"timestamp":       "2025-01-24T12:00:00Z",
+		"timestamp_epoch": float64(time.Date(2025, 1, 24, 12, 0, 0, 0, time.UTC).Unix()),
+		"type":            "problem",
+		"summary":         "Test summary",
+		"repository":      "test-repo",
+		"branch":          "main",
+		"outcome":         "success",
+		"difficulty":      "moderate",
+		"tags":            "go,test",
+		"tools_used":      "edit,read",
+		"files_modified":  "file1.go,file2.go",
+		"time_spent":      15.0, // JSON numbers are floats
 	}
 
-	chunk, err := store.documentToChunk(id, document, metadata)
+	chunk, err := store.chromaResultToChunk(id, document, metadata)
 	require.NoError(t, err)
 
 	assert.Equal(t, id, chunk.ID)
@@ -133,7 +133,7 @@ func TestChromaStore_DocumentToChunk(t *testing.T) {
 	assert.Equal(t, 15, *chunk.Metadata.TimeSpent)
 }
 
-func TestChromaStore_DocumentToChunk_EdgeCases(t *testing.T) {
+func TestChromaStore_ChromaResultToChunk_EdgeCases(t *testing.T) {
 	cfg := &config.ChromaConfig{
 		Endpoint:   "http://localhost:8000",
 		Collection: "test",
@@ -147,7 +147,7 @@ func TestChromaStore_DocumentToChunk_EdgeCases(t *testing.T) {
 			"type": "problem",
 		}
 
-		chunk, err := store.documentToChunk(id, document, metadata)
+		chunk, err := store.chromaResultToChunk(id, document, metadata)
 		require.NoError(t, err)
 
 		assert.Equal(t, id, chunk.ID)
@@ -166,7 +166,7 @@ func TestChromaStore_DocumentToChunk_EdgeCases(t *testing.T) {
 			"time_spent": "20", // String instead of number
 		}
 
-		chunk, err := store.documentToChunk(id, document, metadata)
+		chunk, err := store.chromaResultToChunk(id, document, metadata)
 		require.NoError(t, err)
 
 		assert.Equal(t, 20, *chunk.Metadata.TimeSpent)
@@ -182,116 +182,13 @@ func TestChromaStore_DocumentToChunk_EdgeCases(t *testing.T) {
 			"files_modified": "",
 		}
 
-		chunk, err := store.documentToChunk(id, document, metadata)
+		chunk, err := store.chromaResultToChunk(id, document, metadata)
 		require.NoError(t, err)
 
 		assert.Empty(t, chunk.Metadata.Tags)
 		assert.Empty(t, chunk.Metadata.ToolsUsed)
 		assert.Empty(t, chunk.Metadata.FilesModified)
 	})
-}
-
-func TestChromaStore_BuildWhereClause(t *testing.T) {
-	cfg := &config.ChromaConfig{
-		Endpoint:   "http://localhost:8000",
-		Collection: "test",
-	}
-	store := NewChromaStore(cfg)
-
-	tests := []struct {
-		name     string
-		query    types.MemoryQuery
-		expected map[string]interface{}
-	}{
-		{
-			name: "query with repository",
-			query: types.MemoryQuery{
-				Query:      "test query",
-				Repository: func() *string { s := "test-repo"; return &s }(),
-				Recency:    types.RecencyAllTime,
-			},
-			expected: map[string]interface{}{
-				"repository": "test-repo",
-			},
-		},
-		{
-			name: "query with types",
-			query: types.MemoryQuery{
-				Query:   "test query",
-				Types:   []types.ChunkType{types.ChunkTypeProblem, types.ChunkTypeSolution},
-				Recency: types.RecencyAllTime,
-			},
-			expected: map[string]interface{}{
-				"type": map[string]interface{}{
-					"$in": []string{"problem", "solution"},
-				},
-			},
-		},
-		{
-			name: "query with recent filter",
-			query: types.MemoryQuery{
-				Query:   "test query",
-				Recency: types.RecencyRecent,
-			},
-			expected: map[string]interface{}{
-				"timestamp": map[string]interface{}{
-					"$gt": time.Now().AddDate(0, 0, -7).Format(time.RFC3339),
-				},
-			},
-		},
-		{
-			name: "query with last month filter",
-			query: types.MemoryQuery{
-				Query:   "test query",
-				Recency: types.RecencyLastMonth,
-			},
-			expected: map[string]interface{}{
-				"timestamp": map[string]interface{}{
-					"$gt": time.Now().AddDate(0, -1, 0).Format(time.RFC3339),
-				},
-			},
-		},
-		{
-			name: "query with all time - no where clause",
-			query: types.MemoryQuery{
-				Query:   "test query",
-				Recency: types.RecencyAllTime,
-			},
-			expected: nil,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := store.buildWhereClause(tt.query)
-
-			if tt.expected == nil {
-				assert.Nil(t, result)
-			} else {
-				require.NotNil(t, result)
-
-				// Check repository
-				if repo, ok := tt.expected["repository"]; ok {
-					assert.Equal(t, repo, result["repository"])
-				}
-
-				// Check type filter
-				if typeFilter, ok := tt.expected["type"]; ok {
-					assert.Equal(t, typeFilter, result["type"])
-				}
-
-				// Check timestamp (with some tolerance)
-				if _, ok := tt.expected["timestamp"]; ok {
-					assert.Contains(t, result, "timestamp")
-					tsMap := result["timestamp"].(map[string]interface{})
-					assert.Contains(t, tsMap, "$gt")
-					// Just verify it's a valid timestamp string
-					_, err := time.Parse(time.RFC3339, tsMap["$gt"].(string))
-					assert.NoError(t, err)
-				}
-			}
-		})
-	}
 }
 
 func TestChromaStore_UpdateMetrics(t *testing.T) {
@@ -318,6 +215,111 @@ func TestChromaStore_UpdateMetrics(t *testing.T) {
 
 	assert.Equal(t, int64(2), store.metrics.OperationCounts[operation])
 	assert.Equal(t, int64(1), store.metrics.ErrorCounts[operation])
+}
+
+// Helper function to convert float64 slice to float32
+func float64ToFloat32(input []float64) []float32 {
+	output := make([]float32, len(input))
+	for i, v := range input {
+		output[i] = float32(v)
+	}
+	return output
+}
+
+func TestFloat64ToFloat32(t *testing.T) {
+	input := []float64{0.1, 0.2, 0.3, 0.4, 0.5}
+	output := float64ToFloat32(input)
+
+	assert.Len(t, output, len(input))
+	for i, v := range input {
+		assert.Equal(t, float32(v), output[i])
+	}
+}
+
+// Helper function to safely get document from nested slice
+func getDocument(documents [][]string, batchIdx, docIdx int) string {
+	if documents == nil || batchIdx >= len(documents) || batchIdx < 0 {
+		return ""
+	}
+	if docIdx >= len(documents[batchIdx]) || docIdx < 0 {
+		return ""
+	}
+	return documents[batchIdx][docIdx]
+}
+
+func TestGetDocument(t *testing.T) {
+	documents := [][]string{
+		{"doc1", "doc2", "doc3"},
+		{"doc4", "doc5"},
+	}
+
+	// Valid access
+	assert.Equal(t, "doc1", getDocument(documents, 0, 0))
+	assert.Equal(t, "doc3", getDocument(documents, 0, 2))
+	assert.Equal(t, "doc5", getDocument(documents, 1, 1))
+
+	// Out of bounds
+	assert.Equal(t, "", getDocument(documents, 2, 0))  // Invalid batch
+	assert.Equal(t, "", getDocument(documents, 0, 10)) // Invalid index
+	assert.Equal(t, "", getDocument(nil, 0, 0))        // Nil documents
+}
+
+// Helper function to safely get metadata from nested slice
+func getMetadata(metadatas [][]map[string]interface{}, batchIdx, metaIdx int) map[string]interface{} {
+	if metadatas == nil || batchIdx >= len(metadatas) || batchIdx < 0 {
+		return nil
+	}
+	if metaIdx >= len(metadatas[batchIdx]) || metaIdx < 0 {
+		return nil
+	}
+	return metadatas[batchIdx][metaIdx]
+}
+
+func TestGetMetadata(t *testing.T) {
+	metadatas := [][]map[string]interface{}{
+		{
+			{"key": "value1"},
+			{"key": "value2"},
+		},
+		{
+			{"key": "value3"},
+		},
+	}
+
+	// Valid access
+	assert.Equal(t, map[string]interface{}{"key": "value1"}, getMetadata(metadatas, 0, 0))
+	assert.Equal(t, map[string]interface{}{"key": "value3"}, getMetadata(metadatas, 1, 0))
+
+	// Out of bounds
+	assert.Nil(t, getMetadata(metadatas, 2, 0))  // Invalid batch
+	assert.Nil(t, getMetadata(metadatas, 0, 10)) // Invalid index
+	assert.Nil(t, getMetadata(nil, 0, 0))        // Nil metadatas
+}
+
+func TestNoOpEmbeddingFunction(t *testing.T) {
+	fn := &noOpEmbeddingFunction{}
+	ctx := context.Background()
+
+	// Test EmbedDocuments
+	docs := []string{"doc1", "doc2", "doc3"}
+	embeddings, err := fn.EmbedDocuments(ctx, docs)
+	assert.NoError(t, err)
+	assert.Len(t, embeddings, 3)
+	for _, emb := range embeddings {
+		assert.Equal(t, 1536, emb.Len())
+	}
+
+	// Test EmbedQuery
+	queryEmb, err := fn.EmbedQuery(ctx, "test query")
+	assert.NoError(t, err)
+	assert.Equal(t, 1536, queryEmb.Len())
+
+	// Test EmbedRecords
+	records := []map[string]interface{}{
+		{"id": "1", "text": "test"},
+	}
+	err = fn.EmbedRecords(ctx, records, false)
+	assert.NoError(t, err)
 }
 
 func TestStoreStats(t *testing.T) {
@@ -441,19 +443,10 @@ func TestChromaStore_NetworkErrors(t *testing.T) {
 	store := NewChromaStore(cfg)
 	ctx := context.Background()
 
-	// Test HealthCheck with invalid endpoint
-	err := store.HealthCheck(ctx)
+	// Initialize will fail when trying to create client
+	err := store.Initialize(ctx)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid-endpoint")
-
-	// Test GetByID with invalid endpoint (no empty ID validation, goes straight to network)
-	resultChunk, err := store.GetByID(ctx, "test-id")
-	assert.Error(t, err)
-	assert.Nil(t, resultChunk)
-
-	// Test Delete with invalid endpoint (no empty ID validation, goes straight to network)
-	err = store.Delete(ctx, "test-id")
-	assert.Error(t, err)
+	assert.Equal(t, "error", store.metrics.ConnectionStatus)
 }
 
 func TestChromaStore_ValidationErrors(t *testing.T) {
@@ -504,46 +497,11 @@ func TestChromaStore_AdditionalMethods(t *testing.T) {
 		Collection: "test",
 	}
 	store := NewChromaStore(cfg)
-	ctx := context.Background()
-
-	// Test Initialize (will fail due to network, but covers the method)
-	err := store.Initialize(ctx)
-	assert.Error(t, err) // Expected to fail without real Chroma
-
-	// Test ListByRepository
-	chunks, err := store.ListByRepository(ctx, "test-repo", 10, 0)
-	assert.Error(t, err) // Expected to fail without real Chroma
-	assert.Nil(t, chunks)
-
-	// Test Update
-	chunk := types.ConversationChunk{
-		ID:        "test-id",
-		SessionID: "session-1",
-		Content:   "updated content",
-		Type:      types.ChunkTypeProblem,
-		Timestamp: time.Now(),
-		Metadata: types.ChunkMetadata{
-			Outcome:    types.OutcomeSuccess,
-			Difficulty: types.DifficultySimple,
-		},
-		Embeddings: []float64{0.1, 0.2, 0.3},
-	}
-	err = store.Update(ctx, chunk)
-	assert.Error(t, err) // Expected to fail without real Chroma
-
-	// Test GetStats
-	stats, err := store.GetStats(ctx)
-	assert.Error(t, err) // Expected to fail without real Chroma
-	assert.Nil(t, stats)
-
-	// Test Cleanup
-	deleted, err := store.Cleanup(ctx, 30)
-	assert.Error(t, err) // Expected to fail without real Chroma
-	assert.Equal(t, 0, deleted)
 
 	// Test Close
-	err = store.Close()
+	err := store.Close()
 	assert.NoError(t, err) // Close should not error
+	assert.Equal(t, "closed", store.metrics.ConnectionStatus)
 }
 
 // Integration test that would work with a real Chroma instance

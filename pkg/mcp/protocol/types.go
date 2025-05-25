@@ -31,6 +31,11 @@ type JSONRPCError struct {
 	Data    interface{} `json:"data,omitempty"`
 }
 
+// Error implements the error interface
+func (e *JSONRPCError) Error() string {
+	return e.Message
+}
+
 // Tool represents an MCP tool definition
 type Tool struct {
 	Name        string                 `json:"name"`

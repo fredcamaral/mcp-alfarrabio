@@ -1,0 +1,26 @@
+apiVersion: v2
+name: mcp-go
+description: A Helm chart for MCP Go servers
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - mcp
+  - model-context-protocol
+  - go
+  - microservices
+home: https://github.com/fredcamaral/mcp-memory
+sources:
+  - https://github.com/fredcamaral/mcp-memory
+maintainers:
+  - name: MCP Go Team
+    email: mcp@example.com
+icon: https://example.com/mcp-icon.png
+annotations:
+  artifacthub.io/changes: |
+    - Initial release of MCP Go Helm chart
+    - Support for echo, calculator, file-manager, and weather services
+    - Configurable autoscaling and resource limits
+    - Prometheus metrics integration
+  artifacthub.io/containsSecurityUpdates: "false"
+  artifacthub.io/license: MIT

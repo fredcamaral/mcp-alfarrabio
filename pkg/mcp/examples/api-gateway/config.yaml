@@ -1,0 +1,248 @@
+apis:
+  # GitHub API
+  github:
+    base_url: "https://api.github.com"
+    auth_type: "bearer"
+    auth_config:
+      token: "${GITHUB_TOKEN}"  # Set via environment variable
+    rate_limit:
+      requests_per_second: 30
+      burst: 60
+    cache_ttl: 1m
+    headers:
+      Accept: "application/vnd.github.v3+json"
+      User-Agent: "MCP-API-Gateway/1.0"
+    endpoints:
+      - name: "get_user"
+        path: "/users/{username}"
+        method: "GET"
+        description: "Get GitHub user information"
+        parameters:
+          - name: "username"
+            type: "string"
+            required: true
+            description: "GitHub username"
+            in: "path"
+      
+      - name: "list_repos"
+        path: "/users/{username}/repos"
+        method: "GET"
+        description: "List user repositories"
+        parameters:
+          - name: "username"
+            type: "string"
+            required: true
+            description: "GitHub username"
+            in: "path"
+          - name: "sort"
+            type: "string"
+            required: false
+            description: "Sort by: created, updated, pushed, full_name"
+            in: "query"
+          - name: "per_page"
+            type: "number"
+            required: false
+            description: "Results per page (max 100)"
+            in: "query"
+      
+      - name: "search_repos"
+        path: "/search/repositories"
+        method: "GET"
+        description: "Search for repositories"
+        parameters:
+          - name: "q"
+            type: "string"
+            required: true
+            description: "Search query"
+            in: "query"
+          - name: "sort"
+            type: "string"
+            required: false
+            description: "Sort by: stars, forks, updated"
+            in: "query"
+          - name: "order"
+            type: "string"
+            required: false
+            description: "Order: asc or desc"
+            in: "query"
+
+  # OpenWeatherMap API
+  weather:
+    base_url: "https://api.openweathermap.org/data/2.5"
+    auth_type: "api_key"
+    auth_config:
+      key: "${OPENWEATHER_API_KEY}"  # Set via environment variable
+      param: "appid"
+    rate_limit:
+      requests_per_second: 10
+      burst: 20
+    cache_ttl: 5m
+    endpoints:
+      - name: "current"
+        path: "/weather"
+        method: "GET"
+        description: "Get current weather for a city"
+        parameters:
+          - name: "q"
+            type: "string"
+            required: true
+            description: "City name (e.g., 'London' or 'London,UK')"
+            in: "query"
+          - name: "units"
+            type: "string"
+            required: false
+            description: "Temperature units: metric, imperial, kelvin"
+            in: "query"
+          - name: "lang"
+            type: "string"
+            required: false
+            description: "Language code (e.g., en, es, fr)"
+            in: "query"
+      
+      - name: "forecast"
+        path: "/forecast"
+        method: "GET"
+        description: "Get 5-day weather forecast"
+        parameters:
+          - name: "q"
+            type: "string"
+            required: true
+            description: "City name"
+            in: "query"
+          - name: "units"
+            type: "string"
+            required: false
+            description: "Temperature units"
+            in: "query"
+          - name: "cnt"
+            type: "number"
+            required: false
+            description: "Number of timestamps to return"
+            in: "query"
+
+  # JSONPlaceholder (Free fake API for testing)
+  jsonplaceholder:
+    base_url: "https://jsonplaceholder.typicode.com"
+    auth_type: "none"
+    rate_limit:
+      requests_per_second: 100
+      burst: 200
+    cache_ttl: 10m
+    endpoints:
+      - name: "get_posts"
+        path: "/posts"
+        method: "GET"
+        description: "Get all posts"
+        parameters: []
+      
+      - name: "get_post"
+        path: "/posts/{id}"
+        method: "GET"
+        description: "Get a specific post"
+        parameters:
+          - name: "id"
+            type: "number"
+            required: true
+            description: "Post ID"
+            in: "path"
+      
+      - name: "create_post"
+        path: "/posts"
+        method: "POST"
+        description: "Create a new post (fake - won't persist)"
+        parameters:
+          - name: "title"
+            type: "string"
+            required: true
+            description: "Post title"
+            in: "body"
+          - name: "body"
+            type: "string"
+            required: true
+            description: "Post body"
+            in: "body"
+          - name: "userId"
+            type: "number"
+            required: true
+            description: "User ID"
+            in: "body"
+      
+      - name: "get_user_posts"
+        path: "/posts"
+        method: "GET"
+        description: "Get posts by user"
+        parameters:
+          - name: "userId"
+            type: "number"
+            required: true
+            description: "User ID"
+            in: "query"
+
+  # News API
+  news:
+    base_url: "https://newsapi.org/v2"
+    auth_type: "api_key"
+    auth_config:
+      key: "${NEWS_API_KEY}"  # Set via environment variable
+      header: "X-Api-Key"
+    rate_limit:
+      requests_per_second: 5
+      burst: 10
+    cache_ttl: 15m
+    endpoints:
+      - name: "top_headlines"
+        path: "/top-headlines"
+        method: "GET"
+        description: "Get top news headlines"
+        parameters:
+          - name: "country"
+            type: "string"
+            required: false
+            description: "2-letter country code (e.g., us, gb, ca)"
+            in: "query"
+          - name: "category"
+            type: "string"
+            required: false
+            description: "Category: business, entertainment, health, science, sports, technology"
+            in: "query"
+          - name: "q"
+            type: "string"
+            required: false
+            description: "Keywords to search for in the news"
+            in: "query"
+          - name: "pageSize"
+            type: "number"
+            required: false
+            description: "Number of results to return (max 100)"
+            in: "query"
+      
+      - name: "everything"
+        path: "/everything"
+        method: "GET"
+        description: "Search through millions of articles"
+        parameters:
+          - name: "q"
+            type: "string"
+            required: true
+            description: "Keywords or phrases to search for"
+            in: "query"
+          - name: "from"
+            type: "string"
+            required: false
+            description: "Oldest article date (YYYY-MM-DD)"
+            in: "query"
+          - name: "to"
+            type: "string"
+            required: false
+            description: "Newest article date (YYYY-MM-DD)"
+            in: "query"
+          - name: "language"
+            type: "string"
+            required: false
+            description: "Language code (e.g., en, es, fr)"
+            in: "query"
+          - name: "sortBy"
+            type: "string"
+            required: false
+            description: "Sort by: relevancy, popularity, publishedAt"
+            in: "query"

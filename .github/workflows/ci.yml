@@ -1,26 +1,19 @@
-name: CI/CD Pipeline
+name: CI
 
 on:
   push:
     branches: [ main, develop ]
-    tags: [ 'v*' ]
   pull_request:
     branches: [ main, develop ]
-  workflow_dispatch:
-
-env:
-  GO_VERSION: '1.21'
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  # Test and quality checks
   test:
-    name: Test & Quality
-    runs-on: ubuntu-latest
+    name: Test
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        go-version: ['1.20', '1.21']
+        go-version: ['1.21', '1.22', '1.23']
+        os: [ubuntu-latest, macos-latest, windows-latest]
     
     steps:
     - name: Checkout code
@@ -29,162 +22,86 @@ jobs:
         fetch-depth: 0
 
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
         go-version: ${{ matrix.go-version }}
-
+    
     - name: Cache Go modules
-      uses: actions/cache@v3
+      uses: actions/cache@v4
       with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
+        path: ~/go/pkg/mod
         key: ${{ runner.os }}-go-${{ matrix.go-version }}-${{ hashFiles('**/go.sum') }}
         restore-keys: |
           ${{ runner.os }}-go-${{ matrix.go-version }}-
-
+    
     - name: Download dependencies
-      run: make deps
+      run: go mod download
+    
+    - name: Run tests with coverage
+      run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
+    
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        file: ./coverage.txt
+        flags: unittests
+        name: codecov-${{ matrix.os }}-go${{ matrix.go-version }}
+        token: ${{ secrets.CODECOV_TOKEN }}
 
-    - name: Run linters
-      uses: golangci/golangci-lint-action@v3
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+    
+    - name: Run golangci-lint
+      uses: golangci/golangci-lint-action@v4
       with:
         version: latest
         args: --timeout=5m
 
-    - name: Run tests
-      run: make test-coverage
-
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        file: ./bin/coverage.out
-        flags: unittests
-        name: codecov-umbrella
-
-    - name: Run security scan
-      run: make security-scan
-
-    - name: Run benchmarks
-      run: make benchmark
-
-  # Build for multiple platforms
   build:
     name: Build
-    runs-on: ubuntu-latest
-    needs: test
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        platform:
-          - linux/amd64
-          - linux/arm64
-          - darwin/amd64
-          - darwin/arm64
-          - windows/amd64
-
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        go-version: ['1.23']
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
+    
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: Cache Go modules
-      uses: actions/cache@v3
-      with:
-        path: |
-          ~/.cache/go-build
-          ~/go/pkg/mod
-        key: ${{ runner.os }}-go-${{ env.GO_VERSION }}-${{ hashFiles('**/go.sum') }}
-
-    - name: Download dependencies
-      run: make deps
-
-    - name: Build binary
+        go-version: ${{ matrix.go-version }}
+    
+    - name: Build
+      run: go build -v ./...
+    
+    - name: Build examples
       run: |
-        platform=${{ matrix.platform }}
-        os=${platform%/*}
-        arch=${platform#*/}
-        output_name=mcp-memory-server-${os}-${arch}
-        if [ ${os} = "windows" ]; then output_name=${output_name}.exe; fi
-        GOOS=${os} GOARCH=${arch} CGO_ENABLED=0 go build -ldflags="-w -s" -o dist/${output_name} ./cmd/server
+        go build -v ./cmd/demo
+        go build -v ./cmd/server
+        go build -v ./cmd/test-mcp
 
-    - name: Upload build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: binaries-${{ matrix.platform }}
-        path: dist/
-
-  # Docker build and push
-  docker:
-    name: Docker Build & Push
-    runs-on: ubuntu-latest
-    needs: test
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v3
-
-    - name: Log in to Container Registry
-      uses: docker/login-action@v3
-      with:
-        registry: ${{ env.REGISTRY }}
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
-    - name: Extract metadata
-      id: meta
-      uses: docker/metadata-action@v5
-      with:
-        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-        tags: |
-          type=ref,event=branch
-          type=ref,event=pr
-          type=semver,pattern={{version}}
-          type=semver,pattern={{major}}.{{minor}}
-          type=semver,pattern={{major}}
-          type=sha,prefix={{branch}}-
-
-    - name: Build and push Docker image
-      uses: docker/build-push-action@v5
-      with:
-        context: .
-        platforms: linux/amd64,linux/arm64
-        push: true
-        tags: ${{ steps.meta.outputs.tags }}
-        labels: ${{ steps.meta.outputs.labels }}
-        cache-from: type=gha
-        cache-to: type=gha,mode=max
-        build-args: |
-          VERSION=${{ steps.meta.outputs.version }}
-          BUILD_TIME=${{ github.event.head_commit.timestamp }}
-          COMMIT_HASH=${{ github.sha }}
-
-  # Integration tests
-  integration:
+  integration-test:
     name: Integration Tests
     runs-on: ubuntu-latest
-    needs: docker
     
     services:
       postgres:
-        image: postgres:15-alpine
+        image: postgres:16
         env:
-          POSTGRES_PASSWORD: testpassword
-          POSTGRES_USER: testuser
-          POSTGRES_DB: testdb
+          POSTGRES_PASSWORD: postgres
         options: >-
           --health-cmd pg_isready
           --health-interval 10s
@@ -192,155 +109,22 @@ jobs:
           --health-retries 5
         ports:
           - 5432:5432
-
-      redis:
-        image: redis:7-alpine
-        options: >-
-          --health-cmd "redis-cli ping"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
-        ports:
-          - 6379:6379
-
+    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-
+    
     - name: Set up Go
-      uses: actions/setup-go@v4
+      uses: actions/setup-go@v5
       with:
-        go-version: ${{ env.GO_VERSION }}
-
+        go-version: '1.23'
+    
     - name: Run integration tests
-      run: make test-integration
       env:
-        POSTGRES_URL: postgres://testuser:testpassword@localhost:5432/testdb?sslmode=disable
-        REDIS_URL: redis://localhost:6379
-
-    - name: Run E2E tests
-      run: make test-e2e
-
-  # Security scanning
-  security:
-    name: Security Scan
-    runs-on: ubuntu-latest
-    needs: docker
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Run Trivy vulnerability scanner
-      uses: aquasecurity/trivy-action@master
-      with:
-        image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
-        format: 'sarif'
-        output: 'trivy-results.sarif'
-
-    - name: Upload Trivy scan results to GitHub Security tab
-      uses: github/codeql-action/upload-sarif@v2
-      with:
-        sarif_file: 'trivy-results.sarif'
-
-  # Release
-  release:
-    name: Release
-    runs-on: ubuntu-latest
-    needs: [test, build, docker, integration, security]
-    if: startsWith(github.ref, 'refs/tags/v')
-    
-    permissions:
-      contents: write
-      packages: write
-
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-
-    - name: Set up Go
-      uses: actions/setup-go@v4
-      with:
-        go-version: ${{ env.GO_VERSION }}
-
-    - name: Download all artifacts
-      uses: actions/download-artifact@v3
-
-    - name: Create release package
+        POSTGRES_HOST: localhost
+        POSTGRES_PORT: 5432
+        POSTGRES_USER: postgres
+        POSTGRES_PASSWORD: postgres
+        POSTGRES_DB: test_db
       run: |
-        mkdir -p release
-        for dir in binaries-*; do
-          platform=${dir#binaries-}
-          platform=${platform//\//-}
-          for file in $dir/*; do
-            if [ -f "$file" ]; then
-              cp "$file" "release/"
-              tar -czf "release/mcp-memory-server-${platform}.tar.gz" -C "$dir" $(basename "$file")
-            fi
-          done
-        done
-
-    - name: Generate changelog
-      id: changelog
-      run: |
-        if [ -f CHANGELOG.md ]; then
-          awk '/^## \[/{if(++n==2) exit} n>=1' CHANGELOG.md > current_changelog.md
-        else
-          echo "## Changes" > current_changelog.md
-          git log --pretty=format:"- %s" $(git describe --tags --abbrev=0 HEAD^)..HEAD >> current_changelog.md
-        fi
-
-    - name: Create GitHub Release
-      uses: softprops/action-gh-release@v1
-      with:
-        name: Release ${{ github.ref_name }}
-        body_path: current_changelog.md
-        files: |
-          release/*.tar.gz
-        draft: false
-        prerelease: false
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  # Deploy to staging (if main branch)
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    needs: [test, docker]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    environment: staging
-    
-    steps:
-    - name: Checkout code
-      uses: actions/checkout@v4
-
-    - name: Deploy to staging
-      run: |
-        echo "Deploying to staging environment..."
-        # Add your deployment logic here
-        # Example: kubectl apply -f k8s/staging/
-        # Example: docker-compose -f docker-compose.staging.yml up -d
-
-    - name: Run smoke tests
-      run: |
-        echo "Running smoke tests..."
-        # Add smoke test commands here
-        # make test-smoke ENDPOINT=https://staging.example.com
-
-  # Cleanup
-  cleanup:
-    name: Cleanup
-    runs-on: ubuntu-latest
-    needs: [release, deploy-staging]
-    if: always()
-    
-    steps:
-    - name: Clean up old packages
-      uses: actions/delete-package-versions@v4
-      with:
-        package-name: ${{ env.IMAGE_NAME }}
-        package-type: container
-        min-versions-to-keep: 10
-        delete-only-untagged-versions: true
+        go test -v -tags=integration ./...

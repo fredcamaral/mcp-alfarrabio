@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-config
+  namespace: mcp-system
+data:
+  # Server configuration
+  server.type: "echo"
+  server.max_connections: "1000"
+  server.timeout: "30s"
+  
+  # Logging configuration
+  log.level: "info"
+  log.format: "json"
+  
+  # Feature flags
+  features.rate_limiting: "true"
+  features.metrics: "true"
+  features.tracing: "false"
+  
+  # MCP protocol settings
+  mcp.protocol.version: "1.0"
+  mcp.protocol.capabilities: |
+    tools:
+      list: true
+      call: true
+    resources:
+      list: true
+      read: true
+      subscribe: true
+    prompts:
+      list: true
+      get: true
+  
+  # Application-specific config
+  app.config.yaml: |
+    # Echo server configuration
+    echo:
+      max_message_size: 1048576
+      echo_delay: 0
+    
+    # Calculator configuration
+    calculator:
+      precision: 10
+      max_value: 1e100
+    
+    # File manager configuration
+    file_manager:
+      root_directory: /var/lib/mcp/files
+      max_file_size: 10485760
+      allowed_extensions:
+        - .txt
+        - .json
+        - .yaml
+        - .xml
+    
+    # Weather service configuration
+    weather:
+      cache_duration: 3600
+      api_timeout: 10s
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: mcp-system
+  labels:
+    name: mcp-system

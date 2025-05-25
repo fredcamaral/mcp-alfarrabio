@@ -1,0 +1,101 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-server
+  namespace: mcp-system
+  labels:
+    app: mcp-server
+    version: v1.0.0
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mcp-server
+  template:
+    metadata:
+      labels:
+        app: mcp-server
+        version: v1.0.0
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+    spec:
+      serviceAccountName: mcp-server
+      containers:
+      - name: mcp-server
+        image: mcp-go/server:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8080
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: MCP_LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: mcp-config
+              key: log.level
+        - name: MCP_SERVER_TYPE
+          valueFrom:
+            configMapKeyRef:
+              name: mcp-config
+              key: server.type
+        - name: MCP_MAX_CONNECTIONS
+          valueFrom:
+            configMapKeyRef:
+              name: mcp-config
+              key: server.max_connections
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "500m"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        volumeMounts:
+        - name: config
+          mountPath: /etc/mcp
+          readOnly: true
+        - name: data
+          mountPath: /var/lib/mcp
+      volumes:
+      - name: config
+        configMap:
+          name: mcp-config
+      - name: data
+        persistentVolumeClaim:
+          claimName: mcp-data
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-server
+  namespace: mcp-system
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mcp-data
+  namespace: mcp-system
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+  storageClassName: standard

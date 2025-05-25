@@ -53,3 +53,4 @@ Thumbs.db
 PLAN.md
 vector-memory-mcp-design.md
 .claude/
+internal/storage/chroma-go/

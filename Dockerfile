@@ -38,11 +38,13 @@ RUN ls -la mcp-memory-server
 # Production stage
 FROM alpine:3.19
 
-# Install runtime dependencies
+# Install runtime dependencies including Node.js for MCP proxy
 RUN apk add --no-cache \
     ca-certificates \
     tzdata \
     curl \
+    nodejs \
+    npm \
     && update-ca-certificates \
     && rm -rf /var/cache/apk/*
 
@@ -56,6 +58,9 @@ RUN mkdir -p /app/data /app/config /app/logs /app/backups && \
 
 # Copy binary from builder stage
 COPY --from=builder --chown=mcpuser:mcpuser /build/mcp-memory-server /app/
+
+# Copy MCP proxy script
+COPY --chown=mcpuser:mcpuser mcp-proxy.js /app/
 
 # Copy configuration templates
 COPY --chown=mcpuser:mcpuser configs/docker/ /app/config/

@@ -1,0 +1,239 @@
+{
+  "examples": [
+    {
+      "name": "Complex Research Workflow",
+      "description": "Multi-step research with analysis and storage",
+      "request": {
+        "method": "tool/call",
+        "params": {
+          "name": "execute_chain",
+          "arguments": {
+            "chain": [
+              {
+                "tool": "web_search",
+                "arguments": {
+                  "query": "machine learning optimization techniques 2024",
+                  "max_results": 20
+                },
+                "store_as": "ml_search"
+              },
+              {
+                "tool": "analyze_data",
+                "arguments": {
+                  "method": "pattern_detection",
+                  "data": "{{ml_search}}"
+                },
+                "store_as": "patterns"
+              },
+              {
+                "tool": "execute_code",
+                "arguments": {
+                  "language": "python",
+                  "code": "# Analyze patterns\nimport json\npatterns = '''{{patterns}}'''\ndata = json.loads(patterns)\nprint('Key themes:', data.get('themes', []))\nprint('Frequency:', data.get('frequency', {}))"
+                }
+              },
+              {
+                "tool": "memory_manager",
+                "arguments": {
+                  "operation": "store",
+                  "content": "ML Optimization Research Summary:\n{{patterns}}",
+                  "tags": ["ml", "optimization", "research", "2024"]
+                }
+              },
+              {
+                "tool": "file_manager",
+                "arguments": {
+                  "operation": "write",
+                  "path": "ml_research_summary.md",
+                  "content": "# ML Optimization Techniques 2024\n\n{{patterns}}"
+                }
+              }
+            ],
+            "intent": "Research ML optimization techniques and create comprehensive summary"
+          }
+        }
+      }
+    },
+    {
+      "name": "Data Analysis Pipeline",
+      "description": "Load, process, analyze, and visualize data",
+      "request": {
+        "method": "tool/call",
+        "params": {
+          "name": "execute_chain",
+          "arguments": {
+            "chain": [
+              {
+                "tool": "file_manager",
+                "arguments": {
+                  "operation": "write",
+                  "path": "sales_data.json",
+                  "content": "[{\"month\": \"Jan\", \"sales\": 1000}, {\"month\": \"Feb\", \"sales\": 1200}, {\"month\": \"Mar\", \"sales\": 900}]"
+                }
+              },
+              {
+                "tool": "execute_code",
+                "arguments": {
+                  "language": "python",
+                  "code": "import json\nimport statistics\n\nwith open('sales_data.json') as f:\n    data = json.load(f)\n\nsales = [d['sales'] for d in data]\navg = statistics.mean(sales)\nstd = statistics.stdev(sales)\n\nresult = {\n    'average': avg,\n    'std_dev': std,\n    'min': min(sales),\n    'max': max(sales),\n    'trend': 'increasing' if sales[-1] > sales[0] else 'decreasing'\n}\n\nwith open('analysis_result.json', 'w') as f:\n    json.dump(result, f, indent=2)\n\nprint(json.dumps(result, indent=2))"
+                },
+                "store_as": "analysis"
+              },
+              {
+                "tool": "analyze_data",
+                "arguments": {
+                  "method": "visualize",
+                  "data": "{{analysis}}",
+                  "options": {
+                    "chart_type": "line",
+                    "title": "Sales Trend Analysis"
+                  }
+                }
+              },
+              {
+                "tool": "memory_manager",
+                "arguments": {
+                  "operation": "store",
+                  "content": "Sales Analysis Results:\n{{analysis}}",
+                  "tags": ["sales", "analysis", "statistics"]
+                }
+              }
+            ],
+            "intent": "Analyze sales data and generate insights"
+          }
+        }
+      }
+    },
+    {
+      "name": "Code Generation and Testing",
+      "description": "Generate code, test it, and iterate based on results",
+      "request": {
+        "method": "tool/call",
+        "params": {
+          "name": "execute_chain",
+          "arguments": {
+            "chain": [
+              {
+                "tool": "execute_code",
+                "arguments": {
+                  "language": "python",
+                  "code": "# Generate a REST API client\napi_code = '''\nimport requests\nimport json\n\nclass APIClient:\n    def __init__(self, base_url):\n        self.base_url = base_url\n        self.session = requests.Session()\n    \n    def get(self, endpoint, params=None):\n        url = f\"{self.base_url}/{endpoint}\"\n        response = self.session.get(url, params=params)\n        response.raise_for_status()\n        return response.json()\n    \n    def post(self, endpoint, data=None):\n        url = f\"{self.base_url}/{endpoint}\"\n        response = self.session.post(url, json=data)\n        response.raise_for_status()\n        return response.json()\n'''\n\nwith open('api_client.py', 'w') as f:\n    f.write(api_code)\n\nprint('API client generated successfully')"
+                }
+              },
+              {
+                "tool": "execute_code",
+                "arguments": {
+                  "language": "python",
+                  "code": "# Test the generated API client\nimport sys\nsys.path.append('.')\n\n# Mock test\ntest_code = '''\n# Test the API client\ntry:\n    from api_client import APIClient\n    client = APIClient('https://api.example.com')\n    print('✓ Import successful')\n    print('✓ Client instantiation successful')\n    print('✓ All tests passed!')\nexcept Exception as e:\n    print(f'✗ Test failed: {e}')\n'''\n\nexec(test_code)"
+                },
+                "store_as": "test_results"
+              },
+              {
+                "tool": "memory_manager",
+                "arguments": {
+                  "operation": "store",
+                  "content": "Generated API Client Code:\n```python\nimport requests\nimport json\n\nclass APIClient:\n    def __init__(self, base_url):\n        self.base_url = base_url\n        self.session = requests.Session()\n    \n    def get(self, endpoint, params=None):\n        url = f\"{self.base_url}/{endpoint}\"\n        response = self.session.get(url, params=params)\n        response.raise_for_status()\n        return response.json()\n    \n    def post(self, endpoint, data=None):\n        url = f\"{self.base_url}/{endpoint}\"\n        response = self.session.post(url, json=data)\n        response.raise_for_status()\n        return response.json()\n```\n\nTest Results: {{test_results}}",
+                  "tags": ["code", "api", "client", "python", "tested"]
+                }
+              }
+            ],
+            "intent": "Generate and test a reusable API client"
+          }
+        }
+      }
+    },
+    {
+      "name": "Context-Aware Assistance",
+      "description": "Use context analysis to provide intelligent suggestions",
+      "sequence": [
+        {
+          "description": "Perform some initial work",
+          "request": {
+            "method": "tool/call",
+            "params": {
+              "name": "web_search",
+              "arguments": {
+                "query": "best practices for Python API development"
+              }
+            }
+          }
+        },
+        {
+          "description": "Analyze context and get suggestions",
+          "request": {
+            "method": "tool/call",
+            "params": {
+              "name": "analyze_context",
+              "arguments": {
+                "focus": "suggestions"
+              }
+            }
+          }
+        },
+        {
+          "description": "Check progress",
+          "request": {
+            "method": "tool/call",
+            "params": {
+              "name": "analyze_context",
+              "arguments": {
+                "focus": "progress"
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Memory-Based Learning",
+      "description": "Store and retrieve knowledge for improved assistance",
+      "sequence": [
+        {
+          "description": "Store a solution",
+          "request": {
+            "method": "tool/call",
+            "params": {
+              "name": "memory_manager",
+              "arguments": {
+                "operation": "store",
+                "content": "Solution for database connection pooling:\n1. Use connection pool library (e.g., SQLAlchemy)\n2. Set pool_size based on expected load\n3. Configure pool_recycle for stale connections\n4. Implement retry logic for transient failures",
+                "tags": ["database", "connection", "pooling", "solution", "performance"]
+              }
+            }
+          }
+        },
+        {
+          "description": "Search for related solutions",
+          "request": {
+            "method": "tool/call",
+            "params": {
+              "name": "memory_manager",
+              "arguments": {
+                "operation": "search",
+                "content": "database performance"
+              }
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "advanced_patterns": {
+    "dynamic_tool_selection": {
+      "description": "The assistant can analyze tasks and dynamically select appropriate tools",
+      "example": "For 'analyze this CSV file', it would chain: file_manager -> execute_code -> analyze_data"
+    },
+    "error_recovery": {
+      "description": "Failed tool executions are tracked and alternative approaches suggested",
+      "example": "If code execution fails, suggest debugging steps or alternative implementations"
+    },
+    "context_preservation": {
+      "description": "Important results are automatically stored in memory for future reference",
+      "example": "Successful code snippets, analysis results, and key findings are tagged and stored"
+    },
+    "learning_from_usage": {
+      "description": "The assistant learns from successful tool chains and suggests them for similar tasks",
+      "example": "After multiple data analysis workflows, it suggests optimized chains for new data tasks"
+    }
+  }
+}

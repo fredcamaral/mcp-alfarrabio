@@ -6,7 +6,9 @@ import (
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/embeddings"
 	"mcp-memory/pkg/types"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -392,7 +394,7 @@ func (cs *ChunkingService) prepareContentForEmbedding(chunk *types.ConversationC
 	combined := strings.Join(parts, " ")
 
 	// Truncate if too long for embedding model
-	maxLength := 8000 // Conservative limit for most embedding models
+	maxLength := getEnvInt("MCP_MEMORY_MAX_EMBEDDING_CONTENT_LENGTH", 8000) // Conservative limit for most embedding models
 	if len(combined) > maxLength {
 		return combined[:maxLength]
 	}
@@ -489,4 +491,14 @@ func (cs *ChunkingService) Reset() {
 	cs.currentContext = &types.ChunkingContext{}
 	cs.contextHistory = []types.ChunkingContext{}
 	cs.lastChunkTime = time.Now()
+}
+
+// getEnvInt gets an integer from environment variable with a default
+func getEnvInt(key string, defaultValue int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return defaultValue
 }

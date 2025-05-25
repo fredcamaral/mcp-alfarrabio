@@ -3,7 +3,9 @@ package intelligence
 import (
 	"context"
 	"fmt"
+	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -161,12 +163,12 @@ func NewMultiRepoEngine(patternEngine *PatternEngine, knowledgeGraph *GraphBuild
 		crossRepoPatterns:   make(map[string]*CrossRepoPattern),
 		repoRelations:       make(map[string]*RepositoryRelation),
 		teamKnowledge:       make(map[string]*TeamKnowledge),
-		maxRepositories:     100,
-		similarityThreshold: 0.6,
-		patternMinFreq:      3,
-		enableTeamLearning:  true,
+		maxRepositories:     getEnvInt("MCP_MEMORY_MAX_REPOSITORIES", 100),
+		similarityThreshold: getEnvFloat("MCP_MEMORY_REPO_SIMILARITY_THRESHOLD", 0.6),
+		patternMinFreq:      getEnvInt("MCP_MEMORY_PATTERN_MIN_FREQUENCY", 3),
+		enableTeamLearning:  getEnvBool("MCP_MEMORY_ENABLE_TEAM_LEARNING", true),
 		lastAnalysis:        time.Now(),
-		analysisInterval:    24 * time.Hour,
+		analysisInterval:    getEnvDurationHours("MCP_MEMORY_ANALYSIS_INTERVAL_HOURS", 24),
 	}
 }
 
@@ -615,7 +617,8 @@ func (mre *MultiRepoEngine) calculateCrossPatternConfidence(repos []PatternInfo)
 	}
 	
 	// Base confidence on number of repositories
-	baseConfidence := float64(len(repos)) / 10.0 // Max confidence when pattern appears in 10+ repos
+	patternDivisor := getEnvFloat("MCP_MEMORY_PATTERN_CONFIDENCE_DIVISOR", 10.0)
+	baseConfidence := float64(len(repos)) / patternDivisor // Max confidence when pattern appears in divisor+ repos
 	if baseConfidence > 1.0 {
 		baseConfidence = 1.0
 	}
@@ -713,7 +716,8 @@ func (mre *MultiRepoEngine) calculateRepositoryRelevance(repo *RepositoryContext
 	
 	// Add relevance for recent activity
 	daysSinceActivity := time.Since(repo.LastActivity).Hours() / 24
-	activityRelevance := 1.0 / (1.0 + daysSinceActivity/30.0) // Decay over 30 days
+	decayDays := float64(getEnvInt("MCP_MEMORY_ACTIVITY_DECAY_DAYS", 30))
+	activityRelevance := 1.0 / (1.0 + daysSinceActivity/decayDays) // Decay over configured days
 	relevance += activityRelevance * 0.3
 	
 	return relevance
@@ -839,4 +843,41 @@ func sanitizeID(input string) string {
 	result = strings.ReplaceAll(result, " ", "_")
 	result = strings.ReplaceAll(result, "-", "_")
 	return result
+}
+
+// Helper functions for environment variables
+func getEnvInt(key string, defaultValue int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return defaultValue
+}
+
+func getEnvFloat(key string, defaultValue float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if f, err := strconv.ParseFloat(val, 64); err == nil {
+			return f
+		}
+	}
+	return defaultValue
+}
+
+func getEnvBool(key string, defaultValue bool) bool {
+	if val := os.Getenv(key); val != "" {
+		if b, err := strconv.ParseBool(val); err == nil {
+			return b
+		}
+	}
+	return defaultValue
+}
+
+func getEnvDurationHours(key string, defaultHours int) time.Duration {
+	if val := os.Getenv(key); val != "" {
+		if hours, err := strconv.Atoi(val); err == nil {
+			return time.Duration(hours) * time.Hour
+		}
+	}
+	return time.Duration(defaultHours) * time.Hour
 }

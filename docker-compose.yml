@@ -10,12 +10,12 @@ services:
       - "${CHROMA_HOST_PORT:-9000}:8000"
     environment:
       - CHROMA_SERVER_HOST=0.0.0.0
-      - CHROMA_SERVER_HTTP_PORT=8000
-      - PERSIST_DIRECTORY=/chroma/chroma
+      - CHROMA_SERVER_HTTP_PORT=${CHROMA_HTTP_PORT:-8000}
+      - PERSIST_DIRECTORY=${CHROMA_PERSIST_DIR:-/chroma/chroma}
     volumes:
       - chroma_data:/chroma/chroma
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v2/heartbeat"]
+      test: ["CMD", "curl", "-f", "http://localhost:${CHROMA_HTTP_PORT:-8000}/api/v2/heartbeat"]
       interval: ${HEALTH_CHECK_INTERVAL:-30s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-3}
@@ -43,15 +43,15 @@ services:
       - MCP_MEMORY_METRICS_PORT=8082
       # Chroma vector database configuration
       - MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
-      - MCP_MEMORY_CHROMA_COLLECTION=claude_memory
-      - MCP_MEMORY_VECTOR_DIM=1536
+      - MCP_MEMORY_CHROMA_COLLECTION=${CHROMA_COLLECTION:-claude_memory}
+      - MCP_MEMORY_VECTOR_DIM=${MCP_MEMORY_EMBEDDING_DIMENSION:-1536}
       # SQLite storage (no PostgreSQL needed)
       - MCP_MEMORY_DB_TYPE=sqlite
-      - MCP_MEMORY_DB_PATH=/app/data/memory.db
+      - MCP_MEMORY_DB_PATH=${SQLITE_DB_PATH:-/app/data/memory.db}
       # Security and backup settings
       - MCP_MEMORY_ENCRYPTION_ENABLED=true
       - MCP_MEMORY_BACKUP_ENABLED=true
-      - MCP_MEMORY_BACKUP_INTERVAL=24h
+      - MCP_MEMORY_BACKUP_INTERVAL=${MCP_MEMORY_BACKUP_INTERVAL_HOURS:-24}h
       - MCP_MEMORY_ACCESS_CONTROL_ENABLED=true
       # OpenAI API configuration
       - OPENAI_API_KEY=${OPENAI_API_KEY}
@@ -78,9 +78,9 @@ services:
 #   container_name: mcp-postgres
 #   restart: unless-stopped
 #   environment:
-#     - POSTGRES_DB=mcp_memory
-#     - POSTGRES_USER=mcpuser
-#     - POSTGRES_PASSWORD=mcppassword
+#     - POSTGRES_DB=${POSTGRES_DB:-mcp_memory}
+#     - POSTGRES_USER=${POSTGRES_USER:-mcpuser}
+#     - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-mcppassword}
 #   volumes:
 #     - postgres_data:/var/lib/postgresql/data
 #   ports:
@@ -93,7 +93,7 @@ services:
 #   image: redis:7-alpine
 #   container_name: mcp-redis
 #   restart: unless-stopped
-#   command: redis-server --appendonly yes --requirepass redispassword
+#   command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD:-redispassword}
 #   volumes:
 #     - redis_data:/data
 #   ports:
@@ -123,7 +123,7 @@ services:
 #     - "3000:3000"
 #   environment:
 #     - GF_SECURITY_ADMIN_USER=admin
-#     - GF_SECURITY_ADMIN_PASSWORD=grafanapassword
+#     - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_ADMIN_PASSWORD:-grafanapassword}
 #   volumes:
 #     - grafana_data:/var/lib/grafana
 #   networks:
@@ -157,17 +157,17 @@ volumes:
   chroma_data:
     driver: local
     name: mcp_memory_chroma_vector_db_NEVER_DELETE
-    
-  # CRITICAL: MCP server data - Contains SQLite database and app data  
+
+  # CRITICAL: MCP server data - Contains SQLite database and app data
   mcp_data:
     driver: local
     name: mcp_memory_app_data_NEVER_DELETE
-    
+
   # Application logs - Safe to recreate but useful for debugging
   mcp_logs:
     driver: local
-    name: mcp_memory_logs
-    
+    name: mcp_memory_logs_NEVER_DELETE
+
   # Backup storage - Contains automated backups of your data
   mcp_backups:
     driver: local

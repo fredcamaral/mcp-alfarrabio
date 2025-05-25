@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"log"
 	"mcp-memory/internal/config"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -105,7 +107,7 @@ func NewOpenAIEmbeddingService(cfg *config.OpenAIConfig) *OpenAIEmbeddingService
 	// Ensure RateLimitRPM is at least 1 to avoid divide by zero
 	rpm := cfg.RateLimitRPM
 	if rpm <= 0 {
-		rpm = 60 // Default to 60 RPM if not configured
+		rpm = getEnvInt("MCP_MEMORY_OPENAI_DEFAULT_RPM", 60) // Default to configured RPM or 60
 	}
 	refillRate := time.Minute / time.Duration(rpm)
 	rateLimiter := NewRateLimiter(rpm, refillRate)
@@ -304,13 +306,15 @@ func (oes *OpenAIEmbeddingService) putInCache(key string, embedding []float64) {
 	oes.cache[key] = cached
 
 	// Simple cache size management - remove oldest entries if cache gets too large
-	if len(oes.cache) > 1000 {
+	maxCacheSize := getEnvInt("MCP_MEMORY_CACHE_MAX_SIZE", 1000)
+	if len(oes.cache) > maxCacheSize {
 		// Remove random entries (in practice, you'd want LRU or similar)
 		count := 0
+		cleanupBatch := getEnvInt("MCP_MEMORY_CACHE_CLEANUP_BATCH", 100)
 		for k := range oes.cache {
 			delete(oes.cache, k)
 			count++
-			if count >= 100 {
+			if count >= cleanupBatch {
 				break
 			}
 		}
@@ -343,4 +347,14 @@ func min(a, b int) int {
 		return a
 	}
 	return b
+}
+
+// getEnvInt gets an integer from environment variable with a default
+func getEnvInt(key string, defaultValue int) int {
+	if val := os.Getenv(key); val != "" {
+		if i, err := strconv.Atoi(val); err == nil {
+			return i
+		}
+	}
+	return defaultValue
 }

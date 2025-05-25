@@ -1,0 +1,23 @@
+# Binary
+api-gateway
+
+# Config files with secrets
+config.local.yaml
+config.prod.yaml
+*.secret.yaml
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Test files
+*.test.yaml
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db

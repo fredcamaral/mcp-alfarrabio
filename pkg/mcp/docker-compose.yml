@@ -1,0 +1,81 @@
+version: '3.8'
+
+services:
+  echo-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-echo-server
+    command: /bin/echo-server
+    ports:
+      - "8080:8080"
+    environment:
+      - MCP_LOG_LEVEL=debug
+    networks:
+      - mcp-network
+
+  calculator:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-calculator
+    command: /bin/calculator
+    ports:
+      - "8081:8080"
+    environment:
+      - MCP_LOG_LEVEL=debug
+    networks:
+      - mcp-network
+
+  file-manager:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-file-manager
+    command: /bin/file-manager
+    ports:
+      - "8082:8080"
+    environment:
+      - MCP_LOG_LEVEL=debug
+    volumes:
+      - ./data:/data
+    networks:
+      - mcp-network
+
+  weather-service:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-weather-service
+    command: /bin/weather-service
+    ports:
+      - "8083:8080"
+    environment:
+      - MCP_LOG_LEVEL=debug
+      - WEATHER_API_KEY=${WEATHER_API_KEY:-demo_key}
+    networks:
+      - mcp-network
+
+  # MCP client for testing
+  mcp-client:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: mcp-client
+    command: sleep infinity
+    volumes:
+      - ./examples:/examples
+    networks:
+      - mcp-network
+    depends_on:
+      - echo-server
+      - calculator
+      - file-manager
+      - weather-service
+
+networks:
+  mcp-network:
+    driver: bridge
+
+volumes:
+  file-data:
