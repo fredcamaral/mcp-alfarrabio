@@ -108,7 +108,7 @@ func (ms *MemoryServer) registerTools() {
 	// Register all MCP tools with proper schemas
 	
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_store_chunk",
+		"mcp__memory__memory_store_chunk",
 		"Store a conversation chunk in memory with automatic analysis and embedding generation",
 		mcp.ObjectSchema("Store memory chunk parameters", map[string]interface{}{
 			"content": mcp.StringParam("The conversation content to store", true),
@@ -122,7 +122,7 @@ func (ms *MemoryServer) registerTools() {
 	), mcp.ToolHandlerFunc(ms.handleStoreChunk))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_search",
+		"mcp__memory__memory_search",
 		"Search for similar conversation chunks based on natural language query",
 		mcp.ObjectSchema("Search memory parameters", map[string]interface{}{
 			"query": mcp.StringParam("Natural language search query", true),
@@ -152,7 +152,7 @@ func (ms *MemoryServer) registerTools() {
 	), mcp.ToolHandlerFunc(ms.handleSearch))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_get_context",
+		"mcp__memory__memory_get_context",
 		"Get project context and recent activity for session initialization",
 		mcp.ObjectSchema("Get context parameters", map[string]interface{}{
 			"repository": mcp.StringParam("Repository name to get context for", true),
@@ -167,7 +167,7 @@ func (ms *MemoryServer) registerTools() {
 	), mcp.ToolHandlerFunc(ms.handleGetContext))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_find_similar",
+		"mcp__memory__memory_find_similar",
 		"Find similar past problems and their solutions",
 		mcp.ObjectSchema("Find similar parameters", map[string]interface{}{
 			"problem": mcp.StringParam("Description of the current problem or error", true),
@@ -183,7 +183,7 @@ func (ms *MemoryServer) registerTools() {
 	), mcp.ToolHandlerFunc(ms.handleFindSimilar))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_store_decision",
+		"mcp__memory__memory_store_decision",
 		"Store an architectural decision with rationale",
 		mcp.ObjectSchema("Store decision parameters", map[string]interface{}{
 			"decision": mcp.StringParam("The architectural decision made", true),
@@ -195,7 +195,7 @@ func (ms *MemoryServer) registerTools() {
 	), mcp.ToolHandlerFunc(ms.handleStoreDecision))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_get_patterns",
+		"mcp__memory__memory_get_patterns",
 		"Identify recurring patterns in project history",
 		mcp.ObjectSchema("Get patterns parameters", map[string]interface{}{
 			"repository": mcp.StringParam("Repository to analyze", true),
@@ -209,14 +209,14 @@ func (ms *MemoryServer) registerTools() {
 	), mcp.ToolHandlerFunc(ms.handleGetPatterns))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_health",
+		"mcp__memory__memory_health",
 		"Check the health status of the memory system",
 		mcp.ObjectSchema("Health check parameters", map[string]interface{}{}, []string{}),
 	), mcp.ToolHandlerFunc(ms.handleHealth))
 
 	// Phase 3.2: Advanced MCP Tools
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_suggest_related",
+		"mcp__memory__memory_suggest_related",
 		"Get AI-powered suggestions for related context based on current work",
 		mcp.ObjectSchema("Suggest related parameters", map[string]interface{}{
 			"current_context": mcp.StringParam("Current work context or conversation content", true),
@@ -234,7 +234,7 @@ func (ms *MemoryServer) registerTools() {
 	), mcp.ToolHandlerFunc(ms.handleSuggestRelated))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_export_project",
+		"mcp__memory__memory_export_project",
 		"Export all memory data for a project in various formats",
 		mcp.ObjectSchema("Export project parameters", map[string]interface{}{
 			"repository": mcp.StringParam("Repository to export", true),
@@ -254,7 +254,7 @@ func (ms *MemoryServer) registerTools() {
 	), mcp.ToolHandlerFunc(ms.handleExportProject))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
-		"memory_import_context",
+		"mcp__memory__memory_import_context",
 		"Import conversation context from external source",
 		mcp.ObjectSchema("Import context parameters", map[string]interface{}{
 			"source": map[string]interface{}{
