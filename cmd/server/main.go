@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -85,7 +86,7 @@ func main() {
 func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string) error {
 	// Create HTTP handler that processes MCP requests
 	mux := http.NewServeMux()
-	
+
 	// Handle MCP-over-HTTP requests
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers for remote access
@@ -113,7 +114,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 
 		// Process the request through MCP server
 		resp := mcpServer.HandleRequest(r.Context(), &req)
-		
+
 		// Send the response
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(resp); err != nil {
@@ -170,6 +171,10 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	// Wait for context cancellation
 	<-ctx.Done()
 
+	// Create a timeout context for shutdown
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+
 	// Shutdown server gracefully
-	return server.Shutdown(context.Background())
+	return server.Shutdown(shutdownCtx)
 }

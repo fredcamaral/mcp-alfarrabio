@@ -92,11 +92,6 @@ type VectorStorageHealthChecker struct {
 	ping func(ctx context.Context) error
 }
 
-// EmbeddingServiceHealthChecker checks embedding service
-type EmbeddingServiceHealthChecker struct {
-	name string
-	ping func(ctx context.Context) error
-}
 
 // MemoryHealthChecker checks memory usage
 type MemoryHealthChecker struct {

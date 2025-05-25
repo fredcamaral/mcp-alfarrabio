@@ -122,11 +122,11 @@ benchmark: ## Run benchmarks
 lint: ## Run linters (install if needed)
 	@echo "$(GREEN)Running linters...$(RESET)"
 	@if command -v golangci-lint >/dev/null 2>&1; then \
-		golangci-lint run --issues-exit-code=0 || echo "$(YELLOW)Linting issues found but continuing...$(RESET)"; \
+		golangci-lint run --config .golangci.yml ./... || echo "$(YELLOW)Linting issues found but continuing...$(RESET)"; \
 	else \
 		echo "$(YELLOW)golangci-lint not found, installing...$(RESET)"; \
 		go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest; \
-		golangci-lint run --issues-exit-code=0 || echo "$(YELLOW)Linting issues found but continuing...$(RESET)"; \
+		golangci-lint run --config .golangci.yml ./... || echo "$(YELLOW)Linting issues found but continuing...$(RESET)"; \
 	fi
 
 fmt: ## Format code
