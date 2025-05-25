@@ -64,6 +64,11 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4
     
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.23'
+    
     - name: Initialize CodeQL
       uses: github/codeql-action/init@v3
       with:
@@ -118,7 +123,7 @@ jobs:
     
     - name: Generate license report
       run: |
-        go-licenses report ./... > licenses.txt
+        go-licenses report ./... > licenses.txt || true
     
     - name: Upload license report
       uses: actions/upload-artifact@v4

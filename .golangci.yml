@@ -18,8 +18,11 @@ run:
     - integration
     - e2e
   
-  # Exclude directories and files
-  exclude-dirs:
+  # Module download mode
+  modules-download-mode: readonly
+  
+  # Skip dirs
+  skip-dirs:
     - vendor
     - third_party
     - testdata
@@ -27,23 +30,23 @@ run:
     - bin
     - scripts
   
-  # Exclude files
-  exclude-files:
+  # Skip files
+  skip-files:
     - ".*\\.pb\\.go$"
     - ".*\\.gen\\.go$"
     - "mock_.*\\.go$"
 
 output:
   # Format of output: colored-line-number|line-number|json|tab|checkstyle|code-climate
-  format: colored-line-number
-  
-  # Print linter name in the end of issue text
-  print-linter-name: true
+  formats:
+    - format: colored-line-number
+      print-linter-name: true
   
   # Sort results by: filepath, line and column
-  sort-results: true
+  sort: results
 
 linters:
+  
   # Enable specific linters
   enable:
     # Default linters
@@ -133,7 +136,7 @@ linters:
     - structcheck
     - varcheck
 
-linters-settings:
+linter-settings:
   # errcheck
   errcheck:
     check-type-assertions: true
@@ -314,18 +317,33 @@ linters-settings:
       - name: unreachable-code
       - name: redefines-builtin-id
 
+
 issues:
   # Maximum count of issues with the same text
   max-same-issues: 0
   
-  # List of regexps of issue texts to exclude
-  exclude:
-    - "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*printf?|os\\.(Un)?Setenv). is not checked"
-    - "exported (type|method|function) (.+) should have comment or be unexported"
-    - "ST1000: at least one file in a package should have a package comment"
-  
-  # Exclude configuration per-path, per-linter, per-text and per-source
+  # Additional exclude rules for specific texts and sources
   exclude-rules:
+    # Text-based exclusions
+    - text: "Error return value of .((os\\.)?std(out|err)\\..*|.*Close|.*Flush|os\\.Remove(All)?|.*printf?|os\\.(Un)?Setenv). is not checked"
+    - text: "exported (type|method|function) (.+) should have comment or be unexported"
+    - text: "ST1000: at least one file in a package should have a package comment"
+    
+    # Exclude lll issues for long lines with go:generate
+    - linters:
+        - lll
+      source: "^//go:generate "
+    
+    # Exclude some staticcheck messages
+    - linters:
+        - staticcheck
+      text: "SA9003:"
+    
+    # Exclude some gocritic messages
+    - linters:
+        - gocritic
+      text: "unnecessaryDefer:"
+    
     # Exclude some linters from running on tests files
     - path: _test\.go
       linters:
@@ -344,29 +362,14 @@ issues:
         - dupl
         - lll
     
-    # Exclude lll issues for long lines with go:generate
-    - linters:
-        - lll
-      source: "^//go:generate "
-    
-    # Exclude some staticcheck messages
-    - linters:
-        - staticcheck
-      text: "SA9003:"
-    
-    # Exclude some gosec messages
-    - linters:
-        - gosec
+    # Exclude some gosec messages in test files
+    - path: _test\.go
       text: "G104:"
-      path: _test\.go
-    
-    # Exclude some gocritic messages
-    - linters:
-        - gocritic
-      text: "unnecessaryDefer:"
+      linters:
+        - gosec
   
-  # Independently from option `exclude` we use default exclude patterns
-  exclude-use-default: false
+  # Include issues from generated files
+  exclude-generated: strict
   
   # Maximum issues count per one linter
   max-issues-per-linter: 0
@@ -378,9 +381,8 @@ issues:
   fix: false
 
 severity:
-  # Default value is empty string.
-  # Set the default severity for issues.
-  default-severity: error
+  # Set default severity
+  default: error
   
   # When a list of severity rules are provided, severity information will be added to lint
   # issues. Severity rules have the same filtering capability as exclude rules.
