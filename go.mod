@@ -1,6 +1,8 @@
 module mcp-memory
 
-go 1.24.3
+go 1.23.0
+
+toolchain go1.24.3
 
 require (
 	github.com/amikos-tech/chroma-go v0.2.3
@@ -17,7 +19,7 @@ replace mcp-memory/pkg/mcp => ./pkg/mcp
 require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-viper/mapstructure/v2 v2.2.1 // indirect
-	github.com/gorilla/websocket v1.5.1 // indirect
+	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/oklog/ulid v1.3.1 // indirect
@@ -26,9 +28,6 @@ require (
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/yalue/onnxruntime_go v1.19.0 // indirect
-	go.opentelemetry.io/otel/metric v1.36.0 // indirect
-	go.opentelemetry.io/otel/trace v1.36.0 // indirect
-	golang.org/x/net v0.39.0 // indirect
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
