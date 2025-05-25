@@ -119,36 +119,40 @@ func (v *Validator) Validate(ctx context.Context, verbose bool) (*ValidationResu
 	}
 
 	// Test 1: Initialize
-	if result := v.testInitialize(ctx, verbose); !result.Passed {
+	initResult := v.testInitialize(ctx, verbose)
+	if !initResult.Passed {
 		results.Valid = false
 	} else {
-		results.ProtocolInfo = result.ServerInfo
-		results.Capabilities = result.Capabilities
+		results.ProtocolInfo = initResult.ServerInfo
+		results.Capabilities = initResult.Capabilities
 	}
-	results.Tests = append(results.Tests, result.TestResult)
+	results.Tests = append(results.Tests, initResult.TestResult)
 
 	// Test 2: List Tools
 	if results.Capabilities.Tools != nil {
-		if result := v.testListTools(ctx, verbose); !result.Passed {
+		toolsResult := v.testListTools(ctx, verbose)
+		if !toolsResult.Passed {
 			results.Valid = false
 		}
-		results.Tests = append(results.Tests, result)
+		results.Tests = append(results.Tests, toolsResult)
 	}
 
 	// Test 3: List Resources
 	if results.Capabilities.Resources != nil {
-		if result := v.testListResources(ctx, verbose); !result.Passed {
+		resourcesResult := v.testListResources(ctx, verbose)
+		if !resourcesResult.Passed {
 			results.Valid = false
 		}
-		results.Tests = append(results.Tests, result)
+		results.Tests = append(results.Tests, resourcesResult)
 	}
 
 	// Test 4: List Prompts
 	if results.Capabilities.Prompts != nil {
-		if result := v.testListPrompts(ctx, verbose); !result.Passed {
+		promptsResult := v.testListPrompts(ctx, verbose)
+		if !promptsResult.Passed {
 			results.Valid = false
 		}
-		results.Tests = append(results.Tests, result)
+		results.Tests = append(results.Tests, promptsResult)
 	}
 
 	return results, nil
@@ -164,7 +168,7 @@ func (v *Validator) testInitialize(ctx context.Context, verbose bool) *Initializ
 	start := time.Now()
 	
 	// Send initialize request
-	req := protocol.Request{
+	req := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`1`),
 		Method:  "initialize",
@@ -194,7 +198,7 @@ func (v *Validator) testInitialize(ctx context.Context, verbose bool) *Initializ
 	}
 
 	// Read response
-	var resp protocol.Response
+	var resp protocol.JSONRPCResponse
 	if err := v.dec.Decode(&resp); err != nil {
 		return &InitializeResult{
 			TestResult: TestResult{
@@ -219,7 +223,18 @@ func (v *Validator) testInitialize(ctx context.Context, verbose bool) *Initializ
 
 	// Parse result
 	var initResult protocol.InitializeResult
-	if err := json.Unmarshal(resp.Result, &initResult); err != nil {
+	resultBytes, err := json.Marshal(resp.Result)
+	if err != nil {
+		return &InitializeResult{
+			TestResult: TestResult{
+				Name:     "Initialize",
+				Passed:   false,
+				Message:  fmt.Sprintf("Failed to marshal result: %v", err),
+				Duration: time.Since(start),
+			},
+		}
+	}
+	if err := json.Unmarshal(resultBytes, &initResult); err != nil {
 		return &InitializeResult{
 			TestResult: TestResult{
 				Name:     "Initialize",
@@ -231,7 +246,7 @@ func (v *Validator) testInitialize(ctx context.Context, verbose bool) *Initializ
 	}
 
 	// Send initialized notification
-	notif := protocol.Notification{
+	notif := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
 		Method:  "initialized",
 	}
@@ -262,7 +277,7 @@ func (v *Validator) testInitialize(ctx context.Context, verbose bool) *Initializ
 func (v *Validator) testListTools(ctx context.Context, verbose bool) TestResult {
 	start := time.Now()
 
-	req := protocol.Request{
+	req := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`2`),
 		Method:  "tools/list",
@@ -281,7 +296,7 @@ func (v *Validator) testListTools(ctx context.Context, verbose bool) TestResult 
 		}
 	}
 
-	var resp protocol.Response
+	var resp protocol.JSONRPCResponse
 	if err := v.dec.Decode(&resp); err != nil {
 		return TestResult{
 			Name:     "List Tools",
@@ -301,7 +316,16 @@ func (v *Validator) testListTools(ctx context.Context, verbose bool) TestResult 
 	}
 
 	var tools []protocol.Tool
-	if err := json.Unmarshal(resp.Result, &tools); err != nil {
+	resultBytes, err := json.Marshal(resp.Result)
+	if err != nil {
+		return TestResult{
+			Name:     "List Tools",
+			Passed:   false,
+			Message:  fmt.Sprintf("Failed to marshal result: %v", err),
+			Duration: time.Since(start),
+		}
+	}
+	if err := json.Unmarshal(resultBytes, &tools); err != nil {
 		return TestResult{
 			Name:     "List Tools",
 			Passed:   false,
@@ -321,7 +345,7 @@ func (v *Validator) testListTools(ctx context.Context, verbose bool) TestResult 
 func (v *Validator) testListResources(ctx context.Context, verbose bool) TestResult {
 	start := time.Now()
 
-	req := protocol.Request{
+	req := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`3`),
 		Method:  "resources/list",
@@ -340,7 +364,7 @@ func (v *Validator) testListResources(ctx context.Context, verbose bool) TestRes
 		}
 	}
 
-	var resp protocol.Response
+	var resp protocol.JSONRPCResponse
 	if err := v.dec.Decode(&resp); err != nil {
 		return TestResult{
 			Name:     "List Resources",
@@ -360,7 +384,16 @@ func (v *Validator) testListResources(ctx context.Context, verbose bool) TestRes
 	}
 
 	var resources []protocol.Resource
-	if err := json.Unmarshal(resp.Result, &resources); err != nil {
+	resultBytes, err := json.Marshal(resp.Result)
+	if err != nil {
+		return TestResult{
+			Name:     "List Resources",
+			Passed:   false,
+			Message:  fmt.Sprintf("Failed to marshal result: %v", err),
+			Duration: time.Since(start),
+		}
+	}
+	if err := json.Unmarshal(resultBytes, &resources); err != nil {
 		return TestResult{
 			Name:     "List Resources",
 			Passed:   false,
@@ -380,7 +413,7 @@ func (v *Validator) testListResources(ctx context.Context, verbose bool) TestRes
 func (v *Validator) testListPrompts(ctx context.Context, verbose bool) TestResult {
 	start := time.Now()
 
-	req := protocol.Request{
+	req := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`4`),
 		Method:  "prompts/list",
@@ -399,7 +432,7 @@ func (v *Validator) testListPrompts(ctx context.Context, verbose bool) TestResul
 		}
 	}
 
-	var resp protocol.Response
+	var resp protocol.JSONRPCResponse
 	if err := v.dec.Decode(&resp); err != nil {
 		return TestResult{
 			Name:     "List Prompts",
@@ -419,7 +452,16 @@ func (v *Validator) testListPrompts(ctx context.Context, verbose bool) TestResul
 	}
 
 	var prompts []protocol.Prompt
-	if err := json.Unmarshal(resp.Result, &prompts); err != nil {
+	resultBytes, err := json.Marshal(resp.Result)
+	if err != nil {
+		return TestResult{
+			Name:     "List Prompts",
+			Passed:   false,
+			Message:  fmt.Sprintf("Failed to marshal result: %v", err),
+			Duration: time.Since(start),
+		}
+	}
+	if err := json.Unmarshal(resultBytes, &prompts); err != nil {
 		return TestResult{
 			Name:     "List Prompts",
 			Passed:   false,

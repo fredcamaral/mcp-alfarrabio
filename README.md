@@ -1,6 +1,6 @@
-# Claude Vector Memory MCP Server
+# MCP Memory Server
 
-An intelligent conversation memory server for Claude MCP with advanced vector storage, pattern recognition, and contextual learning capabilities.
+A high-performance Model Context Protocol (MCP) server that provides intelligent memory and context management for AI applications. Built with Go, it features advanced vector storage, pattern recognition, and contextual learning capabilities using Chroma vector database.
 
 ## 🚀 Features
 
@@ -26,9 +26,11 @@ An intelligent conversation memory server for Claude MCP with advanced vector st
 ## 📋 Requirements
 
 - Go 1.21 or higher
-- SQLite 3.35+ (default) or PostgreSQL 13+
+- Chroma vector database (required)
+- PostgreSQL 13+ (optional, for metadata storage)
 - Docker & Docker Compose (for containerized deployment)
 - Redis (optional, for distributed caching)
+- OpenAI API key (for embeddings generation)
 
 ## 🛠️ Quick Start
 
@@ -40,17 +42,28 @@ An intelligent conversation memory server for Claude MCP with advanced vector st
    cd mcp-memory
    ```
 
-2. **Install dependencies**
+2. **Set up environment**
    ```bash
-   make deps
+   cp .env.example .env
+   # Edit .env to add your OPENAI_API_KEY and other configurations
    ```
 
-3. **Run in development mode**
+3. **Install dependencies**
    ```bash
-   make dev
+   go mod download
    ```
 
-4. **Test the installation**
+4. **Start Chroma database**
+   ```bash
+   docker run -p 8000:8000 chromadb/chroma:latest
+   ```
+
+5. **Run the server**
+   ```bash
+   go run cmd/server/main.go
+   ```
+
+6. **Test the installation**
    ```bash
    curl http://localhost:8081/health
    ```
@@ -59,13 +72,18 @@ An intelligent conversation memory server for Claude MCP with advanced vector st
 
 1. **Using Docker Compose (Recommended)**
    ```bash
+   cp .env.example .env
+   # Edit .env to configure your environment
    docker-compose up -d
    ```
 
 2. **Using Docker directly**
    ```bash
-   make docker-build
-   make docker-run
+   docker build -t mcp-memory .
+   docker run -p 8080:8080 -p 8081:8081 -p 8082:8082 \
+     -e OPENAI_API_KEY=your-api-key \
+     -e CHROMA_URL=http://chroma:8000 \
+     mcp-memory
    ```
 
 3. **Check deployment**
@@ -78,17 +96,21 @@ An intelligent conversation memory server for Claude MCP with advanced vector st
 
 ### Environment Variables
 
+See `.env.example` for a complete list of configuration options. Key variables include:
+
 | Variable | Default | Description |
 |----------|---------|-------------|
+| `OPENAI_API_KEY` | (required) | OpenAI API key for embeddings |
+| `CHROMA_URL` | `http://localhost:8000` | Chroma database URL |
 | `MCP_MEMORY_DATA_DIR` | `./data` | Data storage directory |
-| `MCP_MEMORY_CONFIG_DIR` | `./configs` | Configuration directory |
 | `MCP_MEMORY_LOG_LEVEL` | `info` | Logging level (debug, info, warn, error) |
 | `MCP_MEMORY_HTTP_PORT` | `8080` | Main API port |
 | `MCP_MEMORY_HEALTH_PORT` | `8081` | Health check port |
 | `MCP_MEMORY_METRICS_PORT` | `8082` | Metrics port |
-| `MCP_MEMORY_VECTOR_DIM` | `1536` | Vector dimension (must match embedding model) |
+| `MCP_MEMORY_VECTOR_DIM` | `1536` | Vector dimension (OpenAI ada-002) |
 | `MCP_MEMORY_ENCRYPTION_ENABLED` | `false` | Enable data encryption |
 | `MCP_MEMORY_ACCESS_CONTROL_ENABLED` | `false` | Enable access control |
+| `MCP_MEMORY_CACHE_ENABLED` | `true` | Enable performance caching |
 
 ### Configuration Files
 
@@ -131,11 +153,13 @@ An intelligent conversation memory server for Claude MCP with advanced vector st
 - **Burst**: 10 requests burst capacity
 - **Distributed**: Redis-backed rate limiting
 
-## 🚀 API Reference
+## 🚀 MCP Tools Reference
 
-### Core MCP Tools
+The server implements the following MCP tools with the standardized naming convention:
 
-#### `memory_store`
+### Core Memory Tools
+
+#### `mcp__memory__store`
 Store a conversation or context in memory.
 ```json
 {
@@ -148,8 +172,8 @@ Store a conversation or context in memory.
 }
 ```
 
-#### `memory_search`
-Search for similar conversations or contexts.
+#### `mcp__memory__search`
+Search for similar conversations or contexts using vector similarity.
 ```json
 {
   "query": "authentication implementation",
@@ -159,8 +183,28 @@ Search for similar conversations or contexts.
 }
 ```
 
-#### `memory_suggest_related`
-Get AI-powered context suggestions.
+#### `mcp__memory__list`
+List all stored memories with optional filtering.
+```json
+{
+  "project": "my-app",
+  "limit": 20,
+  "offset": 0
+}
+```
+
+#### `mcp__memory__delete`
+Delete specific memories by ID.
+```json
+{
+  "id": "memory-id-123"
+}
+```
+
+### Intelligence Tools
+
+#### `mcp__memory__suggest_related`
+Get AI-powered context suggestions based on current context.
 ```json
 {
   "current_context": "implementing user login",
@@ -168,9 +212,18 @@ Get AI-powered context suggestions.
 }
 ```
 
+#### `mcp__memory__analyze_patterns`
+Analyze conversation patterns and trends.
+```json
+{
+  "project": "my-app",
+  "time_range": "7d"
+}
+```
+
 ### Advanced Tools
 
-#### `memory_export_project`
+#### `mcp__memory__export_project`
 Export all memory for a project.
 ```json
 {
@@ -180,8 +233,8 @@ Export all memory for a project.
 }
 ```
 
-#### `memory_import_context`
-Import conversation context from external source.
+#### `mcp__memory__import_context`
+Import conversation context from external sources.
 ```json
 {
   "source": "file",
@@ -190,60 +243,64 @@ Import conversation context from external source.
 }
 ```
 
+#### `mcp__memory__get_stats`
+Get memory usage statistics.
+```json
+{
+  "project": "my-app"
+}
+```
+
+#### `mcp__memory__update_metadata`
+Update metadata for existing memories.
+```json
+{
+  "id": "memory-id-123",
+  "metadata": {
+    "tags": ["updated", "important"]
+  }
+}
+```
+
 ## 🏗️ Development
 
 ### Building from Source
 ```bash
 # Install dependencies
-make deps
+go mod download
 
 # Run tests
-make test
+go test ./...
+
+# Run tests with coverage
+go test -cover ./...
 
 # Run linting
-make lint
+golangci-lint run
 
 # Build binary
-make build
+go build -o bin/mcp-memory cmd/server/main.go
 
-# Cross-compile for all platforms
-make cross-compile
-
-# Create release package
-make release
+# Run with race detector
+go run -race cmd/server/main.go
 ```
 
-### Testing
+### Development Commands
 ```bash
-# Unit tests
-make test-unit
+# Format code
+go fmt ./...
 
-# Integration tests  
-make test-integration
+# Vet code
+go vet ./...
 
-# End-to-end tests
-make test-e2e
+# Generate mocks (if using mockgen)
+go generate ./...
 
-# Coverage report
-make test-coverage
+# Run specific tests
+go test -run TestFunctionName ./internal/...
 
-# Benchmarks
-make benchmark
-```
-
-### Database Operations
-```bash
-# Run migrations
-make migrate
-
-# Create backup
-make backup
-
-# Restore from backup
-make restore FILE=backup.tar.gz
-
-# Health check
-make health-check
+# Benchmark tests
+go test -bench=. ./...
 ```
 
 ## 🐳 Docker
@@ -255,12 +312,13 @@ make health-check
 - **Size**: <50MB final image
 
 ### Docker Compose Services
-- **mcp-memory-server**: Main application
-- **postgres**: Database (optional)
-- **redis**: Cache (optional)  
+- **mcp-memory**: Main MCP server application
+- **chroma**: Vector database for embeddings storage
+- **postgres**: Metadata database (optional)
+- **redis**: Distributed cache (optional)  
 - **prometheus**: Metrics collection
-- **grafana**: Metrics visualization
-- **traefik**: Reverse proxy
+- **grafana**: Metrics visualization with pre-built dashboards
+- **traefik**: Reverse proxy with automatic SSL
 
 ## 📈 Performance
 
@@ -321,10 +379,11 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙏 Acknowledgments
 
-- HashiCorp for containerization best practices
-- OpenAI for embedding model compatibility
-- Prometheus & Grafana communities for monitoring tools
-- FAISS for high-performance vector search
+- [Anthropic](https://www.anthropic.com/) for the Model Context Protocol specification
+- [Chroma](https://www.trychroma.com/) for the high-performance vector database
+- [OpenAI](https://openai.com/) for embedding model APIs
+- [Prometheus](https://prometheus.io/) & [Grafana](https://grafana.com/) communities for monitoring tools
+- Go community for excellent libraries and tooling
 
 ## 📞 Support
 
@@ -332,6 +391,12 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - **Documentation**: [Full documentation](https://github.com/fredcamaral/mcp-memory/wiki)
 - **Discord**: [Community support](https://discord.gg/mcp-memory)
 
+## 🔗 Related Projects
+
+- [MCP Specification](https://modelcontextprotocol.io/) - Official Model Context Protocol documentation
+- [chroma-go](https://github.com/amikos-tech/chroma-go) - Go client for Chroma vector database
+- [Claude Desktop](https://claude.ai/) - Desktop application with MCP support
+
 ---
 
-**Made with ❤️ for the Claude MCP ecosystem**
+**Made with ❤️ for the MCP ecosystem**

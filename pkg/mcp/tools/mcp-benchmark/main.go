@@ -182,7 +182,7 @@ func NewWorker(id int, serverPath string) (*Worker, error) {
 
 func (w *Worker) Initialize() error {
 	// Send initialize request
-	req := protocol.Request{
+	req := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
 		ID:      json.RawMessage(`1`),
 		Method:  "initialize",
@@ -201,7 +201,7 @@ func (w *Worker) Initialize() error {
 	}
 
 	// Read response
-	var resp protocol.Response
+	var resp protocol.JSONRPCResponse
 	if err := w.dec.Decode(&resp); err != nil {
 		return fmt.Errorf("read initialize response: %w", err)
 	}
@@ -211,7 +211,7 @@ func (w *Worker) Initialize() error {
 	}
 
 	// Send initialized notification
-	notif := protocol.Notification{
+	notif := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
 		Method:  "initialized",
 	}
@@ -237,7 +237,7 @@ func (b *Benchmark) runWorker(ctx context.Context, w *Worker) {
 		start := time.Now()
 
 		// Send request
-		req := protocol.Request{
+		req := protocol.JSONRPCRequest{
 			JSONRPC: "2.0",
 			ID:      json.RawMessage(fmt.Sprintf(`%d`, requestID)),
 			Method:  b.requestType,
@@ -252,7 +252,7 @@ func (b *Benchmark) runWorker(ctx context.Context, w *Worker) {
 		}
 
 		// Read response
-		var resp protocol.Response
+		var resp protocol.JSONRPCResponse
 		if err := w.dec.Decode(&resp); err != nil {
 			atomic.AddInt64(&b.failedRequests, 1)
 			if b.verbose {

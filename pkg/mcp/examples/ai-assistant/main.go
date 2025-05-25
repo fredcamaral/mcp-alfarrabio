@@ -12,48 +12,48 @@ import (
 	"sync"
 	"time"
 
-	"mcp-memory/pkg/mcp"
 	"mcp-memory/pkg/mcp/protocol"
 	"mcp-memory/pkg/mcp/server"
 	"mcp-memory/pkg/mcp/transport"
+
 	"github.com/google/uuid"
 )
 
 // AssistantContext manages conversation state and tool execution history
 type AssistantContext struct {
-	mu              sync.RWMutex
-	conversationID  string
-	history         []ToolExecution
-	contextWindow   []string
-	workingDir      string
-	dataCache       map[string]interface{}
-	toolChains      map[string][]string
-	memoryStore     *MemoryStore
+	mu             sync.RWMutex
+	conversationID string
+	history        []ToolExecution
+	contextWindow  []string
+	workingDir     string
+	dataCache      map[string]interface{}
+	toolChains     map[string][]string
+	memoryStore    *MemoryStore
 }
 
 // ToolExecution tracks tool usage for context and learning
 type ToolExecution struct {
-	Timestamp   time.Time
-	Tool        string
-	Arguments   map[string]interface{}
-	Result      interface{}
-	Success     bool
-	ChainID     string
-	UserIntent  string
+	Timestamp  time.Time
+	Tool       string
+	Arguments  map[string]interface{}
+	Result     interface{}
+	Success    bool
+	ChainID    string
+	UserIntent string
 }
 
 // MemoryStore provides persistent context management
 type MemoryStore struct {
-	mu          sync.RWMutex
-	memories    map[string]Memory
-	index       map[string][]string // tag -> memory IDs
+	mu       sync.RWMutex
+	memories map[string]Memory
+	index    map[string][]string // tag -> memory IDs
 }
 
 type Memory struct {
-	ID        string
-	Content   string
-	Tags      []string
-	Timestamp time.Time
+	ID         string
+	Content    string
+	Tags       []string
+	Timestamp  time.Time
 	UsageCount int
 }
 
@@ -296,9 +296,9 @@ func (s *AIAssistantServer) registerResources() {
 
 		data := map[string]interface{}{
 			"conversation_id": s.context.conversationID,
-			"history":        s.context.history,
-			"context_window": s.context.contextWindow,
-			"active_chains":  s.context.toolChains,
+			"history":         s.context.history,
+			"context_window":  s.context.contextWindow,
+			"active_chains":   s.context.toolChains,
 		}
 
 		content, _ := json.MarshalIndent(data, "", "  ")
@@ -380,10 +380,10 @@ func (s *AIAssistantServer) registerPrompts() {
 		},
 	}, func(ctx context.Context, req protocol.GetPromptRequest) (protocol.GetPromptResponse, error) {
 		task := req.Arguments["task"]
-		
+
 		// Analyze recent context to provide better suggestions
 		suggestions := s.analyzeTaskRequirements(task)
-		
+
 		prompt := fmt.Sprintf(`Task Analysis:
 %s
 
@@ -425,7 +425,7 @@ Would you like me to execute this plan or modify it?`, task, suggestions)
 	}, func(ctx context.Context, req protocol.GetPromptRequest) (protocol.GetPromptResponse, error) {
 		patternType := req.Arguments["pattern_type"]
 		patterns := s.extractPatterns(patternType)
-		
+
 		return protocol.GetPromptResponse{
 			Messages: []protocol.Message{
 				{
@@ -511,7 +511,7 @@ func (s *AIAssistantServer) handleCodeExecution(ctx context.Context, req protoco
 
 	// Execute with timeout
 	output, err := cmd.CombinedOutput()
-	
+
 	result := map[string]interface{}{
 		"output":   string(output),
 		"success":  err == nil,
@@ -868,7 +868,7 @@ func (s *AIAssistantServer) trackExecution(tool string, args map[string]interfac
 
 func (s *AIAssistantServer) processChainArguments(args map[string]interface{}, results []interface{}, namedResults map[string]interface{}) map[string]interface{} {
 	processed := make(map[string]interface{})
-	
+
 	for k, v := range args {
 		switch val := v.(type) {
 		case string:
@@ -884,14 +884,14 @@ func (s *AIAssistantServer) processChainArguments(args map[string]interface{}, r
 			processed[k] = v
 		}
 	}
-	
+
 	return processed
 }
 
 func (s *AIAssistantServer) replaceReferences(template string, results []interface{}, namedResults map[string]interface{}) string {
 	// Simple template replacement (in production, use a proper template engine)
 	result := template
-	
+
 	// Replace indexed results
 	for i, r := range results {
 		placeholder := fmt.Sprintf("{{result.%d}}", i)
@@ -899,7 +899,7 @@ func (s *AIAssistantServer) replaceReferences(template string, results []interfa
 			result = strings.ReplaceAll(result, placeholder, fmt.Sprintf("%v", r))
 		}
 	}
-	
+
 	// Replace named results
 	for name, value := range namedResults {
 		placeholder := fmt.Sprintf("{{%s}}", name)
@@ -907,44 +907,44 @@ func (s *AIAssistantServer) replaceReferences(template string, results []interfa
 			result = strings.ReplaceAll(result, placeholder, fmt.Sprintf("%v", value))
 		}
 	}
-	
+
 	return result
 }
 
 func (s *AIAssistantServer) analyzeTaskRequirements(task string) string {
 	// Analyze task and suggest tool chain
 	taskLower := strings.ToLower(task)
-	
+
 	suggestions := []string{}
-	
+
 	if strings.Contains(taskLower, "search") || strings.Contains(taskLower, "find") {
 		suggestions = append(suggestions, "1. Use web_search to gather information")
 	}
-	
+
 	if strings.Contains(taskLower, "analyze") || strings.Contains(taskLower, "data") {
 		suggestions = append(suggestions, "2. Use analyze_data for statistical analysis")
 	}
-	
+
 	if strings.Contains(taskLower, "code") || strings.Contains(taskLower, "script") {
 		suggestions = append(suggestions, "3. Use execute_code to run custom scripts")
 	}
-	
+
 	if strings.Contains(taskLower, "remember") || strings.Contains(taskLower, "store") {
 		suggestions = append(suggestions, "4. Use memory_manager to persist important information")
 	}
-	
+
 	if len(suggestions) == 0 {
 		suggestions = append(suggestions, "This task may require a combination of tools. Consider using execute_chain for complex workflows.")
 	}
-	
+
 	return strings.Join(suggestions, "\n")
 }
 
 func (s *AIAssistantServer) calculateStatistics(data interface{}) map[string]interface{} {
 	// Simple statistics calculation
 	return map[string]interface{}{
-		"type":  fmt.Sprintf("%T", data),
-		"count": 1,
+		"type":    fmt.Sprintf("%T", data),
+		"count":   1,
 		"summary": "Statistical analysis would be performed here",
 	}
 }
@@ -952,7 +952,7 @@ func (s *AIAssistantServer) calculateStatistics(data interface{}) map[string]int
 func (s *AIAssistantServer) detectPatterns(data interface{}) map[string]interface{} {
 	return map[string]interface{}{
 		"patterns_found": 0,
-		"analysis": "Pattern detection would analyze the data structure and content",
+		"analysis":       "Pattern detection would analyze the data structure and content",
 	}
 }
 
@@ -963,49 +963,49 @@ func (s *AIAssistantServer) summarizeData(data interface{}) string {
 func (s *AIAssistantServer) createVisualization(data interface{}, options interface{}) map[string]interface{} {
 	return map[string]interface{}{
 		"visualization_type": "chart",
-		"data_points": 0,
-		"file_path": filepath.Join(s.context.workingDir, "visualization.png"),
+		"data_points":        0,
+		"file_path":          filepath.Join(s.context.workingDir, "visualization.png"),
 	}
 }
 
 func (s *AIAssistantServer) analyzeUserIntent() map[string]interface{} {
 	s.context.mu.RLock()
 	defer s.context.mu.RUnlock()
-	
+
 	recentTools := make(map[string]int)
 	for _, exec := range s.context.history {
 		recentTools[exec.Tool]++
 	}
-	
+
 	return map[string]interface{}{
-		"recent_tools": recentTools,
+		"recent_tools":     recentTools,
 		"session_duration": time.Since(s.context.history[0].Timestamp).String(),
-		"success_rate": s.calculateSuccessRate(),
+		"success_rate":     s.calculateSuccessRate(),
 	}
 }
 
 func (s *AIAssistantServer) analyzeProgress() map[string]interface{} {
 	s.context.mu.RLock()
 	defer s.context.mu.RUnlock()
-	
+
 	return map[string]interface{}{
-		"total_executions": len(s.context.history),
+		"total_executions":  len(s.context.history),
 		"unique_tools_used": s.countUniqueTools(),
-		"active_chains": len(s.context.toolChains),
-		"files_created": s.countFilesCreated(),
+		"active_chains":     len(s.context.toolChains),
+		"files_created":     s.countFilesCreated(),
 	}
 }
 
 func (s *AIAssistantServer) generateSuggestions() []string {
 	s.context.mu.RLock()
 	defer s.context.mu.RUnlock()
-	
+
 	suggestions := []string{}
-	
+
 	// Analyze recent activity
 	if len(s.context.history) > 0 {
 		lastTool := s.context.history[len(s.context.history)-1].Tool
-		
+
 		switch lastTool {
 		case "web_search":
 			suggestions = append(suggestions, "Consider analyzing the search results with analyze_data")
@@ -1018,24 +1018,24 @@ func (s *AIAssistantServer) generateSuggestions() []string {
 			suggestions = append(suggestions, "Execute scripts from saved files")
 		}
 	}
-	
+
 	return suggestions
 }
 
 func (s *AIAssistantServer) analyzePatterns() map[string]interface{} {
 	s.context.mu.RLock()
 	defer s.context.mu.RUnlock()
-	
+
 	// Identify common tool sequences
 	sequences := make(map[string]int)
 	for i := 0; i < len(s.context.history)-1; i++ {
 		seq := fmt.Sprintf("%s->%s", s.context.history[i].Tool, s.context.history[i+1].Tool)
 		sequences[seq]++
 	}
-	
+
 	return map[string]interface{}{
-		"common_sequences": sequences,
-		"chain_usage": len(s.context.toolChains),
+		"common_sequences":   sequences,
+		"chain_usage":        len(s.context.toolChains),
 		"memory_utilization": s.context.memoryStore.Count(),
 	}
 }
@@ -1043,7 +1043,7 @@ func (s *AIAssistantServer) analyzePatterns() map[string]interface{} {
 func (s *AIAssistantServer) extractPatterns(patternType string) string {
 	s.context.mu.RLock()
 	defer s.context.mu.RUnlock()
-	
+
 	switch patternType {
 	case "tool_usage":
 		return s.analyzeToolUsagePatterns()
@@ -1061,13 +1061,13 @@ func (s *AIAssistantServer) analyzeToolUsagePatterns() string {
 	for _, exec := range s.context.history {
 		usage[exec.Tool]++
 	}
-	
+
 	var result strings.Builder
 	result.WriteString("Tool Usage Patterns:\n")
 	for tool, count := range usage {
 		result.WriteString(fmt.Sprintf("- %s: %d times\n", tool, count))
 	}
-	
+
 	return result.String()
 }
 
@@ -1078,17 +1078,17 @@ func (s *AIAssistantServer) analyzeErrorPatterns() string {
 			errors = append(errors, fmt.Sprintf("%s failed at %s", exec.Tool, exec.Timestamp.Format("15:04:05")))
 		}
 	}
-	
+
 	if len(errors) == 0 {
 		return "No errors detected in recent executions"
 	}
-	
+
 	return "Error Patterns:\n" + strings.Join(errors, "\n")
 }
 
 func (s *AIAssistantServer) analyzeSuccessPatterns() string {
 	successfulChains := make(map[string]int)
-	
+
 	for chainID, tools := range s.context.toolChains {
 		allSuccess := true
 		for _, exec := range s.context.history {
@@ -1102,13 +1102,13 @@ func (s *AIAssistantServer) analyzeSuccessPatterns() string {
 			successfulChains[chainStr]++
 		}
 	}
-	
+
 	var result strings.Builder
 	result.WriteString("Successful Tool Chains:\n")
 	for chain, count := range successfulChains {
 		result.WriteString(fmt.Sprintf("- %s: %d times\n", chain, count))
 	}
-	
+
 	return result.String()
 }
 
@@ -1116,14 +1116,14 @@ func (s *AIAssistantServer) calculateSuccessRate() float64 {
 	if len(s.context.history) == 0 {
 		return 0
 	}
-	
+
 	successful := 0
 	for _, exec := range s.context.history {
 		if exec.Success {
 			successful++
 		}
 	}
-	
+
 	return float64(successful) / float64(len(s.context.history)) * 100
 }
 
@@ -1150,29 +1150,29 @@ func (s *AIAssistantServer) countFilesCreated() int {
 func (ms *MemoryStore) Store(content string, tags []string) Memory {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
-	
+
 	memory := Memory{
-		ID:        uuid.New().String(),
-		Content:   content,
-		Tags:      tags,
-		Timestamp: time.Now(),
+		ID:         uuid.New().String(),
+		Content:    content,
+		Tags:       tags,
+		Timestamp:  time.Now(),
 		UsageCount: 0,
 	}
-	
+
 	ms.memories[memory.ID] = memory
-	
+
 	// Update index
 	for _, tag := range tags {
 		ms.index[tag] = append(ms.index[tag], memory.ID)
 	}
-	
+
 	return memory
 }
 
 func (ms *MemoryStore) Get(id string) (Memory, bool) {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
-	
+
 	memory, found := ms.memories[id]
 	if found {
 		memory.UsageCount++
@@ -1184,61 +1184,61 @@ func (ms *MemoryStore) Get(id string) (Memory, bool) {
 func (ms *MemoryStore) Search(query string) []Memory {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
-	
+
 	var results []Memory
 	queryLower := strings.ToLower(query)
-	
+
 	for _, memory := range ms.memories {
 		if strings.Contains(strings.ToLower(memory.Content), queryLower) {
 			results = append(results, memory)
 		}
 	}
-	
+
 	return results
 }
 
 func (ms *MemoryStore) Update(id, content string, tags []string) error {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
-	
+
 	memory, found := ms.memories[id]
 	if !found {
 		return fmt.Errorf("memory not found: %s", id)
 	}
-	
+
 	// Remove old tags from index
 	for _, tag := range memory.Tags {
 		ms.removeFromIndex(tag, id)
 	}
-	
+
 	// Update memory
 	memory.Content = content
 	memory.Tags = tags
 	memory.Timestamp = time.Now()
 	ms.memories[id] = memory
-	
+
 	// Add new tags to index
 	for _, tag := range tags {
 		ms.index[tag] = append(ms.index[tag], id)
 	}
-	
+
 	return nil
 }
 
 func (ms *MemoryStore) Delete(id string) error {
 	ms.mu.Lock()
 	defer ms.mu.Unlock()
-	
+
 	memory, found := ms.memories[id]
 	if !found {
 		return fmt.Errorf("memory not found: %s", id)
 	}
-	
+
 	// Remove from index
 	for _, tag := range memory.Tags {
 		ms.removeFromIndex(tag, id)
 	}
-	
+
 	delete(ms.memories, id)
 	return nil
 }
@@ -1246,7 +1246,7 @@ func (ms *MemoryStore) Delete(id string) error {
 func (ms *MemoryStore) GetAll() map[string]Memory {
 	ms.mu.RLock()
 	defer ms.mu.RUnlock()
-	
+
 	result := make(map[string]Memory)
 	for k, v := range ms.memories {
 		result[k] = v
@@ -1279,12 +1279,12 @@ func extractStringArray(v interface{}) []string {
 	if v == nil {
 		return []string{}
 	}
-	
+
 	arr, ok := v.([]interface{})
 	if !ok {
 		return []string{}
 	}
-	
+
 	result := make([]string, len(arr))
 	for i, item := range arr {
 		result[i] = fmt.Sprintf("%v", item)

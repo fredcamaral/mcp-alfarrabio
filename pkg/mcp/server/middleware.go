@@ -140,11 +140,12 @@ func (m *RecoveryMiddleware) Process(ctx context.Context, request interface{}, n
 			}
 			
 			// Return error response
-			if req, ok := request.(*protocol.Request); ok {
-				response = &protocol.Response{
+			if req, ok := request.(*protocol.JSONRPCRequest); ok {
+				response = &protocol.JSONRPCResponse{
+					JSONRPC: "2.0",
 					ID: req.ID,
-					Error: &protocol.Error{
-						Code:    protocol.InternalError,
+					Error: &protocol.JSONRPCError{
+						Code:    -32603,
 						Message: "Internal server error",
 					},
 				}
@@ -190,7 +191,7 @@ func (m *MetricsMiddleware) Process(ctx context.Context, request interface{}, ne
 }
 
 // recordMetrics records request metrics
-func (m *MetricsMiddleware) recordMetrics(requestType string, duration time.Duration, err error) {
+func (m *MetricsMiddleware) recordMetrics(requestType string, duration time.Duration, _ error) {
 	m.requestCount[requestType]++
 	m.requestLatency[requestType] = append(m.requestLatency[requestType], duration)
 	
@@ -291,11 +292,12 @@ func (m *TimeoutMiddleware) Process(ctx context.Context, request interface{}, ne
 			"request", request)
 		
 		// Return timeout error
-		if req, ok := request.(*protocol.Request); ok {
-			return &protocol.Response{
+		if req, ok := request.(*protocol.JSONRPCRequest); ok {
+			return &protocol.JSONRPCResponse{
+				JSONRPC: "2.0",
 				ID: req.ID,
-				Error: &protocol.Error{
-					Code:    protocol.InternalError,
+				Error: &protocol.JSONRPCError{
+					Code:    -32603,
 					Message: "Request timeout",
 				},
 			}, nil
