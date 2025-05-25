@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// Test constants
+const (
+	testSessionID = "session-123"
+)
+
 // MockEmbeddingService for testing
 type MockEmbeddingService struct {
 	mock.Mock
@@ -118,7 +123,7 @@ func TestChunkingService_CreateChunk(t *testing.T) {
 	ctx := context.Background()
 
 	content := "This is a test conversation chunk that we want to create with proper metadata and embeddings."
-	sessionID := "session-123"
+	sessionID := testSessionID
 	metadata := types.ChunkMetadata{
 		Outcome:    types.OutcomeSuccess,
 		Difficulty: types.DifficultySimple,
@@ -149,7 +154,7 @@ func TestChunkingService_CreateChunk_EmptyContent(t *testing.T) {
 	service := NewChunkingService(cfg, mockEmbedding)
 	ctx := context.Background()
 
-	sessionID := "session-123"
+	sessionID := testSessionID
 	metadata := types.ChunkMetadata{
 		Outcome:    types.OutcomeSuccess,
 		Difficulty: types.DifficultySimple,
@@ -177,7 +182,7 @@ func TestChunkingService_CreateChunk_EmbeddingError(t *testing.T) {
 	ctx := context.Background()
 
 	content := "Test content"
-	sessionID := "session-123"
+	sessionID := testSessionID
 	metadata := types.ChunkMetadata{
 		Outcome:    types.OutcomeSuccess,
 		Difficulty: types.DifficultySimple,

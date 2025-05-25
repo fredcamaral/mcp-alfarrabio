@@ -431,7 +431,7 @@ func (acm *AccessControlManager) evaluateCondition(condition Condition, user *Us
 	return false
 }
 
-func (acm *AccessControlManager) logAccess(userID, action, resource, result string, ctx context.Context) {
+func (acm *AccessControlManager) logAccess(userID, action, resource, result string, _ context.Context) {
 	// In a real implementation, this would write to an audit log
 	// For now, we'll just create the log entry structure
 	log := AuditLog{

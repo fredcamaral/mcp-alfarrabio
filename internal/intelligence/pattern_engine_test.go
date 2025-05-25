@@ -2,6 +2,7 @@ package intelligence
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -27,7 +28,7 @@ func (m *MockPatternStorage) StorePattern(ctx context.Context, pattern Pattern) 
 func (m *MockPatternStorage) GetPattern(ctx context.Context, id string) (*Pattern, error) {
 	pattern, exists := m.patterns[id]
 	if !exists {
-		return nil, nil
+		return nil, fmt.Errorf("pattern not found: %s", id)
 	}
 	return &pattern, nil
 }
@@ -53,7 +54,12 @@ func (m *MockPatternStorage) DeletePattern(ctx context.Context, id string) error
 }
 
 func (m *MockPatternStorage) SearchPatterns(ctx context.Context, query string, limit int) ([]Pattern, error) {
-	var result []Pattern
+	// Pre-allocate with limit or number of patterns, whichever is smaller
+	capacity := limit
+	if len(m.patterns) < limit {
+		capacity = len(m.patterns)
+	}
+	result := make([]Pattern, 0, capacity)
 	count := 0
 	for _, pattern := range m.patterns {
 		if count >= limit {

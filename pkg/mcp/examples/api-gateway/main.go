@@ -112,7 +112,7 @@ func (s *APIGatewayServer) loadConfig() error {
 		configPath = "config.yaml"
 	}
 
-	data, err := os.ReadFile(configPath)
+	data, err := os.ReadFile(configPath) // #nosec G304 -- Config file path from environment variable or default
 	if err != nil {
 		return fmt.Errorf("failed to read config: %w", err)
 	}

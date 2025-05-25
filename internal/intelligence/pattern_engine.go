@@ -378,7 +378,7 @@ func (pe *PatternEngine) extractKeywords(chunks []types.ConversationChunk) []str
 		count int
 	}
 	
-	var wordCounts []wordCount
+	wordCounts := make([]wordCount, 0, len(keywordCount))
 	for word, count := range keywordCount {
 		wordCounts = append(wordCounts, wordCount{word, count})
 	}
@@ -387,7 +387,12 @@ func (pe *PatternEngine) extractKeywords(chunks []types.ConversationChunk) []str
 		return wordCounts[i].count > wordCounts[j].count
 	})
 	
-	var keywords []string
+	// Pre-allocate for max 10 keywords
+	maxKeywords := 10
+	if len(wordCounts) < maxKeywords {
+		maxKeywords = len(wordCounts)
+	}
+	keywords := make([]string, 0, maxKeywords)
 	for i, wc := range wordCounts {
 		if i >= 10 {
 			break
@@ -449,7 +454,7 @@ func (pe *PatternEngine) calculateRelevance(currentChunks []types.ConversationCh
 // Utility functions
 
 func extractText(chunks []types.ConversationChunk) string {
-	var texts []string
+	texts := make([]string, 0, len(chunks))
 	for _, chunk := range chunks {
 		texts = append(texts, chunk.Content)
 	}
@@ -457,7 +462,7 @@ func extractText(chunks []types.ConversationChunk) string {
 }
 
 func extractChunkIDs(chunks []types.ConversationChunk) []string {
-	var ids []string
+	ids := make([]string, 0, len(chunks))
 	for _, chunk := range chunks {
 		ids = append(ids, chunk.ID)
 	}

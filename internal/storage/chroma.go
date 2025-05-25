@@ -3,7 +3,6 @@ package storage
 import (
 	"context"
 	"fmt"
-	"log"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/logging"
 	"mcp-memory/pkg/types"
@@ -14,6 +13,11 @@ import (
 
 	chromav2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	"github.com/amikos-tech/chroma-go/pkg/embeddings"
+)
+
+// Constants
+const (
+	connectionStatusError = "error"
 )
 
 // ChromaStore implements VectorStore interface for Chroma vector database
@@ -45,7 +49,7 @@ func (cs *ChromaStore) Initialize(ctx context.Context) error {
 	// Create Chroma client
 	client, err := chromav2.NewHTTPClient(chromav2.WithBaseURL(cs.config.Endpoint))
 	if err != nil {
-		cs.metrics.ConnectionStatus = "error"
+		cs.metrics.ConnectionStatus = connectionStatusError
 		return fmt.Errorf("failed to create Chroma client: %w", err)
 	}
 	cs.client = client
@@ -66,7 +70,7 @@ func (cs *ChromaStore) Initialize(ctx context.Context) error {
 		chromav2.WithHNSWSpaceCreate(embeddings.COSINE),
 	)
 	if err != nil {
-		cs.metrics.ConnectionStatus = "error"
+		cs.metrics.ConnectionStatus = connectionStatusError
 		return fmt.Errorf("failed to create/get collection: %w", err)
 	}
 
@@ -134,7 +138,7 @@ func (cs *ChromaStore) Search(ctx context.Context, query types.MemoryQuery, quer
 	// Build query options
 	queryOptions := []chromav2.CollectionQueryOption{
 		chromav2.WithQueryEmbeddings(embeddings.NewEmbeddingFromFloat64(queryEmbeddings)),
-		chromav2.WithNResults(int(limit)),
+		chromav2.WithNResults(limit),
 		chromav2.WithIncludeQuery(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
 	}
 
@@ -159,55 +163,94 @@ func (cs *ChromaStore) Search(ctx context.Context, query types.MemoryQuery, quer
 	}
 
 	// Process results
-	if qr != nil {
-		docs := qr.GetDocumentsGroups()
-		metadatas := qr.GetMetadatasGroups()
-		distances := qr.GetDistancesGroups()
-		ids := qr.GetIDGroups()
+	if qr == nil {
+		return results, nil
+	}
+	
+	return cs.processQueryResults(qr, &query, results), nil
+}
 
-		if len(docs) > 0 && len(docs[0]) > 0 {
-			results.Total = len(docs[0])
-			
-			for i := 0; i < len(docs[0]); i++ {
-				var chunkID string
-				if len(ids) > 0 && len(ids[0]) > i {
-					chunkID = string(ids[0][i])
-				}
-
-				var metadata map[string]interface{}
-				if len(metadatas) > 0 && len(metadatas[0]) > i {
-					metadata = cs.documentMetadataToMap(metadatas[0][i])
-				}
-
-				// Extract content from Document interface
-				var content string
-				if doc := docs[0][i]; doc != nil {
-					content = doc.ContentString()
-				}
-
-				chunk, err := cs.chromaResultToChunk(chunkID, content, metadata)
-				if err != nil {
-					logging.Error("Failed to convert result to chunk", "error", err, "id", chunkID)
-					continue
-				}
-
-				score := 1.0
-				if len(distances) > 0 && len(distances[0]) > i {
-					// Convert distance to similarity score
-					score = 1.0 - float64(distances[0][i])
-				}
-
-				if score >= query.MinRelevanceScore {
-					results.Results = append(results.Results, types.SearchResult{
-						Chunk: *chunk,
-						Score: score,
-					})
-				}
-			}
+func (cs *ChromaStore) processQueryResults(qr chromav2.QueryResult, query *types.MemoryQuery, results *types.SearchResults) *types.SearchResults {
+	docs := qr.GetDocumentsGroups()
+	if len(docs) == 0 || len(docs[0]) == 0 {
+		return results
+	}
+	
+	results.Total = len(docs[0])
+	metadatas := qr.GetMetadatasGroups()
+	distances := qr.GetDistancesGroups()
+	ids := qr.GetIDGroups()
+	
+	for i := 0; i < len(docs[0]); i++ {
+		result := cs.processSearchResult(i, ids[0], docs[0], cs.convertMetadatas(metadatas[0]), cs.convertDistances(distances[0]), query.MinRelevanceScore)
+		if result != nil {
+			results.Results = append(results.Results, *result)
 		}
 	}
+	
+	return results
+}
 
-	return results, nil
+func (cs *ChromaStore) processSearchResult(index int, ids []chromav2.DocumentID, docs []chromav2.Document, metadatas []map[string]interface{}, distances []float32, minScore float64) *types.SearchResult {
+	chunkID := cs.extractChunkID(index, ids)
+	metadata := cs.extractMetadata(index, metadatas)
+	content := cs.extractContent(index, docs)
+	
+	chunk := cs.chromaResultToChunk(chunkID, content, metadata)
+	
+	score := cs.calculateScore(index, distances)
+	if score < minScore {
+		return nil
+	}
+	
+	return &types.SearchResult{
+		Chunk: *chunk,
+		Score: score,
+	}
+}
+
+func (cs *ChromaStore) extractChunkID(index int, ids []chromav2.DocumentID) string {
+	if len(ids) > index {
+		return string(ids[index])
+	}
+	return ""
+}
+
+func (cs *ChromaStore) extractMetadata(index int, metadatas []map[string]interface{}) map[string]interface{} {
+	if len(metadatas) > index {
+		return metadatas[index]
+	}
+	return nil
+}
+
+func (cs *ChromaStore) extractContent(index int, docs []chromav2.Document) string {
+	if len(docs) > index && docs[index] != nil {
+		return docs[index].ContentString()
+	}
+	return ""
+}
+
+func (cs *ChromaStore) calculateScore(index int, distances []float32) float64 {
+	if len(distances) > index {
+		return 1.0 - float64(distances[index])
+	}
+	return 1.0
+}
+
+func (cs *ChromaStore) convertDistances(distances embeddings.Distances) []float32 {
+	result := make([]float32, len(distances))
+	for i, d := range distances {
+		result[i] = float32(d)
+	}
+	return result
+}
+
+func (cs *ChromaStore) convertMetadatas(metadatas chromav2.DocumentMetadatas) []map[string]interface{} {
+	result := make([]map[string]interface{}, len(metadatas))
+	for i, meta := range metadatas {
+		result[i] = cs.documentMetadataToMap(meta)
+	}
+	return result
 }
 
 // GetByID retrieves a chunk by its ID
@@ -244,7 +287,7 @@ func (cs *ChromaStore) GetByID(ctx context.Context, id string) (*types.Conversat
 		if doc := docs[0]; doc != nil {
 			content = doc.ContentString()
 		}
-		return cs.chromaResultToChunk(string(ids[0]), content, metadata)
+		return cs.chromaResultToChunk(string(ids[0]), content, metadata), nil
 	}
 
 	return nil, fmt.Errorf("chunk not found: %s", id)
@@ -301,11 +344,7 @@ func (cs *ChromaStore) ListByRepository(ctx context.Context, repository string, 
 				content = docs[i].ContentString()
 			}
 
-			chunk, err := cs.chromaResultToChunk(chunkID, content, metadata)
-			if err != nil {
-				log.Printf("Failed to convert document to chunk: %v", err)
-				continue
-			}
+			chunk := cs.chromaResultToChunk(chunkID, content, metadata)
 			chunks = append(chunks, *chunk)
 		}
 	}
@@ -344,7 +383,7 @@ func (cs *ChromaStore) HealthCheck(ctx context.Context) error {
 	// Try to count documents as a health check
 	count, err := cs.collection.Count(ctx)
 	if err != nil {
-		cs.metrics.ConnectionStatus = "error"
+		cs.metrics.ConnectionStatus = connectionStatusError
 		cs.updateMetrics("health_check", start, err)
 		return fmt.Errorf("health check failed: %w", err)
 	}
@@ -504,7 +543,7 @@ func (cs *ChromaStore) metadataToAttributes(metadata map[string]interface{}) []*
 	return attrs
 }
 
-func (cs *ChromaStore) chromaResultToChunk(id string, document string, metadata map[string]interface{}) (*types.ConversationChunk, error) {
+func (cs *ChromaStore) chromaResultToChunk(id string, document string, metadata map[string]interface{}) *types.ConversationChunk {
 	chunk := &types.ConversationChunk{
 		ID: id,
 	}
@@ -583,7 +622,7 @@ func (cs *ChromaStore) chromaResultToChunk(id string, document string, metadata 
 	}
 
 	chunk.Metadata = chunkMetadata
-	return chunk, nil
+	return chunk
 }
 
 func (cs *ChromaStore) buildWhereFilter(query types.MemoryQuery) chromav2.WhereClause {

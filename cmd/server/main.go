@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -59,8 +60,10 @@ func main() {
 
 		// Start the MCP server
 		if err := mcpServer.Start(ctx); err != nil {
-			if err != context.Canceled {
-				log.Fatalf("MCP server failed: %v", err)
+			if !errors.Is(err, context.Canceled) {
+				cancel()
+				log.Printf("MCP server failed: %v", err)
+				return
 			}
 		}
 
@@ -68,13 +71,17 @@ func main() {
 		log.Printf("🚀 Starting MCP Memory Server in HTTP mode on %s", *addr)
 		// Set up HTTP server for MCP-over-HTTP
 		if err := startHTTPServer(ctx, mcpServer, *addr); err != nil {
-			if err != context.Canceled {
-				log.Fatalf("HTTP server failed: %v", err)
+			if !errors.Is(err, context.Canceled) {
+				cancel()
+				log.Printf("HTTP server failed: %v", err)
+				return
 			}
 		}
 
 	default:
-		log.Fatalf("Invalid mode: %s. Use 'stdio' or 'http'", *mode)
+		cancel()
+		log.Printf("Invalid mode: %s. Use 'stdio' or 'http'", *mode)
+		return
 	}
 
 	// Close resources
@@ -153,8 +160,12 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	})
 
 	server := &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start server in goroutine
@@ -172,9 +183,10 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	<-ctx.Done()
 
 	// Create a timeout context for shutdown
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	// We use context.Background() here because the parent context is already cancelled
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second) //nolint:contextcheck
 	defer cancel()
 
 	// Shutdown server gracefully
-	return server.Shutdown(shutdownCtx)
+	return server.Shutdown(shutdownCtx) //nolint:contextcheck // Parent context is already cancelled
 }

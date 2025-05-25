@@ -392,20 +392,16 @@ func TestGetCrossRepoInsights(t *testing.T) {
 	techDist, ok := insights["tech_stack_distribution"].(map[string]int)
 	if !ok {
 		t.Error("Expected tech_stack_distribution to be map[string]int")
-	} else {
-		if techDist["go"] != 2 {
-			t.Errorf("Expected Go to appear 2 times, got %d", techDist["go"])
-		}
+	} else if techDist["go"] != 2 {
+		t.Errorf("Expected Go to appear 2 times, got %d", techDist["go"])
 	}
 	
 	// Check language distribution
 	langDist, ok := insights["language_distribution"].(map[string]int)
 	if !ok {
 		t.Error("Expected language_distribution to be map[string]int")
-	} else {
-		if langDist["Go"] != 2 {
-			t.Errorf("Expected Go language to appear 2 times, got %d", langDist["Go"])
-		}
+	} else if langDist["Go"] != 2 {
+		t.Errorf("Expected Go language to appear 2 times, got %d", langDist["Go"])
 	}
 	
 	// Check average success rate

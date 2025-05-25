@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test constants
+const (
+	testText = "test text"
+)
+
 func TestNewRateLimiter(t *testing.T) {
 	maxTokens := 10
 	refillRate := time.Second
@@ -147,7 +152,7 @@ func TestOpenAIEmbeddingService_Cache(t *testing.T) {
 	service := NewOpenAIEmbeddingService(cfg)
 
 	t.Run("cache operations", func(t *testing.T) {
-		text := "test text"
+		text := testText
 		embedding := []float64{0.1, 0.2, 0.3}
 
 		// Should return nil for non-existent key
@@ -169,7 +174,7 @@ func TestOpenAIEmbeddingService_Cache(t *testing.T) {
 	})
 
 	t.Run("cache key consistency", func(t *testing.T) {
-		text := "test text"
+		text := testText
 		key1 := service.getCacheKey(text)
 		key2 := service.getCacheKey(text)
 
@@ -181,7 +186,7 @@ func TestOpenAIEmbeddingService_Cache(t *testing.T) {
 	})
 
 	t.Run("clear cache", func(t *testing.T) {
-		text := "test text"
+		text := testText
 		embedding := []float64{0.1, 0.2, 0.3}
 
 		key := service.getCacheKey(text)
@@ -235,7 +240,7 @@ func TestOpenAIEmbeddingService_GenerateEmbedding_InputValidation(t *testing.T) 
 		ctx, cancel := context.WithCancel(context.Background())
 		cancel() // Cancel immediately
 
-		_, err := service.GenerateEmbedding(ctx, "test text")
+		_, err := service.GenerateEmbedding(ctx, testText)
 		assert.Error(t, err)
 	})
 }

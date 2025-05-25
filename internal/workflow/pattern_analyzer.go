@@ -379,11 +379,12 @@ func (pa *PatternAnalyzer) extractSequenceTags(sequence ToolSequence) []string {
 	
 	// Add duration tag
 	duration := sequence.EndTime.Sub(sequence.StartTime)
-	if duration > 30*time.Minute {
+	switch {
+	case duration > 30*time.Minute:
 		tags = append(tags, "long-session")
-	} else if duration > 10*time.Minute {
+	case duration > 10*time.Minute:
 		tags = append(tags, "medium-session")
-	} else {
+	default:
 		tags = append(tags, "short-session")
 	}
 	

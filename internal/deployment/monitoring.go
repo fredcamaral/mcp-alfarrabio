@@ -220,7 +220,11 @@ func (mm *MonitoringManager) collectMetrics(ctx context.Context) {
 			healthScore = 0.5
 		case HealthStatusUnhealthy:
 			healthScore = 0.0
+		case HealthStatusUnknown:
+			// Unknown status gets a low score
+			healthScore = 0.0
 		default:
+			// This should not happen given our HealthStatus enum
 			healthScore = 0.0
 		}
 		mm.metrics.SetGauge("health.overall.score", healthScore)
@@ -234,7 +238,11 @@ func (mm *MonitoringManager) collectMetrics(ctx context.Context) {
 				checkScore = 0.5
 			case HealthStatusUnhealthy:
 				checkScore = 0.0
+			case HealthStatusUnknown:
+				// Unknown status gets a low score
+				checkScore = 0.0
 			default:
+				// This should not happen given our HealthStatus enum
 				checkScore = 0.0
 			}
 			mm.metrics.SetGauge(fmt.Sprintf("health.%s.score", check.Name), checkScore)

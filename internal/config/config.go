@@ -413,7 +413,7 @@ func (c *Config) GetDataDir() (string, error) {
 	}
 
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(absPath, 0755); err != nil {
+	if err := os.MkdirAll(absPath, 0750); err != nil {
 		return "", fmt.Errorf("failed to create data directory: %w", err)
 	}
 

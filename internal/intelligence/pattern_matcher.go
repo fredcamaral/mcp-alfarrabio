@@ -8,6 +8,12 @@ import (
 	"mcp-memory/pkg/types"
 )
 
+// Action constants
+const (
+	actionReportProblem = "report_problem"
+	actionVerifySolution = "verify_solution"
+)
+
 // BasicPatternMatcher implements the PatternMatcher interface
 type BasicPatternMatcher struct {
 	// Compiled regexes for feature extraction
@@ -87,7 +93,7 @@ func (bpm *BasicPatternMatcher) ExtractFeatures(chunks []types.ConversationChunk
 
 // IdentifySequence identifies the sequence of steps in the conversation
 func (bpm *BasicPatternMatcher) IdentifySequence(chunks []types.ConversationChunk) []PatternStep {
-	var steps []PatternStep
+	steps := make([]PatternStep, 0, len(chunks))
 	
 	for i, chunk := range chunks {
 		action := bpm.identifyAction(chunk.Content)
@@ -187,7 +193,14 @@ func (bpm *BasicPatternMatcher) calculateTypeMatch(features map[string]any, patt
 			return 0.7
 		}
 		return 0.5
+	case PatternTypeDebugging:
+		// Debugging patterns have moderate match score by default
+		if hasErrors || hasCode {
+			return 0.6
+		}
+		return 0.4
 	default:
+		// Unknown pattern types get a baseline score
 		return 0.5
 	}
 }
@@ -286,7 +299,7 @@ func (bpm *BasicPatternMatcher) identifyAction(content string) string {
 	content = strings.ToLower(content)
 	
 	if strings.Contains(content, "error") || strings.Contains(content, "fail") {
-		return "report_problem"
+		return actionReportProblem
 	}
 	if strings.Contains(content, "fix") || strings.Contains(content, "solve") {
 		return "provide_solution"
@@ -298,7 +311,7 @@ func (bpm *BasicPatternMatcher) identifyAction(content string) string {
 		return "modify_resource"
 	}
 	if strings.Contains(content, "test") || strings.Contains(content, "verify") {
-		return "verify_solution"
+		return actionVerifySolution
 	}
 	if strings.Contains(content, "run") || strings.Contains(content, "execute") {
 		return "execute_command"
@@ -331,7 +344,7 @@ func (bpm *BasicPatternMatcher) calculateStepConfidence(chunk types.Conversation
 
 func (bpm *BasicPatternMatcher) generateStepDescription(action, _ string) string {
 	switch action {
-	case "report_problem":
+	case actionReportProblem:
 		return "User reports an issue or problem"
 	case "provide_solution":
 		return "Assistant provides a solution or fix"
@@ -339,7 +352,7 @@ func (bpm *BasicPatternMatcher) generateStepDescription(action, _ string) string
 		return "Create or add a new resource"
 	case "modify_resource":
 		return "Modify or update existing resource"
-	case "verify_solution":
+	case actionVerifySolution:
 		return "Test or verify the proposed solution"
 	case "execute_command":
 		return "Execute a command or operation"
@@ -367,11 +380,11 @@ func (bpm *BasicPatternMatcher) actionsMatch(action1, action2 string) bool {
 	
 	// Semantic similarity for actions
 	semanticGroups := map[string][]string{
-		"problem": {"report_problem", "identify_issue"},
+		"problem": {actionReportProblem, "identify_issue"},
 		"solution": {"provide_solution", "fix_issue", "resolve_problem"},
 		"creation": {"create_resource", "add_resource", "build_resource"},
 		"modification": {"modify_resource", "update_resource", "change_resource"},
-		"verification": {"verify_solution", "test_solution", "validate_solution"},
+		"verification": {actionVerifySolution, "test_solution", "validate_solution"},
 		"execution": {"execute_command", "run_command", "perform_action"},
 	}
 	

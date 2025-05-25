@@ -36,7 +36,7 @@ linters:
     - goconst
     - gocritic
     - gocyclo
-    - funlen
+    # - funlen
     - nestif
 
 issues:

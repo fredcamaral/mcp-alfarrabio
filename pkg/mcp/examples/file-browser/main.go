@@ -191,7 +191,7 @@ func registerReadTool(server *mcp.Server, config *Config) {
 		}
 
 		// Read file
-		content, err := os.ReadFile(fullPath)
+		content, err := os.ReadFile(fullPath) // #nosec G304 -- Path is validated by validatePath()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read file: %w", err)
 		}
@@ -268,7 +268,7 @@ func registerSearchTool(server *mcp.Server, config *Config) {
 			}
 
 			// Read and search file
-			content, err := os.ReadFile(filePath)
+			content, err := os.ReadFile(filePath) // #nosec G304 -- Path comes from filepath.Walk with validated base path
 			if err != nil {
 				return nil
 			}
@@ -414,7 +414,7 @@ func registerFileResource(server *mcp.Server, config *Config) {
 		}
 
 		// Read file
-		content, err := os.ReadFile(fullPath)
+		content, err := os.ReadFile(fullPath) // #nosec G304 -- Path is validated by validatePath()
 		if err != nil {
 			return nil, fmt.Errorf("failed to read file: %w", err)
 		}

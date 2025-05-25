@@ -278,10 +278,7 @@ func TestLearningMetricsUpdate(t *testing.T) {
 	}
 	
 	// Update metrics
-	err := learningEngine.updateMetrics(event)
-	if err != nil {
-		t.Fatalf("Expected no error updating metrics, got %v", err)
-	}
+	learningEngine.updateMetrics(event)
 	
 	// Check that metrics were created
 	if len(learningEngine.metrics) != 3 {
@@ -310,10 +307,7 @@ func TestLearningMetricsUpdate(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 	
-	err = learningEngine.updateMetrics(event2)
-	if err != nil {
-		t.Fatalf("Expected no error updating metrics again, got %v", err)
-	}
+	learningEngine.updateMetrics(event2)
 	
 	// Check that accuracy was averaged
 	if metric, exists := learningEngine.metrics["accuracy"]; exists {

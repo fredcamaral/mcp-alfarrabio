@@ -26,7 +26,8 @@ func NewBasicConceptExtractor() *BasicConceptExtractor {
 
 // ExtractConcepts extracts concepts from text
 func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error) {
-	var concepts []Concept
+	// Pre-allocate with estimated capacity based on typical matches
+	concepts := make([]Concept, 0, 50)
 	
 	// Extract technical terms
 	technicalMatches := bce.technicalTerms.FindAllString(text, -1)

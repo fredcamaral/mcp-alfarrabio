@@ -11,6 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test constants
+const (
+	testRepo = "test-repo"
+	testTodoSession = "test-session"
+)
+
 func TestNewTodoTracker(t *testing.T) {
 	tracker := NewTodoTracker()
 	
@@ -26,7 +32,7 @@ func TestTodoTracker_ProcessTodoWrite(t *testing.T) {
 		tracker := NewTodoTracker()
 		ctx := context.Background()
 		sessionID := "test-session-1"
-		repository := "test-repo"
+		repository := testRepo
 		todos := []TodoItem{
 			{ID: "1", Content: "Fix bug", Status: "pending", Priority: "high"},
 		}
@@ -45,7 +51,7 @@ func TestTodoTracker_ProcessTodoWrite(t *testing.T) {
 		tracker := NewTodoTracker()
 		ctx := context.Background()
 		sessionID := "test-session-2"
-		repository := "test-repo"
+		repository := testRepo
 		
 		// First, add a todo in pending state
 		todos := []TodoItem{
@@ -71,8 +77,8 @@ func TestTodoTracker_ProcessTodoWrite(t *testing.T) {
 
 func TestTodoTracker_ProcessToolUsage(t *testing.T) {
 	tracker := NewTodoTracker()
-	sessionID := "test-session"
-	repository := "test-repo"
+	sessionID := testTodoSession
+	repository := testRepo
 	
 	// Create a session first
 	todos := []TodoItem{
@@ -115,7 +121,7 @@ func TestTodoTracker_ExtractTags(t *testing.T) {
 	tracker := NewTodoTracker()
 	
 	session := &TodoSession{
-		Repository:   "test-repo",
+		Repository:   testRepo,
 		ToolsUsed:    []string{"Bash", "Edit", "Grep"},
 		FilesChanged: []string{"/path/file.go", "/path/file.js"},
 	}
@@ -183,8 +189,8 @@ func TestTodoTracker_BuildTodoJourneyContent(t *testing.T) {
 	tracker := NewTodoTracker()
 	
 	session := &TodoSession{
-		SessionID:    "test-session",
-		Repository:   "test-repo",
+		SessionID:    testTodoSession,
+		Repository:   testRepo,
 		WorkContext:  "Working on fixing authentication bug",
 		ToolsUsed:    []string{"Read", "Edit", "Bash"},
 		FilesChanged: []string{"auth.go", "auth_test.go"},
@@ -205,7 +211,7 @@ func TestTodoTracker_BuildTodoJourneyContent(t *testing.T) {
 	
 	assert.Contains(t, content, "Fix auth bug")
 	assert.Contains(t, content, "Priority**: high")
-	assert.Contains(t, content, "test-repo")
+	assert.Contains(t, content, testRepo)
 	assert.Contains(t, content, "Working on fixing authentication bug")
 	assert.Contains(t, content, "Read")
 	assert.Contains(t, content, "Edit")
@@ -217,8 +223,8 @@ func TestTodoTracker_BuildTodoJourneyContent(t *testing.T) {
 
 func TestTodoTracker_EndSession(t *testing.T) {
 	tracker := NewTodoTracker()
-	sessionID := "test-session"
-	repository := "test-repo"
+	sessionID := testTodoSession
+	repository := testRepo
 	
 	// Create session
 	todos := []TodoItem{

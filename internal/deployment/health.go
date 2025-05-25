@@ -140,6 +140,13 @@ func (hm *HealthManager) CheckHealth(ctx context.Context) *SystemHealth {
 			if overallStatus == HealthStatusHealthy {
 				overallStatus = HealthStatusDegraded
 			}
+		case HealthStatusHealthy:
+			// Already healthy, no change needed
+		case HealthStatusUnknown:
+			// Unknown status should degrade overall status if currently healthy
+			if overallStatus == HealthStatusHealthy {
+				overallStatus = HealthStatusDegraded
+			}
 		}
 	}
 	
@@ -167,6 +174,13 @@ func (hm *HealthManager) GetCachedHealth() *SystemHealth {
 		case HealthStatusUnhealthy:
 			overallStatus = HealthStatusUnhealthy
 		case HealthStatusDegraded:
+			if overallStatus == HealthStatusHealthy {
+				overallStatus = HealthStatusDegraded
+			}
+		case HealthStatusHealthy:
+			// Already healthy, no change needed
+		case HealthStatusUnknown:
+			// Unknown status should degrade overall status if currently healthy
 			if overallStatus == HealthStatusHealthy {
 				overallStatus = HealthStatusDegraded
 			}
@@ -217,7 +231,11 @@ func (hm *HealthManager) HTTPHandler() http.HandlerFunc {
 			w.WriteHeader(http.StatusOK) // Still OK, but degraded
 		case HealthStatusUnhealthy:
 			w.WriteHeader(http.StatusServiceUnavailable)
+		case HealthStatusUnknown:
+			// Unknown status is treated as internal server error
+			w.WriteHeader(http.StatusInternalServerError)
 		default:
+			// This should not happen given our HealthStatus enum
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 		

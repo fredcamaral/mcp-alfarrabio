@@ -11,6 +11,11 @@ import (
 	"mcp-memory/pkg/types"
 )
 
+// Status constants
+const (
+	statusCompleted = "completed"
+)
+
 // TodoItem represents a todo item from Claude's TodoWrite tool
 type TodoItem struct {
 	ID       string `json:"id"`
@@ -60,7 +65,7 @@ func (tt *TodoTracker) ProcessTodoWrite(ctx context.Context, sessionID, reposito
 	// Detect completed todos and trigger chunk creation BEFORE updating session
 	for _, todo := range todos {
 		if previous, exists := previousTodos[todo.ID]; exists {
-			if previous.Status != "completed" && todo.Status == "completed" {
+			if previous.Status != statusCompleted && todo.Status == statusCompleted {
 				// Todo was just completed - capture the work
 				if err := tt.captureCompletedWork(ctx, session, todo); err != nil {
 					return fmt.Errorf("failed to capture completed work: %w", err)
@@ -252,11 +257,12 @@ func (tt *TodoTracker) extractTags(session *TodoSession, todo TodoItem) []string
 	
 	// Extract language tags from file extensions
 	for _, file := range session.FilesChanged {
-		if strings.HasSuffix(file, ".go") {
+		switch {
+		case strings.HasSuffix(file, ".go"):
 			tags = append(tags, "golang")
-		} else if strings.HasSuffix(file, ".js") || strings.HasSuffix(file, ".ts") {
+		case strings.HasSuffix(file, ".js") || strings.HasSuffix(file, ".ts"):
 			tags = append(tags, "javascript", "typescript")
-		} else if strings.HasSuffix(file, ".py") {
+		case strings.HasSuffix(file, ".py"):
 			tags = append(tags, "python")
 		}
 	}
@@ -310,7 +316,7 @@ func (tt *TodoTracker) calculateTimeSpent(session *TodoSession, _ TodoItem) time
 func (tt *TodoTracker) getActiveTodos(session *TodoSession) []TodoItem {
 	active := make([]TodoItem, 0)
 	for _, todo := range session.Todos {
-		if todo.Status != "completed" && todo.Status != "cancelled" {
+		if todo.Status != statusCompleted && todo.Status != "cancelled" {
 			active = append(active, todo)
 		}
 	}
@@ -383,7 +389,7 @@ func (tt *TodoTracker) buildSessionSummaryContent(session *TodoSession) string {
 	// Completed todos
 	completedTodos := make([]TodoItem, 0)
 	for _, todo := range session.Todos {
-		if todo.Status == "completed" {
+		if todo.Status == statusCompleted {
 			completedTodos = append(completedTodos, todo)
 		}
 	}
@@ -410,7 +416,7 @@ func (tt *TodoTracker) assessSessionDifficulty(session *TodoSession) types.Diffi
 	completedTodos := 0
 	
 	for _, todo := range session.Todos {
-		if todo.Status == "completed" {
+		if todo.Status == statusCompleted {
 			completedTodos++
 		}
 	}

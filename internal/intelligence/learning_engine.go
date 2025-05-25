@@ -177,10 +177,7 @@ func (le *LearningEngine) LearnFromConversation(ctx context.Context, chunks []ty
 	}
 	
 	// Update metrics
-	err = le.updateMetrics(event)
-	if err != nil {
-		return fmt.Errorf("failed to update metrics: %w", err)
-	}
+	le.updateMetrics(event)
 	
 	// Adapt behavior based on learning
 	err = le.adaptBehavior(ctx, event)
@@ -216,10 +213,7 @@ func (le *LearningEngine) LearnFromFeedback(ctx context.Context, chunkID string,
 	le.addEvent(event)
 	
 	// Adjust confidence and weights based on feedback
-	err := le.adjustFromFeedback(ctx, chunkID, feedback)
-	if err != nil {
-		return fmt.Errorf("failed to adjust from feedback: %w", err)
-	}
+	le.adjustFromFeedback(ctx, chunkID, feedback)
 	
 	return nil
 }
@@ -465,7 +459,7 @@ func (le *LearningEngine) learnPatterns(ctx context.Context, chunks []types.Conv
 	return le.patternEngine.LearnPattern(ctx, chunks, outcome)
 }
 
-func (le *LearningEngine) updateMetrics(event LearningEvent) error {
+func (le *LearningEngine) updateMetrics(event LearningEvent) {
 	// Update or create metrics based on the event
 	for metricName, value := range event.Metrics {
 		if existing, exists := le.metrics[metricName]; exists {
@@ -476,11 +470,12 @@ func (le *LearningEngine) updateMetrics(event LearningEvent) error {
 			existing.LastUpdated = time.Now()
 			
 			// Determine trend
-			if existing.Value > oldValue*1.05 {
+			switch {
+			case existing.Value > oldValue*1.05:
 				existing.Trend = "improving"
-			} else if existing.Value < oldValue*0.95 {
+			case existing.Value < oldValue*0.95:
 				existing.Trend = "declining"
-			} else {
+			default:
 				existing.Trend = "stable"
 			}
 		} else {
@@ -494,8 +489,6 @@ func (le *LearningEngine) updateMetrics(event LearningEvent) error {
 			}
 		}
 	}
-	
-	return nil
 }
 
 func (le *LearningEngine) adaptBehavior(ctx context.Context, event LearningEvent) error {
@@ -573,7 +566,7 @@ func (le *LearningEngine) calculateFeedbackMetrics(feedback *UserFeedback) map[s
 	return metrics
 }
 
-func (le *LearningEngine) adjustFromFeedback(_ context.Context, _ string, feedback *UserFeedback) error {
+func (le *LearningEngine) adjustFromFeedback(_ context.Context, _ string, feedback *UserFeedback) {
 	// Adjust pattern confidence based on feedback
 	if le.patternEngine != nil && le.knowledgeGraph != nil {
 		// Find patterns associated with this chunk
@@ -588,8 +581,6 @@ func (le *LearningEngine) adjustFromFeedback(_ context.Context, _ string, feedba
 			le.learningRate = math.Max(le.learningRate*0.9, 0.01)
 		}
 	}
-	
-	return nil
 }
 
 // Performance analysis types and methods
@@ -715,6 +706,10 @@ func (le *LearningEngine) inferConversationType(chunks []types.ConversationChunk
 			problemCount++
 		case types.ChunkTypeSolution:
 			solutionCount++
+		case types.ChunkTypeDiscussion, types.ChunkTypeArchitectureDecision, types.ChunkTypeQuestion:
+			// These chunk types don't affect the categorization
+		default:
+			// Unknown chunk types are ignored for categorization
 		}
 	}
 	

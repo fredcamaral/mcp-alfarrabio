@@ -9,6 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test constants
+const (
+	testAPIKey = "test-key"
+)
+
 func TestDefaultConfig(t *testing.T) {
 	cfg := DefaultConfig()
 
@@ -73,7 +78,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "valid config",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				return cfg
 			},
 			wantErr: false,
@@ -82,7 +87,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid server port - too low",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Server.Port = 0
 				return cfg
 			},
@@ -93,7 +98,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid server port - too high",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Server.Port = 70000
 				return cfg
 			},
@@ -104,7 +109,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "empty server host",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Server.Host = ""
 				return cfg
 			},
@@ -115,7 +120,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "empty chroma endpoint",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Chroma.Endpoint = ""
 				return cfg
 			},
@@ -126,7 +131,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "empty chroma collection",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Chroma.Collection = ""
 				return cfg
 			},
@@ -137,7 +142,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "empty docker container name with docker enabled",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Chroma.Docker.Enabled = true
 				cfg.Chroma.Docker.ContainerName = ""
 				return cfg
@@ -159,7 +164,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "empty embedding model",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.OpenAI.EmbeddingModel = ""
 				return cfg
 			},
@@ -170,7 +175,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid retention days",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Storage.RetentionDays = 0
 				return cfg
 			},
@@ -181,7 +186,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid min content length",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Chunking.MinContentLength = 0
 				return cfg
 			},
@@ -192,7 +197,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid max content length",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Chunking.MaxContentLength = 40 // Less than min (50)
 				return cfg
 			},
@@ -203,7 +208,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid similarity threshold - too low",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Chunking.SimilarityThreshold = -0.1
 				return cfg
 			},
@@ -214,7 +219,7 @@ func TestConfig_Validate(t *testing.T) {
 			name: "invalid similarity threshold - too high",
 			config: func() *Config {
 				cfg := DefaultConfig()
-				cfg.OpenAI.APIKey = "test-key"
+				cfg.OpenAI.APIKey = testAPIKey
 				cfg.Chunking.SimilarityThreshold = 1.1
 				return cfg
 			},
@@ -290,7 +295,7 @@ func TestLoadConfig_WithEnvVars(t *testing.T) {
 func TestLoadConfig_WithInvalidEnvVars(t *testing.T) {
 	// Set invalid port
 	_ = os.Setenv("MCP_MEMORY_PORT", "invalid")
-	_ = os.Setenv("OPENAI_API_KEY", "test-key")
+	_ = os.Setenv("OPENAI_API_KEY", testAPIKey)
 
 	defer func() {
 		_ = os.Unsetenv("MCP_MEMORY_PORT")
@@ -418,7 +423,7 @@ func TestLoadConfig_MissingEnvFile(t *testing.T) {
 	defer func() { _ = os.Chdir(originalWd) }()
 
 	// Set required env var
-	_ = os.Setenv("OPENAI_API_KEY", "test-key")
+	_ = os.Setenv("OPENAI_API_KEY", testAPIKey)
 	defer func() { _ = os.Unsetenv("OPENAI_API_KEY") }()
 
 	cfg, err := LoadConfig()

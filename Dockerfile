@@ -4,9 +4,11 @@
 # Build stage
 FROM golang:1.24-alpine AS builder
 
-# Install build dependencies
+# Install build dependencies including C compiler for CGO
 RUN apk add --no-cache \
     git \
+    gcc \
+    musl-dev \
     ca-certificates \
     tzdata \
     && update-ca-certificates
@@ -18,17 +20,22 @@ RUN addgroup -g 1001 -S mcpuser && \
 # Set working directory
 WORKDIR /build
 
-# Copy go mod files first for better layer caching
+# Copy go mod files first
 COPY go.mod go.sum ./
-RUN go mod download && go mod verify
 
-# Copy source code
+# Copy the entire pkg directory to satisfy the replace directive
+COPY pkg ./pkg
+
+# Now download dependencies (skip verify for local packages)
+RUN go mod download
+
+# Copy the rest of the source code
 COPY . .
 
-# Build the application with optimizations
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
-    -ldflags='-w -s -extldflags "-static"' \
-    -a -installsuffix cgo \
+# Build the application with CGO enabled for chroma-go
+RUN CGO_ENABLED=1 GOOS=linux go build \
+    -ldflags='-w -s' \
+    -a \
     -o mcp-memory-server \
     ./cmd/server
 

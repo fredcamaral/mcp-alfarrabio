@@ -127,7 +127,7 @@ func (bsr *BasicSequenceRecognizer) LearnFromSequence(chunks []types.Conversatio
 // Helper methods for sequence recognition
 
 func (bsr *BasicSequenceRecognizer) extractActionSequence(chunks []types.ConversationChunk) []string {
-	var actions []string
+	actions := make([]string, 0, len(chunks))
 	
 	for _, chunk := range chunks {
 		action := bsr.identifyChunkAction(chunk)
@@ -395,7 +395,12 @@ func (bsr *BasicSequenceRecognizer) generateSequenceName(sequenceType PatternTyp
 		return "Debugging Sequence"
 	case PatternTypeWorkflow:
 		return "Task Workflow Sequence"
+	case PatternTypeErrorResolution:
+		return "Error Resolution Sequence"
+	case PatternTypeCodeEvolution:
+		return "Code Evolution Sequence"
 	default:
+		// Unknown pattern types get a generic name
 		return "General Sequence Pattern"
 	}
 }
@@ -410,7 +415,10 @@ func (bsr *BasicSequenceRecognizer) generateSequenceDescription(sequenceType Pat
 		return baseDesc + " that encountered issues"
 	case OutcomePartial:
 		return baseDesc + " that was partially completed"
+	case OutcomeInterrupted:
+		return baseDesc + " that was interrupted"
 	default:
+		// Unknown outcomes get a generic description
 		return baseDesc + " with unknown outcome"
 	}
 }
@@ -431,6 +439,10 @@ func (bsr *BasicSequenceRecognizer) calculateSequenceConfidence(chunks []types.C
 		baseConfidence += 0.1
 	case OutcomeFailure:
 		baseConfidence -= 0.1
+	case OutcomeInterrupted:
+		// Interrupted outcomes don't change confidence
+	default:
+		// Unknown outcomes don't change confidence
 	}
 	
 	return math.Min(baseConfidence, 1.0)
@@ -447,6 +459,7 @@ func (bsr *BasicSequenceRecognizer) calculateSuccessRateFromOutcome(outcome Patt
 	case OutcomeInterrupted:
 		return 0.4
 	default:
+		// Unknown outcomes get a neutral success rate
 		return 0.5
 	}
 }
@@ -515,7 +528,7 @@ func (bsr *BasicSequenceRecognizer) extractSequenceOutcomes(chunks []types.Conve
 }
 
 func (bsr *BasicSequenceRecognizer) convertActionsToSteps(actions []string, chunks []types.ConversationChunk) []PatternStep {
-	var steps []PatternStep
+	steps := make([]PatternStep, 0, len(actions))
 	
 	for i, action := range actions {
 		var context map[string]any

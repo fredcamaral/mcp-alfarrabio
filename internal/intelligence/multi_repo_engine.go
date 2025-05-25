@@ -186,10 +186,7 @@ func (mre *MultiRepoEngine) AddRepository(ctx context.Context, repo *RepositoryC
 	mre.repositories[repo.ID] = repo
 	
 	// Analyze relationships with existing repositories
-	err := mre.analyzeRepositoryRelationships(ctx, repo)
-	if err != nil {
-		return fmt.Errorf("failed to analyze repository relationships: %w", err)
-	}
+	mre.analyzeRepositoryRelationships(ctx, repo)
 	
 	return nil
 }
@@ -401,7 +398,11 @@ func (mre *MultiRepoEngine) GetSimilarRepositories(ctx context.Context, repoID s
 	})
 	
 	// Convert to result slice
-	var result []*RepositoryContext
+	resultLen := len(similarities)
+	if limit > 0 && limit < resultLen {
+		resultLen = limit
+	}
+	result := make([]*RepositoryContext, 0, resultLen)
 	for i, sim := range similarities {
 		if limit > 0 && i >= limit {
 			break
@@ -475,7 +476,7 @@ type PatternInfo struct {
 	Frequency  int
 }
 
-func (mre *MultiRepoEngine) analyzeRepositoryRelationships(_ context.Context, newRepo *RepositoryContext) error {
+func (mre *MultiRepoEngine) analyzeRepositoryRelationships(_ context.Context, newRepo *RepositoryContext) {
 	for id, existingRepo := range mre.repositories {
 		if id == newRepo.ID {
 			continue
@@ -497,8 +498,6 @@ func (mre *MultiRepoEngine) analyzeRepositoryRelationships(_ context.Context, ne
 			mre.repoRelations[relation.ID] = relation
 		}
 	}
-	
-	return nil
 }
 
 func (mre *MultiRepoEngine) extractTechStack(chunks []types.ConversationChunk) []string {
@@ -522,7 +521,7 @@ func (mre *MultiRepoEngine) extractTechStack(chunks []types.ConversationChunk) [
 		}
 	}
 	
-	var result []string
+	result := make([]string, 0, len(techStack))
 	for tech := range techStack {
 		result = append(result, tech)
 	}
@@ -549,7 +548,7 @@ func (mre *MultiRepoEngine) extractPatterns(chunks []types.ConversationChunk) []
 		}
 	}
 	
-	var result []string
+	result := make([]string, 0, len(patterns))
 	for pattern := range patterns {
 		result = append(result, pattern)
 	}
@@ -567,7 +566,7 @@ func (mre *MultiRepoEngine) mergeTechStack(existing, new []string) []string {
 		merged[tech] = true
 	}
 	
-	var result []string
+	result := make([]string, 0, len(merged))
 	for tech := range merged {
 		result = append(result, tech)
 	}
@@ -585,7 +584,7 @@ func (mre *MultiRepoEngine) mergePatterns(existing, new []string) []string {
 		merged[pattern] = true
 	}
 	
-	var result []string
+	result := make([]string, 0, len(merged))
 	for pattern := range merged {
 		result = append(result, pattern)
 	}

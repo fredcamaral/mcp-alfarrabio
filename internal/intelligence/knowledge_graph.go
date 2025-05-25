@@ -336,57 +336,76 @@ func (gb *GraphBuilder) extractAndAddConcepts(chunk types.ConversationChunk) err
 	}
 	
 	for _, concept := range concepts {
-		if concept.Confidence >= gb.minConfidence {
-			node := &KnowledgeNode{
-				ID:          fmt.Sprintf("concept_%s", gb.generateNodeID(concept.Name)),
-				Type:        NodeTypeConcept,
-				Name:        concept.Name,
-				Description: concept.Description,
-				Content:     concept.Name,
-				Properties:  concept.Context,
-				Tags:        []string{concept.Type},
-				CreatedAt:   time.Now(),
-				UpdatedAt:   time.Now(),
-				LastUsed:    time.Now(),
-				UsageCount:  1,
-				Confidence:  concept.Confidence,
-			}
-			
-			// Check if concept already exists
-			if existingNode := gb.findNodeByName(concept.Name, NodeTypeConcept); existingNode != nil {
-				existingNode.UsageCount++
-				existingNode.LastUsed = time.Now()
-				existingNode.Confidence = math.Max(existingNode.Confidence, concept.Confidence)
-			} else {
-				err := gb.AddNode(node)
-				if err != nil {
-					return err
-				}
-			}
-			
-			// Add relation from chunk to concept
-			relation := &KnowledgeRelation{
-				ID:         fmt.Sprintf("rel_%s_%s", chunk.ID, node.ID),
-				FromNodeID: fmt.Sprintf("chunk_%s", chunk.ID),
-				ToNodeID:   node.ID,
-				Type:       RelationContains,
-				Weight:     concept.Confidence,
-				Confidence: concept.Confidence,
-				Properties: map[string]any{
-					"extraction_method": "concept_extractor",
-				},
-				CreatedAt: time.Now(),
-				UpdatedAt: time.Now(),
-			}
-			
-			err := gb.AddRelation(relation)
-			if err != nil {
-				return err
-			}
+		if err := gb.processConcept(concept, chunk); err != nil {
+			return err
 		}
 	}
 	
 	return nil
+}
+
+func (gb *GraphBuilder) processConcept(concept Concept, chunk types.ConversationChunk) error {
+	if concept.Confidence < gb.minConfidence {
+		return nil
+	}
+	
+	// Check if concept already exists
+	existingNode := gb.findNodeByName(concept.Name, NodeTypeConcept)
+	if existingNode != nil {
+		return gb.updateExistingConcept(existingNode, concept)
+	}
+	
+	// Create new concept node
+	return gb.createConceptNode(concept, chunk)
+}
+
+func (gb *GraphBuilder) updateExistingConcept(node *KnowledgeNode, concept Concept) error {
+	node.UsageCount++
+	node.LastUsed = time.Now()
+	node.Confidence = math.Max(node.Confidence, concept.Confidence)
+	return nil
+}
+
+func (gb *GraphBuilder) createConceptNode(concept Concept, chunk types.ConversationChunk) error {
+	node := &KnowledgeNode{
+		ID:          fmt.Sprintf("concept_%s", gb.generateNodeID(concept.Name)),
+		Type:        NodeTypeConcept,
+		Name:        concept.Name,
+		Description: concept.Description,
+		Content:     concept.Name,
+		Properties:  concept.Context,
+		Tags:        []string{concept.Type},
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+		LastUsed:    time.Now(),
+		UsageCount:  1,
+		Confidence:  concept.Confidence,
+	}
+	
+	if err := gb.AddNode(node); err != nil {
+		return err
+	}
+	
+	// Add relation from chunk to concept
+	return gb.addConceptRelation(chunk, node, concept)
+}
+
+func (gb *GraphBuilder) addConceptRelation(chunk types.ConversationChunk, node *KnowledgeNode, concept Concept) error {
+	relation := &KnowledgeRelation{
+		ID:         fmt.Sprintf("rel_%s_%s", chunk.ID, node.ID),
+		FromNodeID: fmt.Sprintf("chunk_%s", chunk.ID),
+		ToNodeID:   node.ID,
+		Type:       RelationContains,
+		Weight:     concept.Confidence,
+		Confidence: concept.Confidence,
+		Properties: map[string]any{
+			"extraction_method": "concept_extractor",
+		},
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}
+	
+	return gb.AddRelation(relation)
 }
 
 func (gb *GraphBuilder) extractAndAddEntities(chunk types.ConversationChunk) error {

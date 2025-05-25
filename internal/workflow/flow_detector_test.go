@@ -10,6 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test constants
+const (
+	testSession = "test-session"
+)
+
 func TestNewFlowDetector(t *testing.T) {
 	detector := NewFlowDetector()
 	
@@ -32,7 +37,7 @@ func TestNewEntityExtractor(t *testing.T) {
 
 func TestFlowDetector_StartSession(t *testing.T) {
 	detector := NewFlowDetector()
-	sessionID := "test-session"
+	sessionID := testSession
 	repository := "test-repo"
 	
 	detector.StartSession(sessionID, repository)
@@ -97,7 +102,7 @@ func TestFlowDetector_DetectFlow(t *testing.T) {
 
 func TestFlowDetector_ProcessMessage(t *testing.T) {
 	detector := NewFlowDetector()
-	sessionID := "test-session"
+	sessionID := testSession
 	
 	detector.StartSession(sessionID, "test-repo")
 	
@@ -114,7 +119,7 @@ func TestFlowDetector_ProcessMessage(t *testing.T) {
 
 func TestFlowDetector_SegmentTransitions(t *testing.T) {
 	detector := NewFlowDetector()
-	sessionID := "test-session"
+	sessionID := testSession
 	
 	detector.StartSession(sessionID, "test-repo")
 	
@@ -147,7 +152,7 @@ func TestFlowDetector_SegmentTransitions(t *testing.T) {
 
 func TestFlowDetector_SessionSummary(t *testing.T) {
 	detector := NewFlowDetector()
-	sessionID := "test-session"
+	sessionID := testSession
 	
 	detector.StartSession(sessionID, "test-repo")
 	

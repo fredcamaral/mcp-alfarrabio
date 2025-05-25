@@ -406,24 +406,26 @@ func (fd *FlowDetector) extractTechnologies(session *ConversationSession) []stri
 	for _, segment := range session.Segments {
 		for _, entity := range segment.Entities {
 			// Check file extensions
-			if strings.Contains(entity, ".go") {
+			switch {
+			case strings.Contains(entity, ".go"):
 				techMap["Go"] = true
-			} else if strings.Contains(entity, ".js") || strings.Contains(entity, ".ts") {
+			case strings.Contains(entity, ".js") || strings.Contains(entity, ".ts"):
 				techMap["JavaScript/TypeScript"] = true
-			} else if strings.Contains(entity, ".py") {
+			case strings.Contains(entity, ".py"):
 				techMap["Python"] = true
-			} else if strings.Contains(entity, "docker") || strings.Contains(entity, "Dockerfile") {
+			case strings.Contains(entity, "docker") || strings.Contains(entity, "Dockerfile"):
 				techMap["Docker"] = true
 			}
 		}
 		
 		// Check keywords
 		for _, keyword := range segment.Keywords {
-			if strings.Contains(keyword, "chroma") {
+			switch {
+			case strings.Contains(keyword, "chroma"):
 				techMap["Chroma"] = true
-			} else if strings.Contains(keyword, "vector") {
+			case strings.Contains(keyword, "vector"):
 				techMap["Vector Database"] = true
-			} else if strings.Contains(keyword, "mcp") {
+			case strings.Contains(keyword, "mcp"):
 				techMap["MCP"] = true
 			}
 		}
@@ -442,25 +444,59 @@ func (fd *FlowDetector) extractDecisions(session *ConversationSession) []string 
 	decisions := make([]string, 0)
 	
 	for _, segment := range session.Segments {
-		if segment.Flow == types.FlowSolution {
-			// Look for decision-making language
-			content := strings.ToLower(segment.Content)
-			if strings.Contains(content, "let's use") || strings.Contains(content, "I'll implement") || strings.Contains(content, "we should") {
-				// Extract a short summary of the decision
-				lines := strings.Split(segment.Content, "\n")
-				for _, line := range lines {
-					if len(line) > 20 && len(line) < 100 {
-						decisions = append(decisions, strings.TrimSpace(line))
-						if len(decisions) >= 5 { // Limit to 5 key decisions
-							break
-						}
-					}
-				}
+		if segment.Flow != types.FlowSolution {
+			continue
+		}
+		
+		newDecisions := fd.extractDecisionsFromSegment(&segment)
+		decisions = append(decisions, newDecisions...)
+		
+		if len(decisions) >= 5 { // Limit to 5 key decisions
+			return decisions[:5]
+		}
+	}
+	
+	return decisions
+}
+
+func (fd *FlowDetector) extractDecisionsFromSegment(segment *ConversationSegment) []string {
+	content := strings.ToLower(segment.Content)
+	if !fd.containsDecisionLanguage(content) {
+		return nil
+	}
+	
+	return fd.extractDecisionLines(segment.Content)
+}
+
+func (fd *FlowDetector) containsDecisionLanguage(content string) bool {
+	decisionPhrases := []string{"let's use", "I'll implement", "we should"}
+	for _, phrase := range decisionPhrases {
+		if strings.Contains(content, phrase) {
+			return true
+		}
+	}
+	return false
+}
+
+func (fd *FlowDetector) extractDecisionLines(content string) []string {
+	var decisions []string
+	lines := strings.Split(content, "\n")
+	
+	for _, line := range lines {
+		trimmedLine := strings.TrimSpace(line)
+		if fd.isValidDecisionLine(trimmedLine) {
+			decisions = append(decisions, trimmedLine)
+			if len(decisions) >= 5 {
+				break
 			}
 		}
 	}
 	
 	return decisions
+}
+
+func (fd *FlowDetector) isValidDecisionLine(line string) bool {
+	return len(line) > 20 && len(line) < 100
 }
 
 // inferTransitionTrigger determines what caused a flow transition

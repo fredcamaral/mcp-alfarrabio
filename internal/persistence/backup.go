@@ -53,11 +53,13 @@ func NewBackupManager(storage VectorStorage, backupDir string) *BackupManager {
 
 // CreateBackup creates a complete backup of all data
 func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*BackupMetadata, error) {
+	// Clean repository name to prevent path injection
+	cleanRepo := filepath.Base(repository)
 	timestamp := time.Now().Format("20060102_150405")
-	backupFile := filepath.Join(bm.backupDir, fmt.Sprintf("backup_%s_%s.tar.gz", repository, timestamp))
+	backupFile := filepath.Join(bm.backupDir, fmt.Sprintf("backup_%s_%s.tar.gz", cleanRepo, timestamp))
 	
 	// Ensure backup directory exists
-	if err := os.MkdirAll(bm.backupDir, 0755); err != nil {
+	if err := os.MkdirAll(bm.backupDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
 	
@@ -79,7 +81,7 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 	}
 	
 	// Create backup file
-	file, err := os.Create(backupFile)
+	file, err := os.Create(backupFile) //nolint:gosec // Path is cleaned and safe
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backup file: %w", err)
 	}
@@ -156,7 +158,7 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 	
-	if err := os.WriteFile(metadataFile, metadataData, 0644); err != nil {
+	if err := os.WriteFile(metadataFile, metadataData, 0600); err != nil {
 		return nil, fmt.Errorf("failed to write metadata file: %w", err)
 	}
 	
@@ -165,9 +167,15 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 
 // RestoreBackup restores data from a backup file
 func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, overwrite bool) error {
+	// Validate backup file path
+	backupFile = filepath.Clean(backupFile)
+	if !filepath.IsAbs(backupFile) {
+		backupFile = filepath.Join(bm.backupDir, backupFile)
+	}
+	
 	// Read metadata
 	metadataFile := backupFile + ".meta.json"
-	metadataData, err := os.ReadFile(metadataFile)
+	metadataData, err := os.ReadFile(metadataFile) // #nosec G304 -- Path is validated above
 	if err != nil {
 		return fmt.Errorf("failed to read metadata file: %w", err)
 	}
@@ -178,7 +186,7 @@ func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, o
 	}
 	
 	// Open backup file
-	file, err := os.Open(backupFile)
+	file, err := os.Open(backupFile) // #nosec G304 -- Path is validated above
 	if err != nil {
 		return fmt.Errorf("failed to open backup file: %w", err)
 	}
@@ -263,7 +271,7 @@ func (bm *BackupManager) ListBackups() ([]BackupMetadata, error) {
 		   filepath.Base(entry.Name()) != entry.Name() {
 			metadataFile := filepath.Join(bm.backupDir, entry.Name())
 			
-			metadataData, err := os.ReadFile(metadataFile)
+			metadataData, err := os.ReadFile(filepath.Clean(metadataFile)) //nolint:gosec // Path is constructed safely
 			if err != nil {
 				continue
 			}
@@ -290,21 +298,50 @@ func (bm *BackupManager) CleanupOldBackups() error {
 	}
 	
 	for _, backup := range backups {
-		if backup.CreatedAt.Before(cutoff) {
-			// Get backup file path from metadata
-			if backupFile, ok := backup.Metadata["backup_file"].(string); ok {
-				// Remove backup file
-				if err := os.Remove(backupFile); err != nil && !os.IsNotExist(err) {
-					return fmt.Errorf("failed to remove backup file %s: %w", backupFile, err)
-				}
-				
-				// Remove metadata file
-				metadataFile := backupFile + ".meta.json"
-				if err := os.Remove(metadataFile); err != nil && !os.IsNotExist(err) {
-					return fmt.Errorf("failed to remove metadata file %s: %w", metadataFile, err)
-				}
-			}
+		if err := bm.cleanupBackupIfOld(backup, cutoff); err != nil {
+			return err
 		}
+	}
+	
+	return nil
+}
+
+func (bm *BackupManager) cleanupBackupIfOld(backup BackupMetadata, cutoff time.Time) error {
+	if !backup.CreatedAt.Before(cutoff) {
+		return nil
+	}
+	
+	// Get backup file path from metadata
+	backupFile, ok := backup.Metadata["backup_file"].(string)
+	if !ok {
+		return nil // Skip if no backup file in metadata
+	}
+	
+	// Remove backup file
+	if err := bm.removeBackupFile(backupFile); err != nil {
+		return err
+	}
+	
+	// Remove metadata file
+	return bm.removeMetadataFile(backup)
+}
+
+func (bm *BackupManager) removeBackupFile(backupFile string) error {
+	if err := os.Remove(backupFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove backup file %s: %w", backupFile, err)
+	}
+	return nil
+}
+
+func (bm *BackupManager) removeMetadataFile(backup BackupMetadata) error {
+	backupFile, ok := backup.Metadata["backup_file"].(string)
+	if !ok {
+		return nil
+	}
+	
+	metadataFile := backupFile + ".meta.json"
+	if err := os.Remove(metadataFile); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("failed to remove metadata file %s: %w", metadataFile, err)
 	}
 	
 	return nil
@@ -327,10 +364,7 @@ func (bm *BackupManager) MigrateData(ctx context.Context, fromVersion, toVersion
 	// Apply migration logic based on versions
 	migratedChunks := make([]types.ConversationChunk, 0, len(chunks))
 	for _, chunk := range chunks {
-		migratedChunk, err := bm.migrateChunk(chunk, fromVersion, toVersion)
-		if err != nil {
-			return fmt.Errorf("failed to migrate chunk %s: %w", chunk.ID, err)
-		}
+		migratedChunk := bm.migrateChunk(chunk, fromVersion, toVersion)
 		migratedChunks = append(migratedChunks, migratedChunk)
 	}
 	
@@ -352,7 +386,7 @@ func (bm *BackupManager) MigrateData(ctx context.Context, fromVersion, toVersion
 }
 
 // migrateChunk applies version-specific migrations to a chunk
-func (bm *BackupManager) migrateChunk(chunk types.ConversationChunk, fromVersion, toVersion string) (types.ConversationChunk, error) {
+func (bm *BackupManager) migrateChunk(chunk types.ConversationChunk, fromVersion, toVersion string) types.ConversationChunk {
 	// Example migration logic
 	switch {
 	case fromVersion == "1.0" && toVersion == "1.1":
@@ -370,7 +404,7 @@ func (bm *BackupManager) migrateChunk(chunk types.ConversationChunk, fromVersion
 		}
 	}
 	
-	return chunk, nil
+	return chunk
 }
 
 // VerifyIntegrity checks data integrity

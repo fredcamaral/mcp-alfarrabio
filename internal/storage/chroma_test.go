@@ -11,6 +11,12 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+// Test constants
+const (
+	testID = "test-id"
+	testContentPrefix = "Content: Test content"
+)
+
 func TestNewChromaStore(t *testing.T) {
 	cfg := &config.ChromaConfig{
 		Endpoint:       "http://localhost:8000",
@@ -43,7 +49,7 @@ func TestChromaStore_ChunkToDocument(t *testing.T) {
 
 	timeSpent := 15
 	chunk := types.ConversationChunk{
-		ID:        "test-id",
+		ID:        testID,
 		SessionID: "test-session",
 		Timestamp: time.Date(2025, 1, 24, 12, 0, 0, 0, time.UTC),
 		Type:      types.ChunkTypeProblem,
@@ -93,8 +99,8 @@ func TestChromaStore_ChromaResultToChunk(t *testing.T) {
 	}
 	store := NewChromaStore(cfg)
 
-	id := "test-id"
-	document := "Type: problem\nContent: Test content\nSummary: Test summary"
+	id := testID
+	document := "Type: problem\n" + testContentPrefix + "\nSummary: Test summary"
 	metadata := map[string]interface{}{
 		"session_id":      "test-session",
 		"timestamp":       "2025-01-24T12:00:00Z",
@@ -111,8 +117,7 @@ func TestChromaStore_ChromaResultToChunk(t *testing.T) {
 		"time_spent":      15.0, // JSON numbers are floats
 	}
 
-	chunk, err := store.chromaResultToChunk(id, document, metadata)
-	require.NoError(t, err)
+	chunk := store.chromaResultToChunk(id, document, metadata)
 
 	assert.Equal(t, id, chunk.ID)
 	assert.Equal(t, "test-session", chunk.SessionID)
@@ -141,14 +146,13 @@ func TestChromaStore_ChromaResultToChunk_EdgeCases(t *testing.T) {
 	store := NewChromaStore(cfg)
 
 	t.Run("missing metadata fields", func(t *testing.T) {
-		id := "test-id"
-		document := "Content: Test content"
+		id := testID
+		document := testContentPrefix
 		metadata := map[string]interface{}{
 			"type": "problem",
 		}
 
-		chunk, err := store.chromaResultToChunk(id, document, metadata)
-		require.NoError(t, err)
+		chunk := store.chromaResultToChunk(id, document, metadata)
 
 		assert.Equal(t, id, chunk.ID)
 		assert.Equal(t, "Test content", chunk.Content)
@@ -159,22 +163,21 @@ func TestChromaStore_ChromaResultToChunk_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("time_spent as string", func(t *testing.T) {
-		id := "test-id"
-		document := "Content: Test content"
+		id := testID
+		document := testContentPrefix
 		metadata := map[string]interface{}{
 			"type":       "problem",
 			"time_spent": "20", // String instead of number
 		}
 
-		chunk, err := store.chromaResultToChunk(id, document, metadata)
-		require.NoError(t, err)
+		chunk := store.chromaResultToChunk(id, document, metadata)
 
 		assert.Equal(t, 20, *chunk.Metadata.TimeSpent)
 	})
 
 	t.Run("empty tags and arrays", func(t *testing.T) {
-		id := "test-id"
-		document := "Content: Test content"
+		id := testID
+		document := testContentPrefix
 		metadata := map[string]interface{}{
 			"type":           "problem",
 			"tags":           "", // Empty string
@@ -182,8 +185,7 @@ func TestChromaStore_ChromaResultToChunk_EdgeCases(t *testing.T) {
 			"files_modified": "",
 		}
 
-		chunk, err := store.chromaResultToChunk(id, document, metadata)
-		require.NoError(t, err)
+		chunk := store.chromaResultToChunk(id, document, metadata)
 
 		assert.Empty(t, chunk.Metadata.Tags)
 		assert.Empty(t, chunk.Metadata.ToolsUsed)
@@ -370,7 +372,7 @@ func TestSearchFilter(t *testing.T) {
 
 func TestBatchOperation(t *testing.T) {
 	chunk := types.ConversationChunk{
-		ID:        "test-id",
+		ID:        testID,
 		SessionID: "test-session",
 		Type:      types.ChunkTypeProblem,
 		Content:   "test content",
@@ -383,7 +385,7 @@ func TestBatchOperation(t *testing.T) {
 
 	assert.Equal(t, "store", batch.Operation)
 	assert.Len(t, batch.Chunks, 1)
-	assert.Equal(t, "test-id", batch.Chunks[0].ID)
+	assert.Equal(t, testID, batch.Chunks[0].ID)
 
 	// Test delete operation
 	deleteBatch := &BatchOperation{
@@ -466,7 +468,7 @@ func TestChromaStore_ValidationErrors(t *testing.T) {
 
 	// Test Store with chunk without embeddings but valid otherwise
 	chunkNoEmbeddings := types.ConversationChunk{
-		ID:        "test-id",
+		ID:        testID,
 		SessionID: "session-1",
 		Content:   "test content",
 		Type:      types.ChunkTypeProblem,

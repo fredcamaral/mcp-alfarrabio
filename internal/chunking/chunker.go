@@ -128,11 +128,7 @@ func (cs *ChunkingService) CreateChunk(ctx context.Context, sessionID, content s
 	}
 
 	// Generate summary
-	summary, err := cs.generateSummary(ctx, content, chunkType)
-	if err != nil {
-		// Don't fail chunk creation if summary fails
-		summary = cs.generateSimpleSummary(content)
-	}
+	summary := cs.generateSummary(ctx, content, chunkType)
 	chunk.Summary = summary
 
 	// Generate embeddings
@@ -341,10 +337,10 @@ func (cs *ChunkingService) assessOutcome(content string) types.Outcome {
 }
 
 // generateSummary creates an AI-powered summary of the content
-func (cs *ChunkingService) generateSummary(_ context.Context, content string, _ types.ChunkType) (string, error) {
+func (cs *ChunkingService) generateSummary(_ context.Context, content string, _ types.ChunkType) string {
 	// For now, implement a simple extractive summary
 	// In a full implementation, this would use an LLM for abstractive summarization
-	return cs.generateSimpleSummary(content), nil
+	return cs.generateSimpleSummary(content)
 }
 
 // generateSimpleSummary creates a simple extractive summary
