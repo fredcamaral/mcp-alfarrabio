@@ -11,7 +11,7 @@ require (
 	github.com/sashabaranov/go-openai v1.40.0
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.38.0
-	mcp-memory/pkg/mcp v0.0.0-00010101000000-000000000000
+	mcp-memory/pkg/mcp v0.0.0
 )
 
 replace mcp-memory/pkg/mcp => ./pkg/mcp

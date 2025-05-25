@@ -1,4 +1,4 @@
-# Claude Vector Memory MCP Server - Streamlined Makefile
+# MCP Memory Server - Streamlined Makefile
 
 # Project configuration
 PROJECT_NAME := mcp-memory-server
@@ -41,13 +41,13 @@ RESET := \033[0m
 
 # Default target - show help
 help: ## Show this help message
-	@echo "$(BLUE)Claude Vector Memory MCP Server$(RESET)"
+	@echo "$(BLUE)MCP Memory Server$(RESET)"
 	@echo ""
 	@echo "$(BLUE)Usage:$(RESET)"
 	@echo "  make [target]"
 	@echo ""
 	@echo "$(BLUE)Main Targets:$(RESET)"
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(RESET) %s\\n", $$1, $$2}'
+	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$(BLUE)Examples:$(RESET)"
 	@echo "  make setup-env              # Setup environment and run server"
