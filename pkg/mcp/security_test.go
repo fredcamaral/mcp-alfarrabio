@@ -15,7 +15,6 @@ import (
 
 // TestInputValidation tests various input validation scenarios
 func TestInputValidation(t *testing.T) {
-	s := server.NewServer("test-server", "1.0.0")
 
 	tests := []struct {
 		name      string
@@ -141,7 +140,7 @@ func TestRateLimiting(t *testing.T) {
 			}`),
 		}
 
-		resp := s.HandleRequest(context.Background(), req)
+		resp := s.HandleRequest(context.Background(), &req)
 		if resp.Error != nil && resp.Error.Code == -32429 { // Rate limit error
 			rateLimitCount++
 		} else if resp.Error == nil {
@@ -187,7 +186,7 @@ func TestAuthenticationBypass(t *testing.T) {
 				Method:  "ping",
 			}
 
-			resp := s.HandleRequest(ctx, req)
+			resp := s.HandleRequest(ctx, &req)
 			
 			if tt.shouldFail && resp.Error == nil {
 				t.Errorf("expected authentication to fail for token: %s", tt.token)
@@ -215,7 +214,7 @@ func TestMemoryExhaustion(t *testing.T) {
 	}
 
 	// This should be rejected due to size
-	resp := s.HandleRequest(context.Background(), req)
+	resp := s.HandleRequest(context.Background(), &req)
 	if resp.Error == nil {
 		t.Error("expected error for oversized request")
 	}
@@ -227,16 +226,17 @@ func TestConcurrentSafety(t *testing.T) {
 	
 	// Register a tool that modifies shared state
 	counter := 0
-	s.AddTool(protocol.Tool{
+	tool := protocol.Tool{
 		Name:        "increment",
 		Description: "Increment counter",
-		InputSchema: json.RawMessage(`{"type":"object"}`),
-		Handler: func(ctx context.Context, params json.RawMessage) (interface{}, error) {
-			// This is intentionally unsafe to test race detection
-			counter++
-			return map[string]int{"value": counter}, nil
-		},
+		InputSchema: map[string]interface{}{"type": "object"},
+	}
+	handler := protocol.ToolHandlerFunc(func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+		// This is intentionally unsafe to test race detection
+		counter++
+		return map[string]int{"value": counter}, nil
 	})
+	s.AddTool(tool, handler)
 
 	// Run concurrent requests
 	done := make(chan bool, 100)
@@ -251,7 +251,7 @@ func TestConcurrentSafety(t *testing.T) {
 					"arguments": {}
 				}`),
 			}
-			s.HandleRequest(context.Background(), req)
+			s.HandleRequest(context.Background(), &req)
 			done <- true
 		}(i)
 	}
@@ -269,15 +269,21 @@ func TestErrorMessageSanitization(t *testing.T) {
 	s := server.NewServer("test-server", "1.0.0")
 
 	// Register a tool that throws errors with sensitive info
-	s.AddTool(protocol.Tool{
+	tool := protocol.Tool{
 		Name:        "database_query",
 		Description: "Query database",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"query":{"type":"string"}}}`),
-		Handler: func(ctx context.Context, params json.RawMessage) (interface{}, error) {
-			// Simulate database error
-			return nil, fmt.Errorf("pq: password authentication failed for user 'admin' at 192.168.1.100:5432")
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"query": map[string]interface{}{"type": "string"},
+			},
 		},
+	}
+	handler := protocol.ToolHandlerFunc(func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+		// Simulate database error
+		return nil, fmt.Errorf("pq: password authentication failed for user 'admin' at 192.168.1.100:5432")
 	})
+	s.AddTool(tool, handler)
 
 	req := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -289,7 +295,7 @@ func TestErrorMessageSanitization(t *testing.T) {
 		}`),
 	}
 
-	resp := s.HandleRequest(context.Background(), req)
+	resp := s.HandleRequest(context.Background(), &req)
 	
 	if resp.Error == nil {
 		t.Fatal("expected error response")
@@ -313,19 +319,20 @@ func TestTimeoutProtection(t *testing.T) {
 	s := server.NewServer("test-server", "1.0.0") // TODO: Add timeout middleware
 
 	// Register a slow tool
-	s.AddTool(protocol.Tool{
+	tool := protocol.Tool{
 		Name:        "slow_tool",
 		Description: "Intentionally slow tool",
-		InputSchema: json.RawMessage(`{"type":"object"}`),
-		Handler: func(ctx context.Context, params json.RawMessage) (interface{}, error) {
-			select {
-			case <-time.After(5 * time.Second):
-				return map[string]string{"result": "completed"}, nil
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			}
-		},
+		InputSchema: map[string]interface{}{"type": "object"},
+	}
+	handler := protocol.ToolHandlerFunc(func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+		select {
+		case <-time.After(5 * time.Second):
+			return map[string]string{"result": "completed"}, nil
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
 	})
+	s.AddTool(tool, handler)
 
 	req := protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -338,7 +345,7 @@ func TestTimeoutProtection(t *testing.T) {
 	}
 
 	start := time.Now()
-	resp := s.HandleRequest(context.Background(), req)
+	resp := s.HandleRequest(context.Background(), &req)
 	duration := time.Since(start)
 
 	if resp.Error == nil {
@@ -355,21 +362,23 @@ func TestXSSPrevention(t *testing.T) {
 	s := server.NewServer("test-server", "1.0.0")
 
 	// Register a tool that echoes input
-	s.AddTool(protocol.Tool{
+	tool := protocol.Tool{
 		Name:        "echo",
 		Description: "Echo input",
-		InputSchema: json.RawMessage(`{"type":"object","properties":{"message":{"type":"string"}}}`),
-		Handler: func(ctx context.Context, params json.RawMessage) (interface{}, error) {
-			var input struct {
-				Message string `json:"message"`
-			}
-			json.Unmarshal(params, &input)
-			
-			// Sanitize output
-			sanitized := sanitizeForJSON(input.Message)
-			return map[string]string{"echo": sanitized}, nil
+		InputSchema: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"message": map[string]interface{}{"type": "string"},
+			},
 		},
+	}
+	handler := protocol.ToolHandlerFunc(func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+		message, _ := params["message"].(string)
+		// Sanitize output
+		sanitized := sanitizeForJSON(message)
+		return map[string]string{"echo": sanitized}, nil
 	})
+	s.AddTool(tool, handler)
 
 	xssPayloads := []string{
 		`<script>alert('XSS')</script>`,
@@ -388,7 +397,7 @@ func TestXSSPrevention(t *testing.T) {
 				Params:  json.RawMessage(fmt.Sprintf(`{"name":"echo","arguments":{"message":%q}}`, payload)),
 			}
 
-			resp := s.HandleRequest(context.Background(), req)
+			resp := s.HandleRequest(context.Background(), &req)
 			if resp.Error != nil {
 				t.Fatalf("unexpected error: %v", resp.Error)
 			}

@@ -7,7 +7,6 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"os"
 	"strings"
 	"sync"
 	"time"
@@ -16,8 +15,8 @@ import (
 	"mcp-memory/pkg/mcp/server"
 	"mcp-memory/pkg/mcp/transport"
 
-	_ "github.com/lib/pq"
 	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -30,23 +29,23 @@ type DatabaseServer struct {
 }
 
 type DatabaseConfig struct {
-	Driver          string
+	Driver           string
 	ConnectionString string
-	MaxRows         int
-	QueryTimeout    time.Duration
-	ReadOnly        bool
+	MaxRows          int
+	QueryTimeout     time.Duration
+	ReadOnly         bool
 }
 
 type QueryResult struct {
-	Columns []string        `json:"columns"`
-	Rows    [][]interface{} `json:"rows"`
-	RowCount int            `json:"rowCount"`
+	Columns  []string        `json:"columns"`
+	Rows     [][]interface{} `json:"rows"`
+	RowCount int             `json:"rowCount"`
 }
 
 type TableInfo struct {
-	Name    string `json:"name"`
-	Schema  string `json:"schema,omitempty"`
-	Type    string `json:"type"`
+	Name   string `json:"name"`
+	Schema string `json:"schema,omitempty"`
+	Type   string `json:"type"`
 }
 
 type ColumnInfo struct {
@@ -203,7 +202,7 @@ func (s *DatabaseServer) convertValue(v interface{}) interface{} {
 func (s *DatabaseServer) isWriteQuery(query string) bool {
 	query = strings.TrimSpace(strings.ToUpper(query))
 	writeKeywords := []string{"INSERT", "UPDATE", "DELETE", "CREATE", "ALTER", "DROP", "TRUNCATE"}
-	
+
 	for _, keyword := range writeKeywords {
 		if strings.HasPrefix(query, keyword) {
 			return true
@@ -262,7 +261,7 @@ func (s *DatabaseServer) getTables(ctx context.Context, schema string) ([]TableI
 	var tables []TableInfo
 	for rows.Next() {
 		var table TableInfo
-		
+
 		if s.dbType == "sqlite" || s.dbType == "sqlite3" {
 			if err := rows.Scan(&table.Name, &table.Type); err != nil {
 				return nil, err
@@ -272,7 +271,7 @@ func (s *DatabaseServer) getTables(ctx context.Context, schema string) ([]TableI
 				return nil, err
 			}
 		}
-		
+
 		tables = append(tables, table)
 	}
 
@@ -343,7 +342,7 @@ func (s *DatabaseServer) getTableSchema(ctx context.Context, tableName string, s
 	defer rows.Close()
 
 	var columns []ColumnInfo
-	
+
 	if s.dbType == "sqlite" || s.dbType == "sqlite3" {
 		// SQLite pragma returns: cid, name, type, notnull, dflt_value, pk
 		for rows.Next() {
@@ -352,32 +351,32 @@ func (s *DatabaseServer) getTableSchema(ctx context.Context, tableName string, s
 			var notnull int
 			var pk int
 			var dfltValue sql.NullString
-			
+
 			if err := rows.Scan(&cid, &col.Name, &col.DataType, &notnull, &dfltValue, &pk); err != nil {
 				return nil, err
 			}
-			
+
 			col.IsNullable = notnull == 0
 			col.IsPrimaryKey = pk > 0
 			if dfltValue.Valid {
 				col.DefaultValue = dfltValue.String
 			}
-			
+
 			columns = append(columns, col)
 		}
 	} else {
 		for rows.Next() {
 			var col ColumnInfo
 			var defaultValue sql.NullString
-			
+
 			if err := rows.Scan(&col.Name, &col.DataType, &col.IsNullable, &defaultValue, &col.IsPrimaryKey); err != nil {
 				return nil, err
 			}
-			
+
 			if defaultValue.Valid {
 				col.DefaultValue = defaultValue.String
 			}
-			
+
 			columns = append(columns, col)
 		}
 	}
@@ -389,7 +388,7 @@ func (s *DatabaseServer) beginTransaction(ctx context.Context, readOnly bool) (s
 	opts := &sql.TxOptions{
 		ReadOnly: readOnly,
 	}
-	
+
 	tx, err := s.db.BeginTx(ctx, opts)
 	if err != nil {
 		return "", fmt.Errorf("failed to begin transaction: %w", err)
@@ -397,7 +396,7 @@ func (s *DatabaseServer) beginTransaction(ctx context.Context, readOnly bool) (s
 
 	// Generate transaction ID
 	txID := fmt.Sprintf("tx_%d", time.Now().UnixNano())
-	
+
 	s.txMutex.Lock()
 	s.activeTx[txID] = tx
 	s.txMutex.Unlock()
@@ -435,6 +434,15 @@ func (s *DatabaseServer) rollbackTransaction(txID string) error {
 	return tx.Rollback()
 }
 
+// parseSchema converts a JSON string to map[string]interface{}
+func parseSchema(jsonStr string) map[string]interface{} {
+	var schema map[string]interface{}
+	if err := json.Unmarshal([]byte(jsonStr), &schema); err != nil {
+		panic(fmt.Sprintf("invalid schema: %v", err))
+	}
+	return schema
+}
+
 func main() {
 	var (
 		driver     = flag.String("driver", "sqlite3", "Database driver (sqlite3, postgres, mysql)")
@@ -466,7 +474,7 @@ func main() {
 	mcpServer.AddTool(protocol.Tool{
 		Name:        "query",
 		Description: "Execute a SQL query with parameter binding",
-		InputSchema: json.RawMessage(`{
+		InputSchema: parseSchema(`{
 			"type": "object",
 			"properties": {
 				"query": {
@@ -491,14 +499,14 @@ func main() {
 			if !ok {
 				return nil, fmt.Errorf("query parameter is required")
 			}
-			
+
 			var queryParams []interface{}
 			if p, ok := params["params"]; ok {
 				if paramsArray, ok := p.([]interface{}); ok {
 					queryParams = paramsArray
 				}
 			}
-			
+
 			txID := ""
 			if tid, ok := params["transactionId"].(string); ok {
 				txID = tid
@@ -511,7 +519,7 @@ func main() {
 	mcpServer.AddTool(protocol.Tool{
 		Name:        "beginTransaction",
 		Description: "Begin a new database transaction",
-		InputSchema: json.RawMessage(`{
+		InputSchema: parseSchema(`{
 			"type": "object",
 			"properties": {
 				"readOnly": {
@@ -540,7 +548,7 @@ func main() {
 	mcpServer.AddTool(protocol.Tool{
 		Name:        "commitTransaction",
 		Description: "Commit a database transaction",
-		InputSchema: json.RawMessage(`{
+		InputSchema: parseSchema(`{
 			"type": "object",
 			"properties": {
 				"transactionId": {
@@ -568,7 +576,7 @@ func main() {
 	mcpServer.AddTool(protocol.Tool{
 		Name:        "rollbackTransaction",
 		Description: "Rollback a database transaction",
-		InputSchema: json.RawMessage(`{
+		InputSchema: parseSchema(`{
 			"type": "object",
 			"properties": {
 				"transactionId": {
@@ -605,12 +613,12 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			
+
 			jsonBytes, err := json.Marshal(tables)
 			if err != nil {
 				return nil, err
 			}
-			
+
 			return []protocol.Content{{
 				Type: "text",
 				Text: string(jsonBytes),
@@ -632,17 +640,17 @@ func main() {
 				return nil, fmt.Errorf("invalid URI format")
 			}
 			tableName := parts[len(parts)-1]
-			
+
 			columns, err := dbServer.getTableSchema(ctx, tableName, "")
 			if err != nil {
 				return nil, err
 			}
-			
+
 			jsonBytes, err := json.Marshal(columns)
 			if err != nil {
 				return nil, err
 			}
-			
+
 			return []protocol.Content{{
 				Type: "text",
 				Text: string(jsonBytes),
@@ -651,11 +659,11 @@ func main() {
 	})
 
 	// Create stdio transport
-	stdio := transport.NewStdioTransport(os.Stdin, os.Stdout)
-	
+	stdio := transport.NewStdioTransport()
+
 	// Set transport
 	mcpServer.SetTransport(stdio)
-	
+
 	// Start server
 	log.Println("Database MCP server starting...")
 	if err := mcpServer.Start(context.Background()); err != nil {

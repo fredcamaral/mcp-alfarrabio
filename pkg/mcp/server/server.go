@@ -148,7 +148,7 @@ func (s *Server) HandleRequest(ctx context.Context, req *protocol.JSONRPCRequest
 }
 
 // handleInitialize handles the initialize request
-func (s *Server) handleInitialize(ctx context.Context, req *protocol.JSONRPCRequest) *protocol.JSONRPCResponse {
+func (s *Server) handleInitialize(_ context.Context, req *protocol.JSONRPCRequest) *protocol.JSONRPCResponse {
 	var initReq protocol.InitializeRequest
 	if err := parseParams(req.Params, &initReq); err != nil {
 		return &protocol.JSONRPCResponse{
@@ -179,7 +179,7 @@ func (s *Server) handleInitialize(ctx context.Context, req *protocol.JSONRPCRequ
 }
 
 // handleToolsList handles the tools/list request
-func (s *Server) handleToolsList(ctx context.Context, req *protocol.JSONRPCRequest) *protocol.JSONRPCResponse {
+func (s *Server) handleToolsList(_ context.Context, req *protocol.JSONRPCRequest) *protocol.JSONRPCResponse {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -255,7 +255,7 @@ func (s *Server) handleToolsCall(ctx context.Context, req *protocol.JSONRPCReque
 }
 
 // handleResourcesList handles the resources/list request
-func (s *Server) handleResourcesList(ctx context.Context, req *protocol.JSONRPCRequest) *protocol.JSONRPCResponse {
+func (s *Server) handleResourcesList(_ context.Context, req *protocol.JSONRPCRequest) *protocol.JSONRPCResponse {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -328,7 +328,7 @@ func (s *Server) handleResourcesRead(ctx context.Context, req *protocol.JSONRPCR
 }
 
 // handlePromptsList handles the prompts/list request
-func (s *Server) handlePromptsList(ctx context.Context, req *protocol.JSONRPCRequest) *protocol.JSONRPCResponse {
+func (s *Server) handlePromptsList(_ context.Context, req *protocol.JSONRPCRequest) *protocol.JSONRPCResponse {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
