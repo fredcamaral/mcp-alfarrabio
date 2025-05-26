@@ -1,8 +1,319 @@
 # API Reference
 
-Complete reference for all MCP Memory tools and their parameters.
+Complete reference for the MCP Memory GraphQL API and MCP tools.
 
-## Core Memory Tools
+## GraphQL API
+
+The primary interface for interacting with the memory system is the GraphQL API available at `http://localhost:8082/graphql`.
+
+### Queries
+
+#### search
+Search for memories using semantic similarity.
+
+```graphql
+query SearchMemories($input: MemoryQueryInput!) {
+  search(input: $input) {
+    chunks {
+      chunk {
+        id
+        content
+        summary
+        type
+        timestamp
+        repository
+        sessionId
+        tags
+      }
+      score
+    }
+  }
+}
+```
+
+**Variables:**
+```json
+{
+  "input": {
+    "query": "authentication implementation",
+    "repository": "my-project",
+    "limit": 10,
+    "recency": "recent",
+    "minRelevanceScore": 0.7
+  }
+}
+```
+
+#### getChunk
+Retrieve a specific memory by ID.
+
+```graphql
+query GetMemory($id: String!) {
+  getChunk(id: $id) {
+    id
+    content
+    summary
+    type
+    timestamp
+    repository
+    sessionId
+    tags
+    metadata {
+      repository
+      branch
+      filesModified
+      toolsUsed
+      outcome
+      difficulty
+    }
+  }
+}
+```
+
+#### listChunks
+List memories from a specific repository.
+
+```graphql
+query ListMemories($repository: String!, $limit: Int, $offset: Int) {
+  listChunks(repository: $repository, limit: $limit, offset: $offset) {
+    id
+    content
+    type
+    timestamp
+    summary
+  }
+}
+```
+
+#### traceSession
+Get all memories from a specific session in chronological order.
+
+```graphql
+query TraceSession($sessionId: String!) {
+  traceSession(sessionId: $sessionId) {
+    id
+    content
+    type
+    timestamp
+    summary
+    repository
+  }
+}
+```
+
+#### traceRelated
+Find memories related to a specific memory using similarity search.
+
+```graphql
+query TraceRelated($chunkId: String!, $depth: Int) {
+  traceRelated(chunkId: $chunkId, depth: $depth) {
+    id
+    content
+    type
+    timestamp
+    sessionId
+  }
+}
+```
+
+#### getPatterns
+Analyze patterns in a repository's memories.
+
+```graphql
+query GetPatterns($repository: String!, $timeframe: String) {
+  getPatterns(repository: $repository, timeframe: $timeframe) {
+    name
+    description
+    occurrences
+    confidence
+    lastSeen
+    examples
+  }
+}
+```
+
+#### suggestRelated
+Get AI-powered suggestions based on current context.
+
+```graphql
+query SuggestRelated(
+  $currentContext: String!
+  $sessionId: String!
+  $repository: String
+  $includePatterns: Boolean
+  $maxSuggestions: Int
+) {
+  suggestRelated(
+    currentContext: $currentContext
+    sessionId: $sessionId
+    repository: $repository
+    includePatterns: $includePatterns
+    maxSuggestions: $maxSuggestions
+  ) {
+    relevantChunks {
+      id
+      content
+      relevance
+    }
+    suggestedTasks
+    relatedConcepts
+    potentialIssues
+  }
+}
+```
+
+#### findSimilar
+Find similar problems and their solutions.
+
+```graphql
+query FindSimilar($problem: String!, $repository: String, $limit: Int) {
+  findSimilar(problem: $problem, repository: $repository, limit: $limit) {
+    id
+    content
+    outcome
+    solutionApproach
+    timestamp
+  }
+}
+```
+
+### Mutations
+
+#### storeChunk
+Store a new memory in the system.
+
+```graphql
+mutation StoreMemory($input: StoreChunkInput!) {
+  storeChunk(input: $input) {
+    id
+    summary
+    timestamp
+  }
+}
+```
+
+**Variables:**
+```json
+{
+  "input": {
+    "content": "Implemented user authentication with JWT tokens",
+    "sessionId": "dev-session-2024",
+    "repository": "my-project",
+    "branch": "feature/auth",
+    "tags": ["authentication", "security", "jwt"],
+    "toolsUsed": ["Edit", "Write"],
+    "filesModified": ["auth/jwt.go", "auth/middleware.go"]
+  }
+}
+```
+
+#### storeDecision
+Store an architectural decision with rationale.
+
+```graphql
+mutation StoreDecision($input: StoreDecisionInput!) {
+  storeDecision(input: $input) {
+    id
+    summary
+  }
+}
+```
+
+**Variables:**
+```json
+{
+  "input": {
+    "decision": "Use Redis for session storage",
+    "rationale": "Need distributed session management for horizontal scaling",
+    "sessionId": "architecture-review",
+    "repository": "my-project",
+    "context": "Evaluating session storage options for multi-server deployment"
+  }
+}
+```
+
+#### deleteChunk
+Delete a memory by ID.
+
+```graphql
+mutation DeleteMemory($id: String!) {
+  deleteChunk(id: $id)
+}
+```
+
+### Types
+
+#### MemoryQueryInput
+```graphql
+input MemoryQueryInput {
+  query: String              # Search text
+  repository: String         # Filter by repository
+  types: [String!]          # Filter by memory types
+  tags: [String!]           # Filter by tags
+  limit: Int                # Max results (default: 10)
+  minRelevanceScore: Float  # Min similarity score (default: 0.7)
+  recency: String           # "recent", "last_month", "all_time"
+}
+```
+
+#### StoreChunkInput
+```graphql
+input StoreChunkInput {
+  content: String!          # Memory content (required)
+  sessionId: String!        # Session identifier (required)
+  repository: String        # Repository name
+  branch: String           # Git branch
+  tags: [String!]          # Tags for categorization
+  toolsUsed: [String!]     # Tools used
+  filesModified: [String!] # Modified files
+}
+```
+
+#### StoreDecisionInput
+```graphql
+input StoreDecisionInput {
+  decision: String!         # The decision made (required)
+  rationale: String!        # Why this decision (required)
+  sessionId: String!        # Session ID (required)
+  repository: String        # Repository
+  context: String          # Additional context
+}
+```
+
+#### ConversationChunk
+```graphql
+type ConversationChunk {
+  id: String!
+  sessionId: String!
+  repository: String
+  timestamp: DateTime!
+  type: String!
+  content: String!
+  summary: String
+  tags: [String!]
+  
+  # Extended metadata
+  branch: String
+  toolsUsed: [String!]
+  filePaths: [String!]
+  entities: [String!]
+  concepts: [String!]
+  
+  # Analysis results
+  outcome: String
+  difficulty: String
+  problemDescription: String
+  solutionApproach: String
+  lessonsLearned: String
+  nextSteps: String
+  decisionRationale: String
+  decisionOutcome: String
+}
+```
+
+## MCP Tools (Legacy)
+
+The following MCP tools are available for backward compatibility. New integrations should use the GraphQL API.
 
 ### memory_store_chunk
 
@@ -51,225 +362,162 @@ Searches for similar conversation chunks using semantic search.
 }
 ```
 
-### memory_find_similar
-
-Finds similar past problems and their solutions.
-
-**Parameters:**
-- `problem` (string, required): Description of the current problem
-- `repository` (string, optional): Repository context
-- `limit` (number, optional): Maximum results (default: 5, max: 20)
-
-**Example:**
-```json
-{
-  "problem": "PostgreSQL connection pool exhausted under load",
-  "repository": "backend-api",
-  "limit": 3
-}
-```
-
-## Context Management Tools
-
-### memory_get_context
-
-Gets project context and recent activity for session initialization.
-
-**Parameters:**
-- `repository` (string, required): Repository name
-- `recent_days` (number, optional): Days of history (default: 7, max: 90)
-
-**Returns:**
-- Project overview and goals
-- Recent conversations and decisions
-- Active patterns and workflows
-- Common issues and solutions
-
-### memory_suggest_related
-
-Gets AI-powered suggestions for related context.
-
-**Parameters:**
-- `current_context` (string, required): Current work context
-- `session_id` (string, required): Session identifier
-- `repository` (string, optional): Repository to search
-- `max_suggestions` (number, optional): Maximum suggestions (default: 5)
-- `include_patterns` (boolean, optional): Include pattern-based suggestions
-
-**Example:**
-```json
-{
-  "current_context": "Working on database migration scripts",
-  "session_id": "migration-2024",
-  "repository": "backend",
-  "include_patterns": true
-}
-```
-
-## Knowledge Management Tools
-
-### memory_store_decision
-
-Stores architectural decisions with rationale.
-
-**Parameters:**
-- `decision` (string, required): The architectural decision
-- `rationale` (string, required): Reasoning behind the decision
-- `session_id` (string, required): Session identifier
-- `repository` (string, optional): Repository this applies to
-- `context` (string, optional): Additional context and alternatives
-
-**Example:**
-```json
-{
-  "decision": "Use event sourcing for order management",
-  "rationale": "Provides complete audit trail and enables event replay for debugging",
-  "context": "Considered CRUD but lacks history tracking",
-  "session_id": "architecture-review-2024",
-  "repository": "order-service"
-}
-```
-
 ### memory_get_patterns
 
 Identifies recurring patterns in project history.
 
 **Parameters:**
 - `repository` (string, required): Repository to analyze
-- `timeframe` (string, optional): Analysis period - "week", "month", "quarter", "all"
+- `timeframe` (string, optional): "week", "month", "quarter", "all"
 
-**Returns:**
-- Common error patterns and fixes
-- Frequently modified code areas
-- Recurring architectural decisions
-- Team workflow patterns
+### memory_suggest_related
 
-## Data Management Tools
-
-### memory_import_context
-
-Imports conversation context from external sources.
+Get AI-powered suggestions for related context.
 
 **Parameters:**
-- `source` (string, required): Source type - "conversation", "file", "archive"
-- `data` (string, required): Data to import (text, file content, or base64)
-- `repository` (string, required): Target repository
+- `current_context` (string, required): Current work context
 - `session_id` (string, required): Session identifier
-- `chunking_strategy` (string, optional): How to chunk - "auto", "paragraph", "fixed_size"
-- `metadata` (object, optional): Import metadata
+- `repository` (string, optional): Repository context
+- `include_patterns` (boolean, optional): Include pattern suggestions
+- `max_suggestions` (number, optional): Maximum suggestions (default: 5)
 
-**Example:**
-```json
-{
-  "source": "file",
-  "data": "Previous conversation export...",
-  "repository": "my-project",
-  "session_id": "import-2024",
-  "metadata": {
-    "source_system": "slack",
-    "import_date": "2024-01-15"
-  }
-}
-```
+### memory_find_similar
+
+Find similar past problems and their solutions.
+
+**Parameters:**
+- `problem` (string, required): Description of the current problem
+- `repository` (string, optional): Repository context
+- `limit` (number, optional): Maximum results (default: 5)
+
+### memory_store_decision
+
+Store an architectural decision with rationale.
+
+**Parameters:**
+- `decision` (string, required): The architectural decision
+- `rationale` (string, required): Reasoning behind the decision
+- `session_id` (string, required): Session identifier
+- `repository` (string, optional): Repository this applies to
+- `context` (string, optional): Additional context
 
 ### memory_export_project
 
-Exports all memory data for a project.
+Export all memory data for a project.
 
 **Parameters:**
 - `repository` (string, required): Repository to export
 - `session_id` (string, required): Session identifier
-- `format` (string, optional): Export format - "json", "markdown", "archive"
-- `date_range` (object, optional): Date filter with start/end
+- `format` (string, optional): "json", "markdown", "archive"
 - `include_vectors` (boolean, optional): Include embeddings
+- `date_range` (object, optional): Start and end dates
 
-**Example:**
-```json
-{
-  "repository": "my-project",
-  "session_id": "export-2024",
-  "format": "markdown",
-  "date_range": {
-    "start": "2024-01-01",
-    "end": "2024-12-31"
-  }
-}
-```
+### memory_import_context
 
-## System Tools
+Import conversation context from external source.
 
-### memory_health
+**Parameters:**
+- `source` (string, required): "conversation", "file", "archive"
+- `data` (string, required): Data to import
+- `repository` (string, required): Target repository
+- `session_id` (string, required): Session identifier
+- `chunking_strategy` (string, optional): How to chunk the data
+- `metadata` (object, optional): Import metadata
 
-Checks the health status of the memory system.
+## Error Codes
 
-**Parameters:** None
-
-**Returns:**
-- Storage backend status
-- Embedding service status
-- Recent activity metrics
-- System diagnostics
-
-## Advanced Features
-
-### Pattern Recognition
-
-MCP Memory automatically identifies patterns:
-
-- **Error Patterns**: Common errors and their solutions
-- **Code Patterns**: Frequently used code structures
-- **Workflow Patterns**: Common development workflows
-- **Architecture Patterns**: Recurring design decisions
-
-### Knowledge Graphs
-
-Automatically builds relationships between:
-
-- Files and their purposes
-- Components and dependencies
-- Problems and solutions
-- Decisions and outcomes
-
-### Multi-Repository Support
-
-- Maintains separate contexts per repository
-- Cross-repository pattern identification
-- Shared knowledge across projects
-- Repository-specific configurations
-
-## Best Practices
-
-1. **Consistent Tagging**: Use consistent tags for better organization
-2. **Descriptive Content**: Include enough context in stored chunks
-3. **Regular Storage**: Store important conversations as they happen
-4. **Session Management**: Use meaningful session IDs for grouping
-
-## Error Handling
-
-All tools return structured errors:
-
-```json
-{
-  "error": {
-    "code": "STORAGE_ERROR",
-    "message": "Failed to connect to ChromaDB",
-    "details": "Connection refused at localhost:8000"
-  }
-}
-```
-
-Common error codes:
-- `STORAGE_ERROR`: Storage backend issues
-- `EMBEDDING_ERROR`: Embedding generation failed
-- `VALIDATION_ERROR`: Invalid parameters
+### GraphQL Errors
+- `INVALID_INPUT`: Invalid input parameters
 - `NOT_FOUND`: Resource not found
+- `EMBEDDING_ERROR`: Failed to generate embeddings
+- `STORAGE_ERROR`: Database operation failed
+- `VALIDATION_ERROR`: Input validation failed
+
+### MCP Tool Errors
+- `tool.memory.invalid_content`: Empty or invalid content
+- `tool.memory.embedding_failed`: Embedding generation failed
+- `tool.memory.storage_error`: Storage operation failed
+- `tool.memory.not_found`: Requested resource not found
 
 ## Rate Limits
 
-- Search operations: 100 requests/minute
-- Storage operations: 50 requests/minute
-- Export operations: 10 requests/hour
+- **Search queries**: 60/minute per user
+- **Store operations**: 30/minute per user
+- **Export operations**: 5/minute per user
+- **Batch operations**: 10/minute per user
 
----
+## Best Practices
 
-Need help? Check our [FAQ](faq.md) or join our [Discord community](https://discord.gg/mcp-memory).
+1. **Session Management**
+   - Use consistent session IDs for related work
+   - Include timestamp in session IDs for clarity
+   - Group related memories in the same session
+
+2. **Tagging Strategy**
+   - Use consistent tag naming conventions
+   - Include technology tags (e.g., "golang", "react")
+   - Add workflow tags (e.g., "bug-fix", "feature")
+
+3. **Repository Organization**
+   - Use repository names that match your project structure
+   - Consider using "_global" for cross-project memories
+   - Separate concerns by repository
+
+4. **Search Optimization**
+   - Use specific search queries for better results
+   - Leverage filters to narrow results
+   - Set appropriate relevance thresholds
+
+5. **Performance Tips**
+   - Batch related operations when possible
+   - Use pagination for large result sets
+   - Cache frequently accessed memories
+
+## Migration Guide
+
+### From MCP Tools to GraphQL
+
+1. **Replace tool calls with GraphQL mutations**:
+   ```javascript
+   // Old (MCP Tool)
+   await mcp.callTool('memory_store_chunk', {
+     content: 'Implementation details',
+     session_id: 'session-123'
+   });
+   
+   // New (GraphQL)
+   await graphql.mutate({
+     mutation: STORE_CHUNK,
+     variables: {
+       input: {
+         content: 'Implementation details',
+         sessionId: 'session-123'
+       }
+     }
+   });
+   ```
+
+2. **Update search queries**:
+   ```javascript
+   // Old (MCP Tool)
+   const results = await mcp.callTool('memory_search', {
+     query: 'authentication',
+     limit: 10
+   });
+   
+   // New (GraphQL)
+   const { data } = await graphql.query({
+     query: SEARCH_MEMORIES,
+     variables: {
+       input: {
+         query: 'authentication',
+         limit: 10
+       }
+     }
+   });
+   ```
+
+3. **Use tracing features**:
+   - Replace manual session filtering with `traceSession`
+   - Use `traceRelated` for discovering connections
+   - Leverage the Web UI for visual exploration

@@ -7,7 +7,7 @@ import (
 	"log"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/mcp"
-	"mcp-memory/pkg/mcp/protocol"
+	"github.com/fredcamaral/gomcp-sdk/protocol"
 	"os"
 )
 

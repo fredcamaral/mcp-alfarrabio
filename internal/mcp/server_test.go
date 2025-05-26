@@ -31,10 +31,8 @@ func TestNewMemoryServer(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, server)
-	assert.Equal(t, cfg, server.config)
-	assert.NotNil(t, server.vectorStore)
-	assert.NotNil(t, server.embeddingService)
-	assert.NotNil(t, server.chunkingService)
+	assert.NotNil(t, server.container)
+	assert.NotNil(t, server.mcpServer)
 }
 
 func TestMemoryServer_Start(t *testing.T) {

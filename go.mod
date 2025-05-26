@@ -6,6 +6,7 @@ toolchain go1.24.3
 
 require (
 	github.com/amikos-tech/chroma-go v0.2.3
+	github.com/fredcamaral/gomcp-sdk v0.0.0-20250526191326-79829d2481cb
 	github.com/getkin/kin-openapi v0.132.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1
@@ -16,13 +17,9 @@ require (
 	github.com/stretchr/testify v1.10.0
 	golang.org/x/crypto v0.38.0
 	gopkg.in/yaml.v3 v3.0.1
-	mcp-memory/pkg/mcp v0.0.0
 )
 
-replace mcp-memory/pkg/mcp => ./pkg/mcp
-
 require (
-	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
 	github.com/go-openapi/swag v0.23.0 // indirect

@@ -227,7 +227,7 @@ func TestChainBuilder_GetChainPath(t *testing.T) {
 	chain, _ := builder.CreateChain(ctx, "Path Test Chain", "Description", chunks)
 	
 	// Find path between first and last chunk
-	path := builder.GetChainPath(ctx, chain.ID, chunks[0].ID, chunks[3].ID)
+	path, _ := builder.GetChainPath(ctx, chain.ID, chunks[0].ID, chunks[3].ID)
 	
 	if path == nil {
 		t.Error("Expected to find a path")

@@ -40,12 +40,27 @@ make build
 ### 1. Start the Services
 
 ```bash
-# Start ChromaDB and other dependencies
-docker-compose up -d
+# Start ChromaDB with persistence
+docker run -d -p 9000:8000 \
+  -v chroma_data:/chroma/chroma \
+  chromadb/chroma:latest \
+  run --path /chroma/chroma --host 0.0.0.0 --port 8000
 
-# Start MCP Memory server
-./bin/mcp-memory serve
+# Start GraphQL server and Web UI
+export MCP_MEMORY_CHROMA_ENDPOINT=http://localhost:9000
+./graphql
+
+# Or with Docker Compose (recommended)
+docker-compose up -d
 ```
+
+### 2. Access the Web UI
+
+Open your browser and navigate to:
+- **Web UI**: http://localhost:8082/
+- **GraphQL Playground**: http://localhost:8082/graphql
+
+You can now browse memories, search, and explore relationships visually.
 
 ### 2. Configure Your AI Assistant
 

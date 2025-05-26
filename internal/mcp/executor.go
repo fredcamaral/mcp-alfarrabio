@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"mcp-memory/internal/logging"
-	"mcp-memory/pkg/mcp/protocol"
+	"github.com/fredcamaral/gomcp-sdk/protocol"
 )
 
 // MCPToolExecutor provides a way to execute MCP tools for testing and demonstration

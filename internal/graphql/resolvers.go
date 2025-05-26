@@ -256,8 +256,17 @@ func (s *Schema) storeChunkResolver(container *di.Container) graphql.FieldResolv
 				Tags:          getStringArrayOrDefault(input, "tags", nil),
 				ToolsUsed:     getStringArrayOrDefault(input, "toolsUsed", nil),
 				FilesModified: getStringArrayOrDefault(input, "filesModified", nil),
+				Outcome:       types.OutcomeSuccess,    // Default to success
+				Difficulty:    types.DifficultySimple,  // Default to simple
 			},
 		}
+
+		// Generate embeddings
+		embeddings, err := container.GetEmbeddingService().GenerateEmbedding(ctx, chunk.Content)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate embeddings: %w", err)
+		}
+		chunk.Embeddings = embeddings
 
 		// Process with chunking service
 		chunkingService := container.GetChunkingService()

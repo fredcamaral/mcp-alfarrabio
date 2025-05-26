@@ -59,8 +59,14 @@ The easiest way to deploy with all dependencies.
    # Health check
    curl http://localhost:8081/health
    
-   # Metrics
-   curl http://localhost:8082/metrics
+   # GraphQL API & Web UI
+   open http://localhost:8082/
+   
+   # GraphQL Playground
+   open http://localhost:8082/graphql
+   
+   # Metrics (Prometheus)
+   curl http://localhost:9090/metrics
    
    # Grafana dashboard
    open http://localhost:3000
@@ -195,9 +201,10 @@ logging:
   format: "text"
 
 storage:
-  type: "sqlite"
-  sqlite:
-    path: "./data/memory_dev.db"
+  type: "chroma"
+  chroma:
+    url: "http://localhost:9000"
+    collection_name: "claude_memory"
 
 security:
   encryption:
@@ -604,6 +611,101 @@ curl -X POST http://localhost:8080/api/maintenance/enable
 
 # Disable maintenance mode
 curl -X POST http://localhost:8080/api/maintenance/disable
+```
+
+## 🗄️ ChromaDB Persistence
+
+### Critical Configuration
+
+To ensure ChromaDB data persists between container restarts:
+
+```yaml
+# docker-compose.yml
+services:
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: mcp-chroma
+    command: ["run", "--path", "/chroma/chroma", "--host", "0.0.0.0", "--port", "8000"]
+    ports:
+      - "9000:8000"  # Host:Container ports
+    volumes:
+      - chroma_data:/chroma/chroma  # Named volume for persistence
+    
+volumes:
+  chroma_data:
+    driver: local
+    name: mcp_memory_chroma_vector_db_NEVER_DELETE
+```
+
+**Important Notes:**
+- The `command` parameter with `--path` is **required** for persistence
+- Use a named volume, not a bind mount
+- Default host port is 9000 (maps to container port 8000)
+- Set `MCP_MEMORY_CHROMA_ENDPOINT=http://localhost:9000` for GraphQL server
+
+See [ChromaDB Persistence Fix](CHROMADB_PERSISTENCE_FIX.md) for troubleshooting.
+
+## 🌐 GraphQL Server Deployment
+
+### Running the GraphQL Server
+
+1. **With Docker Compose**:
+   ```yaml
+   services:
+     graphql:
+       build:
+         context: .
+         target: graphql
+       ports:
+         - "8082:8082"
+       environment:
+         - MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
+         - OPENAI_API_KEY=${OPENAI_API_KEY}
+       depends_on:
+         - chroma
+   ```
+
+2. **Standalone**:
+   ```bash
+   # Set ChromaDB endpoint
+   export MCP_MEMORY_CHROMA_ENDPOINT=http://localhost:9000
+   
+   # Run server
+   ./graphql
+   
+   # Access Web UI
+   open http://localhost:8082/
+   ```
+
+### Nginx Proxy Configuration
+
+For production deployments behind Nginx:
+
+```nginx
+server {
+    listen 80;
+    server_name memory.example.com;
+
+    # Web UI and static files
+    location / {
+        proxy_pass http://localhost:8082;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_cache_bypass $http_upgrade;
+    }
+
+    # GraphQL endpoint
+    location /graphql {
+        proxy_pass http://localhost:8082/graphql;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
 ```
 
 ---

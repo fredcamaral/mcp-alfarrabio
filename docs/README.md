@@ -36,15 +36,13 @@ Welcome to the MCP Memory Server documentation! This directory contains all tech
 - [Feature Highlights](marketing/feature-highlights.md) - Key feature descriptions
 - [Tutorial Snippets](marketing/tutorial-snippets.md) - Quick tutorial content
 
-### 🤖 MCP Go Library
-The `pkg/mcp/` directory contains a complete Go implementation of the Model Context Protocol that works with ANY MCP-compatible client. This library is used by the MCP Memory Server but is designed as a standalone, reusable component supporting all MCP features.
+### 🤖 GoMCP SDK
+The MCP Memory Server uses the [GoMCP SDK](https://github.com/fredcamaral/gomcp-sdk) - a complete Go implementation of the Model Context Protocol that works with ANY MCP-compatible client.
 
-- [MCP-Go Library README](../pkg/mcp/README.md) - Universal MCP implementation overview
-- [MCP-Go Roadmap](../pkg/mcp/ROADMAP.md) - Library development roadmap
-- [API Design](../pkg/mcp/API_DESIGN.md) - API design principles
-- [Performance Guide](../pkg/mcp/PERFORMANCE.md) - Performance optimization
-- [Integration Guides](../pkg/mcp/) - Universal client integration guides
-- [Feature Documentation](../pkg/mcp/docs/features/) - Sampling, Roots, Discovery, and more
+- [GoMCP SDK Repository](https://github.com/fredcamaral/gomcp-sdk) - Open source MCP SDK for Go
+- [SDK Documentation](https://pkg.go.dev/github.com/fredcamaral/gomcp-sdk) - API reference
+- [SDK Examples](https://github.com/fredcamaral/gomcp-sdk/tree/main/examples) - Usage examples
+- [Migration Guide](MCP_SDK_MIGRATION.md) - Migrating from embedded to standalone SDK
 
 ## 📂 Documentation Structure
 

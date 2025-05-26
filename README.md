@@ -2,6 +2,13 @@
 
 A high-performance Model Context Protocol (MCP) server that provides intelligent memory and context management for ANY AI application or client. Built with Go, it features advanced vector storage, pattern recognition, and contextual learning capabilities using Chroma vector database. Works seamlessly with Claude, VS Code Copilot, Continue, Cursor, and any MCP-compatible client.
 
+## 📢 Important: MCP SDK Now Standalone
+
+The MCP Go implementation has been moved to a separate open-source project:
+- **GoMCP SDK**: [github.com/fredcamaral/gomcp-sdk](https://github.com/fredcamaral/gomcp-sdk)
+
+This allows the community to use the MCP SDK independently for building any MCP-compatible application.
+
 ## 🚀 Features
 
 ### Core Memory System
