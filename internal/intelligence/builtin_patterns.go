@@ -38,7 +38,7 @@ func createFourStepPattern(
 		Name:            name,
 		Description:     description,
 		Confidence:      confidence,
-		Frequency:       frequency,
+		Frequency:       int(frequency),
 		SuccessRate:     successRate,
 		Keywords:        keywords,
 		Triggers:        triggers,
