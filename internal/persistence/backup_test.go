@@ -183,7 +183,7 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 			assert.FileExists(t, metadataFile)
 			
 			// Verify metadata content
-			metadataData, err := os.ReadFile(metadataFile)
+			metadataData, err := os.ReadFile(metadataFile) //nolint:gosec // Test file in temp directory
 			require.NoError(t, err)
 			
 			var loadedMetadata BackupMetadata

@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math"
 	"sync/atomic"
 	"time"
 )
@@ -134,7 +135,14 @@ func (cb *CircuitBreaker) canExecute() error {
 	case StateHalfOpen:
 		// Limit concurrent requests in half-open state
 		current := atomic.AddInt32(&cb.halfOpenRequests, 1)
-		if current > int32(cb.config.MaxConcurrentRequests) {
+		// Bounds check to prevent integer overflow
+		if cb.config.MaxConcurrentRequests > 0 && cb.config.MaxConcurrentRequests <= math.MaxInt32 {
+			if current > int32(cb.config.MaxConcurrentRequests) { //nolint:gosec // Bounds checked above
+				atomic.AddInt32(&cb.halfOpenRequests, -1)
+				return ErrTooManyConcurrentRequests
+			}
+		} else {
+			// Invalid config, treat as too many requests
 			atomic.AddInt32(&cb.halfOpenRequests, -1)
 			return ErrTooManyConcurrentRequests
 		}
@@ -173,8 +181,11 @@ func (cb *CircuitBreaker) recordSuccess() {
 		
 	case StateHalfOpen:
 		successes := atomic.AddInt32(&cb.consecutiveSuccesses, 1)
-		if successes >= int32(cb.config.SuccessThreshold) {
-			cb.transitionTo(StateClosed)
+		// Bounds check to prevent integer overflow
+		if cb.config.SuccessThreshold > 0 && cb.config.SuccessThreshold <= math.MaxInt32 {
+			if successes >= int32(cb.config.SuccessThreshold) { //nolint:gosec // Bounds checked above
+				cb.transitionTo(StateClosed)
+			}
 		}
 	case StateOpen:
 		// In open state, successes don't affect state transitions
@@ -191,8 +202,11 @@ func (cb *CircuitBreaker) recordFailure() {
 	switch state {
 	case StateClosed:
 		failures := atomic.AddInt32(&cb.consecutiveFailures, 1)
-		if failures >= int32(cb.config.FailureThreshold) {
-			cb.transitionTo(StateOpen)
+		// Bounds check to prevent integer overflow
+		if cb.config.FailureThreshold > 0 && cb.config.FailureThreshold <= math.MaxInt32 {
+			if failures >= int32(cb.config.FailureThreshold) { //nolint:gosec // Bounds checked above
+				cb.transitionTo(StateOpen)
+			}
 		}
 	case StateOpen:
 		// Already open, no action needed
@@ -217,7 +231,8 @@ func (cb *CircuitBreaker) shouldTransitionToHalfOpen() bool {
 
 // transitionTo transitions to a new state
 func (cb *CircuitBreaker) transitionTo(newState State) {
-	oldState := State(atomic.SwapInt32(&cb.state, int32(newState)))
+	// Safe conversion - State values are constants 0, 1, 2
+	oldState := State(atomic.SwapInt32(&cb.state, int32(newState))) //nolint:gosec // State values are constants
 	
 	if oldState == newState {
 		return

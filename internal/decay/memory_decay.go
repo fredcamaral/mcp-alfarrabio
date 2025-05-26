@@ -198,9 +198,7 @@ func (m *MemoryDecayManager) RunDecay(ctx context.Context, repository string) er
 	
 	// Summarize chunks
 	if len(toSummarize) > 0 {
-		if err := m.summarizeChunks(ctx, toSummarize); err != nil {
-			log.Printf("Failed to summarize chunks: %v", err)
-		}
+		m.summarizeChunks(ctx, toSummarize)
 	}
 	
 	// Update chunks with new scores
@@ -315,7 +313,7 @@ func (m *MemoryDecayManager) applyTimeDecay(score float64, age time.Duration) fl
 }
 
 // summarizeChunks creates summaries for chunks marked for summarization
-func (m *MemoryDecayManager) summarizeChunks(ctx context.Context, chunks []ScoredChunk) error {
+func (m *MemoryDecayManager) summarizeChunks(ctx context.Context, chunks []ScoredChunk) {
 	// Group related chunks
 	groups := m.groupRelatedChunks(chunks)
 	
@@ -351,8 +349,6 @@ func (m *MemoryDecayManager) summarizeChunks(ctx context.Context, chunks []Score
 			}
 		}
 	}
-	
-	return nil
 }
 
 // groupRelatedChunks groups chunks that should be summarized together

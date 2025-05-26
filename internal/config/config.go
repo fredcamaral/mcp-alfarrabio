@@ -161,9 +161,7 @@ func LoadConfig() (*Config, error) {
 	config := DefaultConfig()
 
 	// Override with environment variables
-	if err := loadFromEnv(config); err != nil {
-		return nil, fmt.Errorf("error loading config from environment: %w", err)
-	}
+	loadFromEnv(config)
 
 	// Validate configuration
 	if err := config.Validate(); err != nil {
@@ -174,7 +172,17 @@ func LoadConfig() (*Config, error) {
 }
 
 // loadFromEnv loads configuration from environment variables
-func loadFromEnv(config *Config) error {
+func loadFromEnv(config *Config) {
+	loadServerConfig(config)
+	loadChromaConfig(config)
+	loadOpenAIConfig(config)
+	loadDecayConfig(config)
+	loadIntelligenceConfig(config)
+	loadPerformanceConfig(config)
+}
+
+// loadServerConfig loads server configuration from environment
+func loadServerConfig(config *Config) {
 	// Server configuration
 	if port := os.Getenv("MCP_MEMORY_PORT"); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
@@ -196,7 +204,10 @@ func loadFromEnv(config *Config) error {
 			config.Server.WriteTimeout = wt
 		}
 	}
+}
 
+// loadChromaConfig loads Chroma configuration from environment
+func loadChromaConfig(config *Config) {
 	// Chroma configuration - check both prefixed and non-prefixed env vars
 	if endpoint := os.Getenv("MCP_MEMORY_CHROMA_ENDPOINT"); endpoint != "" {
 		config.Chroma.Endpoint = endpoint
@@ -347,9 +358,33 @@ func loadFromEnv(config *Config) error {
 			config.Logging.MaxAge = ma
 		}
 	}
-
-	return nil
 }
+
+// loadOpenAIConfig loads OpenAI configuration from environment
+func loadOpenAIConfig(config *Config) {
+	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
+		config.OpenAI.APIKey = apiKey
+	}
+	if model := os.Getenv("OPENAI_EMBEDDING_MODEL"); model != "" {
+		config.OpenAI.EmbeddingModel = model
+	}
+}
+
+// loadDecayConfig loads decay configuration from environment
+func loadDecayConfig(config *Config) {
+	// Add decay config loading if needed
+}
+
+// loadIntelligenceConfig loads intelligence configuration from environment
+func loadIntelligenceConfig(config *Config) {
+	// Add intelligence config loading if needed
+}
+
+// loadPerformanceConfig loads performance configuration from environment
+func loadPerformanceConfig(config *Config) {
+	// Add performance config loading if needed  
+}
+
 
 // Validate validates the configuration
 func (c *Config) Validate() error {

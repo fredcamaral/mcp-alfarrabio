@@ -24,7 +24,7 @@ func (s *Schema) searchResolver(container *di.Container) graphql.FieldResolveFn 
 		}
 		
 		// Convert string types to ChunkType
-		typeStrings := getStringArrayOrDefault(input, "types", nil)
+		typeStrings := getStringArrayOrDefault(input, "types")
 		chunkTypes := make([]types.ChunkType, len(typeStrings))
 		for i, t := range typeStrings {
 			chunkTypes[i] = types.ChunkType(t)
@@ -253,9 +253,9 @@ func (s *Schema) storeChunkResolver(container *di.Container) graphql.FieldResolv
 			Metadata: types.ChunkMetadata{
 				Repository:    getStringOrDefault(input, "repository", "_global"),
 				Branch:        getStringOrDefault(input, "branch", ""),
-				Tags:          getStringArrayOrDefault(input, "tags", nil),
-				ToolsUsed:     getStringArrayOrDefault(input, "toolsUsed", nil),
-				FilesModified: getStringArrayOrDefault(input, "filesModified", nil),
+				Tags:          getStringArrayOrDefault(input, "tags"),
+				ToolsUsed:     getStringArrayOrDefault(input, "toolsUsed"),
+				FilesModified: getStringArrayOrDefault(input, "filesModified"),
 				Outcome:       types.OutcomeSuccess,    // Default to success
 				Difficulty:    types.DifficultySimple,  // Default to simple
 			},
@@ -379,7 +379,7 @@ func getFloatOrDefault(m interface{}, key string, defaultValue float64) float64 
 }
 
 
-func getStringArrayOrDefault(m interface{}, key string, defaultValue []string) []string {
+func getStringArrayOrDefault(m interface{}, key string) []string {
 	if mapValue, ok := m.(map[string]interface{}); ok {
 		if value, exists := mapValue[key]; exists && value != nil {
 			if arr, ok := value.([]interface{}); ok {
@@ -393,7 +393,7 @@ func getStringArrayOrDefault(m interface{}, key string, defaultValue []string) [
 			}
 		}
 	}
-	return defaultValue
+	return nil
 }
 
 // parseTimeframeToRecency converts a timeframe string to Recency

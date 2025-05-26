@@ -103,7 +103,8 @@ func main() {
 		log.Printf("Web UI available at http://localhost:%s/", port)
 		log.Printf("GraphiQL playground available at http://localhost:%s/graphql", port)
 		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("Server failed to start: %v", err)
+			log.Printf("Server failed to start: %v", err)
+			os.Exit(1)
 		}
 	}()
 

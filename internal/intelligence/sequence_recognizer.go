@@ -455,8 +455,6 @@ func (bsr *BasicSequenceRecognizer) calculateSequenceConfidence(chunks []types.C
 		baseConfidence -= 0.1
 	case OutcomeInterrupted:
 		// Interrupted outcomes don't change confidence
-	default:
-		// Unknown outcomes don't change confidence
 	}
 	
 	return math.Min(baseConfidence, 1.0)
@@ -472,6 +470,8 @@ func (bsr *BasicSequenceRecognizer) calculateSuccessRateFromOutcome(outcome Patt
 		return 0.2
 	case OutcomeInterrupted:
 		return 0.4
+	case OutcomeUnknown:
+		return 0.5
 	default:
 		// Unknown outcomes get a neutral success rate
 		return 0.5

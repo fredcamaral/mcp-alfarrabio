@@ -46,17 +46,9 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 		return nil, fmt.Errorf("failed to initialize storage: %w", err)
 	}
 
-	if err := container.initializeServices(); err != nil {
-		return nil, fmt.Errorf("failed to initialize services: %w", err)
-	}
-
-	if err := container.initializeIntelligence(); err != nil {
-		return nil, fmt.Errorf("failed to initialize intelligence: %w", err)
-	}
-
-	if err := container.initializeWorkflow(); err != nil {
-		return nil, fmt.Errorf("failed to initialize workflow: %w", err)
-	}
+	container.initializeServices()
+	container.initializeIntelligence()
+	container.initializeWorkflow()
 
 	return container, nil
 }
@@ -91,7 +83,7 @@ func (c *Container) initializeStorage() error {
 }
 
 // initializeServices sets up core services
-func (c *Container) initializeServices() error {
+func (c *Container) initializeServices() {
 	// Initialize embedding service
 	baseEmbedding := embeddings.NewOpenAIEmbeddingService(&c.Config.OpenAI)
 	
@@ -114,12 +106,10 @@ func (c *Container) initializeServices() error {
 		backupDir = "./backups"
 	}
 	c.BackupManager = persistence.NewBackupManager(nil, backupDir) // Note: VectorStore interface compatibility issue
-
-	return nil
 }
 
 // initializeIntelligence sets up intelligence layer
-func (c *Container) initializeIntelligence() error {
+func (c *Container) initializeIntelligence() {
 	// Initialize pattern engine
 	// Note: VectorStore interface compatibility issue - using nil for now
 	c.PatternEngine = intelligence.NewPatternEngine(nil)
@@ -129,12 +119,10 @@ func (c *Container) initializeIntelligence() error {
 
 	// Initialize learning engine
 	c.LearningEngine = intelligence.NewLearningEngine(c.PatternEngine, c.GraphBuilder)
-
-	return nil
 }
 
 // initializeWorkflow sets up workflow components
-func (c *Container) initializeWorkflow() error {
+func (c *Container) initializeWorkflow() {
 	// Initialize workflow components
 	c.TodoTracker = workflow.NewTodoTracker()
 	c.FlowDetector = workflow.NewFlowDetector()
@@ -148,8 +136,6 @@ func (c *Container) initializeWorkflow() error {
 		c.TodoTracker,
 		c.FlowDetector,
 	)
-
-	return nil
 }
 
 

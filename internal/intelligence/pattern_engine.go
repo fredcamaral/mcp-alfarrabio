@@ -357,6 +357,8 @@ func (pe *PatternEngine) calculateSuccessRate(outcome PatternOutcome) float64 {
 		return 0.2
 	case OutcomeInterrupted:
 		return 0.4
+	case OutcomeUnknown:
+		return 0.5
 	default:
 		return 0.5
 	}

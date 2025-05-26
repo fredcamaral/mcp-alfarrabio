@@ -50,7 +50,7 @@ func (s *DefaultSummarizer) Summarize(ctx context.Context, chunks []types.Conver
 	}
 	
 	// Add type summary
-	var typeInfo []string
+	typeInfo := make([]string, 0, len(typeCounts))
 	for chunkType, count := range typeCounts {
 		typeInfo = append(typeInfo, fmt.Sprintf("%d %s", count, chunkType))
 	}

@@ -266,11 +266,12 @@ func TestCircuitBreaker_ConcurrentRequests(t *testing.T) {
 				time.Sleep(20 * time.Millisecond) // Simulate work - increased to ensure concurrency
 				return nil
 			})
-			if err == nil {
+			switch {
+			case err == nil:
 				atomic.AddInt32(&successCount, 1)
-			} else if errors.Is(err, ErrTooManyConcurrentRequests) {
+			case errors.Is(err, ErrTooManyConcurrentRequests):
 				atomic.AddInt32(&rejectCount, 1)
-			} else {
+			default:
 				t.Logf("Unexpected error: %v", err)
 			}
 		}()

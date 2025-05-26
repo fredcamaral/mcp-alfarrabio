@@ -3,10 +3,11 @@ package retry
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/big"
 	"time"
 )
 
@@ -140,8 +141,20 @@ func (r *Retrier) calculateDelay(delay time.Duration) time.Duration {
 	minDelay := float64(delay) - delta
 	maxDelay := float64(delay) + delta
 
-	// Generate random delay between min and max
-	randomDelay := minDelay + rand.Float64()*(maxDelay-minDelay)
+	// Generate random delay between min and max using crypto/rand
+	// Create a random number between 0 and (maxDelay - minDelay)
+	deltaRange := int64(maxDelay - minDelay)
+	if deltaRange <= 0 {
+		return time.Duration(minDelay)
+	}
+	
+	randomDelta, err := rand.Int(rand.Reader, big.NewInt(deltaRange))
+	if err != nil {
+		// Fallback to no jitter on error
+		return delay
+	}
+	
+	randomDelay := minDelay + float64(randomDelta.Int64())
 	return time.Duration(randomDelay)
 }
 
