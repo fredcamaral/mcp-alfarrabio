@@ -7,6 +7,7 @@ import (
 	"mcp-memory/internal/logging"
 	"mcp-memory/pkg/types"
 	"os"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -357,6 +358,58 @@ func (cs *ChromaStore) ListByRepository(ctx context.Context, repository string, 
 	return chunks, nil
 }
 
+// ListBySession lists chunks for a specific session ID
+func (cs *ChromaStore) ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error) {
+	start := time.Now()
+	defer cs.updateMetrics("list_by_session", start, nil)
+
+	// Build options for get - get all chunks for this session
+	getOptions := []chromav2.CollectionGetOption{
+		chromav2.WithWhereGet(chromav2.EqString("session_id", sessionID)),
+		chromav2.WithIncludeGet(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
+	}
+
+	result, err := cs.collection.Get(ctx, getOptions...)
+	if err != nil {
+		cs.updateMetrics("list_by_session", start, err)
+		return nil, fmt.Errorf("failed to list chunks by session: %w", err)
+	}
+
+	chunks := make([]types.ConversationChunk, 0)
+	if result != nil {
+		docs := result.GetDocuments()
+		metadatas := result.GetMetadatas()
+		ids := result.GetIDs()
+
+		for i := 0; i < len(docs); i++ {
+			var chunkID string
+			if i < len(ids) {
+				chunkID = string(ids[i])
+			}
+
+			var content string
+			if i < len(docs) && docs[i] != nil {
+				content = docs[i].ContentString()
+			}
+
+			var metadata map[string]interface{}
+			if i < len(metadatas) && metadatas[i] != nil {
+				metadata = cs.documentMetadataToMap(metadatas[i])
+			}
+
+			chunk := cs.chromaResultToChunk(chunkID, content, metadata)
+			chunks = append(chunks, *chunk)
+		}
+	}
+
+	// Sort by timestamp
+	sort.Slice(chunks, func(i, j int) bool {
+		return chunks[i].Timestamp.Before(chunks[j].Timestamp)
+	})
+
+	return chunks, nil
+}
+
 // Delete removes a chunk by ID
 func (cs *ChromaStore) Delete(ctx context.Context, id string) error {
 	start := time.Now()
@@ -384,6 +437,13 @@ func (cs *ChromaStore) Update(ctx context.Context, chunk types.ConversationChunk
 func (cs *ChromaStore) HealthCheck(ctx context.Context) error {
 	start := time.Now()
 	defer cs.updateMetrics("health_check", start, nil)
+
+	// Check if collection is initialized
+	if cs.collection == nil {
+		err := fmt.Errorf("collection not initialized - call Initialize() first")
+		cs.updateMetrics("health_check", start, err)
+		return err
+	}
 
 	// Try to count documents as a health check
 	count, err := cs.collection.Count(ctx)

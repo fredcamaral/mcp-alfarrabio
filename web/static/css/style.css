@@ -1,0 +1,289 @@
+/* Memory Dashboard Styles */
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background-color: #f5f5f5;
+    color: #333;
+}
+
+.container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+header {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+h1 {
+    font-size: 28px;
+    color: #2c3e50;
+}
+
+.stats {
+    font-size: 14px;
+    color: #7f8c8d;
+}
+
+.controls {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.search-box {
+    flex: 1;
+    display: flex;
+    gap: 10px;
+}
+
+input[type="text"] {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+button {
+    padding: 8px 16px;
+    background: #3498db;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+}
+
+button:hover {
+    background: #2980b9;
+}
+
+.filters {
+    display: flex;
+    gap: 10px;
+}
+
+select {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+    background: white;
+}
+
+.main-content {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.memory-list, .memory-detail {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    max-height: 600px;
+    overflow-y: auto;
+}
+
+.memory-items {
+    margin-top: 15px;
+}
+
+.memory-item {
+    padding: 15px;
+    border: 1px solid #e0e0e0;
+    border-radius: 6px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.memory-item:hover {
+    border-color: #3498db;
+    box-shadow: 0 2px 8px rgba(52, 152, 219, 0.2);
+}
+
+.memory-item.selected {
+    border-color: #3498db;
+    background: #f0f8ff;
+}
+
+.memory-item h3 {
+    font-size: 16px;
+    margin-bottom: 8px;
+    color: #2c3e50;
+}
+
+.meta {
+    font-size: 12px;
+    color: #7f8c8d;
+    margin-bottom: 8px;
+}
+
+.tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+}
+
+.tag {
+    padding: 2px 8px;
+    background: #ecf0f1;
+    border-radius: 12px;
+    font-size: 11px;
+    color: #34495e;
+}
+
+.placeholder {
+    text-align: center;
+    color: #95a5a6;
+    padding: 40px;
+}
+
+.loading {
+    text-align: center;
+    color: #3498db;
+    padding: 40px;
+}
+
+.error {
+    background: #fee;
+    color: #c00;
+    padding: 15px;
+    border-radius: 4px;
+    margin: 10px 0;
+}
+
+.visualization {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.graph-container {
+    width: 100%;
+    height: 400px;
+    position: relative;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    margin-top: 15px;
+}
+
+#graphCanvas {
+    width: 100%;
+    height: 100%;
+}
+
+/* Trace Buttons */
+.trace-buttons {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #e0e0e0;
+    display: flex;
+    gap: 10px;
+}
+
+.trace-btn {
+    background: #2ecc71;
+    flex: 1;
+}
+
+.trace-btn:hover {
+    background: #27ae60;
+}
+
+/* Memory Details */
+.memory-content {
+    margin: 20px 0;
+}
+
+.memory-content h4 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    font-size: 14px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.memory-content p {
+    line-height: 1.6;
+    color: #555;
+    margin-bottom: 15px;
+}
+
+.memory-metadata {
+    background: #f8f9fa;
+    padding: 15px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.memory-metadata div {
+    margin-bottom: 8px;
+}
+
+.memory-metadata strong {
+    color: #2c3e50;
+    margin-right: 5px;
+}
+
+/* Scrollbar styles */
+.memory-list::-webkit-scrollbar,
+.memory-detail::-webkit-scrollbar {
+    width: 8px;
+}
+
+.memory-list::-webkit-scrollbar-track,
+.memory-detail::-webkit-scrollbar-track {
+    background: #f1f1f1;
+}
+
+.memory-list::-webkit-scrollbar-thumb,
+.memory-detail::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 4px;
+}
+
+.memory-list::-webkit-scrollbar-thumb:hover,
+.memory-detail::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Responsive */
+@media (max-width: 1024px) {
+    .main-content {
+        grid-template-columns: 1fr;
+    }
+    
+    .controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filters {
+        flex-direction: column;
+    }
+}

@@ -6,12 +6,16 @@ services:
     image: chromadb/chroma:latest
     container_name: mcp-chroma
     restart: unless-stopped
+    command: ["run", "--path", "/chroma/chroma", "--host", "0.0.0.0", "--port", "8000"]
     ports:
-      - "${CHROMA_HOST_PORT:-9000}:8000"
+      - "${CHROMA_HOST_PORT:-8000}:8000"
     environment:
       - CHROMA_SERVER_HOST=0.0.0.0
       - CHROMA_SERVER_HTTP_PORT=${CHROMA_HTTP_PORT:-8000}
       - PERSIST_DIRECTORY=${CHROMA_PERSIST_DIR:-/chroma/chroma}
+      - CHROMA_PERSIST_DIRECTORY=${CHROMA_PERSIST_DIR:-/chroma/chroma}
+      - CHROMA_DB_DIR=${CHROMA_PERSIST_DIR:-/chroma/chroma}
+      - IS_PERSISTENT=TRUE
     volumes:
       - chroma_data:/chroma/chroma
     networks:

@@ -7,14 +7,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"mcp-memory/internal/chunking"
 	"mcp-memory/internal/config"
-	"mcp-memory/internal/embeddings"
-	"mcp-memory/internal/intelligence"
+	"mcp-memory/internal/di"
 	"mcp-memory/internal/logging"
-	"mcp-memory/internal/persistence"
-	"mcp-memory/internal/storage"
-	"mcp-memory/internal/workflow"
 	"mcp-memory/pkg/mcp"
 	"mcp-memory/pkg/mcp/protocol"
 	"mcp-memory/pkg/mcp/server"
@@ -27,49 +22,20 @@ import (
 
 // MemoryServer implements the MCP server for Claude memory
 type MemoryServer struct {
-	config           *config.Config
-	vectorStore      storage.VectorStore
-	embeddingService embeddings.EmbeddingService
-	chunkingService  *chunking.ChunkingService
-	contextSuggester *workflow.ContextSuggester
-	backupManager    *persistence.BackupManager
-	learningEngine   *intelligence.LearningEngine
-	patternAnalyzer  *workflow.PatternAnalyzer
-	mcpServer        *server.Server
+	container *di.Container
+	mcpServer *server.Server
 }
 
 // NewMemoryServer creates a new memory MCP server
 func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
-	// Initialize vector store
-	vectorStore := storage.NewChromaStore(&cfg.Chroma)
-
-	// Initialize embedding service
-	embeddingService := embeddings.NewOpenAIEmbeddingService(&cfg.OpenAI)
-
-	// Initialize chunking service
-	chunkingService := chunking.NewChunkingService(&cfg.Chunking, embeddingService)
-
-	// Initialize intelligence layer components
-	todoTracker := workflow.NewTodoTracker()
-	flowDetector := workflow.NewFlowDetector()
-	patternAnalyzer := workflow.NewPatternAnalyzer()
-	// Note: Using nil for now due to interface compatibility issues - will be fixed in integration
-	contextSuggester := workflow.NewContextSuggester(nil, patternAnalyzer, todoTracker, flowDetector)
-	backupDir := getEnv("MCP_MEMORY_BACKUP_DIRECTORY", "./backups")
-	backupManager := persistence.NewBackupManager(nil, backupDir)
-	patternEngine := intelligence.NewPatternEngine(nil)
-	graphBuilder := intelligence.NewGraphBuilder(patternEngine)
-	learningEngine := intelligence.NewLearningEngine(patternEngine, graphBuilder)
+	// Create dependency injection container
+	container, err := di.NewContainer(cfg)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create DI container: %w", err)
+	}
 
 	memServer := &MemoryServer{
-		config:           cfg,
-		vectorStore:      vectorStore,
-		embeddingService: embeddingService,
-		chunkingService:  chunkingService,
-		contextSuggester: contextSuggester,
-		backupManager:    backupManager,
-		learningEngine:   learningEngine,
-		patternAnalyzer:  patternAnalyzer,
+		container: container,
 	}
 
 	// Create MCP server
@@ -86,17 +52,13 @@ func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
 // Start initializes and starts the MCP server
 func (ms *MemoryServer) Start(ctx context.Context) error {
 	// Initialize vector store
-	if err := ms.vectorStore.Initialize(ctx); err != nil {
+	if err := ms.container.GetVectorStore().Initialize(ctx); err != nil {
 		return fmt.Errorf("failed to initialize vector store: %w", err)
 	}
 
 	// Health check services
-	if err := ms.embeddingService.HealthCheck(ctx); err != nil {
-		log.Printf("Warning: Embedding service health check failed: %v", err)
-	}
-
-	if err := ms.vectorStore.HealthCheck(ctx); err != nil {
-		log.Printf("Warning: Vector store health check failed: %v", err)
+	if err := ms.container.HealthCheck(ctx); err != nil {
+		log.Printf("Warning: Service health check failed: %v", err)
 	}
 
 	log.Printf("Claude Memory MCP Server started successfully")
@@ -114,24 +76,24 @@ func (ms *MemoryServer) registerTools() {
 
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"mcp__memory__memory_store_chunk",
-		"Store a conversation chunk in memory with automatic analysis and embedding generation",
+		"Store important conversation moments (bug fixes, solutions, decisions, learnings) for future reference. Automatically categorizes and links related memories.",
 		mcp.ObjectSchema("Store memory chunk parameters", map[string]interface{}{
-			"content":        mcp.StringParam("The conversation content to store", true),
+			"content":        mcp.StringParam("The conversation content to store (include problem, solution, context, and outcome)", true),
 			"session_id":     mcp.StringParam("Session identifier for grouping related chunks", true),
-			"repository":     mcp.StringParam("Repository name (optional)", false),
+			"repository":     mcp.StringParam("Repository name (optional, use '_global' for global memories)", false),
 			"branch":         mcp.StringParam("Git branch name (optional)", false),
 			"files_modified": mcp.ArraySchema("List of files that were modified", map[string]interface{}{"type": "string"}),
 			"tools_used":     mcp.ArraySchema("List of tools that were used", map[string]interface{}{"type": "string"}),
-			"tags":           mcp.ArraySchema("Additional tags for categorization", map[string]interface{}{"type": "string"}),
+			"tags":           mcp.ArraySchema("Additional tags for categorization (e.g., 'bug-fix', 'performance', 'architecture')", map[string]interface{}{"type": "string"}),
 		}, []string{"content", "session_id"}),
 	), mcp.ToolHandlerFunc(ms.handleStoreChunk))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"mcp__memory__memory_search",
-		"Search for similar conversation chunks based on natural language query",
+		"Search past memories using natural language. Finds similar problems, solutions, and decisions. Use before solving to check if issue was encountered before.",
 		mcp.ObjectSchema("Search memory parameters", map[string]interface{}{
-			"query":      mcp.StringParam("Natural language search query", true),
-			"repository": mcp.StringParam("Filter by repository name (optional)", false),
+			"query":      mcp.StringParam("Natural language search query (be specific about the problem or topic)", true),
+			"repository": mcp.StringParam("Filter by repository name (optional, use '_global' for global memories)", false),
 			"recency": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"recent", "last_month", "all_time"},
@@ -158,9 +120,9 @@ func (ms *MemoryServer) registerTools() {
 
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"mcp__memory__memory_get_context",
-		"Get project context and recent activity for session initialization",
+		"Get project overview and recent activity. Use at session start or when switching projects to understand context, patterns, and ongoing work.",
 		mcp.ObjectSchema("Get context parameters", map[string]interface{}{
-			"repository": mcp.StringParam("Repository name to get context for", true),
+			"repository": mcp.StringParam("Repository name to get context for (use '_global' for global memories)", true),
 			"recent_days": map[string]interface{}{
 				"type":        "integer",
 				"description": "Number of recent days to include",
@@ -173,10 +135,10 @@ func (ms *MemoryServer) registerTools() {
 
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"mcp__memory__memory_find_similar",
-		"Find similar past problems and their solutions",
+		"Find similar problems and their solutions from past experiences. Use when facing errors or complex challenges to learn from previous solutions.",
 		mcp.ObjectSchema("Find similar parameters", map[string]interface{}{
-			"problem":    mcp.StringParam("Description of the current problem or error", true),
-			"repository": mcp.StringParam("Repository context (optional)", false),
+			"problem":    mcp.StringParam("Description of the current problem or error (include error messages, context, and what you've tried)", true),
+			"repository": mcp.StringParam("Repository context (optional, use '_global' for global memories)", false),
 			"limit": map[string]interface{}{
 				"type":        "integer",
 				"description": "Maximum number of similar problems to return",
@@ -189,21 +151,21 @@ func (ms *MemoryServer) registerTools() {
 
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"mcp__memory__memory_store_decision",
-		"Store an architectural decision with rationale",
+		"Explicitly store architectural/design decisions with rationale and alternatives. Use after making significant technical choices to preserve context.",
 		mcp.ObjectSchema("Store decision parameters", map[string]interface{}{
-			"decision":   mcp.StringParam("The architectural decision made", true),
-			"rationale":  mcp.StringParam("Reasoning behind the decision", true),
-			"context":    mcp.StringParam("Additional context and alternatives considered", false),
-			"repository": mcp.StringParam("Repository this decision applies to", false),
+			"decision":   mcp.StringParam("The architectural or design decision made", true),
+			"rationale":  mcp.StringParam("Why this decision was made (include benefits and trade-offs)", true),
+			"context":    mcp.StringParam("Alternatives considered, constraints, benchmarks, or other relevant context", false),
+			"repository": mcp.StringParam("Repository this decision applies to (use '_global' for global decisions)", false),
 			"session_id": mcp.StringParam("Session identifier", true),
 		}, []string{"decision", "rationale", "session_id"}),
 	), mcp.ToolHandlerFunc(ms.handleStoreDecision))
 
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"mcp__memory__memory_get_patterns",
-		"Identify recurring patterns in project history",
+		"Identify recurring patterns, common issues, and trends. Use for retrospectives, identifying refactoring needs, or understanding project challenges.",
 		mcp.ObjectSchema("Get patterns parameters", map[string]interface{}{
-			"repository": mcp.StringParam("Repository to analyze", true),
+			"repository": mcp.StringParam("Repository to analyze (use '_global' for global patterns)", true),
 			"timeframe": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"week", "month", "quarter", "all"},
@@ -225,7 +187,7 @@ func (ms *MemoryServer) registerTools() {
 		"Get AI-powered suggestions for related context based on current work",
 		mcp.ObjectSchema("Suggest related parameters", map[string]interface{}{
 			"current_context": mcp.StringParam("Current work context or conversation content", true),
-			"repository":      mcp.StringParam("Repository to search for related context", false),
+			"repository":      mcp.StringParam("Repository to search for related context (use '_global' for global context)", false),
 			"max_suggestions": map[string]interface{}{
 				"type":        "integer",
 				"description": "Maximum number of suggestions to return",
@@ -242,7 +204,7 @@ func (ms *MemoryServer) registerTools() {
 		"mcp__memory__memory_export_project",
 		"Export all memory data for a project in various formats",
 		mcp.ObjectSchema("Export project parameters", map[string]interface{}{
-			"repository": mcp.StringParam("Repository to export", true),
+			"repository": mcp.StringParam("Repository to export (use '_global' for global memories)", true),
 			"format": map[string]interface{}{
 				"type":        "string",
 				"description": "Export format: json, markdown, or archive",
@@ -269,7 +231,7 @@ func (ms *MemoryServer) registerTools() {
 				"default":     "conversation",
 			},
 			"data":       mcp.StringParam("Data to import (conversation text, file content, or base64 archive)", true),
-			"repository": mcp.StringParam("Target repository for imported data", true),
+			"repository": mcp.StringParam("Target repository for imported data (use '_global' for global memories)", true),
 			"metadata": mcp.ObjectSchema("Import metadata", map[string]interface{}{
 				"source_system": mcp.StringParam("Name of the source system", false),
 				"import_date":   mcp.StringParam("Original date of the content", false),
@@ -354,7 +316,9 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 	}
 
 	if repo, ok := params["repository"].(string); ok {
-		metadata.Repository = repo
+		metadata.Repository = normalizeRepository(repo)
+	} else {
+		metadata.Repository = GlobalMemoryRepository
 	}
 
 	if branch, ok := params["branch"].(string); ok {
@@ -387,7 +351,7 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 
 	// Create and store chunk
 	logging.Info("Creating conversation chunk", "session_id", sessionID)
-	chunk, err := ms.chunkingService.CreateChunk(ctx, sessionID, content, metadata)
+	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, sessionID, content, metadata)
 	if err != nil {
 		logging.Error("Failed to create chunk", "error", err, "session_id", sessionID)
 		return nil, fmt.Errorf("failed to create chunk: %w", err)
@@ -395,7 +359,7 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 	logging.Info("Chunk created successfully", "chunk_id", chunk.ID, "type", chunk.Type)
 
 	logging.Info("Storing chunk in vector store", "chunk_id", chunk.ID)
-	if err := ms.vectorStore.Store(ctx, *chunk); err != nil {
+	if err := ms.container.GetVectorStore().Store(ctx, *chunk); err != nil {
 		logging.Error("Failed to store chunk", "error", err, "chunk_id", chunk.ID)
 		return nil, fmt.Errorf("failed to store chunk: %w", err)
 	}
@@ -449,7 +413,7 @@ func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]inte
 
 	// Generate embeddings for query
 	logging.Info("Generating embeddings for search query", "query", query)
-	embeddings, err := ms.embeddingService.GenerateEmbedding(ctx, query)
+	embeddings, err := ms.container.GetEmbeddingService().GenerateEmbedding(ctx, query)
 	if err != nil {
 		logging.Error("Failed to generate embeddings", "error", err, "query", query)
 		return nil, fmt.Errorf("failed to generate query embeddings: %w", err)
@@ -458,7 +422,7 @@ func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]inte
 
 	// Search vector store
 	logging.Info("Searching vector store", "query", memQuery.Query, "limit", memQuery.Limit, "min_relevance", memQuery.MinRelevanceScore)
-	results, err := ms.vectorStore.Search(ctx, *memQuery, embeddings)
+	results, err := ms.container.GetVectorStore().Search(ctx, *memQuery, embeddings)
 	if err != nil {
 		logging.Error("Vector store search failed", "error", err, "query", query)
 		return nil, fmt.Errorf("search failed: %w", err)
@@ -506,7 +470,7 @@ func (ms *MemoryServer) handleGetContext(ctx context.Context, params map[string]
 	}
 
 	// Get recent chunks for the repository
-	chunks, err := ms.vectorStore.ListByRepository(ctx, repository, 20, 0)
+	chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 20, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repository chunks: %w", err)
 	}
@@ -588,7 +552,7 @@ func (ms *MemoryServer) handleFindSimilar(ctx context.Context, params map[string
 
 	// Generate embeddings and search
 	logging.Info("Generating embeddings for similar problem search", "problem", problem)
-	embeddings, err := ms.embeddingService.GenerateEmbedding(ctx, problem)
+	embeddings, err := ms.container.GetEmbeddingService().GenerateEmbedding(ctx, problem)
 	if err != nil {
 		logging.Error("Failed to generate embeddings for problem search", "error", err, "problem", problem)
 		return nil, fmt.Errorf("failed to generate embeddings: %w", err)
@@ -596,7 +560,7 @@ func (ms *MemoryServer) handleFindSimilar(ctx context.Context, params map[string
 	logging.Info("Embeddings generated for problem search", "dimension", len(embeddings))
 
 	logging.Info("Searching for similar problems", "problem", problem, "limit", limit)
-	results, err := ms.vectorStore.Search(ctx, *memQuery, embeddings)
+	results, err := ms.container.GetVectorStore().Search(ctx, *memQuery, embeddings)
 	if err != nil {
 		logging.Error("Similar problem search failed", "error", err, "problem", problem)
 		return nil, fmt.Errorf("search failed: %w", err)
@@ -664,11 +628,13 @@ func (ms *MemoryServer) handleStoreDecision(ctx context.Context, params map[stri
 	}
 
 	if repo, ok := params["repository"].(string); ok {
-		metadata.Repository = repo
+		metadata.Repository = normalizeRepository(repo)
+	} else {
+		metadata.Repository = GlobalMemoryRepository
 	}
 
 	// Create and store chunk
-	chunk, err := ms.chunkingService.CreateChunk(ctx, sessionID, content, metadata)
+	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, sessionID, content, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create decision chunk: %w", err)
 	}
@@ -676,7 +642,7 @@ func (ms *MemoryServer) handleStoreDecision(ctx context.Context, params map[stri
 	// Override type to architecture decision
 	chunk.Type = types.ChunkTypeArchitectureDecision
 
-	if err := ms.vectorStore.Store(ctx, *chunk); err != nil {
+	if err := ms.container.GetVectorStore().Store(ctx, *chunk); err != nil {
 		return nil, fmt.Errorf("failed to store decision: %w", err)
 	}
 
@@ -707,7 +673,7 @@ func (ms *MemoryServer) handleGetPatterns(ctx context.Context, params map[string
 
 	// For now, get recent chunks - in a full implementation,
 	// this would have proper time filtering
-	chunks, err = ms.vectorStore.ListByRepository(ctx, repository, 100, 0)
+	chunks, err = ms.container.GetVectorStore().ListByRepository(ctx, repository, 100, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chunks: %w", err)
 	}
@@ -733,7 +699,7 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 
 	// Check vector store
 	logging.Info("Checking vector store health")
-	if err := ms.vectorStore.HealthCheck(ctx); err != nil {
+	if err := ms.container.GetVectorStore().HealthCheck(ctx); err != nil {
 		logging.Error("Vector store health check failed", "error", err)
 		health["services"].(map[string]interface{})["vector_store"] = map[string]interface{}{
 			"status": "unhealthy",
@@ -749,7 +715,7 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 
 	// Check embedding service
 	logging.Info("Checking embedding service health")
-	if err := ms.embeddingService.HealthCheck(ctx); err != nil {
+	if err := ms.container.GetEmbeddingService().HealthCheck(ctx); err != nil {
 		logging.Error("Embedding service health check failed", "error", err)
 		health["services"].(map[string]interface{})["embedding_service"] = map[string]interface{}{
 			"status": "unhealthy",
@@ -764,7 +730,7 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 	}
 
 	// Get statistics
-	if stats, err := ms.vectorStore.GetStats(ctx); err == nil {
+	if stats, err := ms.container.GetVectorStore().GetStats(ctx); err == nil {
 		health["stats"] = stats
 		logging.Info("Vector store statistics retrieved", "stats", stats)
 	} else {
@@ -791,7 +757,7 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]p
 			return nil, fmt.Errorf("repository required for recent resource")
 		}
 		repository := parts[3]
-		chunks, err := ms.vectorStore.ListByRepository(ctx, repository, 20, 0)
+		chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 20, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -803,7 +769,7 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]p
 			return nil, fmt.Errorf("repository required for patterns resource")
 		}
 		repository := parts[3]
-		chunks, err := ms.vectorStore.ListByRepository(ctx, repository, 100, 0)
+		chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 100, 0)
 		if err != nil {
 			return nil, err
 		}
@@ -827,12 +793,12 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]p
 		memQuery.Types = []types.ChunkType{types.ChunkTypeArchitectureDecision}
 		memQuery.Limit = 50
 
-		embeddings, err := ms.embeddingService.GenerateEmbedding(ctx, "architectural decision")
+		embeddings, err := ms.container.GetEmbeddingService().GenerateEmbedding(ctx, "architectural decision")
 		if err != nil {
 			return nil, err
 		}
 
-		results, err := ms.vectorStore.Search(ctx, *memQuery, embeddings)
+		results, err := ms.container.GetVectorStore().Search(ctx, *memQuery, embeddings)
 		if err != nil {
 			return nil, err
 		}
@@ -972,7 +938,7 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 
 	// Generate embedding for current context
 	logging.Info("Generating embedding for context suggestions", "context_length", len(currentContext))
-	embedding, err := ms.embeddingService.GenerateEmbedding(ctx, currentContext)
+	embedding, err := ms.container.GetEmbeddingService().GenerateEmbedding(ctx, currentContext)
 	if err != nil {
 		logging.Error("Failed to generate embedding for context suggestions", "error", err)
 		return nil, fmt.Errorf("failed to generate embedding: %w", err)
@@ -986,7 +952,7 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 	query.Limit = maxSuggestions * 2 // Get more to filter from
 	query.MinRelevanceScore = 0.6
 
-	results, err := ms.vectorStore.Search(ctx, *query, embedding)
+	results, err := ms.container.GetVectorStore().Search(ctx, *query, embedding)
 	if err != nil {
 		logging.Error("Context suggestion search failed", "error", err)
 		return nil, fmt.Errorf("search failed: %w", err)
@@ -1018,8 +984,8 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 	// Add pattern-based suggestions if enabled
 	// Note: Pattern analysis temporarily disabled due to interface compatibility
 	// TODO: Fix interface compatibility and re-enable pattern-based suggestions
-	if includePatterns && ms.patternAnalyzer != nil {
-		// patterns := ms.patternAnalyzer.AnalyzePatterns(currentContext)
+	if includePatterns && ms.container.GetPatternAnalyzer() != nil {
+		// patterns := ms.container.GetPatternAnalyzer().AnalyzePatterns(currentContext)
 		// Add a simple pattern-based suggestion for now
 		if len(suggestions) < maxSuggestions {
 			suggestion := map[string]interface{}{
@@ -1069,7 +1035,7 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 	}
 
 	// Get all chunks for the repository
-	chunks, err := ms.vectorStore.ListByRepository(ctx, repository, 10000, 0) // Large limit for export
+	chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 10000, 0) // Large limit for export
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve repository data: %w", err)
 	}
@@ -1137,7 +1103,7 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 
 	case "archive":
 		// Use backup manager to create compressed archive
-		if ms.backupManager == nil {
+		if ms.container.GetBackupManager() == nil {
 			return nil, fmt.Errorf("backup manager not available")
 		}
 
@@ -1241,7 +1207,7 @@ func (ms *MemoryServer) handleImportContext(ctx context.Context, params map[stri
 	storedCount := 0
 	for _, chunk := range importedChunks {
 		// Generate embedding for the chunk
-		embedding, err := ms.embeddingService.GenerateEmbedding(ctx, chunk.Content)
+		embedding, err := ms.container.GetEmbeddingService().GenerateEmbedding(ctx, chunk.Content)
 		if err != nil {
 			log.Printf("Failed to generate embedding for chunk %s: %v", chunk.ID, err)
 			continue
@@ -1250,7 +1216,7 @@ func (ms *MemoryServer) handleImportContext(ctx context.Context, params map[stri
 		chunk.Embeddings = embedding
 
 		// Store chunk
-		if err := ms.vectorStore.Store(ctx, chunk); err != nil {
+		if err := ms.container.GetVectorStore().Store(ctx, chunk); err != nil {
 			log.Printf("Failed to store chunk %s: %v", chunk.ID, err)
 			continue
 		}
@@ -1292,7 +1258,7 @@ func (ms *MemoryServer) importConversationText(ctx context.Context, data, reposi
 		chunkMetadata.Tags = append(chunkMetadata.Tags, "source:"+sourceSystem)
 	}
 
-	chunkData, err := ms.chunkingService.CreateChunk(ctx, "import", data, chunkMetadata)
+	chunkData, err := ms.container.GetChunkingService().CreateChunk(ctx, "import", data, chunkMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -1321,7 +1287,7 @@ func (ms *MemoryServer) importFileContent(ctx context.Context, data, repository,
 		chunkMetadata.Tags = append(chunkMetadata.Tags, "source:"+sourceSystem)
 	}
 
-	chunkData, err := ms.chunkingService.CreateChunk(ctx, "import", data, chunkMetadata)
+	chunkData, err := ms.container.GetChunkingService().CreateChunk(ctx, "import", data, chunkMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -1382,7 +1348,15 @@ func (ms *MemoryServer) GetServer() interface{} {
 
 // Close closes all connections
 func (ms *MemoryServer) Close() error {
-	return ms.vectorStore.Close()
+	return ms.container.Shutdown()
+}
+
+// normalizeRepository ensures that empty repository defaults to global
+func normalizeRepository(repo string) string {
+	if repo == "" {
+		return GlobalMemoryRepository
+	}
+	return repo
 }
 
 // Helper functions for environment variables

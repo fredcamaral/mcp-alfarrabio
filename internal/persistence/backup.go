@@ -267,8 +267,7 @@ func (bm *BackupManager) ListBackups() ([]BackupMetadata, error) {
 	}
 	
 	for _, entry := range entries {
-		if !entry.IsDir() && filepath.Ext(entry.Name()) == ".json" && 
-		   filepath.Base(entry.Name()) != entry.Name() {
+		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".meta.json") {
 			metadataFile := filepath.Join(bm.backupDir, entry.Name())
 			
 			metadataData, err := os.ReadFile(filepath.Clean(metadataFile)) //nolint:gosec // Path is constructed safely

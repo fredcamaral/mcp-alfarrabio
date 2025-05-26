@@ -244,25 +244,28 @@ func (em *EncryptionManager) DecryptSensitiveFields(content string) (string, err
 
 // AnonymizeData anonymizes personally identifiable information
 func (em *EncryptionManager) AnonymizeData(content string) string {
-	// Define anonymization patterns
-	anonymizationPatterns := map[string]string{
+	// Define anonymization patterns - order matters! More specific patterns first
+	anonymizationPatterns := []struct {
+		pattern     string
+		replacement string
+	}{
+		// SSN pattern (must come before phone)
+		{`\b\d{3}-\d{2}-\d{4}\b`, "[SSN_REDACTED]"},
+		// Credit card numbers (must come before phone)
+		{`\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b`, "[CARD_REDACTED]"},
 		// Email addresses
-		`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`: "[EMAIL_REDACTED]",
+		{`\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b`, "[EMAIL_REDACTED]"},
 		// IP addresses
-		`\b(?:\d{1,3}\.){3}\d{1,3}\b`: "[IP_REDACTED]",
-		// Phone numbers (simple pattern)
-		`\b\+?[\d\s\-\(\)]{10,}\b`: "[PHONE_REDACTED]",
-		// Credit card numbers (simple pattern)
-		`\b\d{4}[\s\-]?\d{4}[\s\-]?\d{4}[\s\-]?\d{4}\b`: "[CARD_REDACTED]",
-		// SSN pattern
-		`\b\d{3}-\d{2}-\d{4}\b`: "[SSN_REDACTED]",
+		{`\b(?:\d{1,3}\.){3}\d{1,3}\b`, "[IP_REDACTED]"},
+		// Phone numbers (simple pattern - less specific, so last)
+		{`\b\+?[\d\s\-\(\)]{10,}\b`, "[PHONE_REDACTED]"},
 	}
 	
 	result := content
 	
-	for pattern, replacement := range anonymizationPatterns {
-		re := regexp.MustCompile(pattern)
-		result = re.ReplaceAllString(result, replacement)
+	for _, rule := range anonymizationPatterns {
+		re := regexp.MustCompile(rule.pattern)
+		result = re.ReplaceAllString(result, rule.replacement)
 	}
 	
 	return result

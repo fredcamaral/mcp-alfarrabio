@@ -1,0 +1,944 @@
+openapi: 3.0.3
+info:
+  title: MCP Memory Server API
+  description: |
+    The MCP Memory Server provides intelligent memory management for AI assistants,
+    enabling them to store, search, and retrieve contextual information across conversations.
+  version: 1.0.0
+  contact:
+    name: MCP Memory Team
+    url: https://github.com/fredcamaral/mcp-memory
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://memory.mcp.example.com
+    description: Production server
+
+tags:
+  - name: memory
+    description: Memory storage and retrieval operations
+  - name: search
+    description: Semantic search operations
+  - name: patterns
+    description: Pattern recognition and analysis
+  - name: context
+    description: Context management
+  - name: health
+    description: Health and monitoring endpoints
+
+paths:
+  /mcp/tools/memory_store_chunk:
+    post:
+      tags:
+        - memory
+      summary: Store a conversation chunk
+      description: Store a conversation chunk in memory with automatic analysis and embedding generation
+      operationId: storeChunk
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreChunkRequest'
+      responses:
+        '200':
+          description: Chunk stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreChunkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_search:
+    post:
+      tags:
+        - search
+      summary: Search memory
+      description: Search for similar conversation chunks based on natural language query
+      operationId: searchMemory
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_get_context:
+    post:
+      tags:
+        - context
+      summary: Get project context
+      description: Get project context and recent activity for session initialization
+      operationId: getContext
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetContextRequest'
+      responses:
+        '200':
+          description: Project context
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContextResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_find_similar:
+    post:
+      tags:
+        - search
+      summary: Find similar problems
+      description: Find similar past problems and their solutions
+      operationId: findSimilar
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FindSimilarRequest'
+      responses:
+        '200':
+          description: Similar problems found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FindSimilarResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_store_decision:
+    post:
+      tags:
+        - memory
+      summary: Store architectural decision
+      description: Store an architectural decision with rationale
+      operationId: storeDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StoreDecisionRequest'
+      responses:
+        '200':
+          description: Decision stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StoreDecisionResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_get_patterns:
+    post:
+      tags:
+        - patterns
+      summary: Get patterns
+      description: Identify recurring patterns in project history
+      operationId: getPatterns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GetPatternsRequest'
+      responses:
+        '200':
+          description: Patterns identified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PatternsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_suggest_related:
+    post:
+      tags:
+        - context
+      summary: Suggest related context
+      description: Get AI-powered suggestions for related context based on current work
+      operationId: suggestRelated
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SuggestRelatedRequest'
+      responses:
+        '200':
+          description: Related suggestions
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SuggestRelatedResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_export_project:
+    post:
+      tags:
+        - memory
+      summary: Export project memory
+      description: Export all memory data for a project in various formats
+      operationId: exportProject
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExportProjectRequest'
+      responses:
+        '200':
+          description: Project exported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ExportProjectResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_import_context:
+    post:
+      tags:
+        - memory
+      summary: Import context
+      description: Import conversation context from external source
+      operationId: importContext
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ImportContextRequest'
+      responses:
+        '200':
+          description: Context imported
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ImportContextResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /mcp/tools/memory_health:
+    post:
+      tags:
+        - health
+      summary: Health check
+      description: Check the health status of the memory system
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+components:
+  schemas:
+    StoreChunkRequest:
+      type: object
+      required:
+        - content
+        - session_id
+      properties:
+        content:
+          type: string
+          description: The conversation content to store
+          example: "Fixed the authentication bug by updating the token validation logic"
+        session_id:
+          type: string
+          description: Session identifier for grouping related chunks
+          example: "session-123"
+        repository:
+          type: string
+          description: Repository name (use '_global' for global memories)
+          example: "my-project"
+        branch:
+          type: string
+          description: Git branch name
+          example: "feature/auth-fix"
+        files_modified:
+          type: array
+          items:
+            type: string
+          description: List of files that were modified
+          example: ["src/auth.ts", "src/validate.ts"]
+        tools_used:
+          type: array
+          items:
+            type: string
+          description: List of tools that were used
+          example: ["grep", "edit", "test"]
+        tags:
+          type: array
+          items:
+            type: string
+          description: Additional tags for categorization
+          example: ["bug-fix", "authentication"]
+
+    StoreChunkResponse:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+          description: Unique identifier for the stored chunk
+          example: "chunk-abc123"
+        type:
+          type: string
+          description: Type of chunk stored
+          example: "solution"
+        summary:
+          type: string
+          description: AI-generated summary of the content
+          example: "Fixed authentication bug in token validation"
+        stored_at:
+          type: string
+          format: date-time
+          description: Timestamp when chunk was stored
+          example: "2024-01-15T10:30:00Z"
+
+    SearchRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          description: Natural language search query
+          example: "authentication bugs"
+        repository:
+          type: string
+          description: Filter by repository name (use '_global' for global memories)
+          example: "my-project"
+        recency:
+          type: string
+          enum: [recent, last_month, all_time]
+          default: recent
+          description: Time filter for results
+        types:
+          type: array
+          items:
+            type: string
+            enum: [problem, solution, code_change, discussion, architecture_decision, session_summary, analysis, verification, question]
+          description: Filter by chunk types
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 10
+          description: Maximum number of results
+        min_relevance:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 0.7
+          description: Minimum relevance score
+
+    SearchResponse:
+      type: object
+      properties:
+        query:
+          type: string
+          description: The search query
+        total:
+          type: integer
+          description: Total number of results found
+        query_time:
+          type: string
+          description: Time taken to execute query
+          example: "125ms"
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SearchResult'
+
+    SearchResult:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+          description: Chunk identifier
+        score:
+          type: number
+          description: Relevance score (0-1)
+        type:
+          type: string
+          description: Type of chunk
+        summary:
+          type: string
+          description: Summary of the chunk
+        repository:
+          type: string
+          description: Repository name
+        timestamp:
+          type: string
+          format: date-time
+          description: When the chunk was created
+        tags:
+          type: array
+          items:
+            type: string
+          description: Associated tags
+        outcome:
+          type: string
+          enum: [success, in_progress, failed, abandoned]
+          description: Outcome of the activity
+
+    GetContextRequest:
+      type: object
+      required:
+        - repository
+      properties:
+        repository:
+          type: string
+          description: Repository name to get context for (use '_global' for global memories)
+          example: "my-project"
+        recent_days:
+          type: integer
+          minimum: 1
+          maximum: 90
+          default: 7
+          description: Number of recent days to include
+
+    ContextResponse:
+      type: object
+      properties:
+        repository:
+          type: string
+          description: Repository name
+        last_accessed:
+          type: string
+          format: date-time
+          description: Last access timestamp
+        total_recent_sessions:
+          type: integer
+          description: Number of recent sessions
+        common_patterns:
+          type: array
+          items:
+            type: string
+          description: Common patterns identified
+        architectural_decisions:
+          type: array
+          items:
+            type: string
+          description: Key architectural decisions
+        tech_stack:
+          type: array
+          items:
+            type: string
+          description: Identified technology stack
+        recent_activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecentActivity'
+
+    RecentActivity:
+      type: object
+      properties:
+        type:
+          type: string
+          description: Type of activity
+        summary:
+          type: string
+          description: Summary of the activity
+        timestamp:
+          type: string
+          format: date-time
+          description: When the activity occurred
+        outcome:
+          type: string
+          enum: [success, in_progress, failed, abandoned]
+          description: Outcome of the activity
+
+    FindSimilarRequest:
+      type: object
+      required:
+        - problem
+      properties:
+        problem:
+          type: string
+          description: Description of the current problem or error
+          example: "Getting CORS errors when calling API from frontend"
+        repository:
+          type: string
+          description: Repository context (use '_global' for global memories)
+        limit:
+          type: integer
+          minimum: 1
+          maximum: 20
+          default: 5
+          description: Maximum number of similar problems to return
+
+    FindSimilarResponse:
+      type: object
+      properties:
+        problem:
+          type: string
+          description: The problem searched for
+        similar_problems:
+          type: array
+          items:
+            $ref: '#/components/schemas/SimilarProblem'
+        total_found:
+          type: integer
+          description: Total number of similar problems found
+
+    SimilarProblem:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+          description: Chunk identifier
+        score:
+          type: number
+          description: Similarity score (0-1)
+        type:
+          type: string
+          description: Type of chunk
+        summary:
+          type: string
+          description: Summary of the problem/solution
+        content:
+          type: string
+          description: Full content of the chunk
+        repository:
+          type: string
+          description: Repository where this was found
+        timestamp:
+          type: string
+          format: date-time
+          description: When this was recorded
+        outcome:
+          type: string
+          enum: [success, in_progress, failed, abandoned]
+          description: How the problem was resolved
+        difficulty:
+          type: string
+          enum: [simple, moderate, complex]
+          description: Difficulty level
+        tags:
+          type: array
+          items:
+            type: string
+          description: Associated tags
+
+    StoreDecisionRequest:
+      type: object
+      required:
+        - decision
+        - rationale
+        - session_id
+      properties:
+        decision:
+          type: string
+          description: The architectural decision made
+          example: "Use Redis for session storage instead of in-memory storage"
+        rationale:
+          type: string
+          description: Reasoning behind the decision
+          example: "Need to support horizontal scaling across multiple instances"
+        context:
+          type: string
+          description: Additional context and alternatives considered
+          example: "Considered MongoDB but Redis offers better performance for our use case"
+        repository:
+          type: string
+          description: Repository this decision applies to (use '_global' for global decisions)
+        session_id:
+          type: string
+          description: Session identifier
+
+    StoreDecisionResponse:
+      type: object
+      properties:
+        chunk_id:
+          type: string
+          description: Unique identifier for the stored decision
+        decision:
+          type: string
+          description: The decision that was stored
+        stored_at:
+          type: string
+          format: date-time
+          description: When the decision was stored
+
+    GetPatternsRequest:
+      type: object
+      required:
+        - repository
+      properties:
+        repository:
+          type: string
+          description: Repository to analyze (use '_global' for global patterns)
+          example: "my-project"
+        timeframe:
+          type: string
+          enum: [week, month, quarter, all]
+          default: month
+          description: Time period to analyze
+
+    PatternsResponse:
+      type: object
+      properties:
+        repository:
+          type: string
+          description: Repository analyzed
+        timeframe:
+          type: string
+          description: Time period analyzed
+        patterns:
+          type: array
+          items:
+            type: string
+          description: Identified patterns
+          example: ["authentication (appears 15 times)", "database optimization (appears 8 times)"]
+        total_chunks_analyzed:
+          type: integer
+          description: Number of chunks analyzed
+
+    SuggestRelatedRequest:
+      type: object
+      required:
+        - current_context
+        - session_id
+      properties:
+        current_context:
+          type: string
+          description: Current work context or conversation content
+          example: "Working on implementing OAuth2 authentication"
+        repository:
+          type: string
+          description: Repository to search for related context (use '_global' for global context)
+        max_suggestions:
+          type: integer
+          minimum: 1
+          maximum: 10
+          default: 5
+          description: Maximum number of suggestions to return
+        include_patterns:
+          type: boolean
+          default: true
+          description: Include pattern-based suggestions
+        session_id:
+          type: string
+          description: Session identifier
+
+    SuggestRelatedResponse:
+      type: object
+      properties:
+        suggestions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Suggestion'
+        total_found:
+          type: integer
+          description: Total suggestions found
+        search_context:
+          type: string
+          description: The context used for search
+        include_patterns:
+          type: boolean
+          description: Whether patterns were included
+        session_id:
+          type: string
+          description: Session identifier
+
+    Suggestion:
+      type: object
+      properties:
+        content:
+          type: string
+          description: Suggested content
+        summary:
+          type: string
+          description: Summary of the suggestion
+        relevance_score:
+          type: number
+          description: Relevance score (0-1)
+        timestamp:
+          type: string
+          format: date-time
+          description: When this content was created
+        type:
+          type: string
+          description: Type of suggestion (semantic_match, pattern_match)
+        chunk_id:
+          type: string
+          description: Source chunk ID
+        repository:
+          type: string
+          description: Source repository
+        pattern_type:
+          type: string
+          description: Type of pattern if pattern_match
+
+    ExportProjectRequest:
+      type: object
+      required:
+        - repository
+        - session_id
+      properties:
+        repository:
+          type: string
+          description: Repository to export (use '_global' for global memories)
+        format:
+          type: string
+          enum: [json, markdown, archive]
+          default: json
+          description: Export format
+        include_vectors:
+          type: boolean
+          default: false
+          description: Include vector embeddings in export
+        date_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date-time
+              description: Start date (ISO 8601 format)
+            end:
+              type: string
+              format: date-time
+              description: End date (ISO 8601 format)
+        session_id:
+          type: string
+          description: Session identifier
+
+    ExportProjectResponse:
+      type: object
+      properties:
+        format:
+          type: string
+          description: Format of the export
+        data:
+          type: string
+          description: Exported data (format depends on requested format)
+        size_bytes:
+          type: integer
+          description: Size of the export in bytes
+        chunks:
+          type: integer
+          description: Number of chunks exported
+        repository:
+          type: string
+          description: Repository that was exported
+        session_id:
+          type: string
+          description: Session identifier
+
+    ImportContextRequest:
+      type: object
+      required:
+        - source
+        - data
+        - repository
+        - session_id
+      properties:
+        source:
+          type: string
+          enum: [conversation, file, archive]
+          default: conversation
+          description: Source type
+        data:
+          type: string
+          description: Data to import (conversation text, file content, or base64 archive)
+        repository:
+          type: string
+          description: Target repository for imported data (use '_global' for global memories)
+        metadata:
+          type: object
+          properties:
+            source_system:
+              type: string
+              description: Name of the source system
+            import_date:
+              type: string
+              format: date-time
+              description: Original date of the content
+            tags:
+              type: array
+              items:
+                type: string
+              description: Tags to apply to imported content
+        chunking_strategy:
+          type: string
+          enum: [auto, paragraph, fixed_size, conversation_turns]
+          default: auto
+          description: How to chunk the imported data
+        session_id:
+          type: string
+          description: Session identifier
+
+    ImportContextResponse:
+      type: object
+      properties:
+        source:
+          type: string
+          description: Source type used
+        repository:
+          type: string
+          description: Repository where data was imported
+        chunks_processed:
+          type: integer
+          description: Number of chunks processed
+        chunks_stored:
+          type: integer
+          description: Number of chunks successfully stored
+        chunking_strategy:
+          type: string
+          description: Chunking strategy used
+        session_id:
+          type: string
+          description: Session identifier
+        import_date:
+          type: string
+          format: date-time
+          description: When the import occurred
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+          description: Overall health status
+        timestamp:
+          type: string
+          format: date-time
+          description: Health check timestamp
+        services:
+          type: object
+          additionalProperties:
+            type: object
+            properties:
+              status:
+                type: string
+                enum: [healthy, unhealthy]
+              error:
+                type: string
+                description: Error message if unhealthy
+        stats:
+          type: object
+          properties:
+            total_chunks:
+              type: integer
+              description: Total number of chunks stored
+            chunks_by_type:
+              type: object
+              additionalProperties:
+                type: integer
+            chunks_by_repo:
+              type: object
+              additionalProperties:
+                type: integer
+            oldest_chunk:
+              type: string
+              format: date-time
+            newest_chunk:
+              type: string
+              format: date-time
+            storage_size_bytes:
+              type: integer
+            average_embedding_size:
+              type: number
+
+    Error:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+
+  responses:
+    BadRequest:
+      description: Bad request - invalid parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "validation_error"
+            message: "content is required"
+            details:
+              field: "content"
+              reason: "missing_required_field"
+
+    InternalError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "internal_error"
+            message: "Failed to process request"
+            details:
+              reason: "database_connection_failed"
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token for authentication
+
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+      description: API key for authentication
+
+security:
+  - BearerAuth: []
+  - ApiKeyAuth: []

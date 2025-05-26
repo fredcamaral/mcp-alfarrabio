@@ -22,6 +22,9 @@ type VectorStore interface {
 	// List chunks by repository with optional filters
 	ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error)
 
+	// List chunks by session ID
+	ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error)
+
 	// Delete a chunk by ID
 	Delete(ctx context.Context, id string) error
 
