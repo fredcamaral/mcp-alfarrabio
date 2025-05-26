@@ -43,7 +43,7 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 RUN ls -la mcp-memory-server
 
 # Production stage
-FROM alpine:3.19
+FROM alpine:3.20
 
 # Install runtime dependencies including Node.js for MCP proxy
 RUN apk add --no-cache \
