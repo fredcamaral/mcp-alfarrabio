@@ -45,9 +45,4 @@ issues:
   new: false
   fix: false
 
-severity:
-  default: error
-  rules:
-    - linters:
-        - dupl
-      severity: info
+# severity section removed to fix compatibility issue
