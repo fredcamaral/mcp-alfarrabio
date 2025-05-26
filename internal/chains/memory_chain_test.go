@@ -247,7 +247,7 @@ func TestChainBuilder_GetChainPath(t *testing.T) {
 		t.Fatalf("Failed to get chain path: %v", err)
 	}
 	
-	if path == nil || len(path) == 0 {
+	if len(path) == 0 {
 		t.Fatal("Expected to find a path, but got nil or empty path")
 	}
 	

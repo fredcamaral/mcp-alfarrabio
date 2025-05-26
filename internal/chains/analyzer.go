@@ -228,7 +228,12 @@ func (a *DefaultChainAnalyzer) determineChainTheme(chunks []types.ConversationCh
 // generateChainName generates a descriptive name for the chain
 func (a *DefaultChainAnalyzer) generateChainName(topConcept, theme, repository string) string {
 	if topConcept != "" {
-		return fmt.Sprintf("%s: %s", theme, strings.Title(topConcept))
+		// Simple title case - capitalize first letter
+		titled := topConcept
+		if len(topConcept) > 0 {
+			titled = strings.ToUpper(topConcept[:1]) + topConcept[1:]
+		}
+		return fmt.Sprintf("%s: %s", theme, titled)
 	}
 	
 	if repository != "" && repository != "_global" {

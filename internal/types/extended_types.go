@@ -72,9 +72,7 @@ func FromBase(chunk types.ConversationChunk) *ExtendedConversationChunk {
 	extended.Branch = chunk.Metadata.Branch
 	
 	// Extract concepts from tags (simplified)
-	for _, tag := range chunk.Metadata.Tags {
-		extended.Concepts = append(extended.Concepts, tag)
-	}
+	extended.Concepts = append(extended.Concepts, chunk.Metadata.Tags...)
 	
 	return extended
 }

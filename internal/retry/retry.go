@@ -81,6 +81,7 @@ func (r *Retrier) DoWithData(ctx context.Context, op func(context.Context, inter
 	var lastErr error
 	delay := r.config.InitialDelay
 
+retryLoop:
 	for attempt := 1; r.config.MaxAttempts == 0 || attempt <= r.config.MaxAttempts; attempt++ {
 		result.Attempts = attempt
 
@@ -119,7 +120,7 @@ func (r *Retrier) DoWithData(ctx context.Context, op func(context.Context, inter
 			delay = r.nextDelay(delay)
 		case <-ctx.Done():
 			lastErr = fmt.Errorf("context cancelled during retry delay: %w", ctx.Err())
-			break
+			break retryLoop
 		}
 	}
 

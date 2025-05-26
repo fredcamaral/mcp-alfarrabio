@@ -15,6 +15,8 @@ import (
 	"mcp-memory/internal/chains"
 )
 
+const envValueTrue = "true"
+
 // Container holds all application dependencies
 type Container struct {
 	Config           *config.Config
@@ -66,7 +68,7 @@ func (c *Container) initializeStorage() error {
 	var err error
 	
 	// Use pooled store if connection pooling is enabled
-	if usePooling := os.Getenv("CHROMA_USE_POOLING"); usePooling == "true" {
+	if usePooling := os.Getenv("CHROMA_USE_POOLING"); usePooling == envValueTrue {
 		baseStore, err = storage.NewPooledChromaStore(&c.Config.Chroma)
 		if err != nil {
 			return fmt.Errorf("failed to create pooled Chroma store: %w", err)
@@ -79,7 +81,7 @@ func (c *Container) initializeStorage() error {
 	retryStore := storage.NewRetryableVectorStore(baseStore, nil)
 	
 	// Wrap with circuit breaker if enabled
-	if useCircuitBreaker := os.Getenv("USE_CIRCUIT_BREAKER"); useCircuitBreaker == "true" {
+	if useCircuitBreaker := os.Getenv("USE_CIRCUIT_BREAKER"); useCircuitBreaker == envValueTrue {
 		c.VectorStore = storage.NewCircuitBreakerVectorStore(retryStore, nil)
 	} else {
 		c.VectorStore = retryStore
@@ -97,7 +99,7 @@ func (c *Container) initializeServices() error {
 	retryEmbedding := embeddings.NewRetryableEmbeddingService(baseEmbedding, nil)
 	
 	// Wrap with circuit breaker if enabled
-	if useCircuitBreaker := os.Getenv("USE_CIRCUIT_BREAKER"); useCircuitBreaker == "true" {
+	if useCircuitBreaker := os.Getenv("USE_CIRCUIT_BREAKER"); useCircuitBreaker == envValueTrue {
 		c.EmbeddingService = embeddings.NewCircuitBreakerEmbeddingService(retryEmbedding, nil)
 	} else {
 		c.EmbeddingService = retryEmbedding
