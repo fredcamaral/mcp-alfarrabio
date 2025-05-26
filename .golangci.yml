@@ -1,4 +1,4 @@
-version: "2"
+# version: "2" # Commented out for CI compatibility with golangci-lint v1
 
 run:
   timeout: 5m

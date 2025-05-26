@@ -97,6 +97,7 @@ type ConnectionPool struct {
 	// Health check
 	healthTicker *time.Ticker
 	healthDone   chan struct{}
+	healthWg     sync.WaitGroup
 }
 
 // NewConnectionPool creates a new connection pool
@@ -134,6 +135,7 @@ func NewConnectionPool(config *PoolConfig, factory Factory) (*ConnectionPool, er
 	// Start health check routine
 	if config.HealthCheckInterval > 0 {
 		pool.healthTicker = time.NewTicker(config.HealthCheckInterval)
+		pool.healthWg.Add(1)
 		go pool.healthCheckLoop()
 	}
 	
@@ -251,10 +253,12 @@ func (p *ConnectionPool) Close() error {
 		return nil // Already closed
 	}
 	
-	// Stop health check
+	// Stop health check and wait for it to complete
 	if p.healthTicker != nil {
 		p.healthTicker.Stop()
 		close(p.healthDone)
+		// Wait for health check goroutine to exit
+		p.healthWg.Wait()
 	}
 	
 	// Close all connections
@@ -325,6 +329,7 @@ func (p *ConnectionPool) destroyConnection(pc *pooledConn) {
 
 // healthCheckLoop performs periodic health checks
 func (p *ConnectionPool) healthCheckLoop() {
+	defer p.healthWg.Done()
 	for {
 		select {
 		case <-p.healthTicker.C:
@@ -355,13 +360,16 @@ checkConnections:
 	for _, pc := range toCheck {
 		if pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) || !pc.conn.IsAlive() {
 			p.destroyConnection(pc)
-		} else {
-			// Put back healthy connections
+		} else if atomic.LoadInt32(&p.closed) == 0 {
+			// Put back healthy connections only if pool is not closed
 			select {
 			case p.connections <- pc:
 			default:
 				p.destroyConnection(pc)
 			}
+		} else {
+			// Pool is closed, destroy connection
+			p.destroyConnection(pc)
 		}
 	}
 	
