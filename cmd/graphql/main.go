@@ -29,8 +29,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create container: %v", err)
 	}
-	defer func() { _ = container.Shutdown() }()
-
 	// Initialize services
 	ctx := context.Background()
 	
@@ -39,7 +37,6 @@ func main() {
 		_ = container.Shutdown()
 		log.Fatalf("Failed to initialize vector store: %v", err)
 	}
-	
 	// Then do health check
 	if err := container.HealthCheck(ctx); err != nil {
 		log.Printf("Warning: Health check failed: %v", err)
@@ -51,6 +48,7 @@ func main() {
 		_ = container.Shutdown()
 		log.Fatalf("Failed to create GraphQL schema: %v", err)
 	}
+	defer func() { _ = container.Shutdown() }()
 
 	// Create GraphQL handler
 	graphqlSchema := schema.GetSchema()

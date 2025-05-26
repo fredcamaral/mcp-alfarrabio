@@ -380,20 +380,28 @@ func getFloatOrDefault(m interface{}, key string, defaultValue float64) float64 
 
 
 func getStringArrayOrDefault(m interface{}, key string) []string {
-	if mapValue, ok := m.(map[string]interface{}); ok {
-		if value, exists := mapValue[key]; exists && value != nil {
-			if arr, ok := value.([]interface{}); ok {
-				result := make([]string, 0, len(arr))
-				for _, v := range arr {
-					if str, ok := v.(string); ok {
-						result = append(result, str)
-					}
-				}
-				return result
-			}
+	mapValue, ok := m.(map[string]interface{})
+	if !ok {
+		return nil
+	}
+	
+	value, exists := mapValue[key]
+	if !exists || value == nil {
+		return nil
+	}
+	
+	arr, ok := value.([]interface{})
+	if !ok {
+		return nil
+	}
+	
+	result := make([]string, 0, len(arr))
+	for _, v := range arr {
+		if str, ok := v.(string); ok {
+			result = append(result, str)
 		}
 	}
-	return nil
+	return result
 }
 
 // parseTimeframeToRecency converts a timeframe string to Recency

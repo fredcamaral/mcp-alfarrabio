@@ -175,6 +175,7 @@ func LoadConfig() (*Config, error) {
 func loadFromEnv(config *Config) {
 	loadServerConfig(config)
 	loadChromaConfig(config)
+	loadStorageAndOtherConfig(config)
 	loadOpenAIConfig(config)
 	loadDecayConfig(config)
 	loadIntelligenceConfig(config)
@@ -208,6 +209,12 @@ func loadServerConfig(config *Config) {
 
 // loadChromaConfig loads Chroma configuration from environment
 func loadChromaConfig(config *Config) {
+	loadChromaBasicConfig(config)
+	loadChromaDockerConfig(config)
+}
+
+// loadChromaBasicConfig loads basic Chroma settings
+func loadChromaBasicConfig(config *Config) {
 	// Chroma configuration - check both prefixed and non-prefixed env vars
 	if endpoint := os.Getenv("MCP_MEMORY_CHROMA_ENDPOINT"); endpoint != "" {
 		config.Chroma.Endpoint = endpoint
@@ -234,7 +241,10 @@ func loadChromaConfig(config *Config) {
 			config.Chroma.TimeoutSeconds = ts
 		}
 	}
-	// Docker configuration
+}
+
+// loadChromaDockerConfig loads Docker-related Chroma settings
+func loadChromaDockerConfig(config *Config) {
 	if dockerEnabled := os.Getenv("MCP_MEMORY_CHROMA_DOCKER_ENABLED"); dockerEnabled != "" {
 		if de, err := strconv.ParseBool(dockerEnabled); err == nil {
 			config.Chroma.Docker.Enabled = de
@@ -249,36 +259,16 @@ func loadChromaConfig(config *Config) {
 	if image := os.Getenv("MCP_MEMORY_CHROMA_IMAGE"); image != "" {
 		config.Chroma.Docker.Image = image
 	}
+}
 
-	// OpenAI configuration
-	if apiKey := os.Getenv("OPENAI_API_KEY"); apiKey != "" {
-		config.OpenAI.APIKey = apiKey
-	}
-	if model := os.Getenv("OPENAI_EMBEDDING_MODEL"); model != "" {
-		config.OpenAI.EmbeddingModel = model
-	}
-	if maxTokens := os.Getenv("MCP_MEMORY_OPENAI_MAX_TOKENS"); maxTokens != "" {
-		if mt, err := strconv.Atoi(maxTokens); err == nil {
-			config.OpenAI.MaxTokens = mt
-		}
-	}
-	if temperature := os.Getenv("MCP_MEMORY_OPENAI_TEMPERATURE"); temperature != "" {
-		if temp, err := strconv.ParseFloat(temperature, 64); err == nil {
-			config.OpenAI.Temperature = temp
-		}
-	}
-	if requestTimeout := os.Getenv("MCP_MEMORY_OPENAI_REQUEST_TIMEOUT_SECONDS"); requestTimeout != "" {
-		if rt, err := strconv.Atoi(requestTimeout); err == nil {
-			config.OpenAI.RequestTimeout = rt
-		}
-	}
-	if rateLimitRPM := os.Getenv("MCP_MEMORY_OPENAI_RATE_LIMIT_RPM"); rateLimitRPM != "" {
-		if rl, err := strconv.Atoi(rateLimitRPM); err == nil {
-			config.OpenAI.RateLimitRPM = rl
-		}
-	}
+func loadStorageAndOtherConfig(config *Config) {
+	loadStorageConfig(config)
+	loadChunkingConfig(config)
+	loadLoggingConfig(config)
+}
 
-	// Storage configuration
+// loadStorageConfig loads storage configuration from environment
+func loadStorageConfig(config *Config) {
 	if provider := os.Getenv("MCP_MEMORY_STORAGE_PROVIDER"); provider != "" {
 		config.Storage.Provider = provider
 	}
@@ -297,8 +287,10 @@ func loadChromaConfig(config *Config) {
 			config.Storage.BackupInterval = bi
 		}
 	}
+}
 
-	// Chunking configuration
+// loadChunkingConfig loads chunking configuration from environment
+func loadChunkingConfig(config *Config) {
 	if strategy := os.Getenv("MCP_MEMORY_CHUNKING_STRATEGY"); strategy != "" {
 		config.Chunking.Strategy = strategy
 	}
@@ -317,30 +309,17 @@ func loadChromaConfig(config *Config) {
 			config.Chunking.TodoCompletionTrigger = tt
 		}
 	}
-	if fileThreshold := os.Getenv("MCP_MEMORY_CHUNKING_FILE_THRESHOLD"); fileThreshold != "" {
-		if ft, err := strconv.Atoi(fileThreshold); err == nil {
-			config.Chunking.FileChangeThreshold = ft
-		}
-	}
-	if timeThreshold := os.Getenv("MCP_MEMORY_CHUNKING_TIME_THRESHOLD_MINUTES"); timeThreshold != "" {
-		if tt, err := strconv.Atoi(timeThreshold); err == nil {
-			config.Chunking.TimeThresholdMinutes = tt
-		}
-	}
-	if similarity := os.Getenv("MCP_MEMORY_CHUNKING_SIMILARITY_THRESHOLD"); similarity != "" {
-		if st, err := strconv.ParseFloat(similarity, 64); err == nil {
-			config.Chunking.SimilarityThreshold = st
-		}
-	}
+}
 
-	// Logging configuration
-	if level := os.Getenv("LOG_LEVEL"); level != "" {
+// loadLoggingConfig loads logging configuration from environment  
+func loadLoggingConfig(config *Config) {
+	if level := os.Getenv("MCP_MEMORY_LOG_LEVEL"); level != "" {
 		config.Logging.Level = level
 	}
-	if format := os.Getenv("LOG_FORMAT"); format != "" {
+	if format := os.Getenv("MCP_MEMORY_LOG_FORMAT"); format != "" {
 		config.Logging.Format = format
 	}
-	if file := os.Getenv("LOG_FILE"); file != "" {
+	if file := os.Getenv("MCP_MEMORY_LOG_FILE"); file != "" {
 		config.Logging.File = file
 	}
 	if maxSize := os.Getenv("MCP_MEMORY_LOG_MAX_SIZE_MB"); maxSize != "" {
@@ -367,6 +346,26 @@ func loadOpenAIConfig(config *Config) {
 	}
 	if model := os.Getenv("OPENAI_EMBEDDING_MODEL"); model != "" {
 		config.OpenAI.EmbeddingModel = model
+	}
+	if maxTokens := os.Getenv("MCP_MEMORY_OPENAI_MAX_TOKENS"); maxTokens != "" {
+		if mt, err := strconv.Atoi(maxTokens); err == nil {
+			config.OpenAI.MaxTokens = mt
+		}
+	}
+	if temperature := os.Getenv("MCP_MEMORY_OPENAI_TEMPERATURE"); temperature != "" {
+		if temp, err := strconv.ParseFloat(temperature, 64); err == nil {
+			config.OpenAI.Temperature = temp
+		}
+	}
+	if requestTimeout := os.Getenv("MCP_MEMORY_OPENAI_REQUEST_TIMEOUT_SECONDS"); requestTimeout != "" {
+		if rt, err := strconv.Atoi(requestTimeout); err == nil {
+			config.OpenAI.RequestTimeout = rt
+		}
+	}
+	if rateLimitRPM := os.Getenv("MCP_MEMORY_OPENAI_RATE_LIMIT_RPM"); rateLimitRPM != "" {
+		if rl, err := strconv.Atoi(rateLimitRPM); err == nil {
+			config.OpenAI.RateLimitRPM = rl
+		}
 	}
 }
 
