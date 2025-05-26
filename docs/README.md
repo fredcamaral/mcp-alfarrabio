@@ -8,6 +8,8 @@ Welcome to the MCP Memory Server documentation! This directory contains all tech
 - [Project Overview](../README.md) - Main project README with features and quick start
 - [Development Setup](DEV-HOT-RELOAD.md) - Hot reload development environment setup
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
+- [GraphQL API & Web UI](GRAPHQL_WEB_UI.md) - GraphQL server and web interface guide
+- [ChromaDB Persistence Fix](CHROMADB_PERSISTENCE_FIX.md) - ChromaDB configuration for data persistence
 
 ### 🛠️ Development
 - [Development Roadmap](ROADMAP.md) - Current priorities and future improvements
@@ -35,13 +37,14 @@ Welcome to the MCP Memory Server documentation! This directory contains all tech
 - [Tutorial Snippets](marketing/tutorial-snippets.md) - Quick tutorial content
 
 ### 🤖 MCP Go Library
-The `pkg/mcp/` directory contains a separate Go implementation of the Model Context Protocol. This library is used by the MCP Memory Server but is designed as a standalone, reusable component.
+The `pkg/mcp/` directory contains a complete Go implementation of the Model Context Protocol that works with ANY MCP-compatible client. This library is used by the MCP Memory Server but is designed as a standalone, reusable component supporting all MCP features.
 
-- [MCP-Go Library README](../pkg/mcp/README.md) - Library overview and usage
+- [MCP-Go Library README](../pkg/mcp/README.md) - Universal MCP implementation overview
 - [MCP-Go Roadmap](../pkg/mcp/ROADMAP.md) - Library development roadmap
 - [API Design](../pkg/mcp/API_DESIGN.md) - API design principles
 - [Performance Guide](../pkg/mcp/PERFORMANCE.md) - Performance optimization
-- [Integration Guides](../pkg/mcp/) - Claude, LLM, and client integrations
+- [Integration Guides](../pkg/mcp/) - Universal client integration guides
+- [Feature Documentation](../pkg/mcp/docs/features/) - Sampling, Roots, Discovery, and more
 
 ## 📂 Documentation Structure
 

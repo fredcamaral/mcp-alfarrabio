@@ -1,4 +1,4 @@
-# MCP-Go: Production-Ready Model Context Protocol for Go
+# MCP-Go: Universal Model Context Protocol Implementation for Go
 
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev)
 [![MCP Version](https://img.shields.io/badge/MCP-2024--11--05-blue?style=flat)](https://modelcontextprotocol.io)
@@ -7,18 +7,20 @@
 [![Documentation](https://img.shields.io/badge/Docs-pkg.go.dev-00ADD8?style=flat&logo=go)](https://pkg.go.dev/github.com/yourusername/mcp-go)
 [![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen?style=flat)](https://codecov.io/gh/yourusername/mcp-go)
 
-A high-performance, production-ready Go implementation of the [Model Context Protocol](https://modelcontextprotocol.io) (MCP), designed for building robust AI tool integrations.
+A high-performance, production-ready Go implementation of the [Model Context Protocol](https://modelcontextprotocol.io) (MCP), designed for building robust AI tool integrations with ANY MCP-compatible client - including Claude, VS Code, Cursor, Continue, Cline, and many more.
 
 ## ✨ Why MCP-Go?
 
 MCP-Go stands out as the most comprehensive and performant Go implementation of the Model Context Protocol:
 
+- **🌍 Universal Client Support**: Works with ANY MCP client - Claude, VS Code, Cursor, Continue, and more
 - **🚀 Zero Dependencies**: Pure Go implementation with no external MCP dependencies
 - **⚡ Blazing Fast**: < 1ms average request latency, optimized for production workloads
 - **🛡️ Type-Safe**: Leverages Go's type system for compile-time safety
 - **🔌 Extensible**: Plugin architecture and middleware support
 - **📊 Production-Tested**: Battle-tested with real-world applications
-- **🎯 100% Compliant**: Full MCP specification implementation
+- **🎯 100% Compliant**: Full MCP specification implementation with ALL features
+- **🤝 Client Adaptive**: Automatically adjusts capabilities based on client support
 
 ## 📦 Installation
 

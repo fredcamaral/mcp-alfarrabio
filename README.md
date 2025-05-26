@@ -1,6 +1,6 @@
 # MCP Memory Server
 
-A high-performance Model Context Protocol (MCP) server that provides intelligent memory and context management for AI applications. Built with Go, it features advanced vector storage, pattern recognition, and contextual learning capabilities using Chroma vector database.
+A high-performance Model Context Protocol (MCP) server that provides intelligent memory and context management for ANY AI application or client. Built with Go, it features advanced vector storage, pattern recognition, and contextual learning capabilities using Chroma vector database. Works seamlessly with Claude, VS Code Copilot, Continue, Cursor, and any MCP-compatible client.
 
 ## 🚀 Features
 
@@ -9,6 +9,8 @@ A high-performance Model Context Protocol (MCP) server that provides intelligent
 - **Vector Similarity Search**: Find semantically similar conversations and contexts
 - **Hierarchical Memory Organization**: Project-based memory isolation and organization
 - **Intelligent Context Suggestions**: Proactive recommendations based on conversation patterns
+- **Web UI & GraphQL API**: Modern web interface for browsing memories with GraphQL API
+- **Memory Tracing**: Trace sessions and find related memories with visual timelines
 
 ### Advanced Intelligence Layer
 - **Pattern Recognition**: Automatically detect conversation patterns and user preferences
@@ -55,18 +57,25 @@ A high-performance Model Context Protocol (MCP) server that provides intelligent
 
 4. **Start Chroma database**
    ```bash
-   docker run -p 8000:8000 chromadb/chroma:latest
+   docker run -p 9000:8000 chromadb/chroma:latest run --path /data --host 0.0.0.0
    ```
 
-5. **Run the server**
+5. **Run the MCP server (if using MCP tools)**
    ```bash
    go run cmd/server/main.go
    ```
 
-6. **Test the installation**
+6. **Run the GraphQL server and Web UI**
    ```bash
-   curl http://localhost:8081/health
+   go run cmd/graphql/main.go
+   # Or use the binary:
+   # ./graphql
    ```
+
+7. **Access the Web UI**
+   - Open http://localhost:8082/ in your browser
+   - GraphQL playground: http://localhost:8082/graphql
+   - Health check: `curl http://localhost:8081/health`
 
 ### Docker Deployment
 
@@ -114,9 +123,10 @@ See `.env.example` for a complete list of configuration options. Key variables i
 | `CHROMA_URL` | `http://localhost:8000` | Chroma database URL |
 | `MCP_MEMORY_DATA_DIR` | `./data` | Data storage directory |
 | `MCP_MEMORY_LOG_LEVEL` | `info` | Logging level (debug, info, warn, error) |
-| `MCP_MEMORY_HTTP_PORT` | `8080` | Main API port |
+| `MCP_MEMORY_HTTP_PORT` | `8080` | Main MCP API port |
 | `MCP_MEMORY_HEALTH_PORT` | `8081` | Health check port |
-| `MCP_MEMORY_METRICS_PORT` | `8082` | Metrics port |
+| `MCP_MEMORY_GRAPHQL_PORT` | `8082` | GraphQL API & Web UI port |
+| `MCP_MEMORY_METRICS_PORT` | `9090` | Prometheus metrics port |
 | `MCP_MEMORY_VECTOR_DIM` | `1536` | Vector dimension (OpenAI ada-002) |
 | `MCP_MEMORY_ENCRYPTION_ENABLED` | `false` | Enable data encryption |
 | `MCP_MEMORY_ACCESS_CONTROL_ENABLED` | `false` | Enable access control |
@@ -163,7 +173,59 @@ See `.env.example` for a complete list of configuration options. Key variables i
 - **Burst**: 10 requests burst capacity
 - **Distributed**: Redis-backed rate limiting
 
-## 🚀 MCP Tools Reference
+## 🌐 GraphQL API & Web UI
+
+### Web Interface
+Access the modern web UI at `http://localhost:8082/` to:
+- Browse and search memories
+- View memory details and metadata
+- Trace sessions with timeline visualization
+- Explore related memories with relationship graphs
+- Filter by repository, type, and time period
+
+### GraphQL API
+The GraphQL endpoint is available at `http://localhost:8082/graphql` with a built-in GraphiQL playground.
+
+#### Key Queries
+```graphql
+# Search memories
+query SearchMemories($input: MemoryQueryInput!) {
+  search(input: $input) {
+    chunks {
+      chunk { id content summary type timestamp }
+      score
+    }
+  }
+}
+
+# Trace a session
+query TraceSession($sessionId: String!) {
+  traceSession(sessionId: $sessionId) {
+    id content type timestamp
+  }
+}
+
+# Find related memories
+query TraceRelated($chunkId: String!, $depth: Int) {
+  traceRelated(chunkId: $chunkId, depth: $depth) {
+    id content type timestamp
+  }
+}
+```
+
+#### Key Mutations
+```graphql
+# Store a memory
+mutation StoreChunk($input: StoreChunkInput!) {
+  storeChunk(input: $input) {
+    id summary
+  }
+}
+```
+
+## 🚀 MCP Tools Reference (Legacy)
+
+**Note**: The MCP tools are still available but the GraphQL API is now the recommended interface for most use cases.
 
 The server implements the following MCP tools with the standardized naming convention:
 

@@ -90,6 +90,8 @@ type ServerCapabilities struct {
 	Prompts      *PromptCapability      `json:"prompts,omitempty"`
 	Resources    *ResourceCapability    `json:"resources,omitempty"`
 	Tools        *ToolCapability        `json:"tools,omitempty"`
+	Sampling     *SamplingCapability    `json:"sampling,omitempty"`
+	Roots        *RootsCapability       `json:"roots,omitempty"`
 }
 
 // PromptCapability represents prompt capabilities
@@ -105,6 +107,16 @@ type ResourceCapability struct {
 
 // ToolCapability represents tool capabilities
 type ToolCapability struct {
+	ListChanged bool `json:"listChanged,omitempty"`
+}
+
+// SamplingCapability represents sampling capabilities
+type SamplingCapability struct {
+	// No specific fields defined in the spec yet
+}
+
+// RootsCapability represents roots capabilities
+type RootsCapability struct {
 	ListChanged bool `json:"listChanged,omitempty"`
 }
 
