@@ -126,7 +126,7 @@ func NewConnectionPool(config *PoolConfig, factory Factory) (*ConnectionPool, er
 	for i := 0; i < config.MinSize; i++ {
 		if err := pool.createConnection(ctx); err != nil {
 			// Clean up any created connections
-			pool.Close()
+			_ = pool.Close()
 			return nil, fmt.Errorf("failed to create initial connections: %w", err)
 		}
 	}
@@ -301,7 +301,7 @@ func (p *ConnectionPool) createConnection(ctx context.Context) error {
 		return nil
 	default:
 		// Pool is full, destroy the connection
-		conn.Close()
+		_ = conn.Close()
 		return ErrPoolExhausted
 	}
 }

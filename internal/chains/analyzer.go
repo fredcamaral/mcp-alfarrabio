@@ -137,10 +137,6 @@ func (a *DefaultChainAnalyzer) calculateConceptOverlap(concepts1, concepts2 []st
 	return float64(intersection) / float64(union)
 }
 
-// calculateEntityOverlap calculates entity overlap between chunks
-func (a *DefaultChainAnalyzer) calculateEntityOverlap(entities1, entities2 []string) float64 {
-	return a.calculateConceptOverlap(entities1, entities2) // Same logic
-}
 
 // determineChainType determines the type of relationship
 func (a *DefaultChainAnalyzer) determineChainType(chunk1, chunk2 types.ConversationChunk, semanticSim, temporalProx, conceptOverlap float64) ChainType {

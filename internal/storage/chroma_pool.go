@@ -169,7 +169,7 @@ func (s *PooledChromaStore) getConnection(ctx context.Context) (*ChromaPooledCon
 		return chromaConn, nil
 	}
 
-	conn.Close()
+	_ = conn.Close()
 	return nil, fmt.Errorf("invalid connection type")
 }
 
@@ -180,7 +180,7 @@ func (s *PooledChromaStore) Initialize(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	return nil
 }
@@ -191,7 +191,7 @@ func (s *PooledChromaStore) Store(ctx context.Context, chunk types.ConversationC
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Convert to Chroma format
 	metadata := chunkToMetadata(chunk)
@@ -217,7 +217,7 @@ func (s *PooledChromaStore) Search(ctx context.Context, query types.MemoryQuery,
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Build query options
 	queryOptions := []chromav2.CollectionQueryOption{
@@ -247,7 +247,7 @@ func (s *PooledChromaStore) GetByID(ctx context.Context, id string) (*types.Conv
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	getOptions := []chromav2.CollectionGetOption{
 		chromav2.WithIDsGet(chromav2.DocumentID(id)),
@@ -272,7 +272,7 @@ func (s *PooledChromaStore) ListByRepository(ctx context.Context, repository str
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	getOptions := []chromav2.CollectionGetOption{
 		chromav2.WithWhereGet(chromav2.EqString("repository", repository)),
@@ -308,7 +308,7 @@ func (s *PooledChromaStore) ListBySession(ctx context.Context, sessionID string)
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	getOptions := []chromav2.CollectionGetOption{
 		chromav2.WithWhereGet(chromav2.EqString("session_id", sessionID)),
@@ -348,7 +348,7 @@ func (s *PooledChromaStore) Delete(ctx context.Context, id string) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	err = conn.collection.Delete(ctx, chromav2.WithIDsDelete(chromav2.DocumentID(id)))
 	if err != nil {
@@ -364,7 +364,7 @@ func (s *PooledChromaStore) Update(ctx context.Context, chunk types.Conversation
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Chroma doesn't have direct update, so delete and re-add
 	if err := s.Delete(ctx, chunk.ID); err != nil {
@@ -380,7 +380,7 @@ func (s *PooledChromaStore) HealthCheck(ctx context.Context) error {
 	if err != nil {
 		return err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	_, err = conn.collection.Count(ctx)
 	return err
@@ -392,7 +392,7 @@ func (s *PooledChromaStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	count, err := conn.collection.Count(ctx)
 	if err != nil {
@@ -419,7 +419,7 @@ func (s *PooledChromaStore) Cleanup(ctx context.Context, retentionDays int) (int
 	if err != nil {
 		return 0, err
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Calculate cutoff time
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
@@ -562,39 +562,7 @@ func metadataToAttributes(metadata map[string]interface{}) []*chromav2.MetaAttri
 	return attrs
 }
 
-// joinStrings joins strings with a separator
-func joinStrings(strs []string, sep string) string {
-	if len(strs) == 0 {
-		return ""
-	}
-	result := strs[0]
-	for i := 1; i < len(strs); i++ {
-		result += sep + strs[i]
-	}
-	return result
-}
 
-// splitString splits a string by separator
-func splitString(str string, sep string) []string {
-	if str == "" {
-		return []string{}
-	}
-	result := []string{}
-	start := 0
-	for i := 0; i < len(str); i++ {
-		if i+len(sep) <= len(str) && str[i:i+len(sep)] == sep {
-			if start < i {
-				result = append(result, str[start:i])
-			}
-			start = i + len(sep)
-			i += len(sep) - 1
-		}
-	}
-	if start < len(str) {
-		result = append(result, str[start:])
-	}
-	return result
-}
 
 // interfaceSliceToStringSlice converts []interface{} to []string
 func interfaceSliceToStringSlice(slice []interface{}) []string {
@@ -819,88 +787,3 @@ func parseMetadataV2(metadata chromav2.DocumentMetadata, chunk *types.Conversati
 	}
 }
 
-// parseMetadata parses ChromaDB metadata into chunk metadata (for v1 compatibility)
-func parseMetadata(metadata map[string]interface{}, chunk *types.ConversationChunk) {
-	// Required fields
-	if v, ok := metadata["session_id"].(string); ok {
-		chunk.SessionID = v
-	}
-	if v, ok := metadata["repository"].(string); ok {
-		chunk.Metadata.Repository = v
-	}
-	if v, ok := metadata["branch"].(string); ok {
-		chunk.Metadata.Branch = v
-	}
-	
-	// Timestamp
-	if v, ok := metadata["timestamp"].(float64); ok {
-		chunk.Timestamp = time.Unix(int64(v), 0)
-	} else if v, ok := metadata["timestamp"].(string); ok {
-		if t, err := time.Parse(time.RFC3339, v); err == nil {
-			chunk.Timestamp = t
-		}
-	}
-	
-	// Type
-	if v, ok := metadata["type"].(string); ok {
-		chunk.Type = types.ChunkType(v)
-	}
-	
-	// Summary
-	if v, ok := metadata["summary"].(string); ok {
-		chunk.Summary = v
-	}
-	
-	// Arrays
-	if v, ok := metadata["tags"].([]interface{}); ok {
-		tags := make([]string, 0, len(v))
-		for _, tag := range v {
-			if s, ok := tag.(string); ok {
-				tags = append(tags, s)
-			}
-		}
-		chunk.Metadata.Tags = tags
-	} else if v, ok := metadata["tags"].(string); ok && v != "" {
-		chunk.Metadata.Tags = splitString(v, ",")
-	}
-	
-	if v, ok := metadata["files_modified"].([]interface{}); ok {
-		files := make([]string, 0, len(v))
-		for _, file := range v {
-			if s, ok := file.(string); ok {
-				files = append(files, s)
-			}
-		}
-		chunk.Metadata.FilesModified = files
-	} else if v, ok := metadata["files_modified"].(string); ok && v != "" {
-		chunk.Metadata.FilesModified = splitString(v, ",")
-	}
-	
-	if v, ok := metadata["tools_used"].([]interface{}); ok {
-		tools := make([]string, 0, len(v))
-		for _, tool := range v {
-			if s, ok := tool.(string); ok {
-				tools = append(tools, s)
-			}
-		}
-		chunk.Metadata.ToolsUsed = tools
-	} else if v, ok := metadata["tools_used"].(string); ok && v != "" {
-		chunk.Metadata.ToolsUsed = splitString(v, ",")
-	}
-	
-	// Optional fields
-	if v, ok := metadata["time_spent"].(float64); ok {
-		i := int(v)
-		chunk.Metadata.TimeSpent = &i
-	}
-	
-	// Outcome
-	if v, ok := metadata["outcome"].(string); ok {
-		chunk.Metadata.Outcome = types.Outcome(v)
-	}
-	
-	// Difficulty
-	if v, ok := metadata["difficulty"].(string); ok {
-		chunk.Metadata.Difficulty = types.Difficulty(v)
-	}
-}

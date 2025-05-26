@@ -42,52 +42,22 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 # Verify the binary
 RUN ls -la mcp-memory-server
 
-# Production stage
-FROM alpine:3.20
+# Production stage - Using distroless for minimal attack surface
+FROM gcr.io/distroless/base-debian12:nonroot
 
-# Install runtime dependencies including Node.js for MCP proxy
-RUN apk add --no-cache \
-    ca-certificates \
-    tzdata \
-    curl \
-    nodejs \
-    npm \
-    && update-ca-certificates \
-    && rm -rf /var/cache/apk/*
-
-# Create non-root user
-RUN addgroup -g 1001 -S mcpuser && \
-    adduser -u 1001 -S mcpuser -G mcpuser
-
-# Create necessary directories with proper permissions
-RUN mkdir -p /app/data /app/config /app/logs /app/backups && \
-    chown -R mcpuser:mcpuser /app
-
-# Copy binary from builder stage
-COPY --from=builder --chown=mcpuser:mcpuser /build/mcp-memory-server /app/
-
-# Copy MCP proxy script
-COPY --chown=mcpuser:mcpuser mcp-proxy.js /app/
-
-# Copy configuration templates
-COPY --chown=mcpuser:mcpuser configs/docker/ /app/config/
-
-# Set working directory
+# Copy necessary files from builder
 WORKDIR /app
 
-# Switch to non-root user
-USER mcpuser
+# Copy binary from builder stage
+COPY --from=builder --chown=nonroot:nonroot /build/mcp-memory-server /app/
 
-# Create health check script
-RUN echo '#!/bin/sh\ncurl -f http://localhost:9080/health || exit 1' > /app/healthcheck.sh && \
-    chmod +x /app/healthcheck.sh
+# Copy configuration templates
+COPY --chown=nonroot:nonroot configs/docker/ /app/config/
 
 # Expose ports
 EXPOSE 9080 8081 8082
 
-# Add health check
-HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-    CMD /app/healthcheck.sh
+# Note: Health checks should be handled by orchestration layer (k8s, docker-compose)
 
 # Set labels following OCI standards
 LABEL \
@@ -99,8 +69,7 @@ LABEL \
     org.opencontainers.image.source="https://github.com/fredcamaral/mcp-memory" \
     org.opencontainers.image.documentation="https://github.com/fredcamaral/mcp-memory/blob/main/README.md"
 
-# Define volumes for persistent data
-VOLUME ["/app/data", "/app/logs", "/app/backups"]
+# Volumes should be defined in docker-compose or k8s manifests
 
 # Set environment variables
 ENV MCP_MEMORY_DATA_DIR=/app/data \

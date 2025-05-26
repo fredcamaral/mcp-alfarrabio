@@ -68,7 +68,7 @@ func TestConnectionPool_BasicOperations(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	// Test Get
 	ctx := context.Background()
@@ -109,7 +109,7 @@ func TestConnectionPool_MinSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	// Wait for min connections to be created
 	time.Sleep(100 * time.Millisecond)
@@ -132,7 +132,7 @@ func TestConnectionPool_MaxSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 	conns := make([]Connection, 0)
@@ -156,7 +156,7 @@ func TestConnectionPool_MaxSize(t *testing.T) {
 	}
 
 	// Return one connection
-	pool.Put(conns[0])
+	_ = pool.Put(conns[0])
 
 	// Now should be able to get one
 	ctx = context.Background()
@@ -164,11 +164,11 @@ func TestConnectionPool_MaxSize(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to get connection after return: %v", err)
 	}
-	pool.Put(conn)
+	_ = pool.Put(conn)
 
 	// Return all connections
 	for i := 1; i < len(conns); i++ {
-		pool.Put(conns[i])
+		_ = pool.Put(conns[i])
 	}
 }
 
@@ -184,7 +184,7 @@ func TestConnectionPool_DeadConnection(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 	
@@ -221,7 +221,7 @@ func TestConnectionPool_DeadConnection(t *testing.T) {
 		}
 	}
 
-	pool.Put(conn2)
+	_ = pool.Put(conn2)
 }
 
 func TestConnectionPool_HealthCheck(t *testing.T) {
@@ -237,7 +237,7 @@ func TestConnectionPool_HealthCheck(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 	
@@ -254,7 +254,7 @@ func TestConnectionPool_HealthCheck(t *testing.T) {
 		}
 	}
 
-	pool.Put(conn)
+	_ = pool.Put(conn)
 
 	// Wait for health check to run
 	time.Sleep(100 * time.Millisecond)
@@ -279,7 +279,7 @@ func TestConnectionPool_MaxLifetime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 	
@@ -297,7 +297,7 @@ func TestConnectionPool_MaxLifetime(t *testing.T) {
 		}
 	}
 
-	pool.Put(conn)
+	_ = pool.Put(conn)
 
 	// Wait for connection to expire
 	time.Sleep(150 * time.Millisecond)
@@ -317,7 +317,7 @@ func TestConnectionPool_MaxLifetime(t *testing.T) {
 		}
 	}
 
-	pool.Put(conn2)
+	_ = pool.Put(conn2)
 }
 
 func TestConnectionPool_Concurrent(t *testing.T) {
@@ -332,7 +332,7 @@ func TestConnectionPool_Concurrent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
@@ -395,7 +395,7 @@ func TestConnectionPool_Close(t *testing.T) {
 	conn1, _ := pool.Get(ctx)
 	conn2, _ := pool.Get(ctx)
 	
-	pool.Put(conn1)
+	_ = pool.Put(conn1)
 	// Don't return conn2 - simulate in-use connection
 
 	// Close pool
@@ -429,7 +429,7 @@ func TestConnectionPool_FactoryError(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 	
@@ -452,7 +452,7 @@ func TestWrappedConn_Metrics(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Failed to create pool: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
 	
@@ -473,5 +473,5 @@ func TestWrappedConn_Metrics(t *testing.T) {
 		t.Error("Connection should be alive")
 	}
 
-	pool.Put(conn)
+	_ = pool.Put(conn)
 }

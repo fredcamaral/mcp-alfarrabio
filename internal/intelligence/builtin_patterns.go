@@ -2,6 +2,7 @@ package intelligence
 
 import "time"
 
+
 // getBuiltInPatterns returns a set of predefined patterns for common conversation flows
 func getBuiltInPatterns() []Pattern {
 	return []Pattern{
@@ -164,7 +165,7 @@ func getBuiltInPatterns() []Pattern {
 					Description: "Verify code quality and functionality",
 					Optional:    false,
 					Confidence:  0.8,
-					Context:     map[string]any{"testing_required": true},
+					Context:     map[string]any{"testing_required": true, "quality_check": "comprehensive"},
 				},
 			},
 			Context: map[string]any{
@@ -172,6 +173,8 @@ func getBuiltInPatterns() []Pattern {
 				"involves_code":    true,
 				"quality_focused":  true,
 				"iterative":        true,
+				"review_type":     "comprehensive",
+				"improvement_goal": "code_quality",
 			},
 			RelatedPatterns: []string{"refactoring_pattern", "optimization_pattern"},
 			CreatedAt:       time.Now(),
@@ -219,7 +222,7 @@ func getBuiltInPatterns() []Pattern {
 					Description: "Integrate and deploy the feature",
 					Optional:    true,
 					Confidence:  0.7,
-					Context:     map[string]any{"deployment_phase": true},
+					Context:     map[string]any{"deployment_phase": true, "feature_type": "new"},
 				},
 			},
 			Context: map[string]any{
@@ -227,6 +230,8 @@ func getBuiltInPatterns() []Pattern {
 				"involves_code":    true,
 				"end_to_end":      true,
 				"deliverable":     true,
+				"development_type": "feature",
+				"lifecycle_phase": "complete",
 			},
 			RelatedPatterns: []string{"development_workflow", "testing_pattern"},
 			CreatedAt:       time.Now(),
@@ -329,7 +334,7 @@ func getBuiltInPatterns() []Pattern {
 					Description: "Apply the newly learned concepts",
 					Optional:    true,
 					Confidence:  0.7,
-					Context:     map[string]any{"hands_on_practice": true},
+					Context:     map[string]any{"hands_on_practice": true, "learning_stage": "application"},
 				},
 			},
 			Context: map[string]any{
@@ -337,6 +342,8 @@ func getBuiltInPatterns() []Pattern {
 				"educational":      true,
 				"knowledge_transfer": true,
 				"interactive":      true,
+				"learning_pattern": "exploratory",
+				"knowledge_depth":  "conceptual",
 			},
 			RelatedPatterns: []string{"explanation_pattern", "tutorial_pattern"},
 			CreatedAt:       time.Now(),

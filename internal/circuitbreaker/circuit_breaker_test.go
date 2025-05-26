@@ -37,7 +37,7 @@ func TestCircuitBreaker_ClosedState(t *testing.T) {
 
 	// Some failures, but below threshold
 	for i := 0; i < 2; i++ {
-		cb.Execute(ctx, func(ctx context.Context) error {
+		_ = cb.Execute(ctx, func(ctx context.Context) error {
 			return testError
 		})
 	}
@@ -47,13 +47,13 @@ func TestCircuitBreaker_ClosedState(t *testing.T) {
 	}
 
 	// Success should reset failure count
-	cb.Execute(ctx, func(ctx context.Context) error {
+	_ = cb.Execute(ctx, func(ctx context.Context) error {
 		return nil
 	})
 
 	// More failures should now be counted from zero
 	for i := 0; i < 2; i++ {
-		cb.Execute(ctx, func(ctx context.Context) error {
+		_ = cb.Execute(ctx, func(ctx context.Context) error {
 			return testError
 		})
 	}
@@ -78,7 +78,7 @@ func TestCircuitBreaker_OpenState(t *testing.T) {
 
 	// Trigger failures to open circuit
 	for i := 0; i < 3; i++ {
-		cb.Execute(ctx, func(ctx context.Context) error {
+		_ = cb.Execute(ctx, func(ctx context.Context) error {
 			return testError
 		})
 	}
@@ -128,7 +128,7 @@ func TestCircuitBreaker_HalfOpenState(t *testing.T) {
 
 	// Open the circuit
 	for i := 0; i < 3; i++ {
-		cb.Execute(ctx, func(ctx context.Context) error {
+		_ = cb.Execute(ctx, func(ctx context.Context) error {
 			return testError
 		})
 	}
@@ -172,7 +172,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 
 	// Open the circuit
 	for i := 0; i < 3; i++ {
-		cb.Execute(ctx, func(ctx context.Context) error {
+		_ = cb.Execute(ctx, func(ctx context.Context) error {
 			return testError
 		})
 	}
@@ -181,7 +181,7 @@ func TestCircuitBreaker_HalfOpenFailure(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	// Failure in half-open should reopen
-	cb.Execute(ctx, func(ctx context.Context) error {
+	_ = cb.Execute(ctx, func(ctx context.Context) error {
 		return testError
 	})
 
@@ -200,7 +200,7 @@ func TestCircuitBreaker_Fallback(t *testing.T) {
 	fallbackCalled := false
 
 	// Trigger circuit open
-	cb.Execute(ctx, func(ctx context.Context) error {
+	_ = cb.Execute(ctx, func(ctx context.Context) error {
 		return testError
 	})
 
@@ -245,7 +245,7 @@ func TestCircuitBreaker_ConcurrentRequests(t *testing.T) {
 
 	// Open the circuit
 	for i := 0; i < 3; i++ {
-		cb.Execute(ctx, func(ctx context.Context) error {
+		_ = cb.Execute(ctx, func(ctx context.Context) error {
 			return testError
 		})
 	}
@@ -303,13 +303,13 @@ func TestCircuitBreaker_Stats(t *testing.T) {
 
 	// Execute some requests
 	for i := 0; i < 3; i++ {
-		cb.Execute(ctx, func(ctx context.Context) error {
+		_ = cb.Execute(ctx, func(ctx context.Context) error {
 			return nil
 		})
 	}
 
 	for i := 0; i < 2; i++ {
-		cb.Execute(ctx, func(ctx context.Context) error {
+		_ = cb.Execute(ctx, func(ctx context.Context) error {
 			return testError
 		})
 	}
@@ -338,7 +338,7 @@ func TestCircuitBreaker_Reset(t *testing.T) {
 	ctx := context.Background()
 
 	// Open the circuit
-	cb.Execute(ctx, func(ctx context.Context) error {
+	_ = cb.Execute(ctx, func(ctx context.Context) error {
 		return testError
 	})
 
@@ -375,7 +375,7 @@ func TestCircuitBreaker_RaceConditions(t *testing.T) {
 	// Concurrent executions
 	go func() {
 		for i := 0; i < 100; i++ {
-			cb.Execute(ctx, func(ctx context.Context) error {
+			_ = cb.Execute(ctx, func(ctx context.Context) error {
 				if i%3 == 0 {
 					return testError
 				}

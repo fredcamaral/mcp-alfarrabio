@@ -104,6 +104,10 @@ func TestChainBuilder_AddToChain(t *testing.T) {
 		t.Fatalf("Failed to create chain: %v", err)
 	}
 	
+	// Store original link count
+	originalLinkCount := len(chain.Links)
+	t.Logf("Initial chain has %d links", originalLinkCount)
+	
 	// Add new chunk
 	newChunk := createTestChunks(1)[0]
 	err = builder.AddToChain(ctx, chain.ID, newChunk, initialChunks)
@@ -121,9 +125,12 @@ func TestChainBuilder_AddToChain(t *testing.T) {
 		t.Errorf("Expected 3 chunks after addition, got %d", len(updatedChain.ChunkIDs))
 	}
 	
-	// Should have more links now
-	if len(updatedChain.Links) <= len(chain.Links) {
-		t.Error("Expected more links after adding chunk")
+	// Should have more links now (at least 2 new links from the new chunk to the initial chunks)
+	t.Logf("Original links: %d, Updated links: %d", originalLinkCount, len(updatedChain.Links))
+	expectedMinLinks := originalLinkCount + len(initialChunks)
+	if len(updatedChain.Links) < expectedMinLinks {
+		t.Errorf("Expected at least %d links after adding chunk (original %d + %d new). Got: %d", 
+			expectedMinLinks, originalLinkCount, len(initialChunks), len(updatedChain.Links))
 	}
 }
 
@@ -227,23 +234,26 @@ func TestChainBuilder_GetChainPath(t *testing.T) {
 	chain, _ := builder.CreateChain(ctx, "Path Test Chain", "Description", chunks)
 	
 	// Find path between first and last chunk
-	path, _ := builder.GetChainPath(ctx, chain.ID, chunks[0].ID, chunks[3].ID)
+	path, err := builder.GetChainPath(ctx, chain.ID, chunks[0].ID, chunks[3].ID)
+	if err != nil {
+		t.Fatalf("Failed to get chain path: %v", err)
+	}
 	
-	if path == nil {
-		t.Error("Expected to find a path")
+	if path == nil || len(path) == 0 {
+		t.Fatal("Expected to find a path, but got nil or empty path")
 	}
 	
 	// Path should include at least start and end
 	if len(path) < 2 {
-		t.Error("Path should have at least 2 nodes")
+		t.Errorf("Path should have at least 2 nodes, got %d", len(path))
 	}
 	
 	if path[0] != chunks[0].ID {
-		t.Error("Path should start with the first chunk")
+		t.Errorf("Path should start with chunk[0].ID (%s), but starts with %s", chunks[0].ID, path[0])
 	}
 	
 	if path[len(path)-1] != chunks[3].ID {
-		t.Error("Path should end with the last chunk")
+		t.Errorf("Path should end with chunk[3].ID (%s), but ends with %s", chunks[3].ID, path[len(path)-1])
 	}
 }
 

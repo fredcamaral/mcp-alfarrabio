@@ -378,16 +378,6 @@ func getFloatOrDefault(m interface{}, key string, defaultValue float64) float64 
 	return defaultValue
 }
 
-func getBoolOrDefault(m interface{}, key string, defaultValue bool) bool {
-	if mapValue, ok := m.(map[string]interface{}); ok {
-		if value, exists := mapValue[key]; exists && value != nil {
-			if boolValue, ok := value.(bool); ok {
-				return boolValue
-			}
-		}
-	}
-	return defaultValue
-}
 
 func getStringArrayOrDefault(m interface{}, key string, defaultValue []string) []string {
 	if mapValue, ok := m.(map[string]interface{}); ok {

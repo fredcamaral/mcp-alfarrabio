@@ -5,7 +5,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -71,8 +70,6 @@ type CircuitBreaker struct {
 	totalFailures   int64
 	totalSuccesses  int64
 	totalRejections int64
-	
-	mu sync.RWMutex
 }
 
 // New creates a new circuit breaker

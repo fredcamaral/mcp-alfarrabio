@@ -277,31 +277,40 @@ func (cs *ContextSuggester) generateSimilarProblemSuggestions(ctx context.Contex
 	return suggestions, nil
 }
 
-// generateArchitecturalSuggestions suggests relevant architectural patterns
-func (cs *ContextSuggester) generateArchitecturalSuggestions(ctx context.Context, trigger SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
-	// Search for architectural decisions
-	decisionType := types.ChunkTypeArchitectureDecision
-	decisionChunks, err := cs.vectorStorage.FindSimilar(ctx, content, &decisionType, trigger.MaxSuggestions)
+// searchAndCreateSuggestions is a helper to reduce duplication in suggestion generation
+func (cs *ContextSuggester) searchAndCreateSuggestions(
+	ctx context.Context,
+	content string,
+	chunkType types.ChunkType,
+	trigger SuggestionTrigger,
+	suggestionType SuggestionType,
+	title string,
+	source SuggestionSource,
+	actionType ActionType,
+	buildDescription func(types.ConversationChunk) string,
+	buildContext func(types.ConversationChunk) map[string]interface{},
+) ([]ContextSuggestion, error) {
+	chunks, err := cs.vectorStorage.FindSimilar(ctx, content, &chunkType, trigger.MaxSuggestions)
 	if err != nil {
 		return nil, err
 	}
 	
 	suggestions := make([]ContextSuggestion, 0)
 	
-	for _, chunk := range decisionChunks {
+	for _, chunk := range chunks {
 		relevance := cs.calculateRelevance(content, chunk.Content)
 		
 		if relevance >= trigger.MinRelevance {
 			suggestion := ContextSuggestion{
 				ID:            generateSuggestionID(),
-				Type:          SuggestionTypeArchitectural,
-				Title:         "Relevant architectural pattern",
-				Description:   cs.buildArchitecturalDescription(chunk),
+				Type:          suggestionType,
+				Title:         title,
+				Description:   buildDescription(chunk),
 				Relevance:     relevance,
-				Source:        SourceDecisionLog,
+				Source:        source,
 				RelatedChunks: []types.ConversationChunk{chunk},
-				ActionType:    ActionConsider,
-				Context:       map[string]interface{}{"decision_id": chunk.ID, "repository": chunk.Metadata.Repository},
+				ActionType:    actionType,
+				Context:       buildContext(chunk),
 				CreatedAt:     time.Now(),
 			}
 			suggestions = append(suggestions, suggestion)
@@ -309,6 +318,27 @@ func (cs *ContextSuggester) generateArchitecturalSuggestions(ctx context.Context
 	}
 	
 	return suggestions, nil
+}
+
+// generateArchitecturalSuggestions suggests relevant architectural patterns
+func (cs *ContextSuggester) generateArchitecturalSuggestions(ctx context.Context, trigger SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
+	return cs.searchAndCreateSuggestions(
+		ctx,
+		content,
+		types.ChunkTypeArchitectureDecision,
+		trigger,
+		SuggestionTypeArchitectural,
+		"Relevant architectural pattern",
+		SourceDecisionLog,
+		ActionConsider,
+		cs.buildArchitecturalDescription,
+		func(chunk types.ConversationChunk) map[string]interface{} {
+			return map[string]interface{}{
+				"decision_id": chunk.ID,
+				"repository":  chunk.Metadata.Repository,
+			}
+		},
+	)
 }
 
 // generatePastDecisionSuggestions reminds about relevant past decisions
@@ -351,36 +381,23 @@ func (cs *ContextSuggester) generatePastDecisionSuggestions(ctx context.Context,
 
 // generateDuplicateWorkSuggestions alerts to potential duplicate work
 func (cs *ContextSuggester) generateDuplicateWorkSuggestions(ctx context.Context, trigger SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
-	// Search for similar implementations
-	solutionType := types.ChunkTypeSolution
-	existingWork, err := cs.vectorStorage.FindSimilar(ctx, content, &solutionType, trigger.MaxSuggestions)
-	if err != nil {
-		return nil, err
-	}
-	
-	suggestions := make([]ContextSuggestion, 0)
-	
-	for _, chunk := range existingWork {
-		relevance := cs.calculateRelevance(content, chunk.Content)
-		
-		if relevance >= trigger.MinRelevance {
-			suggestion := ContextSuggestion{
-				ID:            generateSuggestionID(),
-				Type:          SuggestionTypeDuplicateWork,
-				Title:         "Similar work already exists",
-				Description:   cs.buildDuplicateWorkDescription(chunk),
-				Relevance:     relevance,
-				Source:        SourceVectorSearch,
-				RelatedChunks: []types.ConversationChunk{chunk},
-				ActionType:    ActionReview,
-				Context:       map[string]interface{}{"existing_work": chunk.ID, "outcome": chunk.Metadata.Outcome},
-				CreatedAt:     time.Now(),
+	return cs.searchAndCreateSuggestions(
+		ctx,
+		content,
+		types.ChunkTypeSolution,
+		trigger,
+		SuggestionTypeDuplicateWork,
+		"Similar work already exists",
+		SourceVectorSearch,
+		ActionReview,
+		cs.buildDuplicateWorkDescription,
+		func(chunk types.ConversationChunk) map[string]interface{} {
+			return map[string]interface{}{
+				"existing_work": chunk.ID,
+				"outcome":       chunk.Metadata.Outcome,
 			}
-			suggestions = append(suggestions, suggestion)
-		}
-	}
-	
-	return suggestions, nil
+		},
+	)
 }
 
 // generateSuccessfulPatternSuggestions suggests proven successful patterns

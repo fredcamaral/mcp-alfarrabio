@@ -150,19 +150,6 @@ func (c *Container) initializeWorkflow() error {
 	return nil
 }
 
-// initializeChains sets up memory chain components
-func (c *Container) initializeChains() error {
-	// Initialize chain store
-	c.ChainStore = chains.NewInMemoryChainStore()
-	
-	// Initialize chain analyzer
-	chainAnalyzer := chains.NewDefaultChainAnalyzer(c.EmbeddingService)
-	
-	// Initialize chain builder
-	c.ChainBuilder = chains.NewChainBuilder(c.ChainStore, chainAnalyzer)
-	
-	return nil
-}
 
 // HealthCheck performs health checks on all services
 func (c *Container) HealthCheck(ctx context.Context) error {

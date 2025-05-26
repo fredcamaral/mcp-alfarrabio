@@ -29,7 +29,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create container: %v", err)
 	}
-	defer container.Shutdown()
+	defer func() { _ = container.Shutdown() }()
 
 	// Initialize services
 	ctx := context.Background()
@@ -128,11 +128,11 @@ func healthHandler(container *di.Container) http.HandlerFunc {
 		ctx := r.Context()
 		if err := container.HealthCheck(ctx); err != nil {
 			w.WriteHeader(http.StatusServiceUnavailable)
-			fmt.Fprintf(w, "Health check failed: %v", err)
+			_, _ = fmt.Fprintf(w, "Health check failed: %v", err)
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "OK")
+		_, _ = fmt.Fprint(w, "OK")
 	}
 }
 

@@ -667,7 +667,7 @@ func BenchmarkCheckAccess(b *testing.B) {
 	// Create user with permissions
 	user, _ := acm.CreateUser("benchuser", "bench@example.com")
 	for i := 0; i < 10; i++ {
-		acm.GrantPermission(user.ID, Permission{
+		_ = acm.GrantPermission(user.ID, Permission{
 			Resource: fmt.Sprintf("repository:repo%d", i),
 			Action:   "read",
 			Level:    AccessLevelRead,
@@ -676,7 +676,7 @@ func BenchmarkCheckAccess(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		acm.CheckAccess(ctx, user.ID, "read", "repository:repo5")
+		_, _ = acm.CheckAccess(ctx, user.ID, "read", "repository:repo5")
 	}
 }
 
@@ -686,6 +686,6 @@ func BenchmarkGenerateToken(b *testing.B) {
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		acm.GenerateToken(user.ID, []string{"read"}, time.Hour)
+		_, _ = acm.GenerateToken(user.ID, []string{"read"}, time.Hour)
 	}
 }

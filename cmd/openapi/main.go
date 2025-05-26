@@ -6,6 +6,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/gorilla/mux"
@@ -49,7 +50,7 @@ func serveDocumentation() {
 		}
 
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(spec)
+		_ = json.NewEncoder(w).Encode(spec)
 	})
 
 	// Serve Swagger UI
@@ -83,7 +84,7 @@ func serveDocumentation() {
 </html>
 `
 		w.Header().Set("Content-Type", "text/html")
-		w.Write([]byte(html))
+		_, _ = w.Write([]byte(html))
 	})
 
 	// Redirect root to docs
@@ -97,7 +98,8 @@ func serveDocumentation() {
 	}
 
 	fmt.Printf("Serving OpenAPI documentation at http://localhost:%s/docs\n", port)
-	log.Fatal(http.ListenAndServe(":"+port, router))
+	srv := &http.Server{Addr: ":" + port, Handler: router, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
+	log.Fatal(srv.ListenAndServe())
 }
 
 func validateSpec() {

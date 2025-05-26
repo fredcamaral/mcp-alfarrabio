@@ -4,7 +4,6 @@ package graphql
 import (
 	"fmt"
 	"mcp-memory/internal/di"
-	"time"
 
 	"github.com/graphql-go/graphql"
 )
@@ -408,37 +407,3 @@ func (s *Schema) GetSchema() graphql.Schema {
 // Helper to create a singleton schema instance
 var s = &Schema{}
 
-// parseTimeframe converts string timeframe to time range
-func parseTimeframe(timeframe string) (startTime, endTime time.Time) {
-	now := time.Now()
-	switch timeframe {
-	case "week":
-		startTime = now.AddDate(0, 0, -7)
-	case "month":
-		startTime = now.AddDate(0, -1, 0)
-	case "quarter":
-		startTime = now.AddDate(0, -3, 0)
-	case "all":
-		startTime = time.Time{}
-	default:
-		startTime = now.AddDate(0, -1, 0) // Default to month
-	}
-	endTime = now
-	return
-}
-
-// parseRecency converts recency string to time range
-func parseRecency(recency string) (startTime time.Time) {
-	now := time.Now()
-	switch recency {
-	case "recent":
-		startTime = now.AddDate(0, 0, -7)
-	case "last_month":
-		startTime = now.AddDate(0, -1, 0)
-	case "all_time":
-		startTime = time.Time{}
-	default:
-		startTime = now.AddDate(0, 0, -7) // Default to recent
-	}
-	return
-}
