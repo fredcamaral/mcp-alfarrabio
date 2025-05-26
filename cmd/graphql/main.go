@@ -36,6 +36,7 @@ func main() {
 	
 	// Initialize vector store first
 	if err := container.GetVectorStore().Initialize(ctx); err != nil {
+		_ = container.Shutdown()
 		log.Fatalf("Failed to initialize vector store: %v", err)
 	}
 	
@@ -47,6 +48,7 @@ func main() {
 	// Create GraphQL schema
 	schema, err := mcpgraphql.NewSchema(container)
 	if err != nil {
+		_ = container.Shutdown()
 		log.Fatalf("Failed to create GraphQL schema: %v", err)
 	}
 

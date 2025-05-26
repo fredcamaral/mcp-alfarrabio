@@ -209,17 +209,25 @@ func TestChainBuilder_MergeChains(t *testing.T) {
 func TestChainBuilder_GetChainPath(t *testing.T) {
 	store := NewInMemoryChainStore()
 	
+	
 	// Custom analyzer that creates a linear chain
 	analyzer := &MockChainAnalyzer{
 		analyzeFunc: func(ctx context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error) {
-			// Create links only between consecutive chunks
-			for i := 0; i < len(chunk1.ID)-1; i++ {
-				if chunk1.ID[i] != chunk2.ID[i] {
-					if chunk1.ID[i] < chunk2.ID[i] {
-						return ChainTypeContinuation, 0.9, nil
-					}
-					break
+			// Map chunks to their indices based on content
+			idx1 := -1
+			idx2 := -1
+			for i := 0; i < 4; i++ {
+				if chunk1.Content == "Test content " + string(rune(i)) {
+					idx1 = i
 				}
+				if chunk2.Content == "Test content " + string(rune(i)) {
+					idx2 = i
+				}
+			}
+			
+			// Create strong links between consecutive chunks (0->1, 1->2, 2->3)
+			if (idx1 >= 0 && idx2 >= 0) && (idx1 == idx2-1 || idx2 == idx1-1) {
+				return ChainTypeContinuation, 0.9, nil
 			}
 			return ChainTypeReference, 0.3, nil // Weak link
 		},

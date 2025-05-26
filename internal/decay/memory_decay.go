@@ -182,11 +182,12 @@ func (m *MemoryDecayManager) RunDecay(ctx context.Context, repository string) er
 			continue
 		}
 		
-		if sc.Score < m.config.DeletionThreshold {
+		switch {
+		case sc.Score < m.config.DeletionThreshold:
 			toDelete = append(toDelete, sc.Chunk.ID)
-		} else if sc.Score < m.config.SummarizationThreshold {
+		case sc.Score < m.config.SummarizationThreshold:
 			toSummarize = append(toSummarize, sc)
-		} else if sc.Score < m.config.MinRelevanceScore {
+		case sc.Score < m.config.MinRelevanceScore:
 			// Update with decayed score
 			chunk := sc.Chunk
 			// Store decay info in a separate tracking system since Metadata is structured
@@ -296,13 +297,14 @@ func (m *MemoryDecayManager) applyTimeDecay(score float64, age time.Duration) fl
 		
 	case DecayStrategyAdaptive:
 		// Adaptive decay - slower for first week, then accelerates
-		if days < 7 {
+		switch {
+		case days < 7:
 			// Minimal decay in first week
 			return score * (1.0 - m.config.BaseDecayRate*0.1*days/7.0)
-		} else if days < 30 {
+		case days < 30:
 			// Moderate decay for first month
 			return score * (0.9 - m.config.BaseDecayRate*0.3*(days-7)/23.0)
-		} else {
+		default:
 			// Accelerated decay after a month
 			return score * math.Pow(0.6, (days-30)/30.0)
 		}

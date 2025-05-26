@@ -199,6 +199,9 @@ func (bpm *BasicPatternMatcher) calculateTypeMatch(features map[string]any, patt
 			return 0.6
 		}
 		return 0.4
+	case PatternTypeDecisionMaking, PatternTypeArchitectural, PatternTypeConfiguration, PatternTypeTesting, PatternTypeRefactoring:
+		// These pattern types get a moderate baseline score
+		return 0.5
 	default:
 		// Unknown pattern types get a baseline score
 		return 0.5

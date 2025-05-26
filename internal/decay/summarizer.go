@@ -371,11 +371,12 @@ func (l *LLMSummarizer) extractLearnings(chunks []types.ConversationChunk) []str
 }
 
 func formatDuration(d time.Duration) string {
-	if d < time.Hour {
+	switch {
+	case d < time.Hour:
 		return fmt.Sprintf("%.0f minutes", d.Minutes())
-	} else if d < 24*time.Hour {
+	case d < 24*time.Hour:
 		return fmt.Sprintf("%.1f hours", d.Hours())
-	} else {
+	default:
 		return fmt.Sprintf("%.1f days", d.Hours()/24)
 	}
 }

@@ -399,6 +399,16 @@ func (bsr *BasicSequenceRecognizer) generateSequenceName(sequenceType PatternTyp
 		return "Error Resolution Sequence"
 	case PatternTypeCodeEvolution:
 		return "Code Evolution Sequence"
+	case PatternTypeDecisionMaking:
+		return "Decision Making Sequence"
+	case PatternTypeArchitectural:
+		return "Architectural Design Sequence"
+	case PatternTypeConfiguration:
+		return "Configuration Sequence"
+	case PatternTypeTesting:
+		return "Testing Sequence"
+	case PatternTypeRefactoring:
+		return "Refactoring Sequence"
 	default:
 		// Unknown pattern types get a generic name
 		return "General Sequence Pattern"
@@ -417,6 +427,8 @@ func (bsr *BasicSequenceRecognizer) generateSequenceDescription(sequenceType Pat
 		return baseDesc + " that was partially completed"
 	case OutcomeInterrupted:
 		return baseDesc + " that was interrupted"
+	case OutcomeUnknown:
+		return baseDesc + " with unknown outcome"
 	default:
 		// Unknown outcomes get a generic description
 		return baseDesc + " with unknown outcome"
@@ -435,6 +447,8 @@ func (bsr *BasicSequenceRecognizer) calculateSequenceConfidence(chunks []types.C
 	switch outcome {
 	case OutcomeSuccess:
 		baseConfidence += 0.3
+	case OutcomeUnknown:
+		// No confidence adjustment for unknown outcomes
 	case OutcomePartial:
 		baseConfidence += 0.1
 	case OutcomeFailure:

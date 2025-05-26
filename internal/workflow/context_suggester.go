@@ -227,6 +227,9 @@ func (cs *ContextSuggester) generateSuggestions(ctx context.Context, suggestionT
 		return cs.generateDuplicateWorkSuggestions(ctx, trigger, repository, content)
 	case SuggestionTypeSuccessfulPattern:
 		return cs.generateSuccessfulPatternSuggestions(ctx, trigger, repository, content)
+	case SuggestionTypeTechnicalDebt, SuggestionTypeOptimization:
+		// These suggestion types are not yet implemented
+		return []ContextSuggestion{}, nil
 	default:
 		return []ContextSuggestion{}, nil
 	}

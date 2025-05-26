@@ -613,11 +613,12 @@ func buildWhereFilter(query types.MemoryQuery) chromav2.WhereClause {
 	}
 	
 	// Combine all clauses with AND
-	if len(clauses) == 0 {
+	switch len(clauses) {
+	case 0:
 		return nil
-	} else if len(clauses) == 1 {
+	case 1:
 		return clauses[0]
-	} else {
+	default:
 		return chromav2.And(clauses...)
 	}
 }

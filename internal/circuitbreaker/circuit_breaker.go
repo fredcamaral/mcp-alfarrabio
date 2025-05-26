@@ -176,6 +176,9 @@ func (cb *CircuitBreaker) recordSuccess() {
 		if successes >= int32(cb.config.SuccessThreshold) {
 			cb.transitionTo(StateClosed)
 		}
+	case StateOpen:
+		// In open state, successes don't affect state transitions
+		// The state will transition after timeout period
 	}
 }
 
@@ -191,6 +194,9 @@ func (cb *CircuitBreaker) recordFailure() {
 		if failures >= int32(cb.config.FailureThreshold) {
 			cb.transitionTo(StateOpen)
 		}
+	case StateOpen:
+		// Already open, no action needed
+	
 		
 	case StateHalfOpen:
 		// Any failure in half-open state reopens the circuit

@@ -708,6 +708,8 @@ func (le *LearningEngine) inferConversationType(chunks []types.ConversationChunk
 			solutionCount++
 		case types.ChunkTypeDiscussion, types.ChunkTypeArchitectureDecision, types.ChunkTypeQuestion:
 			// These chunk types don't affect the categorization
+		case types.ChunkTypeCodeChange, types.ChunkTypeSessionSummary, types.ChunkTypeAnalysis, types.ChunkTypeVerification:
+			// These chunk types also don't affect the categorization
 		default:
 			// Unknown chunk types are ignored for categorization
 		}
