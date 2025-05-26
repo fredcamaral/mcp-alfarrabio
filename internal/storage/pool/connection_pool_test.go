@@ -414,6 +414,8 @@ func TestConnectionPool_Close(t *testing.T) {
 	err = pool.Put(conn2)
 	if err == nil {
 		t.Error("Expected error when putting to closed pool")
+	} else {
+		t.Logf("Got expected error: %v", err)
 	}
 }
 

@@ -257,9 +257,9 @@ func TestLoadConfig_WithEnvVars(t *testing.T) {
 		"OPENAI_API_KEY":         "test-api-key",
 		"OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
 		"RETENTION_DAYS":         "30",
-		"LOG_LEVEL":              "debug",
-		"LOG_FORMAT":             "text",
-		"LOG_FILE":               "/var/log/memory.log",
+		"MCP_MEMORY_LOG_LEVEL":   "debug",
+		"MCP_MEMORY_LOG_FORMAT":  "text",
+		"MCP_MEMORY_LOG_FILE":    "/var/log/memory.log",
 	}
 
 	// Set environment variables

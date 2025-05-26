@@ -204,14 +204,19 @@ func (p *ConnectionPool) Get(ctx context.Context) (Connection, error) {
 
 // Put returns a connection to the pool
 func (p *ConnectionPool) Put(conn Connection) error {
-	if atomic.LoadInt32(&p.closed) == 1 {
-		return conn.Close()
-	}
-	
-	// Unwrap the connection
+	// Unwrap the connection first to check if it's already closed
 	wc, ok := conn.(*WrappedConn)
 	if !ok {
 		return ErrInvalidConn
+	}
+	
+	// If pool is closed, close the underlying connection directly
+	if atomic.LoadInt32(&p.closed) == 1 {
+		// Don't call wc.Close() to avoid infinite recursion
+		if wc.pc != nil && wc.pc.conn != nil {
+			_ = wc.pc.conn.Close() // Ignore close error
+		}
+		return ErrPoolClosed
 	}
 	
 	atomic.AddInt32(&p.activeCount, -1)
@@ -392,11 +397,14 @@ func (wc *WrappedConn) IsAlive() bool {
 
 func (wc *WrappedConn) Close() error {
 	wc.mu.Lock()
-	defer wc.mu.Unlock()
 	if wc.closed {
+		wc.mu.Unlock()
 		return nil
 	}
 	wc.closed = true
+	wc.mu.Unlock()
+	
+	// Call Put without holding the lock to avoid deadlock
 	return wc.pool.Put(wc)
 }
 

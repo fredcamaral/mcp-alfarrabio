@@ -2,25 +2,28 @@ package intelligence
 
 import "time"
 
-// createFourStepPattern creates a pattern with a standard four-step workflow
-func createFourStepPattern(
+// StepDefinition represents a pattern step definition
+type StepDefinition struct {
+	Action      string
+	Description string
+	Context     map[string]any
+	Optional    bool
+	Confidence  float64
+}
+
+// createPattern creates a Pattern with the given steps
+func createPattern(
 	id string,
 	patternType PatternType,
 	name, description string,
 	keywords, triggers, outcomes []string,
-	steps [4]struct {
-		Action      string
-		Description string
-		Context     map[string]any
-		Optional    bool
-		Confidence  float64
-	},
+	steps []StepDefinition,
 	context map[string]any,
 	relatedPatterns []string,
 	confidence, frequency float64,
 	successRate float64,
 ) Pattern {
-	patternSteps := make([]PatternStep, 4)
+	patternSteps := make([]PatternStep, len(steps))
 	for i, step := range steps {
 		patternSteps[i] = PatternStep{
 			Order:       i,
@@ -49,6 +52,43 @@ func createFourStepPattern(
 		CreatedAt:       time.Now(),
 		UpdatedAt:       time.Now(),
 	}
+}
+
+// createFourStepPattern creates a pattern with a standard four-step workflow
+func createFourStepPattern(
+	id string,
+	patternType PatternType,
+	name, description string,
+	keywords, triggers, outcomes []string,
+	steps [4]struct {
+		Action      string
+		Description string
+		Context     map[string]any
+		Optional    bool
+		Confidence  float64
+	},
+	context map[string]any,
+	relatedPatterns []string,
+	confidence, frequency float64,
+	successRate float64,
+) Pattern {
+	stepDefs := make([]StepDefinition, 4)
+	for i, step := range steps {
+		stepDefs[i] = StepDefinition{
+			Action:      step.Action,
+			Description: step.Description,
+			Context:     step.Context,
+			Optional:    step.Optional,
+			Confidence:  step.Confidence,
+		}
+	}
+	
+	return createPattern(
+		id, patternType, name, description,
+		keywords, triggers, outcomes,
+		stepDefs, context, relatedPatterns,
+		confidence, frequency, successRate,
+	)
 }
 
 // getBuiltInPatterns returns a set of predefined patterns for common conversation flows
@@ -108,69 +148,60 @@ func getBuiltInPatterns() []Pattern {
 			CreatedAt:       time.Now(),
 			UpdatedAt:       time.Now(),
 		},
-		{
-			ID:          "builtin_debugging_flow",
-			Type:        PatternTypeDebugging,
-			Name:        "Systematic Debugging Pattern",
-			Description: "Systematic approach to debugging: identify error, investigate, test fixes",
-			Confidence:  0.8,
-			Frequency:   75,
-			SuccessRate: 0.78,
-			Keywords:    []string{"debug", "error", "stack", "trace", "investigate", "test"},
-			Triggers:    []string{"error_with_stack_trace", "debugging_needed"},
-			Outcomes:    []string{"root_cause_found", "error_fixed"},
-			Steps: []PatternStep{
+		createPattern(
+			"builtin_debugging_flow",
+			PatternTypeDebugging,
+			"Systematic Debugging Pattern",
+			"Systematic approach to debugging: identify error, investigate, test fixes",
+			[]string{"debug", "error", "stack", "trace", "investigate", "test"},
+			[]string{"error_with_stack_trace", "debugging_needed"},
+			[]string{"root_cause_found", "error_fixed"},
+			[]StepDefinition{
 				{
-					Order:       0,
 					Action:      "identify_error",
 					Description: "Identify the specific error or bug",
+					Context:     map[string]any{"includes_stack_trace": true},
 					Optional:    false,
 					Confidence:  0.9,
-					Context:     map[string]any{"includes_stack_trace": true},
 				},
 				{
-					Order:       1,
 					Action:      "investigate_cause",
 					Description: "Investigate the root cause of the error",
+					Context:     map[string]any{"requires_analysis": true},
 					Optional:    false,
 					Confidence:  0.8,
-					Context:     map[string]any{"requires_analysis": true},
 				},
 				{
-					Order:       2,
 					Action:      "test_hypothesis",
 					Description: "Test hypotheses about the cause",
+					Context:     map[string]any{"experimental": true},
 					Optional:    true,
 					Confidence:  0.7,
-					Context:     map[string]any{"experimental": true},
 				},
 				{
-					Order:       3,
 					Action:      "apply_fix",
 					Description: "Apply the identified fix",
+					Context:     map[string]any{"code_modification": true},
 					Optional:    false,
 					Confidence:  0.8,
-					Context:     map[string]any{"code_modification": true},
 				},
 				{
-					Order:       4,
 					Action:      "confirm_resolution",
 					Description: "Confirm the error is resolved",
+					Context:     map[string]any{"verification_required": true},
 					Optional:    false,
 					Confidence:  0.9,
-					Context:     map[string]any{"verification_required": true},
 				},
 			},
-			Context: map[string]any{
+			map[string]any{
 				"typical_length":     5,
 				"requires_technical": true,
 				"complexity":         "high",
 				"time_intensive":     true,
 			},
-			RelatedPatterns: []string{"problem_solution_pattern", "error_resolution_pattern"},
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-		},
+			[]string{"problem_solution_pattern", "error_resolution_pattern"},
+			0.8, 75, 0.78,
+		),
 		createFourStepPattern(
 			"builtin_code_review",
 			PatternTypeCodeEvolution,
@@ -281,61 +312,53 @@ func getBuiltInPatterns() []Pattern {
 			[]string{"development_workflow", "testing_pattern"},
 			0.8, 60, 0.80,
 		),
-		{
-			ID:          "builtin_configuration_setup",
-			Type:        PatternTypeConfiguration,
-			Name:        "Configuration and Setup Pattern",
-			Description: "Identify config needs, locate files, make changes, verify settings",
-			Confidence:  0.75,
-			Frequency:   40,
-			SuccessRate: 0.85,
-			Keywords:    []string{"config", "configuration", "setup", "settings", "environment"},
-			Triggers:    []string{"configuration_needed", "setup_required"},
-			Outcomes:    []string{"configuration_complete", "environment_ready"},
-			Steps: []PatternStep{
+		createPattern(
+			"builtin_configuration_setup",
+			PatternTypeConfiguration,
+			"Configuration and Setup Pattern",
+			"Identify config needs, locate files, make changes, verify settings",
+			[]string{"config", "configuration", "setup", "settings", "environment"},
+			[]string{"configuration_needed", "setup_required"},
+			[]string{"configuration_complete", "environment_ready"},
+			[]StepDefinition{
 				{
-					Order:       0,
 					Action:      "identify_config_needs",
 					Description: "Identify what needs to be configured",
+					Context:     map[string]any{"analysis_required": true},
 					Optional:    false,
 					Confidence:  0.8,
-					Context:     map[string]any{"analysis_required": true},
 				},
 				{
-					Order:       1,
 					Action:      "locate_config_files",
 					Description: "Locate relevant configuration files",
+					Context:     map[string]any{"file_system_navigation": true},
 					Optional:    false,
 					Confidence:  0.8,
-					Context:     map[string]any{"file_system_navigation": true},
 				},
 				{
-					Order:       2,
 					Action:      "modify_configuration",
 					Description: "Modify configuration settings",
+					Context:     map[string]any{"file_modification": true},
 					Optional:    false,
 					Confidence:  0.8,
-					Context:     map[string]any{"file_modification": true},
 				},
 				{
-					Order:       3,
 					Action:      "verify_settings",
 					Description: "Verify configuration is working",
+					Context:     map[string]any{"verification_required": true},
 					Optional:    false,
 					Confidence:  0.9,
-					Context:     map[string]any{"verification_required": true},
 				},
 			},
-			Context: map[string]any{
+			map[string]any{
 				"typical_length":   4,
 				"involves_files":   true,
 				"system_level":     true,
 				"environment_setup": true,
 			},
-			RelatedPatterns: []string{"setup_pattern", "deployment_pattern"},
-			CreatedAt:       time.Now(),
-			UpdatedAt:       time.Now(),
-		},
+			[]string{"setup_pattern", "deployment_pattern"},
+			0.75, 40, 0.85,
+		),
 		createFourStepPattern(
 			"builtin_learning_exploration",
 			PatternTypeWorkflow,
