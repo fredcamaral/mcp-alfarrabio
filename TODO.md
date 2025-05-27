@@ -4,6 +4,60 @@ This file contains all TODO items found in the codebase as of 2025-05-27.
 
 ## Core Application TODOs
 
+### Memory System Enhancement (Priority: High)
+- **Purpose**: Improve memory storage with better contextual keys for enhanced retrieval and search
+- **Current Limitations**:
+  - [ ] Limited context about where code/work is happening (working directory, relative paths)
+  - [ ] No client type awareness (CLI vs ChatGPT vs other)
+  - [ ] Missing hierarchical relationships between memories
+  - [ ] No automatic language/framework detection
+  
+- **Proposed Enhancements**:
+  - [ ] **Location Context**:
+    - Working directory (relative path from repo root)
+    - Active files being edited/viewed
+    - Current git branch and commit hash
+    - Project type detection (Go, Python, Node.js, etc.)
+  
+  - [ ] **Client Context**:
+    - Client type (claude-cli, chatgpt, vscode, etc.)
+    - Client version
+    - Platform (macOS, Linux, Windows)
+    - Session environment variables
+  
+  - [ ] **Enhanced Metadata**:
+    - Language/framework versions detected from files
+    - Package dependencies from go.mod, package.json, etc.
+    - Error signatures and stack traces
+    - Command execution results and exit codes
+    - File operation types (create, edit, delete, rename)
+  
+  - [ ] **Relationship Tracking**:
+    - Parent/child memory relationships
+    - Memory chains for multi-step solutions
+    - Cross-reference to related memories
+    - Superseded/obsolete memory links
+  
+  - [ ] **Search Improvements**:
+    - Auto-tag with detected technologies
+    - Problem domain classification (frontend, backend, CI/CD, etc.)
+    - Semantic categorization
+    - Confidence scoring based on outcomes
+  
+  - [ ] **Usage Analytics**:
+    - Track which memories are accessed
+    - Success rate of retrieved memories
+    - Memory effectiveness scoring
+    - Auto-archive stale memories
+
+- **Implementation Ideas**:
+  - [ ] Add `ExtendedMetadata` JSON field to ConversationChunk
+  - [ ] Create memory templates for common scenarios
+  - [ ] Implement automatic context detection
+  - [ ] Add client type parameter to all memory operations
+  - [ ] Build memory relationship graph
+  - [ ] Create memory quality scoring system
+
 ### GraphQL Integration
 - **File**: `internal/graphql/resolvers.go`
   - [ ] Fix SuggestContext API
