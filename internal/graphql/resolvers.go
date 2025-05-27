@@ -3,6 +3,7 @@ package graphql
 import (
 	"fmt"
 	"mcp-memory/internal/di"
+	"mcp-memory/internal/workflow"
 	"mcp-memory/pkg/types"
 	"time"
 
@@ -149,6 +150,7 @@ func (s *Schema) getPatternsResolver(container *di.Container) graphql.FieldResol
 // suggestRelatedResolver handles context suggestion queries
 func (s *Schema) suggestRelatedResolver(container *di.Container) graphql.FieldResolveFn {
 	return func(p graphql.ResolveParams) (interface{}, error) {
+		ctx := p.Context
 		currentContext := p.Args["currentContext"].(string)
 		sessionID := p.Args["sessionId"].(string)
 		repository := getStringOrDefault(p.Args, "repository", "")
@@ -171,22 +173,80 @@ func (s *Schema) suggestRelatedResolver(container *di.Container) graphql.FieldRe
 
 		// Get suggestions
 		suggester := container.GetContextSuggester()
-		// TODO: Fix SuggestContext API
-		_ = suggester
-		_ = maxSuggestions
-		suggestions := []interface{}{}
-		var err error
-		_ = suggestions
+		
+		// Analyze context to get suggestions
+		suggestions, err := suggester.AnalyzeContext(
+			ctx,
+			sessionID,
+			repository,
+			currentContext,
+			"", // toolUsed - not provided in GraphQL
+			types.ConversationFlow(""), // currentFlow - not provided
+		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get suggestions: %w", err)
 		}
 
+		// Limit suggestions
+		if maxSuggestions < len(suggestions) {
+			suggestions = suggestions[:maxSuggestions]
+		}
+
 		// Convert to GraphQL format
+		relevantChunks := []interface{}{}
+		suggestedTasks := []interface{}{}
+		relatedConcepts := []interface{}{}
+		potentialIssues := []interface{}{}
+		
+		for _, suggestion := range suggestions {
+			// Convert related chunks
+			for _, chunk := range suggestion.RelatedChunks {
+				relevantChunks = append(relevantChunks, map[string]interface{}{
+					"id":         chunk.ID,
+					"content":    chunk.Content,
+					"summary":    chunk.Summary,
+					"type":       string(chunk.Type),
+					"repository": chunk.Metadata.Repository,
+					"timestamp":  chunk.Timestamp,
+				})
+			}
+			
+			// Categorize suggestions
+			switch suggestion.Type {
+			case workflow.SuggestionTypeDuplicateWork, workflow.SuggestionTypeTechnicalDebt:
+				potentialIssues = append(potentialIssues, map[string]interface{}{
+					"type":        string(suggestion.Type),
+					"title":       suggestion.Title,
+					"description": suggestion.Description,
+					"relevance":   suggestion.Relevance,
+				})
+			case workflow.SuggestionTypeArchitectural, workflow.SuggestionTypePastDecision,
+				workflow.SuggestionTypeSimilarProblem, workflow.SuggestionTypeSuccessfulPattern,
+				workflow.SuggestionTypeOptimization:
+				relatedConcepts = append(relatedConcepts, map[string]interface{}{
+					"type":        string(suggestion.Type),
+					"title":       suggestion.Title,
+					"description": suggestion.Description,
+					"relevance":   suggestion.Relevance,
+				})
+			default:
+				// Convert action type to task suggestion
+				if suggestion.ActionType == workflow.ActionImplement || suggestion.ActionType == workflow.ActionOptimize {
+					suggestedTasks = append(suggestedTasks, map[string]interface{}{
+						"action":      string(suggestion.ActionType),
+						"title":       suggestion.Title,
+						"description": suggestion.Description,
+						"relevance":   suggestion.Relevance,
+					})
+				}
+			}
+		}
+
 		result := map[string]interface{}{
-			"relevantChunks":  []interface{}{},
-			"suggestedTasks":  []interface{}{},
-			"relatedConcepts": []interface{}{},
-			"potentialIssues": []interface{}{},
+			"relevantChunks":  relevantChunks,
+			"suggestedTasks":  suggestedTasks,
+			"relatedConcepts": relatedConcepts,
+			"potentialIssues": potentialIssues,
 		}
 
 		return result, nil
@@ -270,9 +330,10 @@ func (s *Schema) storeChunkResolver(container *di.Container) graphql.FieldResolv
 
 		// Process with chunking service
 		chunkingService := container.GetChunkingService()
-		// TODO: Implement ProcessConversation for new chunking service
-		processedChunks := []types.ConversationChunk{chunk}
-		_ = chunkingService
+		processedChunks, err := chunkingService.ProcessConversation(ctx, chunk.SessionID, chunk.Content, chunk.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to process conversation: %w", err)
+		}
 
 		// Store all chunks
 		for _, processedChunk := range processedChunks {
@@ -281,7 +342,7 @@ func (s *Schema) storeChunkResolver(container *di.Container) graphql.FieldResolv
 			}
 		}
 
-		// Return the first chunk
+		// Return the first chunk (primary chunk)
 		if len(processedChunks) > 0 {
 			return &processedChunks[0], nil
 		}

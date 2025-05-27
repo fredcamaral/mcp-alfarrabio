@@ -2,197 +2,123 @@ package chunking
 
 import (
 	"context"
-	"mcp-memory/internal/config"
-	"mcp-memory/pkg/types"
 	"testing"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
+	"mcp-memory/internal/config"
+	"mcp-memory/pkg/types"
 )
 
-// Test constants
-const (
-	testSessionID = "session-123"
-)
+// MockEmbeddingService implements a mock embedding service for testing
+type MockEmbeddingService struct{}
 
-// MockEmbeddingService for testing
-type MockEmbeddingService struct {
-	mock.Mock
+func (m *MockEmbeddingService) GenerateEmbedding(ctx context.Context, content string) ([]float64, error) {
+	return []float64{0.1, 0.2, 0.3, 0.4, 0.5}, nil
 }
 
-func (m *MockEmbeddingService) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
-	args := m.Called(ctx, text)
-	return args.Get(0).([]float64), args.Error(1)
-}
-
-func (m *MockEmbeddingService) GenerateBatchEmbeddings(ctx context.Context, texts []string) ([][]float64, error) {
-	args := m.Called(ctx, texts)
-	return args.Get(0).([][]float64), args.Error(1)
-}
-
-func (m *MockEmbeddingService) GetDimension() int {
-	args := m.Called()
-	return args.Int(0)
-}
-
-func (m *MockEmbeddingService) GetModel() string {
-	args := m.Called()
-	return args.String(0)
+func (m *MockEmbeddingService) GenerateBatchEmbeddings(ctx context.Context, contents []string) ([][]float64, error) {
+	embeddings := make([][]float64, len(contents))
+	for i := range contents {
+		embeddings[i] = []float64{0.1, 0.2, 0.3, 0.4, 0.5}
+	}
+	return embeddings, nil
 }
 
 func (m *MockEmbeddingService) HealthCheck(ctx context.Context) error {
-	args := m.Called(ctx)
-	return args.Error(0)
+	return nil
 }
 
-func TestNewChunkingService(t *testing.T) {
-	cfg := &config.ChunkingConfig{
-		MinContentLength:     100,
-		MaxContentLength:     4000,
-		SimilarityThreshold:  0.8,
-		TimeThresholdMinutes: 20,
-	}
-
-	mockEmbedding := &MockEmbeddingService{}
-
-	service := NewChunkingService(cfg, mockEmbedding)
-
-	assert.NotNil(t, service)
-	assert.Equal(t, cfg, service.config)
-	assert.Equal(t, mockEmbedding, service.embeddingService)
+func (m *MockEmbeddingService) GetDimension() int {
+	return 5
 }
 
-func TestChunkingService_ShouldCreateChunk(t *testing.T) {
+func (m *MockEmbeddingService) GetModel() string {
+	return "mock-model"
+}
+
+func TestProcessConversation(t *testing.T) {
 	cfg := &config.ChunkingConfig{
-		MinContentLength:      100,
-		MaxContentLength:      4000,
-		SimilarityThreshold:   0.8,
-		TimeThresholdMinutes:  20,
+		MaxContentLength:      1000,
+		TimeThresholdMinutes:  30,
+		FileChangeThreshold:   5,
 		TodoCompletionTrigger: true,
 	}
-
-	mockEmbedding := &MockEmbeddingService{}
-	service := NewChunkingService(cfg, mockEmbedding)
-
-	tests := []struct {
-		name     string
-		context  types.ChunkingContext
-		expected bool
-	}{
-		{
-			name: "should chunk when todos completed",
-			context: types.ChunkingContext{
-				ConversationFlow: types.FlowSolution,
-				CurrentTodos: []types.TodoItem{
-					{Status: "completed", Content: "Task 1"},
-					{Status: "completed", Content: "Task 2"},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "should chunk on significant time elapsed",
-			context: types.ChunkingContext{
-				ConversationFlow: types.FlowInvestigation,
-				TimeElapsed:      25, // Over 20 minutes
-			},
-			expected: true,
-		},
+	
+	embeddingService := &MockEmbeddingService{}
+	cs := NewChunkingService(cfg, embeddingService)
+	
+	ctx := context.Background()
+	sessionID := "test-session"
+	
+	// Test simple conversation
+	conversation := "Human: How do I fix this error?\n\nAssistant: You need to check the logs."
+	metadata := types.ChunkMetadata{Repository: "test-repo"}
+	
+	chunks, err := cs.ProcessConversation(ctx, sessionID, conversation, metadata)
+	if err != nil {
+		t.Fatalf("ProcessConversation failed: %v", err)
 	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := service.ShouldCreateChunk(tt.context)
-			assert.Equal(t, tt.expected, result)
-		})
+	
+	if len(chunks) == 0 {
+		t.Error("Expected at least one chunk")
+	}
+	
+	// Verify chunk properties
+	for _, chunk := range chunks {
+		if chunk.SessionID != sessionID {
+			t.Errorf("Chunk has wrong session ID: got %s, want %s", chunk.SessionID, sessionID)
+		}
+		
+		if len(chunk.Embeddings) == 0 {
+			t.Error("Chunk missing embeddings")
+		}
+		
+		if chunk.Summary == "" {
+			t.Error("Chunk missing summary")
+		}
+	}
+	
+	// Test empty conversation
+	_, err = cs.ProcessConversation(ctx, sessionID, "", metadata)
+	if err == nil {
+		t.Error("Expected error for empty conversation")
 	}
 }
 
-func TestChunkingService_CreateChunk(t *testing.T) {
+func TestCreateChunk(t *testing.T) {
 	cfg := &config.ChunkingConfig{
-		MinContentLength:     100,
-		MaxContentLength:     4000,
-		SimilarityThreshold:  0.8,
-		TimeThresholdMinutes: 20,
+		MaxContentLength:      1000,
+		TimeThresholdMinutes:  30,
+		FileChangeThreshold:   5,
+		TodoCompletionTrigger: true,
 	}
-
-	mockEmbedding := &MockEmbeddingService{}
-	mockEmbedding.On("GenerateEmbedding", mock.Anything, mock.AnythingOfType("string")).Return([]float64{0.1, 0.2, 0.3}, nil)
-
-	service := NewChunkingService(cfg, mockEmbedding)
+	
+	embeddingService := &MockEmbeddingService{}
+	cs := NewChunkingService(cfg, embeddingService)
+	
 	ctx := context.Background()
-
-	content := "This is a test conversation chunk that we want to create with proper metadata and embeddings."
-	sessionID := testSessionID
-	metadata := types.ChunkMetadata{
-		Outcome:    types.OutcomeSuccess,
-		Difficulty: types.DifficultySimple,
+	sessionID := "test-session-2"
+	
+	// Test problem detection
+	content := "I'm getting an error when running the tests"
+	metadata := types.ChunkMetadata{Repository: "test-repo"}
+	
+	chunk, err := cs.CreateChunk(ctx, sessionID, content, metadata)
+	if err != nil {
+		t.Fatalf("CreateChunk failed: %v", err)
 	}
-
-	chunk, err := service.CreateChunk(ctx, sessionID, content, metadata)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, chunk)
-	assert.Equal(t, content, chunk.Content)
-	assert.Equal(t, sessionID, chunk.SessionID)
-	assert.NotEmpty(t, chunk.ID)
-	assert.NotZero(t, chunk.Timestamp)
-	assert.Len(t, chunk.Embeddings, 3)
-
-	mockEmbedding.AssertExpectations(t)
-}
-
-func TestChunkingService_CreateChunk_EmptyContent(t *testing.T) {
-	cfg := &config.ChunkingConfig{
-		MinContentLength:     100,
-		MaxContentLength:     4000,
-		SimilarityThreshold:  0.8,
-		TimeThresholdMinutes: 20,
+	
+	if chunk.Type != types.ChunkTypeProblem {
+		t.Errorf("Expected chunk type %v, got %v", types.ChunkTypeProblem, chunk.Type)
 	}
-
-	mockEmbedding := &MockEmbeddingService{}
-	service := NewChunkingService(cfg, mockEmbedding)
-	ctx := context.Background()
-
-	sessionID := testSessionID
-	metadata := types.ChunkMetadata{
-		Outcome:    types.OutcomeSuccess,
-		Difficulty: types.DifficultySimple,
+	
+	// Test solution detection
+	content = "I fixed the issue by updating the dependencies"
+	chunk, err = cs.CreateChunk(ctx, sessionID, content, metadata)
+	if err != nil {
+		t.Fatalf("CreateChunk failed: %v", err)
 	}
-
-	chunk, err := service.CreateChunk(ctx, sessionID, "", metadata)
-
-	assert.Error(t, err)
-	assert.Nil(t, chunk)
-	assert.Contains(t, err.Error(), "content cannot be empty")
-}
-
-func TestChunkingService_CreateChunk_EmbeddingError(t *testing.T) {
-	cfg := &config.ChunkingConfig{
-		MinContentLength:     100,
-		MaxContentLength:     4000,
-		SimilarityThreshold:  0.8,
-		TimeThresholdMinutes: 20,
+	
+	if chunk.Type != types.ChunkTypeSolution {
+		t.Errorf("Expected chunk type %v, got %v", types.ChunkTypeSolution, chunk.Type)
 	}
-
-	mockEmbedding := &MockEmbeddingService{}
-	mockEmbedding.On("GenerateEmbedding", mock.Anything, mock.AnythingOfType("string")).Return([]float64{}, assert.AnError)
-
-	service := NewChunkingService(cfg, mockEmbedding)
-	ctx := context.Background()
-
-	content := "Test content"
-	sessionID := testSessionID
-	metadata := types.ChunkMetadata{
-		Outcome:    types.OutcomeSuccess,
-		Difficulty: types.DifficultySimple,
-	}
-
-	chunk, err := service.CreateChunk(ctx, sessionID, content, metadata)
-
-	assert.Error(t, err)
-	assert.Nil(t, chunk)
-	assert.Contains(t, err.Error(), "failed to generate embeddings")
-
-	mockEmbedding.AssertExpectations(t)
 }

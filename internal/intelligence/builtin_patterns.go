@@ -92,6 +92,8 @@ func createFourStepPattern(
 }
 
 // getBuiltInPatterns returns a set of predefined patterns for common conversation flows
+//
+//nolint:dupl // Pattern definitions have similar structure but unique parameters
 func getBuiltInPatterns() []Pattern {
 	return []Pattern{
 		{

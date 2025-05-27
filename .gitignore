@@ -47,6 +47,10 @@ Thumbs.db
 # Logs
 *.log
 
+# Audit logs
+internal/mcp/audit_logs/
+audit_logs/
+
 # Local development
 /dist/
 /tmp/

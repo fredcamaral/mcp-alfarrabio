@@ -27,7 +27,7 @@ func TestDetector_DetectLocationContext(t *testing.T) {
 	}
 	
 	// If in git repo, should have git info
-	if _, err := os.Stat(filepath.Join(".git")); err == nil {
+	if _, err := os.Stat(".git"); err == nil {
 		if _, ok := context[types.EMKeyGitBranch]; !ok {
 			t.Log("Git branch not detected (might not be in a git repo during tests)")
 		}
@@ -128,7 +128,7 @@ func TestDetector_detectProjectType(t *testing.T) {
 			
 			// Create test files
 			for _, file := range tt.files {
-				if err := os.WriteFile(filepath.Join(tmpDir, file), []byte("test"), 0644); err != nil {
+				if err := os.WriteFile(filepath.Join(tmpDir, file), []byte("test"), 0600); err != nil {
 					t.Fatalf("Failed to create test file: %v", err)
 				}
 			}

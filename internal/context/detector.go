@@ -11,6 +11,11 @@ import (
 	"mcp-memory/pkg/types"
 )
 
+const (
+	// presentValue is used to indicate a file or feature is present
+	presentValue = "present"
+)
+
 // Detector provides context detection capabilities
 type Detector struct {
 	workingDir string
@@ -134,26 +139,26 @@ func (d *Detector) DetectDependencies() map[string]string {
 	
 	// Go modules
 	if _, err := os.Stat(filepath.Join(d.workingDir, "go.mod")); err == nil {
-		deps["go.mod"] = "present"
+		deps["go.mod"] = presentValue
 		// Could parse go.mod for specific versions if needed
 	}
 	
 	// Node.js
 	if _, err := os.Stat(filepath.Join(d.workingDir, "package.json")); err == nil {
-		deps["package.json"] = "present"
+		deps["package.json"] = presentValue
 	}
 	
 	// Python
 	if _, err := os.Stat(filepath.Join(d.workingDir, "requirements.txt")); err == nil {
-		deps["requirements.txt"] = "present"
+		deps["requirements.txt"] = presentValue
 	}
 	if _, err := os.Stat(filepath.Join(d.workingDir, "pyproject.toml")); err == nil {
-		deps["pyproject.toml"] = "present"
+		deps["pyproject.toml"] = presentValue
 	}
 	
 	// Rust
 	if _, err := os.Stat(filepath.Join(d.workingDir, "Cargo.toml")); err == nil {
-		deps["Cargo.toml"] = "present"
+		deps["Cargo.toml"] = presentValue
 	}
 	
 	return deps

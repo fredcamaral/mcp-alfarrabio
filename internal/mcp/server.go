@@ -7,10 +7,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"mcp-memory/internal/audit"
 	"mcp-memory/internal/config"
 	contextdetector "mcp-memory/internal/context"
 	"mcp-memory/internal/di"
 	"mcp-memory/internal/logging"
+	"mcp-memory/internal/relationships"
 		mcp "github.com/fredcamaral/gomcp-sdk"
 	"github.com/fredcamaral/gomcp-sdk/protocol"
 	"github.com/fredcamaral/gomcp-sdk/server"
@@ -313,77 +315,11 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 	logging.Info("Processing chunk storage", "content_length", len(content), "session_id", sessionID)
 
 	// Build metadata from parameters
-	metadata := types.ChunkMetadata{
-		Outcome:    types.OutcomeInProgress, // Default
-		Difficulty: types.DifficultySimple,  // Default
-	}
-
-	if repo, ok := params["repository"].(string); ok {
-		metadata.Repository = normalizeRepository(repo)
-	} else {
-		metadata.Repository = GlobalMemoryRepository
-	}
-
-	if branch, ok := params["branch"].(string); ok {
-		metadata.Branch = branch
-	}
-
-	if files, ok := params["files_modified"].([]interface{}); ok {
-		for _, f := range files {
-			if file, ok := f.(string); ok {
-				metadata.FilesModified = append(metadata.FilesModified, file)
-			}
-		}
-	}
-
-	if tools, ok := params["tools_used"].([]interface{}); ok {
-		for _, t := range tools {
-			if tool, ok := t.(string); ok {
-				metadata.ToolsUsed = append(metadata.ToolsUsed, tool)
-			}
-		}
-	}
-
-	if tags, ok := params["tags"].([]interface{}); ok {
-		for _, t := range tags {
-			if tag, ok := t.(string); ok {
-				metadata.Tags = append(metadata.Tags, tag)
-			}
-		}
-	}
+	metadata := ms.buildMetadataFromParams(params)
 
 	// Add extended metadata with context detection
-	detector, err := contextdetector.NewDetector()
-	if err == nil {
-		if metadata.ExtendedMetadata == nil {
-			metadata.ExtendedMetadata = make(map[string]interface{})
-		}
-		
-		// Add location context
-		locationContext := detector.DetectLocationContext()
-		for k, v := range locationContext {
-			metadata.ExtendedMetadata[k] = v
-		}
-		
-		// Add client context (get client type from params if available)
-		clientType := types.ClientTypeAPI // Default
-		if ct, ok := params["client_type"].(string); ok {
-			clientType = ct
-		}
-		clientContext := detector.DetectClientContext(clientType)
-		for k, v := range clientContext {
-			metadata.ExtendedMetadata[k] = v
-		}
-		
-		// Add language versions
-		if langVersions := detector.DetectLanguageVersions(); len(langVersions) > 0 {
-			metadata.ExtendedMetadata[types.EMKeyLanguageVersions] = langVersions
-		}
-		
-		// Add dependencies
-		if deps := detector.DetectDependencies(); len(deps) > 0 {
-			metadata.ExtendedMetadata[types.EMKeyDependencies] = deps
-		}
+	if err := ms.addContextMetadata(&metadata, params); err != nil {
+		logging.Warn("Failed to add context metadata", "error", err)
 	}
 
 	// Create and store chunk
@@ -395,11 +331,79 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 	}
 	logging.Info("Chunk created successfully", "chunk_id", chunk.ID, "type", chunk.Type)
 
+	// Check for parent chunk ID in extended metadata
+	if metadata.ExtendedMetadata != nil {
+		if parentID, ok := metadata.ExtendedMetadata[types.EMKeyParentChunk].(string); ok && parentID != "" {
+			// Create parent-child relationship
+			relMgr := ms.container.GetRelationshipManager()
+			_, err := relMgr.AddRelationship(ctx, parentID, chunk.ID, relationships.RelTypeParentChild, 1.0, "Explicit parent-child relationship")
+			if err != nil {
+				logging.Warn("Failed to create parent-child relationship", "error", err, "parent", parentID, "child", chunk.ID)
+			}
+		}
+	}
+
 	logging.Info("Storing chunk in vector store", "chunk_id", chunk.ID)
+	
+	// Start timing for audit
+	startTime := time.Now()
+	
 	if err := ms.container.GetVectorStore().Store(ctx, *chunk); err != nil {
 		logging.Error("Failed to store chunk", "error", err, "chunk_id", chunk.ID)
+		
+		// Log audit error
+		if auditLogger := ms.container.GetAuditLogger(); auditLogger != nil {
+			auditLogger.LogError(ctx, audit.EventTypeMemoryStore, "Failed to store memory chunk", "memory", err, map[string]interface{}{
+				"chunk_id":   chunk.ID,
+				"chunk_type": string(chunk.Type),
+				"repository": chunk.Metadata.Repository,
+				"session_id": sessionID,
+			})
+		}
+		
 		return nil, fmt.Errorf("failed to store chunk: %w", err)
 	}
+	
+	// Log successful audit event
+	if auditLogger := ms.container.GetAuditLogger(); auditLogger != nil {
+		auditLogger.LogEventWithDuration(ctx, audit.EventTypeMemoryStore, "Stored memory chunk", "memory", chunk.ID, 
+			time.Since(startTime), map[string]interface{}{
+				"chunk_type":    string(chunk.Type),
+				"repository":    chunk.Metadata.Repository,
+				"session_id":    sessionID,
+				"tags":          chunk.Metadata.Tags,
+				"files_count":   len(chunk.Metadata.FilesModified),
+				"tools_count":   len(chunk.Metadata.ToolsUsed),
+				"has_parent":    metadata.ExtendedMetadata != nil && metadata.ExtendedMetadata[types.EMKeyParentChunk] != nil,
+			})
+	}
+	
+	// Auto-detect relationships with recent chunks
+	go func() {
+		// Get recent chunks from the same session or repository
+		repo := chunk.Metadata.Repository
+		query := types.MemoryQuery{
+			Repository: &repo,
+			Limit:      20,
+			Recency:    types.RecencyRecent,
+		}
+		
+		// Use a simple search to get recent chunks
+		results, err := ms.container.GetVectorStore().Search(ctx, query, chunk.Embeddings)
+		if err == nil && len(results.Results) > 0 {
+			existingChunks := make([]types.ConversationChunk, 0, len(results.Results))
+			for _, result := range results.Results {
+				if result.Chunk.ID != chunk.ID { // Don't include self
+					existingChunks = append(existingChunks, result.Chunk)
+				}
+			}
+			
+			// Detect and store relationships
+			relMgr := ms.container.GetRelationshipManager()
+			detected := relMgr.DetectRelationships(ctx, chunk, existingChunks)
+			logging.Info("Auto-detected relationships", "chunk_id", chunk.ID, "count", len(detected))
+		}
+	}()
 
 	logging.Info("memory_store_chunk completed successfully", "chunk_id", chunk.ID, "session_id", sessionID)
 	return map[string]interface{}{
@@ -459,12 +463,38 @@ func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]inte
 
 	// Search vector store
 	logging.Info("Searching vector store", "query", memQuery.Query, "limit", memQuery.Limit, "min_relevance", memQuery.MinRelevanceScore)
+	
+	searchStart := time.Now()
 	results, err := ms.container.GetVectorStore().Search(ctx, *memQuery, embeddings)
 	if err != nil {
 		logging.Error("Vector store search failed", "error", err, "query", query)
+		
+		// Log audit error
+		if auditLogger := ms.container.GetAuditLogger(); auditLogger != nil {
+			auditLogger.LogError(ctx, audit.EventTypeMemorySearch, "Memory search failed", "memory", err, map[string]interface{}{
+				"query":      query,
+				"repository": memQuery.Repository,
+				"limit":      memQuery.Limit,
+			})
+		}
+		
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 	logging.Info("Search completed", "total_results", results.Total, "query_time", results.QueryTime)
+	
+	// Log successful search audit event
+	if auditLogger := ms.container.GetAuditLogger(); auditLogger != nil {
+		auditLogger.LogEventWithDuration(ctx, audit.EventTypeMemorySearch, "Searched memories", "memory", "", 
+			time.Since(searchStart), map[string]interface{}{
+				"query":          query,
+				"repository":     memQuery.Repository,
+				"limit":          memQuery.Limit,
+				"results_count":  results.Total,
+				"query_time_ms":  results.QueryTime.Milliseconds(),
+				"min_relevance":  memQuery.MinRelevanceScore,
+				"types":          memQuery.Types,
+			})
+	}
 
 	// Format results for response
 	response := map[string]interface{}{
@@ -474,7 +504,16 @@ func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]inte
 		"results":    []map[string]interface{}{},
 	}
 
+	relMgr := ms.container.GetRelationshipManager()
+	analytics := ms.container.GetMemoryAnalytics()
+	
 	for _, result := range results.Results {
+		// Track access to this memory
+		if analytics != nil {
+			if err := analytics.RecordAccess(ctx, result.Chunk.ID); err != nil {
+				logging.Warn("Failed to record memory access", "chunk_id", result.Chunk.ID, "error", err)
+			}
+		}
 		resultMap := map[string]interface{}{
 			"chunk_id":   result.Chunk.ID,
 			"score":      result.Score,
@@ -485,6 +524,28 @@ func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]inte
 			"tags":       result.Chunk.Metadata.Tags,
 			"outcome":    string(result.Chunk.Metadata.Outcome),
 		}
+		
+		// Add relationship information
+		relationships := relMgr.GetRelationships(result.Chunk.ID)
+		if len(relationships) > 0 {
+			relInfo := make([]map[string]interface{}, 0, len(relationships))
+			for _, rel := range relationships {
+				relInfo = append(relInfo, map[string]interface{}{
+					"type":     string(rel.Type),
+					"from":     rel.FromChunkID,
+					"to":       rel.ToChunkID,
+					"strength": rel.Strength,
+					"context":  rel.Context,
+				})
+			}
+			resultMap["relationships"] = relInfo
+		}
+		
+		// Add extended metadata if present
+		if result.Chunk.Metadata.ExtendedMetadata != nil {
+			resultMap["extended_metadata"] = result.Chunk.Metadata.ExtendedMetadata
+		}
+		
 		response["results"] = append(response["results"].([]map[string]interface{}), resultMap)
 	}
 
@@ -1026,9 +1087,18 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 	logging.Info("Context suggestion search completed", "total_results", results.Total)
 
 	suggestions := []map[string]interface{}{}
+	analytics := ms.container.GetMemoryAnalytics()
+	
 	for i, result := range results.Results {
 		if i >= maxSuggestions {
 			break
+		}
+		
+		// Track access to suggested memories
+		if analytics != nil {
+			if err := analytics.RecordAccess(ctx, result.Chunk.ID); err != nil {
+				logging.Warn("Failed to record memory access", "chunk_id", result.Chunk.ID, "error", err)
+			}
 		}
 
 		suggestion := map[string]interface{}{
@@ -1048,19 +1118,48 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 	}
 
 	// Add pattern-based suggestions if enabled
-	// Note: Pattern analysis temporarily disabled due to interface compatibility
-	// TODO: Fix interface compatibility and re-enable pattern-based suggestions
 	if includePatterns && ms.container.GetPatternAnalyzer() != nil {
-		// patterns := ms.container.GetPatternAnalyzer().AnalyzePatterns(currentContext)
-		// Add a simple pattern-based suggestion for now
-		if len(suggestions) < maxSuggestions {
-			suggestion := map[string]interface{}{
-				"content":         "Pattern-based suggestions coming soon",
-				"summary":         "AI pattern analysis",
-				"relevance_score": 0.5,
-				"type":            "pattern_match",
-				"pattern_type":    "placeholder",
+		// Extract current tools from context (simplified approach)
+		currentTools := []string{}
+		problemType := "general" // Default problem type
+		
+		// Try to infer problem type from context
+		contextLower := strings.ToLower(currentContext)
+		switch {
+		case strings.Contains(contextLower, "error") || strings.Contains(contextLower, "bug"):
+			problemType = "debug"
+		case strings.Contains(contextLower, "test"):
+			problemType = "test"
+		case strings.Contains(contextLower, "build") || strings.Contains(contextLower, "compile"):
+			problemType = "build"
+		case strings.Contains(contextLower, "config"):
+			problemType = "configuration"
+		}
+		
+		// Get pattern recommendations
+		patternRecommendations := ms.container.GetPatternAnalyzer().GetPatternRecommendations(currentTools, problemType)
+		
+		// Convert pattern recommendations to suggestions
+		for _, pattern := range patternRecommendations {
+			if len(suggestions) >= maxSuggestions {
+				break
 			}
+			
+			suggestion := map[string]interface{}{
+				"content":         fmt.Sprintf("Based on similar %s problems, consider using: %s", problemType, strings.Join(pattern.Tools, " → ")),
+				"summary":         pattern.Description,
+				"relevance_score": pattern.SuccessRate,
+				"type":            "pattern_match",
+				"pattern_type":    string(pattern.Type),
+				"success_rate":    pattern.SuccessRate,
+				"frequency":       pattern.Frequency,
+			}
+			
+			// Add examples if available
+			if len(pattern.Examples) > 0 {
+				suggestion["examples"] = pattern.Examples
+			}
+			
 			suggestions = append(suggestions, suggestion)
 		}
 	}
@@ -1449,4 +1548,88 @@ func getEnvFloat(key string, defaultValue float64) float64 {
 		}
 	}
 	return defaultValue
+}
+
+// buildMetadataFromParams extracts metadata from request parameters
+func (ms *MemoryServer) buildMetadataFromParams(params map[string]interface{}) types.ChunkMetadata {
+	metadata := types.ChunkMetadata{
+		Outcome:    types.OutcomeInProgress, // Default
+		Difficulty: types.DifficultySimple,  // Default
+	}
+
+	if repo, ok := params["repository"].(string); ok {
+		metadata.Repository = normalizeRepository(repo)
+	} else {
+		metadata.Repository = GlobalMemoryRepository
+	}
+
+	if branch, ok := params["branch"].(string); ok {
+		metadata.Branch = branch
+	}
+
+	if files, ok := params["files_modified"].([]interface{}); ok {
+		for _, f := range files {
+			if file, ok := f.(string); ok {
+				metadata.FilesModified = append(metadata.FilesModified, file)
+			}
+		}
+	}
+
+	if tools, ok := params["tools_used"].([]interface{}); ok {
+		for _, t := range tools {
+			if tool, ok := t.(string); ok {
+				metadata.ToolsUsed = append(metadata.ToolsUsed, tool)
+			}
+		}
+	}
+
+	if tags, ok := params["tags"].([]interface{}); ok {
+		for _, t := range tags {
+			if tag, ok := t.(string); ok {
+				metadata.Tags = append(metadata.Tags, tag)
+			}
+		}
+	}
+
+	return metadata
+}
+
+// addContextMetadata adds context detection metadata
+func (ms *MemoryServer) addContextMetadata(metadata *types.ChunkMetadata, params map[string]interface{}) error {
+	detector, err := contextdetector.NewDetector()
+	if err != nil {
+		return err
+	}
+
+	if metadata.ExtendedMetadata == nil {
+		metadata.ExtendedMetadata = make(map[string]interface{})
+	}
+	
+	// Add location context
+	locationContext := detector.DetectLocationContext()
+	for k, v := range locationContext {
+		metadata.ExtendedMetadata[k] = v
+	}
+	
+	// Add client context (get client type from params if available)
+	clientType := types.ClientTypeAPI // Default
+	if ct, ok := params["client_type"].(string); ok {
+		clientType = ct
+	}
+	clientContext := detector.DetectClientContext(clientType)
+	for k, v := range clientContext {
+		metadata.ExtendedMetadata[k] = v
+	}
+	
+	// Add language versions
+	if langVersions := detector.DetectLanguageVersions(); len(langVersions) > 0 {
+		metadata.ExtendedMetadata[types.EMKeyLanguageVersions] = langVersions
+	}
+	
+	// Add dependencies
+	if deps := detector.DetectDependencies(); len(deps) > 0 {
+		metadata.ExtendedMetadata[types.EMKeyDependencies] = deps
+	}
+
+	return nil
 }

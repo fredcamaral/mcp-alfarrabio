@@ -155,9 +155,11 @@ func (cs *ChunkingService) analyzeContentType(content string) types.ChunkType {
 	content = strings.ToLower(content)
 
 	// Check for architecture decisions
-	if strings.Contains(content, "decision") || strings.Contains(content, "architecture") ||
-		strings.Contains(content, "design") || strings.Contains(content, "approach") {
-		return types.ChunkTypeArchitectureDecision
+	archKeywords := []string{"decision", "architecture", "design", "approach"}
+	for _, keyword := range archKeywords {
+		if strings.Contains(content, keyword) {
+			return types.ChunkTypeArchitectureDecision
+		}
 	}
 
 	// Check for code changes
@@ -480,6 +482,196 @@ func (cs *ChunkingService) UpdateContext(updates map[string]interface{}) {
 	if elapsed, ok := updates["elapsed"].(int); ok {
 		cs.currentContext.TimeElapsed = elapsed
 	}
+}
+
+// ProcessConversation processes a conversation into multiple chunks intelligently
+func (cs *ChunkingService) ProcessConversation(ctx context.Context, sessionID string, conversation string, baseMetadata types.ChunkMetadata) ([]types.ConversationChunk, error) {
+	if conversation == "" {
+		return nil, fmt.Errorf("conversation cannot be empty")
+	}
+
+	chunks := []types.ConversationChunk{}
+	
+	// Split conversation by natural boundaries
+	segments := cs.splitConversation(conversation)
+	
+	// Process each segment
+	for _, segment := range segments {
+		if strings.TrimSpace(segment) == "" {
+			continue
+		}
+		
+		// Create chunk for this segment
+		chunk, err := cs.CreateChunk(ctx, sessionID, segment, baseMetadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create chunk: %w", err)
+		}
+		
+		chunks = append(chunks, *chunk)
+		
+		// Check if we should create a summary chunk after multiple segments
+		if len(chunks) > 0 && len(chunks)%5 == 0 {
+			summaryChunk := cs.createSummaryChunk(ctx, sessionID, chunks[len(chunks)-5:], baseMetadata)
+			if summaryChunk != nil {
+				chunks = append(chunks, *summaryChunk)
+			}
+		}
+	}
+	
+	// Create final session summary if we have multiple chunks
+	if len(chunks) > 3 {
+		summaryChunk := cs.createSessionSummary(ctx, sessionID, chunks, baseMetadata)
+		if summaryChunk != nil {
+			chunks = append(chunks, *summaryChunk)
+		}
+	}
+	
+	return chunks, nil
+}
+
+// splitConversation splits a conversation into logical segments
+func (cs *ChunkingService) splitConversation(conversation string) []string {
+	segments := []string{}
+	currentSegment := ""
+	lines := strings.Split(conversation, "\n")
+	
+	// Patterns that indicate segment boundaries
+	boundaryPatterns := []*regexp.Regexp{
+		regexp.MustCompile(`^(Human|Assistant|User|AI|Claude):`),
+		regexp.MustCompile(`^###|^---|^===`), // Section markers
+		regexp.MustCompile(`^\d+\.\s`),        // Numbered lists
+		regexp.MustCompile(`^(Step|Task|Problem|Solution)[\s:]`),
+	}
+	
+	for i, line := range lines {
+		// Check if this line marks a boundary
+		isBoundary := false
+		for _, pattern := range boundaryPatterns {
+			if pattern.MatchString(line) {
+				isBoundary = true
+				break
+			}
+		}
+		
+		// If boundary and we have content, save segment
+		if isBoundary && currentSegment != "" {
+			segments = append(segments, strings.TrimSpace(currentSegment))
+			currentSegment = line + "\n"
+		} else {
+			currentSegment += line + "\n"
+		}
+		
+		// Check for size-based splitting
+		if len(currentSegment) > cs.config.MaxContentLength {
+			segments = append(segments, strings.TrimSpace(currentSegment))
+			currentSegment = ""
+		}
+		
+		// Check for natural paragraph breaks (multiple newlines)
+		if i < len(lines)-1 && line == "" && lines[i+1] == "" && len(currentSegment) > 500 {
+			segments = append(segments, strings.TrimSpace(currentSegment))
+			currentSegment = ""
+		}
+	}
+	
+	// Add final segment
+	if currentSegment != "" {
+		segments = append(segments, strings.TrimSpace(currentSegment))
+	}
+	
+	return segments
+}
+
+// createSummaryChunk creates a summary chunk for a group of chunks
+func (cs *ChunkingService) createSummaryChunk(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata types.ChunkMetadata) *types.ConversationChunk {
+	if len(chunks) == 0 {
+		return nil
+	}
+	
+	// Aggregate content for summary
+	contentParts := []string{"Summary of recent conversation:"}
+	for _, chunk := range chunks {
+		if chunk.Summary != "" {
+			contentParts = append(contentParts, fmt.Sprintf("- %s", chunk.Summary))
+		}
+	}
+	
+	summaryContent := strings.Join(contentParts, "\n")
+	
+	summaryMetadata := baseMetadata
+	summaryMetadata.Tags = append(summaryMetadata.Tags, "summary", "aggregated")
+	
+	summaryChunk, err := cs.CreateChunk(ctx, sessionID, summaryContent, summaryMetadata)
+	if err != nil {
+		return nil
+	}
+	
+	summaryChunk.Type = types.ChunkTypeSessionSummary
+	return summaryChunk
+}
+
+// createSessionSummary creates a final summary for the entire session
+func (cs *ChunkingService) createSessionSummary(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata types.ChunkMetadata) *types.ConversationChunk {
+	// Analyze chunk types
+	typeCounts := make(map[types.ChunkType]int)
+	for _, chunk := range chunks {
+		typeCounts[chunk.Type]++
+	}
+	
+	// Build summary content
+	contentParts := []string{"Session Summary:"}
+	contentParts = append(contentParts, fmt.Sprintf("Total chunks: %d", len(chunks)))
+	
+	// Add type breakdown
+	for chunkType, count := range typeCounts {
+		contentParts = append(contentParts, fmt.Sprintf("- %s: %d", chunkType, count))
+	}
+	
+	// Add key outcomes
+	successCount := 0
+	for _, chunk := range chunks {
+		if chunk.Metadata.Outcome == types.OutcomeSuccess {
+			successCount++
+		}
+	}
+	contentParts = append(contentParts, fmt.Sprintf("Successful outcomes: %d", successCount))
+	
+	// Add tools and files summary
+	toolsUsed := make(map[string]bool)
+	filesModified := make(map[string]bool)
+	for _, chunk := range chunks {
+		for _, tool := range chunk.Metadata.ToolsUsed {
+			toolsUsed[tool] = true
+		}
+		for _, file := range chunk.Metadata.FilesModified {
+			filesModified[file] = true
+		}
+	}
+	
+	if len(toolsUsed) > 0 {
+		tools := []string{}
+		for tool := range toolsUsed {
+			tools = append(tools, tool)
+		}
+		contentParts = append(contentParts, fmt.Sprintf("Tools used: %s", strings.Join(tools, ", ")))
+	}
+	
+	if len(filesModified) > 0 {
+		contentParts = append(contentParts, fmt.Sprintf("Files modified: %d", len(filesModified)))
+	}
+	
+	summaryContent := strings.Join(contentParts, "\n")
+	
+	summaryMetadata := baseMetadata
+	summaryMetadata.Tags = append(summaryMetadata.Tags, "session-summary", "final")
+	
+	summaryChunk, err := cs.CreateChunk(ctx, sessionID, summaryContent, summaryMetadata)
+	if err != nil {
+		return nil
+	}
+	
+	summaryChunk.Type = types.ChunkTypeSessionSummary
+	return summaryChunk
 }
 
 // Reset resets the chunking service state

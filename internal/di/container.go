@@ -5,11 +5,14 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"mcp-memory/internal/analytics"
+	"mcp-memory/internal/audit"
 	"mcp-memory/internal/chunking"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/embeddings"
 	"mcp-memory/internal/intelligence"
 	"mcp-memory/internal/persistence"
+	"mcp-memory/internal/relationships"
 	"mcp-memory/internal/storage"
 	"mcp-memory/internal/workflow"
 	"mcp-memory/internal/chains"
@@ -19,20 +22,23 @@ const envValueTrue = "true"
 
 // Container holds all application dependencies
 type Container struct {
-	Config           *config.Config
-	VectorStore      storage.VectorStore
-	EmbeddingService embeddings.EmbeddingService
-	ChunkingService  *chunking.ChunkingService
-	ContextSuggester *workflow.ContextSuggester
-	BackupManager    *persistence.BackupManager
-	LearningEngine   *intelligence.LearningEngine
-	PatternAnalyzer  *workflow.PatternAnalyzer
-	TodoTracker      *workflow.TodoTracker
-	FlowDetector     *workflow.FlowDetector
-	PatternEngine    *intelligence.PatternEngine
-	GraphBuilder     *intelligence.GraphBuilder
-	ChainBuilder     *chains.ChainBuilder
-	ChainStore       chains.ChainStore
+	Config              *config.Config
+	VectorStore         storage.VectorStore
+	EmbeddingService    embeddings.EmbeddingService
+	ChunkingService     *chunking.ChunkingService
+	ContextSuggester    *workflow.ContextSuggester
+	BackupManager       *persistence.BackupManager
+	LearningEngine      *intelligence.LearningEngine
+	PatternAnalyzer     *workflow.PatternAnalyzer
+	TodoTracker         *workflow.TodoTracker
+	FlowDetector        *workflow.FlowDetector
+	PatternEngine       *intelligence.PatternEngine
+	GraphBuilder        *intelligence.GraphBuilder
+	ChainBuilder        *chains.ChainBuilder
+	ChainStore          chains.ChainStore
+	RelationshipManager *relationships.Manager
+	MemoryAnalytics     *analytics.MemoryAnalytics
+	AuditLogger         *audit.AuditLogger
 }
 
 // NewContainer creates a new dependency injection container
@@ -106,6 +112,25 @@ func (c *Container) initializeServices() {
 		backupDir = "./backups"
 	}
 	c.BackupManager = persistence.NewBackupManager(nil, backupDir) // Note: VectorStore interface compatibility issue
+	
+	// Initialize relationship manager
+	c.RelationshipManager = relationships.NewManager()
+	
+	// Initialize memory analytics
+	// Note: VectorStore interface compatibility issue - using nil for now
+	c.MemoryAnalytics = analytics.NewMemoryAnalytics(nil)
+	
+	// Initialize audit logger
+	auditDir := os.Getenv("MCP_MEMORY_AUDIT_DIRECTORY")
+	if auditDir == "" {
+		auditDir = "./audit_logs"
+	}
+	var err error
+	c.AuditLogger, err = audit.NewAuditLogger(auditDir)
+	if err != nil {
+		// Log error but don't fail initialization
+		fmt.Printf("Warning: Failed to initialize audit logger: %v\n", err)
+	}
 }
 
 // initializeIntelligence sets up intelligence layer
@@ -156,6 +181,16 @@ func (c *Container) HealthCheck(ctx context.Context) error {
 
 // Shutdown gracefully shuts down all services
 func (c *Container) Shutdown() error {
+	// Stop analytics first to flush any pending data
+	if c.MemoryAnalytics != nil {
+		c.MemoryAnalytics.Stop()
+	}
+	
+	// Stop audit logger to flush pending logs
+	if c.AuditLogger != nil {
+		c.AuditLogger.Stop()
+	}
+	
 	if c.VectorStore != nil {
 		if err := c.VectorStore.Close(); err != nil {
 			return fmt.Errorf("failed to close vector store: %w", err)
@@ -191,6 +226,11 @@ func (c *Container) GetBackupManager() *persistence.BackupManager {
 	return c.BackupManager
 }
 
+// GetRelationshipManager returns the relationship manager instance
+func (c *Container) GetRelationshipManager() *relationships.Manager {
+	return c.RelationshipManager
+}
+
 // GetLearningEngine returns the learning engine instance
 func (c *Container) GetLearningEngine() *intelligence.LearningEngine {
 	return c.LearningEngine
@@ -209,4 +249,14 @@ func (c *Container) GetChainBuilder() *chains.ChainBuilder {
 // GetChainStore returns the chain store instance
 func (c *Container) GetChainStore() chains.ChainStore {
 	return c.ChainStore
+}
+
+// GetMemoryAnalytics returns the memory analytics instance
+func (c *Container) GetMemoryAnalytics() *analytics.MemoryAnalytics {
+	return c.MemoryAnalytics
+}
+
+// GetAuditLogger returns the audit logger instance
+func (c *Container) GetAuditLogger() *audit.AuditLogger {
+	return c.AuditLogger
 }
