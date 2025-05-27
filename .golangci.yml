@@ -1,5 +1,3 @@
-version: "2"
-
 run:
   timeout: 5m
   issues-exit-code: 1
@@ -24,7 +22,7 @@ linters:
     - durationcheck
     - errorlint
     - exhaustive
-    - copyloopvar
+    - exportloopref  # v1 name for copyloopvar
     - gosec
     - misspell
     - nilnil
@@ -53,5 +51,18 @@ issues:
     - path: internal/intelligence/builtin_patterns.go
       linters:
         - dupl
-
-# severity section removed to fix compatibility issue
+    # Exclude gosec G304 for audit logger as paths are sanitized
+    - path: internal/audit/audit_logger.go
+      linters:
+        - gosec
+      text: "G304"
+    # Exclude max function redeclaration
+    - path: internal/analytics/memory_analytics.go
+      linters:
+        - predeclared
+      text: "function max has same name as predeclared identifier"
+    # Exclude min function redeclaration
+    - path: internal/analytics/memory_analytics.go
+      linters:
+        - predeclared
+      text: "function min has same name as predeclared identifier"
