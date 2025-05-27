@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"log"
 	"mcp-memory/internal/config"
+	contextdetector "mcp-memory/internal/context"
 	"mcp-memory/internal/di"
 	"mcp-memory/internal/logging"
 		mcp "github.com/fredcamaral/gomcp-sdk"
@@ -349,6 +350,40 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 		}
 	}
 
+	// Add extended metadata with context detection
+	detector, err := contextdetector.NewDetector()
+	if err == nil {
+		if metadata.ExtendedMetadata == nil {
+			metadata.ExtendedMetadata = make(map[string]interface{})
+		}
+		
+		// Add location context
+		locationContext := detector.DetectLocationContext()
+		for k, v := range locationContext {
+			metadata.ExtendedMetadata[k] = v
+		}
+		
+		// Add client context (get client type from params if available)
+		clientType := types.ClientTypeAPI // Default
+		if ct, ok := params["client_type"].(string); ok {
+			clientType = ct
+		}
+		clientContext := detector.DetectClientContext(clientType)
+		for k, v := range clientContext {
+			metadata.ExtendedMetadata[k] = v
+		}
+		
+		// Add language versions
+		if langVersions := detector.DetectLanguageVersions(); len(langVersions) > 0 {
+			metadata.ExtendedMetadata[types.EMKeyLanguageVersions] = langVersions
+		}
+		
+		// Add dependencies
+		if deps := detector.DetectDependencies(); len(deps) > 0 {
+			metadata.ExtendedMetadata[types.EMKeyDependencies] = deps
+		}
+	}
+
 	// Create and store chunk
 	logging.Info("Creating conversation chunk", "session_id", sessionID)
 	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, sessionID, content, metadata)
@@ -631,6 +666,35 @@ func (ms *MemoryServer) handleStoreDecision(ctx context.Context, params map[stri
 		metadata.Repository = normalizeRepository(repo)
 	} else {
 		metadata.Repository = GlobalMemoryRepository
+	}
+
+	// Add extended metadata with context detection
+	detector, err := contextdetector.NewDetector()
+	if err == nil {
+		if metadata.ExtendedMetadata == nil {
+			metadata.ExtendedMetadata = make(map[string]interface{})
+		}
+		
+		// Add location context
+		locationContext := detector.DetectLocationContext()
+		for k, v := range locationContext {
+			metadata.ExtendedMetadata[k] = v
+		}
+		
+		// Add client context
+		clientType := types.ClientTypeAPI
+		if ct, ok := params["client_type"].(string); ok {
+			clientType = ct
+		}
+		clientContext := detector.DetectClientContext(clientType)
+		for k, v := range clientContext {
+			metadata.ExtendedMetadata[k] = v
+		}
+		
+		// Mark this as an architectural decision
+		metadata.ExtendedMetadata["decision_type"] = "architectural"
+		metadata.ExtendedMetadata["decision_text"] = decision
+		metadata.ExtendedMetadata["rationale_text"] = rationale
 	}
 
 	// Create and store chunk

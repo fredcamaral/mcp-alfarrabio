@@ -108,14 +108,15 @@ func (r Recency) Valid() bool {
 
 // ChunkMetadata contains metadata about a conversation chunk
 type ChunkMetadata struct {
-	Repository    string     `json:"repository,omitempty"`
-	Branch        string     `json:"branch,omitempty"`
-	FilesModified []string   `json:"files_modified"`
-	ToolsUsed     []string   `json:"tools_used"`
-	Outcome       Outcome    `json:"outcome"`
-	Tags          []string   `json:"tags"`
-	Difficulty    Difficulty `json:"difficulty"`
-	TimeSpent     *int       `json:"time_spent,omitempty"` // minutes
+	Repository    string                 `json:"repository,omitempty"`
+	Branch        string                 `json:"branch,omitempty"`
+	FilesModified []string               `json:"files_modified"`
+	ToolsUsed     []string               `json:"tools_used"`
+	Outcome       Outcome                `json:"outcome"`
+	Tags          []string               `json:"tags"`
+	Difficulty    Difficulty             `json:"difficulty"`
+	TimeSpent     *int                   `json:"time_spent,omitempty"` // minutes
+	ExtendedMetadata map[string]interface{} `json:"extended_metadata,omitempty"`
 }
 
 // Validate checks if the metadata is valid
