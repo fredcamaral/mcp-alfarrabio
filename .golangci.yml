@@ -22,7 +22,6 @@ linters:
     - durationcheck
     - errorlint
     - exhaustive
-    - exportloopref  # v1 name for copyloopvar
     - gosec
     - misspell
     - nilnil
