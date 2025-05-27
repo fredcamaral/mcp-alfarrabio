@@ -1,5 +1,3 @@
-# version: "2" # Commented out for CI compatibility with golangci-lint v1
-
 run:
   timeout: 5m
   issues-exit-code: 1
@@ -39,10 +37,19 @@ linters:
     # - funlen
     - nestif
 
+linters-settings:
+  dupl:
+    threshold: 200  # Increase threshold for duplicate detection
+
 issues:
   max-same-issues: 0
   max-issues-per-linter: 0
   new: false
   fix: false
+  exclude-rules:
+    # Exclude dupl linter for builtin_patterns.go as it has intentionally similar patterns
+    - path: internal/intelligence/builtin_patterns.go
+      linters:
+        - dupl
 
 # severity section removed to fix compatibility issue

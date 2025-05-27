@@ -358,31 +358,38 @@ func (p *ConnectionPool) performHealthCheck() {
 	
 checkConnections:
 	for _, pc := range toCheck {
-		if pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) || !pc.conn.IsAlive() {
+		// Check if connection should be destroyed
+		shouldDestroy := pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) || 
+			!pc.conn.IsAlive() || 
+			atomic.LoadInt32(&p.closed) == 1
+		
+		if shouldDestroy {
 			p.destroyConnection(pc)
-		} else if atomic.LoadInt32(&p.closed) == 0 {
-			// Put back healthy connections only if pool is not closed
-			select {
-			case p.connections <- pc:
-			default:
-				p.destroyConnection(pc)
-			}
-		} else {
-			// Pool is closed, destroy connection
+			continue
+		}
+		
+		// Try to put back healthy connection
+		select {
+		case p.connections <- pc:
+			// Successfully returned to pool
+		default:
+			// Pool is full, destroy connection
 			p.destroyConnection(pc)
 		}
 	}
 	
-	// Ensure minimum connections
-	currentSize := len(p.connections) + int(atomic.LoadInt32(&p.activeCount))
-	for currentSize < p.config.MinSize {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		if err := p.createConnection(ctx); err != nil {
+	// Ensure minimum connections (only if pool is not closed)
+	if atomic.LoadInt32(&p.closed) == 0 {
+		currentSize := len(p.connections) + int(atomic.LoadInt32(&p.activeCount))
+		for currentSize < p.config.MinSize {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			if err := p.createConnection(ctx); err != nil {
+				cancel()
+				break
+			}
 			cancel()
-			break
+			currentSize++
 		}
-		cancel()
-		currentSize++
 	}
 }
 

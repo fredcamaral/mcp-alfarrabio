@@ -256,12 +256,14 @@ func TestConnectionPool_HealthCheck(t *testing.T) {
 
 	_ = pool.Put(conn)
 
-	// Wait for health check to run
-	time.Sleep(100 * time.Millisecond)
+	// Wait for health check to run (need more time with race detector)
+	time.Sleep(200 * time.Millisecond)
 
 	// Health check failures are tracked internally
 	// Just verify the pool is still working
 	stats := pool.Stats()
+	t.Logf("Pool stats after health check: CurrentSize=%d, IdleCount=%d, ActiveCount=%d", 
+		stats.CurrentSize, stats.IdleCount, stats.ActiveCount)
 	if stats.CurrentSize == 0 {
 		t.Error("Pool should maintain minimum connections despite failures")
 	}
