@@ -239,6 +239,9 @@ func TestConnectionPool_HealthCheck(t *testing.T) {
 	}
 	defer func() { _ = pool.Close() }()
 
+	// Wait for pool to create initial connections
+	time.Sleep(100 * time.Millisecond)
+
 	ctx := context.Background()
 	
 	// Get and return a connection
@@ -256,8 +259,8 @@ func TestConnectionPool_HealthCheck(t *testing.T) {
 
 	_ = pool.Put(conn)
 
-	// Wait for health check to run (need more time with race detector)
-	time.Sleep(200 * time.Millisecond)
+	// Wait for health check to run (need more time with race detector and CI)
+	time.Sleep(300 * time.Millisecond)
 
 	// Health check failures are tracked internally
 	// Just verify the pool is still working
