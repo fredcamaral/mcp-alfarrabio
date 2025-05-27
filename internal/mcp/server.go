@@ -86,6 +86,7 @@ func (ms *MemoryServer) registerTools() {
 			"files_modified": mcp.ArraySchema("List of files that were modified", map[string]interface{}{"type": "string"}),
 			"tools_used":     mcp.ArraySchema("List of tools that were used", map[string]interface{}{"type": "string"}),
 			"tags":           mcp.ArraySchema("Additional tags for categorization (e.g., 'bug-fix', 'performance', 'architecture')", map[string]interface{}{"type": "string"}),
+			"client_type":    mcp.StringParam("Client type (e.g., 'claude-cli', 'chatgpt', 'vscode', 'web', 'api')", false),
 		}, []string{"content", "session_id"}),
 	), mcp.ToolHandlerFunc(ms.handleStoreChunk))
 
@@ -159,6 +160,7 @@ func (ms *MemoryServer) registerTools() {
 			"context":    mcp.StringParam("Alternatives considered, constraints, benchmarks, or other relevant context", false),
 			"repository": mcp.StringParam("Repository this decision applies to (use '_global' for global decisions)", false),
 			"session_id": mcp.StringParam("Session identifier", true),
+			"client_type": mcp.StringParam("Client type (e.g., 'claude-cli', 'chatgpt', 'vscode', 'web', 'api')", false),
 		}, []string{"decision", "rationale", "session_id"}),
 	), mcp.ToolHandlerFunc(ms.handleStoreDecision))
 
