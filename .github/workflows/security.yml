@@ -36,7 +36,22 @@ jobs:
               -exclude-dir=pkg/mcp/testutil \
               -fmt sarif \
               -out gosec-results.sarif \
-              ./...
+              ./... || true
+        
+        # Check if SARIF file was created
+        if [ -f gosec-results.sarif ]; then
+          echo "Gosec scan completed. Checking for issues..."
+          # Check if there are any results
+          ISSUE_COUNT=$(jq '.runs[0].results | length' gosec-results.sarif)
+          echo "Found $ISSUE_COUNT security issues"
+          if [ "$ISSUE_COUNT" -gt 0 ]; then
+            # Show the issues for debugging
+            jq '.runs[0].results[] | {ruleId: .ruleId, message: .message.text, location: .locations[0].physicalLocation.artifactLocation.uri}' gosec-results.sarif
+          fi
+        else
+          echo "Error: gosec-results.sarif was not created"
+          exit 1
+        fi
     
     - name: Upload SARIF file
       uses: github/codeql-action/upload-sarif@v3

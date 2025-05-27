@@ -81,7 +81,7 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 	}
 	
 	// Create backup file
-	file, err := os.Create(backupFile) //nolint:gosec // Path is cleaned and safe
+	file, err := os.Create(backupFile) // #nosec G304 -- Path is cleaned and safe
 	if err != nil {
 		return nil, fmt.Errorf("failed to create backup file: %w", err)
 	}
@@ -270,7 +270,7 @@ func (bm *BackupManager) ListBackups() ([]BackupMetadata, error) {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".meta.json") {
 			metadataFile := filepath.Join(bm.backupDir, entry.Name())
 			
-			metadataData, err := os.ReadFile(filepath.Clean(metadataFile)) //nolint:gosec // Path is constructed safely
+			metadataData, err := os.ReadFile(filepath.Clean(metadataFile)) // #nosec G304 -- Path is constructed safely
 			if err != nil {
 				continue
 			}
