@@ -6,7 +6,34 @@ Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any M
 
 ## 🚀 Quick Start (5 minutes)
 
-### Option 1: Docker (Recommended - Easiest)
+### Option 1: Single Docker Commands (Quick Test)
+
+```bash
+# 1. Start Chroma vector database
+docker run -d --name mcp-chroma \
+  -p 8000:8000 \
+  -v chroma_data:/chroma/chroma \
+  chromadb/chroma:latest
+
+# 2. Start MCP Memory Server
+docker run -d --name mcp-memory \
+  -p 9080:9080 \
+  -e OPENAI_API_KEY="your-api-key-here" \
+  -e MCP_MEMORY_CHROMA_ENDPOINT="http://host.docker.internal:8000" \
+  -v mcp_data:/app/data \
+  --link mcp-chroma:chroma \
+  ghcr.io/fredcamaral/mcp-memory:latest
+
+# 3. Optional: Auto-updater (watches for new releases)
+docker run -d --name mcp-auto-updater \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  -e WATCHTOWER_CLEANUP=true \
+  -e WATCHTOWER_POLL_INTERVAL=3600 \
+  -e WATCHTOWER_SCOPE=mcp-memory \
+  containrrr/watchtower:latest
+```
+
+### Option 2: Docker Compose (Recommended - Full Setup)
 
 1. **Clone and start everything:**
    ```bash
@@ -15,6 +42,9 @@ Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any M
    cp .env.example .env
    # Edit .env and add your OPENAI_API_KEY
    docker-compose up -d
+   
+   # OR with auto-updates (pulls latest from registry every hour)
+   docker-compose --profile auto-update up -d
    ```
 
 2. **Configure your AI client** (e.g., Claude Desktop):
@@ -37,7 +67,79 @@ Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any M
    - Ask it to store a memory: *"Please remember that I prefer TypeScript over JavaScript"*
    - Later ask: *"What do you remember about my coding preferences?"*
 
-### Option 2: Local Development
+<details>
+<summary><b>📋 Full docker-compose.yml Reference</b></summary>
+
+```yaml
+services:
+  # Chroma Vector Database
+  chroma:
+    image: chromadb/chroma:latest
+    container_name: mcp-chroma
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - mcp_network
+
+  # Main MCP Memory Server
+  mcp-memory-server:
+    image: ghcr.io/fredcamaral/mcp-memory:latest
+    container_name: mcp-memory-server
+    restart: unless-stopped
+    depends_on:
+      - chroma
+    ports:
+      - "9080:9080"
+      - "9081:8081"
+      - "9082:8082"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
+      - MCP_MEMORY_DB_TYPE=sqlite
+      - MCP_MEMORY_DB_PATH=/app/data/memory.db
+    volumes:
+      - mcp_data:/app/data
+      - mcp_logs:/app/logs
+      - mcp_backups:/app/backups
+    networks:
+      - mcp_network
+
+  # Auto-updater sidecar (optional - use --profile auto-update)
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: mcp-auto-updater
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=3600  # Check hourly
+      - WATCHTOWER_SCOPE=mcp-memory-server
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - mcp_network
+    profiles:
+      - auto-update
+
+networks:
+  mcp_network:
+    driver: bridge
+
+volumes:
+  chroma_data:
+    name: mcp_memory_chroma_vector_db_NEVER_DELETE
+  mcp_data:
+    name: mcp_memory_app_data_NEVER_DELETE
+  mcp_logs:
+    name: mcp_memory_logs_NEVER_DELETE
+  mcp_backups:
+    name: mcp_memory_backups_NEVER_DELETE
+```
+</details>
+
+### Option 3: Local Development
 
 1. **Prerequisites:**
    - Go 1.21+

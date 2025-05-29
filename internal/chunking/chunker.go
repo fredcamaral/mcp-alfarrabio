@@ -982,13 +982,14 @@ func (cs *ChunkingService) calculateReusabilityScore(content string) float64 {
 func (cs *ChunkingService) determineSignificanceLevel(impactScore, reusabilityScore float64) string {
 	combinedScore := (impactScore + reusabilityScore) / 2
 
-	if combinedScore >= 0.8 {
+	switch {
+	case combinedScore >= 0.8:
 		return "critical"
-	} else if combinedScore >= 0.6 {
+	case combinedScore >= 0.6:
 		return "high"
-	} else if combinedScore >= 0.4 {
+	case combinedScore >= 0.4:
 		return "medium"
-	} else {
+	default:
 		return "low"
 	}
 }
@@ -1069,9 +1070,10 @@ func (cs *ChunkingService) estimateTimeInvestment(content string, metadata types
 	baseTime += len(metadata.FilesModified) * 3
 
 	// Complexity factor
-	if metadata.Difficulty == types.DifficultyComplex {
+	switch metadata.Difficulty {
+	case types.DifficultyComplex:
 		baseTime += 15
-	} else if metadata.Difficulty == types.DifficultyModerate {
+	case types.DifficultyModerate:
 		baseTime += 7
 	}
 

@@ -375,10 +375,10 @@ func TestGetStats(t *testing.T) {
 	if !ok {
 		t.Error("Expected node_types to be map[string]int")
 	} else {
-		if nodeTypes["concept"] != 1 {
+		switch {
+		case nodeTypes["concept"] != 1:
 			t.Errorf("Expected 1 concept node, got %d", nodeTypes["concept"])
-		}
-		if nodeTypes["file"] != 1 {
+		case nodeTypes["file"] != 1:
 			t.Errorf("Expected 1 file node, got %d", nodeTypes["file"])
 		}
 	}

@@ -23,9 +23,7 @@ services:
 
   # Main MCP Memory Server
   mcp-memory-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/fredcamaral/mcp-memory:latest
     container_name: mcp-memory-server
     restart: unless-stopped
     depends_on:
@@ -67,6 +65,26 @@ services:
       start_period: 40s
     networks:
       - mcp_network
+
+  # Auto-updater sidecar (optional - use --profile auto-update)
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: mcp-auto-updater
+    restart: unless-stopped
+    environment:
+      - WATCHTOWER_CLEANUP=true
+      - WATCHTOWER_POLL_INTERVAL=3600  # Check hourly
+      - WATCHTOWER_INCLUDE_STOPPED=true
+      - WATCHTOWER_REVIVE_STOPPED=false
+      - WATCHTOWER_SCOPE=mcp-memory-server  # Only watch MCP container
+      - WATCHTOWER_NOTIFICATIONS_LEVEL=info
+      - WATCHTOWER_ROLLING_RESTART=true
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - mcp_network
+    profiles:
+      - auto-update  # Optional profile
 
 
 # Networks

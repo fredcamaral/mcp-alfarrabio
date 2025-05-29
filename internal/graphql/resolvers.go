@@ -222,7 +222,8 @@ func (s *Schema) suggestRelatedResolver(container *di.Container) graphql.FieldRe
 				})
 			case workflow.SuggestionTypeArchitectural, workflow.SuggestionTypePastDecision,
 				workflow.SuggestionTypeSimilarProblem, workflow.SuggestionTypeSuccessfulPattern,
-				workflow.SuggestionTypeOptimization:
+				workflow.SuggestionTypeOptimization, workflow.SuggestionTypeFlowBased,
+				workflow.SuggestionTypeDebuggingContext, workflow.SuggestionTypeImplementContext:
 				relatedConcepts = append(relatedConcepts, map[string]interface{}{
 					"type":        string(suggestion.Type),
 					"title":       suggestion.Title,

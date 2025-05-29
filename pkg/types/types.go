@@ -8,6 +8,28 @@ import (
 	"github.com/google/uuid"
 )
 
+// Priority levels
+const (
+	PriorityHigh   = "high"
+	PriorityMedium = "medium"
+	PriorityLow    = "low"
+)
+
+// Time periods
+const (
+	TimeframWeek    = "week"
+	TimeframeMonth  = "month"
+	TimeframeQuarter = "quarter"
+	TimeframeAll    = "all"
+)
+
+// Source types
+const (
+	SourceConversation = "conversation"
+	SourceFile         = "file"
+	SourceArchive      = "archive"
+)
+
 // ChunkType represents the type of conversation chunk
 type ChunkType string
 

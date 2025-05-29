@@ -353,6 +353,10 @@ func (tm *ThreadManager) generateThreadTitle(chunks []types.ConversationChunk, t
 		return fmt.Sprintf("Debug: %s", firstSummary)
 	case ThreadTypeArchitecture:
 		return fmt.Sprintf("Architecture: %s", firstSummary)
+	case ThreadTypeConversation:
+		return fmt.Sprintf("Discussion: %s", firstSummary)
+	case ThreadTypeWorkflow:
+		return fmt.Sprintf("Workflow: %s", firstSummary)
 	default:
 		return firstSummary
 	}
@@ -376,11 +380,12 @@ func (tm *ThreadManager) generateThreadDescription(chunks []types.ConversationCh
 	// Add time span
 	if len(chunks) > 1 {
 		duration := chunks[len(chunks)-1].Timestamp.Sub(chunks[0].Timestamp)
-		if duration > 24*time.Hour {
+		switch {
+		case duration > 24*time.Hour:
 			description += fmt.Sprintf(" over %.1f days", duration.Hours()/24)
-		} else if duration > time.Hour {
+		case duration > time.Hour:
 			description += fmt.Sprintf(" over %.1f hours", duration.Hours())
-		} else {
+		default:
 			description += fmt.Sprintf(" over %d minutes", int(duration.Minutes()))
 		}
 	}
@@ -454,6 +459,18 @@ func (tm *ThreadManager) calculatePriority(chunks []types.ConversationChunk) int
 			priority = maxInt(priority, 3) // Medium-high for problems
 		case types.ChunkTypeSolution:
 			priority = maxInt(priority, 3) // Medium-high for solutions
+		case types.ChunkTypeCodeChange:
+			priority = maxInt(priority, 3) // Medium-high for code changes
+		case types.ChunkTypeDiscussion:
+			priority = maxInt(priority, 2) // Medium for discussions
+		case types.ChunkTypeSessionSummary:
+			priority = maxInt(priority, 2) // Medium for summaries
+		case types.ChunkTypeAnalysis:
+			priority = maxInt(priority, 2) // Medium for analysis
+		case types.ChunkTypeVerification:
+			priority = maxInt(priority, 2) // Medium for verification
+		case types.ChunkTypeQuestion:
+			priority = maxInt(priority, 1) // Base priority for questions
 		}
 	}
 
@@ -501,47 +518,6 @@ func (tm *ThreadManager) createThreadChain(ctx context.Context, thread *MemoryTh
 	return err
 }
 
-func (tm *ThreadManager) calculateLinkStrength(chunk1, chunk2 types.ConversationChunk) float64 {
-	strength := 0.5 // Base strength
-
-	// Same session = stronger link
-	if chunk1.SessionID == chunk2.SessionID {
-		strength += 0.3
-	}
-
-	// Close in time = stronger link
-	timeDiff := chunk2.Timestamp.Sub(chunk1.Timestamp)
-	if timeDiff < time.Hour {
-		strength += 0.2
-	} else if timeDiff < 24*time.Hour {
-		strength += 0.1
-	}
-
-	// Related types = stronger link
-	if tm.areRelatedTypes(chunk1.Type, chunk2.Type) {
-		strength += 0.2
-	}
-
-	return math.Min(strength, 1.0)
-}
-
-func (tm *ThreadManager) areRelatedTypes(type1, type2 types.ChunkType) bool {
-	relatedPairs := map[types.ChunkType][]types.ChunkType{
-		types.ChunkTypeProblem:    {types.ChunkTypeSolution, types.ChunkTypeAnalysis},
-		types.ChunkTypeSolution:   {types.ChunkTypeProblem, types.ChunkTypeCodeChange},
-		types.ChunkTypeCodeChange: {types.ChunkTypeSolution, types.ChunkTypeVerification},
-	}
-
-	if related, exists := relatedPairs[type1]; exists {
-		for _, relatedType := range related {
-			if relatedType == type2 {
-				return true
-			}
-		}
-	}
-
-	return false
-}
 
 // Thread grouping functions
 
@@ -777,6 +753,9 @@ func (tm *ThreadManager) generateNextSteps(chunks []types.ConversationChunk, thr
 
 	// Thread-type specific suggestions
 	switch threadType {
+	case ThreadTypeConversation:
+		steps = append(steps, "Continue the conversation flow")
+		steps = append(steps, "Address any open questions")
 	case ThreadTypeProblemSolving:
 		if lastChunk.Type == types.ChunkTypeProblem {
 			steps = append(steps, "Research similar problems in memory")
@@ -788,6 +767,12 @@ func (tm *ThreadManager) generateNextSteps(chunks []types.ConversationChunk, thr
 	case ThreadTypeDebugging:
 		steps = append(steps, "Reproduce the issue consistently")
 		steps = append(steps, "Check logs and error messages")
+	case ThreadTypeArchitecture:
+		steps = append(steps, "Document architectural decisions")
+		steps = append(steps, "Consider long-term implications")
+	case ThreadTypeWorkflow:
+		steps = append(steps, "Follow established workflow patterns")
+		steps = append(steps, "Update process documentation")
 	}
 
 	return steps

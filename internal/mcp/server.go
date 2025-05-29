@@ -178,9 +178,9 @@ func (ms *MemoryServer) registerTools() {
 			"repository": mcp.StringParam("Official repository name to analyze (e.g., 'github.com/lerianstudio/midaz'). Use '_global' for global patterns", true),
 			"timeframe": map[string]interface{}{
 				"type":        "string",
-				"enum":        []string{"week", "month", "quarter", "all"},
+				"enum":        []string{types.TimeframWeek, types.TimeframeMonth, "quarter", "all"},
 				"description": "Time period to analyze",
-				"default":     "month",
+				"default":     types.TimeframeMonth,
 			},
 		}, []string{"repository"}),
 	), mcp.ToolHandlerFunc(ms.handleGetPatterns))
@@ -237,8 +237,8 @@ func (ms *MemoryServer) registerTools() {
 			"source": map[string]interface{}{
 				"type":        "string",
 				"description": "Source type: conversation, file, or archive",
-				"enum":        []string{"conversation", "file", "archive"},
-				"default":     "conversation",
+				"enum":        []string{types.SourceConversation, "file", "archive"},
+				"default":     types.SourceConversation,
 			},
 			"data":       mcp.StringParam("Data to import (conversation text, file content, or base64 archive)", true),
 			"repository": mcp.StringParam("Official repository name for imported data (e.g., 'github.com/lerianstudio/midaz'). Use '_global' for global memories", true),
@@ -447,9 +447,9 @@ func (ms *MemoryServer) registerTools() {
 				"session_id": mcp.StringParam("Session identifier", true),
 				"timeframe": map[string]interface{}{
 					"type":        "string",
-					"enum":        []string{"week", "month", "quarter", "all"},
+					"enum":        []string{types.TimeframWeek, types.TimeframeMonth, "quarter", "all"},
 					"description": "Analysis timeframe (default: 'month')",
-					"default":     "month",
+					"default":     types.TimeframeMonth,
 				},
 				"include_details":         mcp.BooleanParam("Include detailed analysis of chunks and patterns (default: true)", false),
 				"include_recommendations": mcp.BooleanParam("Include actionable recommendations for improvement (default: true)", false),
@@ -840,25 +840,9 @@ func (ms *MemoryServer) executeProgressiveSearch(ctx context.Context, query type
 
 	// Step 3: Try related repositories if original repo specified
 	if query.Repository != nil && searchConfig.EnableRepositoryFallback {
-		relatedRepos := ms.generateRelatedRepositories(*query.Repository)
-		// Limit to configured max related repos
-		if len(relatedRepos) > searchConfig.MaxRelatedRepos {
-			relatedRepos = relatedRepos[:searchConfig.MaxRelatedRepos]
-		}
-
-		for _, relatedRepo := range relatedRepos {
-			relatedQuery := relaxedQuery
-			relatedQuery.Repository = &relatedRepo
-			logging.Info("Progressive search: Step 3 - Related repo search", "original_repo", *query.Repository, "trying_repo", relatedRepo)
-			results, err = ms.container.GetVectorStore().Search(ctx, relatedQuery, embeddings)
-			if err != nil {
-				continue // Try next related repo
-			}
-
-			if len(results.Results) > 0 {
-				logging.Info("Progressive search: Related repo search succeeded", "results", len(results.Results), "repo", relatedRepo)
-				return results, nil
-			}
+		results, err := ms.searchRelatedRepositories(ctx, relaxedQuery, embeddings, *query.Repository, searchConfig)
+		if err == nil && len(results.Results) > 0 {
+			return results, nil
 		}
 
 		// Step 3b: Complete repository fallback (remove filter)
@@ -1154,13 +1138,14 @@ func (ms *MemoryServer) detectWorkflowState(chunks []types.ConversationChunk) ma
 	state := "idle"
 	confidence := 0.7
 
-	if problemCount > solutionCount {
+	switch {
+	case problemCount > solutionCount:
 		state = "debugging"
 		confidence = 0.8
-	} else if solutionCount > 0 {
+	case solutionCount > 0:
 		state = "implementing"
 		confidence = 0.8
-	} else if len(recentChunks) > 0 && recentChunks[0].Type == types.ChunkTypeArchitectureDecision {
+	case len(recentChunks) > 0 && recentChunks[0].Type == types.ChunkTypeArchitectureDecision:
 		state = "planning"
 		confidence = 0.9
 	}
@@ -1210,7 +1195,7 @@ func (ms *MemoryServer) formatRecentActivity(chunks []types.ConversationChunk, l
 }
 
 // generateContextSuggestions creates proactive suggestions based on current context
-func (ms *MemoryServer) generateContextSuggestions(ctx context.Context, repository string, chunks []types.ConversationChunk) []map[string]interface{} {
+func (ms *MemoryServer) generateContextSuggestions(_ context.Context, repository string, chunks []types.ConversationChunk) []map[string]interface{} {
 	suggestions := []map[string]interface{}{}
 
 	if len(chunks) == 0 {
@@ -1285,13 +1270,14 @@ func (ms *MemoryServer) determineSessionStatus(successCount, problemCount, total
 
 	successRate := float64(successCount) / float64(totalChunks)
 
-	if successRate >= 0.8 {
+	switch {
+	case successRate >= 0.8:
 		return "highly_productive"
-	} else if successRate >= 0.6 {
+	case successRate >= 0.6:
 		return "productive"
-	} else if problemCount > successCount {
+	case problemCount > successCount:
 		return "troubleshooting_mode"
-	} else {
+	default:
 		return "mixed_progress"
 	}
 }
@@ -1463,7 +1449,7 @@ func (ms *MemoryServer) handleGetPatterns(ctx context.Context, params map[string
 		return nil, fmt.Errorf("repository is required")
 	}
 
-	timeframe := "month"
+	timeframe := types.TimeframeMonth
 	if tf, ok := params["timeframe"].(string); ok {
 		timeframe = tf
 	}
@@ -2017,7 +2003,7 @@ func (ms *MemoryServer) handleImportContext(ctx context.Context, params map[stri
 	var err error
 
 	switch source {
-	case "conversation":
+	case types.SourceConversation:
 		// Import conversation text
 		importedChunks, err = ms.importConversationText(ctx, data, repository, chunkingStrategy, metadata)
 		if err != nil {
@@ -2080,7 +2066,7 @@ func (ms *MemoryServer) importConversationText(ctx context.Context, data, reposi
 	// Create conversation chunks using the chunking service
 	chunkMetadata := types.ChunkMetadata{
 		Repository: repository,
-		Tags:       []string{"imported", "conversation"},
+		Tags:       []string{"imported", types.SourceConversation},
 	}
 
 	// Add tags from metadata
@@ -2198,7 +2184,7 @@ func normalizeRepository(repo string) string {
 	}
 
 	// If repository looks like a full URL (contains domain), use as-is
-	if strings.Contains(repo, ".") && (strings.Contains(repo, "github.com") || 
+	if strings.Contains(repo, ".") && (strings.Contains(repo, "github.com") ||
 		strings.Contains(repo, "gitlab.com") || strings.Contains(repo, "bitbucket.org") ||
 		strings.Contains(repo, "/")) {
 		return repo
@@ -2420,7 +2406,7 @@ func (ms *MemoryServer) handleMemoryConflicts(ctx context.Context, params map[st
 		repository = repo
 	}
 
-	timeframe := "month"
+	timeframe := types.TimeframeMonth
 	if tf, ok := params["timeframe"].(string); ok {
 		timeframe = tf
 	}
@@ -2494,33 +2480,10 @@ func (ms *MemoryServer) handleMemoryContinuity(ctx context.Context, params map[s
 	var targetChunks []types.ConversationChunk
 
 	if sessionID != "" {
-		// Focus on specific session
-		for _, chunk := range chunks {
-			if chunk.SessionID == sessionID {
-				targetChunks = append(targetChunks, chunk)
-			}
-		}
-	} else {
-		// Use most recent session
-		if len(chunks) > 0 {
-			latestSessionID := chunks[0].SessionID
-			latestTime := chunks[0].Timestamp
-
-			// Find the most recent session
-			for _, chunk := range chunks {
-				if chunk.Timestamp.After(latestTime) {
-					latestTime = chunk.Timestamp
-					latestSessionID = chunk.SessionID
-				}
-			}
-
-			sessionID = latestSessionID
-			for _, chunk := range chunks {
-				if chunk.SessionID == sessionID {
-					targetChunks = append(targetChunks, chunk)
-				}
-			}
-		}
+		targetChunks = ms.filterChunksBySession(chunks, sessionID)
+	} else if len(chunks) > 0 {
+		sessionID = ms.findMostRecentSessionID(chunks)
+		targetChunks = ms.filterChunksBySession(chunks, sessionID)
 	}
 
 	// Analyze incomplete work
@@ -2696,6 +2659,8 @@ func (ms *MemoryServer) calculateMemoryCoverage(chunks []types.ConversationChunk
 			hasProblems = true
 		case types.ChunkTypeCodeChange:
 			hasCode = true
+		case types.ChunkTypeDiscussion, types.ChunkTypeSessionSummary, types.ChunkTypeAnalysis, types.ChunkTypeVerification, types.ChunkTypeQuestion:
+			// Other chunk types, no special handling needed
 		default:
 			// Unknown chunk type, no special handling needed
 		}
@@ -2820,9 +2785,9 @@ func (ms *MemoryServer) getChunksForTimeframe(ctx context.Context, repository, t
 
 		// Set timeframe
 		switch timeframe {
-		case "week":
+		case types.TimeframWeek:
 			query.Recency = types.RecencyRecent
-		case "month":
+		case types.TimeframeMonth:
 			query.Recency = types.RecencyLastMonth
 		default:
 			query.Recency = types.RecencyAllTime
@@ -2850,9 +2815,9 @@ func (ms *MemoryServer) getChunksForTimeframe(ctx context.Context, repository, t
 		var cutoff time.Time
 
 		switch timeframe {
-		case "week":
+		case types.TimeframWeek:
 			cutoff = time.Now().AddDate(0, 0, -7)
-		case "month":
+		case types.TimeframeMonth:
 			cutoff = time.Now().AddDate(0, -1, 0)
 		case "quarter":
 			cutoff = time.Now().AddDate(0, -3, 0)
@@ -2903,7 +2868,7 @@ func (ms *MemoryServer) detectConflicts(chunks []types.ConversationChunk) []map[
 						"outcome":   string(chunk2.Metadata.Outcome),
 						"timestamp": chunk2.Timestamp.Format(time.RFC3339),
 					},
-					"severity": "medium",
+					"severity": types.PriorityMedium,
 				})
 			}
 		}
@@ -2945,7 +2910,7 @@ func (ms *MemoryServer) findContradictoryDecisions(chunks []types.ConversationCh
 						"summary":   decision2.Summary,
 						"timestamp": decision2.Timestamp.Format(time.RFC3339),
 					},
-					"severity": "high",
+					"severity": types.PriorityHigh,
 				})
 			}
 		}
@@ -3008,11 +2973,11 @@ func (ms *MemoryServer) hasContradictoryKeywords(content1, content2 string) bool
 }
 
 // Additional helper functions for memory status tools
-func (ms *MemoryServer) categorizeConflictsBySeverity(conflicts, contradictions, inconsistencies []map[string]interface{}) map[string]int {
+func (ms *MemoryServer) categorizeConflictsBySeverity(conflicts, contradictions, _ []map[string]interface{}) map[string]int {
 	severity := map[string]int{
-		"high":   0,
-		"medium": 0,
-		"low":    0,
+		types.PriorityHigh:   0,
+		types.PriorityMedium: 0,
+		"low":                0,
 	}
 
 	for _, conflict := range conflicts {
@@ -3103,7 +3068,7 @@ func (ms *MemoryServer) analyzeSessionFlow(chunks []types.ConversationChunk) map
 	}
 }
 
-func (ms *MemoryServer) generateContinuationSuggestions(sessionChunks, allChunks []types.ConversationChunk) []map[string]interface{} {
+func (ms *MemoryServer) generateContinuationSuggestions(sessionChunks, _ []types.ConversationChunk) []map[string]interface{} {
 	suggestions := []map[string]interface{}{}
 
 	if len(sessionChunks) == 0 {
@@ -3118,7 +3083,7 @@ func (ms *MemoryServer) generateContinuationSuggestions(sessionChunks, allChunks
 			"title":       "Resume incomplete work",
 			"description": fmt.Sprintf("Complete %d pending items from your last session", len(incompleteWork)),
 			"action":      "Review incomplete work and update their status",
-			"priority":    "high",
+			"priority":    types.PriorityHigh,
 		})
 	}
 
@@ -3136,7 +3101,7 @@ func (ms *MemoryServer) generateContinuationSuggestions(sessionChunks, allChunks
 			"title":       "Address unresolved problems",
 			"description": fmt.Sprintf("Work on solutions for %d identified problems", len(recentProblems)),
 			"action":      "Use memory_find_similar to find related solutions",
-			"priority":    "medium",
+			"priority":    types.PriorityMedium,
 		})
 	}
 
@@ -3167,11 +3132,14 @@ func (ms *MemoryServer) determineSessionCompletionStatus(chunks []types.Conversa
 	}
 
 	incompleteWork := ms.detectIncompleteWork(chunks)
-	if len(incompleteWork) == 0 {
+	incompleteCount := len(incompleteWork)
+
+	switch {
+	case incompleteCount == 0:
 		return "complete"
-	} else if len(incompleteWork) > len(chunks)/2 {
+	case incompleteCount > len(chunks)/2:
 		return "mostly_incomplete"
-	} else {
+	default:
 		return "partially_complete"
 	}
 }
@@ -3226,7 +3194,7 @@ func (ms *MemoryServer) handleCreateThread(ctx context.Context, params map[strin
 	}
 
 	// Get thread type
-	threadTypeStr := "conversation" // default
+	threadTypeStr := types.SourceConversation // default
 	if tt, ok := params["thread_type"].(string); ok && tt != "" {
 		threadTypeStr = tt
 	}
@@ -3234,7 +3202,7 @@ func (ms *MemoryServer) handleCreateThread(ctx context.Context, params map[strin
 	// Parse thread type
 	var threadType threading.ThreadType
 	switch threadTypeStr {
-	case "conversation":
+	case types.SourceConversation:
 		threadType = threading.ThreadTypeConversation
 	case "problem_solving":
 		threadType = threading.ThreadTypeProblemSolving
@@ -3374,17 +3342,15 @@ func (ms *MemoryServer) handleGetThreads(ctx context.Context, params map[string]
 
 		// Include summary if requested
 		if includeSummary {
-			chunks, err := ms.getChunksForThread(ctx, thread.ChunkIDs)
+			chunks := ms.getChunksForThread(ctx, thread.ChunkIDs)
+			threadManager := ms.container.GetThreadManager()
+			summary, err := threadManager.GetThreadSummary(ctx, thread.ID, chunks)
 			if err == nil {
-				threadManager := ms.container.GetThreadManager()
-				summary, err := threadManager.GetThreadSummary(ctx, thread.ID, chunks)
-				if err == nil {
-					threadInfo["summary"] = map[string]interface{}{
-						"duration":     summary.Duration.String(),
-						"progress":     summary.Progress,
-						"health_score": summary.HealthScore,
-						"next_steps":   summary.NextSteps,
-					}
+				threadInfo["summary"] = map[string]interface{}{
+					"duration":     summary.Duration.String(),
+					"progress":     summary.Progress,
+					"health_score": summary.HealthScore,
+					"next_steps":   summary.NextSteps,
 				}
 			}
 		}
@@ -3522,21 +3488,8 @@ func (ms *MemoryServer) handleUpdateThread(ctx context.Context, params map[strin
 
 	// Add chunks if provided
 	if addChunksInterface, ok := params["add_chunks"].([]interface{}); ok && len(addChunksInterface) > 0 {
-		for _, chunkInterface := range addChunksInterface {
-			if chunkID, ok := chunkInterface.(string); ok {
-				// Check if chunk already exists in thread
-				exists := false
-				for _, existingID := range thread.ChunkIDs {
-					if existingID == chunkID {
-						exists = true
-						break
-					}
-				}
-				if !exists {
-					thread.ChunkIDs = append(thread.ChunkIDs, chunkID)
-					updated = true
-				}
-			}
+		if ms.addChunksToThread(thread, addChunksInterface) {
+			updated = true
 		}
 	}
 
@@ -4001,7 +3954,7 @@ func (ms *MemoryServer) handleMemoryHealthDashboard(ctx context.Context, params 
 	}
 
 	// Parse optional parameters
-	timeframe := "month"
+	timeframe := types.TimeframeMonth
 	if tf, ok := params["timeframe"].(string); ok && tf != "" {
 		timeframe = tf
 	}
@@ -4019,9 +3972,9 @@ func (ms *MemoryServer) handleMemoryHealthDashboard(ctx context.Context, params 
 	// Calculate timeframe boundaries
 	var since time.Time
 	switch timeframe {
-	case "week":
+	case types.TimeframWeek:
 		since = time.Now().AddDate(0, 0, -7)
-	case "month":
+	case types.TimeframeMonth:
 		since = time.Now().AddDate(0, -1, 0)
 	case "quarter":
 		since = time.Now().AddDate(0, -3, 0)
@@ -4073,7 +4026,7 @@ func (ms *MemoryServer) handleMemoryHealthDashboard(ctx context.Context, params 
 }
 
 // generateHealthReport creates a comprehensive health analysis
-func (ms *MemoryServer) generateHealthReport(chunks []types.ConversationChunk, timeframe string, includeDetails, includeRecommendations bool) map[string]interface{} {
+func (ms *MemoryServer) generateHealthReport(chunks []types.ConversationChunk, _ string, includeDetails, includeRecommendations bool) map[string]interface{} {
 	report := make(map[string]interface{})
 
 	// Basic statistics
@@ -4091,7 +4044,7 @@ func (ms *MemoryServer) generateHealthReport(chunks []types.ConversationChunk, t
 	chunkTypes := make(map[types.ChunkType]int)
 	difficulties := make(map[types.Difficulty]int)
 
-	var effectivenessScores []float64
+	effectivenessScores := make([]float64, 0, len(chunks))
 	var oldChunks, recentChunks int
 	var totalEffectiveness float64
 	accessibleChunks := 0
@@ -4416,7 +4369,7 @@ func generateHealthRecommendations(completionRate, effectiveness, accessibility,
 	// Completion rate recommendations
 	if completionRate < 0.6 {
 		recommendations = append(recommendations, map[string]interface{}{
-			"priority":    "high",
+			"priority":    types.PriorityHigh,
 			"category":    "completion",
 			"title":       "Low completion rate detected",
 			"description": fmt.Sprintf("Only %.1f%% of chunks show successful completion. Consider reviewing in-progress items and updating their status.", completionRate*100),
@@ -4427,7 +4380,7 @@ func generateHealthRecommendations(completionRate, effectiveness, accessibility,
 	// Effectiveness recommendations
 	if effectiveness < 0.5 {
 		recommendations = append(recommendations, map[string]interface{}{
-			"priority":    "high",
+			"priority":    types.PriorityHigh,
 			"category":    "effectiveness",
 			"title":       "Low effectiveness scores",
 			"description": fmt.Sprintf("Average effectiveness is %.1f%%. Consider improving chunk quality with better summaries and tags.", effectiveness*100),
@@ -4438,7 +4391,7 @@ func generateHealthRecommendations(completionRate, effectiveness, accessibility,
 	// Accessibility recommendations
 	if accessibility < 0.7 {
 		recommendations = append(recommendations, map[string]interface{}{
-			"priority":    "medium",
+			"priority":    types.PriorityMedium,
 			"category":    "accessibility",
 			"title":       "Poor chunk accessibility",
 			"description": fmt.Sprintf("Only %.1f%% of chunks are easily accessible. Add summaries and tags to improve discoverability.", accessibility*100),
@@ -4449,7 +4402,7 @@ func generateHealthRecommendations(completionRate, effectiveness, accessibility,
 	// Staleness recommendations
 	if staleness > 0.4 {
 		recommendations = append(recommendations, map[string]interface{}{
-			"priority":    "medium",
+			"priority":    types.PriorityMedium,
 			"category":    "freshness",
 			"title":       "Many outdated chunks",
 			"description": fmt.Sprintf("%.1f%% of chunks are older than 1 month. Consider archiving or updating stale content.", staleness*100),
@@ -4463,7 +4416,7 @@ func generateHealthRecommendations(completionRate, effectiveness, accessibility,
 
 	if problemChunks > solutionChunks*2 {
 		recommendations = append(recommendations, map[string]interface{}{
-			"priority":    "medium",
+			"priority":    types.PriorityMedium,
 			"category":    "balance",
 			"title":       "Too many unresolved problems",
 			"description": fmt.Sprintf("Found %d problems but only %d solutions. Focus on documenting solutions.", problemChunks, solutionChunks),
@@ -4514,7 +4467,7 @@ func (ms *MemoryServer) getChunkByID(ctx context.Context, chunkID string) (*type
 }
 
 // getChunksForThread retrieves all chunks for a thread
-func (ms *MemoryServer) getChunksForThread(ctx context.Context, chunkIDs []string) ([]types.ConversationChunk, error) {
+func (ms *MemoryServer) getChunksForThread(ctx context.Context, chunkIDs []string) []types.ConversationChunk {
 	chunks := []types.ConversationChunk{}
 
 	for _, chunkID := range chunkIDs {
@@ -4524,7 +4477,7 @@ func (ms *MemoryServer) getChunksForThread(ctx context.Context, chunkIDs []strin
 		// Continue even if some chunks fail to load
 	}
 
-	return chunks, nil
+	return chunks
 }
 
 // handleMemoryDecayManagement handles memory decay management operations
@@ -4767,7 +4720,7 @@ func (ms *MemoryServer) handleRunDecay(ctx context.Context, repository, sessionI
 }
 
 // handleDecayConfiguration handles decay configuration updates
-func (ms *MemoryServer) handleDecayConfiguration(ctx context.Context, repository, sessionID string, config map[string]interface{}) (map[string]interface{}, error) {
+func (ms *MemoryServer) handleDecayConfiguration(_ context.Context, repository, sessionID string, config map[string]interface{}) (map[string]interface{}, error) {
 	// Parse configuration
 	strategy := "adaptive"
 	if s, ok := config["strategy"].(string); ok && s != "" {
@@ -4820,13 +4773,13 @@ func (ms *MemoryServer) estimateDecayScore(chunk types.ConversationChunk, age ti
 	switch {
 	case days < 7:
 		// Minimal decay in first week
-		score = score * (1.0 - 0.01*days/7.0)
+		score *= (1.0 - 0.01*days/7.0)
 	case days < 30:
 		// Moderate decay for first month
-		score = score * (0.99 - 0.3*(days-7)/23.0)
+		score *= (0.99 - 0.3*(days-7)/23.0)
 	default:
 		// Accelerated decay after a month
-		score = score * math.Pow(0.6, (days-30)/30.0)
+		score *= math.Pow(0.6, (days-30)/30.0)
 	}
 
 	// Apply importance boost
@@ -4839,6 +4792,18 @@ func (ms *MemoryServer) estimateDecayScore(chunk types.ConversationChunk, age ti
 		}
 	case types.ChunkTypeProblem:
 		score *= 1.5
+	case types.ChunkTypeCodeChange:
+		score *= 1.3
+	case types.ChunkTypeDiscussion:
+		score *= 1.1
+	case types.ChunkTypeSessionSummary:
+		score *= 1.2
+	case types.ChunkTypeAnalysis:
+		score *= 1.2
+	case types.ChunkTypeVerification:
+		score *= 1.1
+	case types.ChunkTypeQuestion:
+		score *= 1.0
 	default:
 		// Other chunk types use base score without boost
 	}
@@ -4880,4 +4845,90 @@ func (ms *MemoryServer) generateDecayRecommendations(total, old, stale, forSumma
 	}
 
 	return recommendations
+}
+
+// searchRelatedRepositories searches related repositories for the given query
+func (ms *MemoryServer) searchRelatedRepositories(ctx context.Context, relaxedQuery types.MemoryQuery, embeddings []float64, originalRepo string, searchConfig config.SearchConfig) (*types.SearchResults, error) {
+	relatedRepos := ms.generateRelatedRepositories(originalRepo)
+	// Limit to configured max related repos
+	if len(relatedRepos) > searchConfig.MaxRelatedRepos {
+		relatedRepos = relatedRepos[:searchConfig.MaxRelatedRepos]
+	}
+
+	for _, relatedRepo := range relatedRepos {
+		relatedQuery := relaxedQuery
+		relatedQuery.Repository = &relatedRepo
+		logging.Info("Progressive search: Step 3 - Related repo search", "original_repo", originalRepo, "trying_repo", relatedRepo)
+		results, err := ms.container.GetVectorStore().Search(ctx, relatedQuery, embeddings)
+		if err != nil {
+			continue // Try next related repo
+		}
+
+		if len(results.Results) > 0 {
+			logging.Info("Progressive search: Related repo search succeeded", "results", len(results.Results), "repo", relatedRepo)
+			return results, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no results found in related repositories")
+}
+
+// filterChunksBySession filters chunks by the given session ID
+func (ms *MemoryServer) filterChunksBySession(chunks []types.ConversationChunk, sessionID string) []types.ConversationChunk {
+	var filtered []types.ConversationChunk
+	for _, chunk := range chunks {
+		if chunk.SessionID == sessionID {
+			filtered = append(filtered, chunk)
+		}
+	}
+	return filtered
+}
+
+// findMostRecentSessionID finds the session ID with the most recent timestamp
+func (ms *MemoryServer) findMostRecentSessionID(chunks []types.ConversationChunk) string {
+	if len(chunks) == 0 {
+		return ""
+	}
+
+	latestSessionID := chunks[0].SessionID
+	latestTime := chunks[0].Timestamp
+
+	for _, chunk := range chunks {
+		if chunk.Timestamp.After(latestTime) {
+			latestTime = chunk.Timestamp
+			latestSessionID = chunk.SessionID
+		}
+	}
+
+	return latestSessionID
+}
+
+// addChunksToThread adds chunks to a thread if they don't already exist
+func (ms *MemoryServer) addChunksToThread(thread *threading.MemoryThread, addChunksInterface []interface{}) bool {
+	updated := false
+	for _, chunkInterface := range addChunksInterface {
+		chunkID, ok := chunkInterface.(string)
+		if !ok {
+			continue
+		}
+
+		// Check if chunk already exists in thread
+		if ms.chunkExistsInThread(thread, chunkID) {
+			continue
+		}
+
+		thread.ChunkIDs = append(thread.ChunkIDs, chunkID)
+		updated = true
+	}
+	return updated
+}
+
+// chunkExistsInThread checks if a chunk ID already exists in the thread
+func (ms *MemoryServer) chunkExistsInThread(thread *threading.MemoryThread, chunkID string) bool {
+	for _, existingID := range thread.ChunkIDs {
+		if existingID == chunkID {
+			return true
+		}
+	}
+	return false
 }

@@ -472,7 +472,7 @@ func (l *LLMSummarizer) cosineSimilarity(a, b []float32) float64 {
 }
 
 // extractNarrativeFlow analyzes the conversation flow and creates a narrative structure
-func (l *LLMSummarizer) extractNarrativeFlow(chunks []types.ConversationChunk, groups [][]types.ConversationChunk) NarrativeFlow {
+func (l *LLMSummarizer) extractNarrativeFlow(chunks []types.ConversationChunk, _ [][]types.ConversationChunk) NarrativeFlow {
 	flow := NarrativeFlow{
 		Phases:      make([]ConversationPhase, 0),
 		KeyEvents:   make([]KeyEvent, 0),
@@ -673,36 +673,6 @@ func (l *LLMSummarizer) generateIntelligentSummary(narrative NarrativeFlow, crit
 	return strings.Join(parts, ". ")
 }
 
-// extractLearnings extracts key learnings from chunks
-func (l *LLMSummarizer) extractLearnings(chunks []types.ConversationChunk) []string {
-	learnings := make([]string, 0)
-
-	for _, chunk := range chunks {
-		// Look for learning patterns in content
-		content := strings.ToLower(chunk.Content)
-		if strings.Contains(content, "learned") ||
-			strings.Contains(content, "discovered") ||
-			strings.Contains(content, "realized") ||
-			chunk.Type == types.ChunkTypeAnalysis {
-			// Extract the learning (simplified)
-			if chunk.Summary != "" {
-				learnings = append(learnings, chunk.Summary)
-			}
-		}
-	}
-
-	// Deduplicate and limit
-	seen := make(map[string]bool)
-	unique := make([]string, 0)
-	for _, learning := range learnings {
-		if !seen[learning] && len(unique) < 3 {
-			seen[learning] = true
-			unique = append(unique, learning)
-		}
-	}
-
-	return unique
-}
 
 func formatDuration(d time.Duration) string {
 	switch {
