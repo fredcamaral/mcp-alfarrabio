@@ -52,9 +52,7 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 	}
 
 	// Initialize in dependency order
-	if err := container.initializeStorage(); err != nil {
-		return nil, fmt.Errorf("failed to initialize storage: %w", err)
-	}
+	container.initializeStorage()
 
 	container.initializeServices()
 	container.initializeIntelligence()
@@ -64,10 +62,8 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 }
 
 // initializeStorage sets up storage layer
-func (c *Container) initializeStorage() error {
+func (c *Container) initializeStorage() {
 	// Initialize vector store
-	var baseStore storage.VectorStore
-
 	// Use pooled store if connection pooling is enabled
 	// TODO: Re-enable pooled store after updating to simplified client
 	// if usePooling := os.Getenv("CHROMA_USE_POOLING"); usePooling == envValueTrue {
@@ -76,7 +72,7 @@ func (c *Container) initializeStorage() error {
 	//		return fmt.Errorf("failed to create pooled Chroma store: %w", err)
 	//	}
 	// } else {
-		baseStore = storage.NewChromaStore(&c.Config.Chroma)
+		baseStore := storage.NewChromaStore(&c.Config.Chroma)
 	// }
 
 	// Wrap with retry logic
@@ -88,8 +84,6 @@ func (c *Container) initializeStorage() error {
 	} else {
 		c.VectorStore = retryStore
 	}
-
-	return nil
 }
 
 // initializeServices sets up core services

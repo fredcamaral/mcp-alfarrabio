@@ -6,7 +6,6 @@ import (
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/logging"
 	"mcp-memory/pkg/types"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -286,20 +285,9 @@ func (cs *ChromaStore) ListByRepository(ctx context.Context, repository string, 
 	chunks := make([]types.ConversationChunk, 0)
 	if result != nil {
 		for i := 0; i < len(result.IDs); i++ {
-			var chunkID string
-			if i < len(result.IDs) {
-				chunkID = result.IDs[i]
-			}
-
-			var metadata map[string]interface{}
-			if i < len(result.Metadatas) {
-				metadata = result.Metadatas[i]
-			}
-
-			var content string
-			if i < len(result.Documents) {
-				content = result.Documents[i]
-			}
+			chunkID := cs.extractChunkID(i, result.IDs)
+			metadata := cs.extractMetadata(i, result.Metadatas)
+			content := cs.extractContent(i, result.Documents)
 
 			chunk := cs.chromaResultToChunk(chunkID, content, metadata)
 			chunks = append(chunks, *chunk)
@@ -676,13 +664,3 @@ func (cs *ChromaStore) updateMetrics(operation string, start time.Time, err erro
 }
 
 // Embedding functions are no longer needed with simplified client
-
-// getEnvInt gets an integer from environment variable with a default
-func getEnvInt(key string, defaultValue int) int {
-	if val := os.Getenv(key); val != "" {
-		if i, err := strconv.Atoi(val); err == nil {
-			return i
-		}
-	}
-	return defaultValue
-}
