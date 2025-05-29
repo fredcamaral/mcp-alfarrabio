@@ -10,7 +10,7 @@ const CONFIG = {
   server: {
     hostname: process.env.MCP_SERVER_HOST || 'localhost',
     port: parseInt(process.env.MCP_SERVER_PORT || '9080'),
-    path: '/mcp',
+    path: process.env.MCP_SERVER_PATH || '/mcp',
     timeout: 30000,  // 30 second timeout
     maxRetries: 3,
     retryDelay: 1000  // 1 second between retries
@@ -86,6 +86,34 @@ function createErrorResponse(code, message, id = null, data = null) {
   return error;
 }
 
+// Health check function
+async function checkServerHealth() {
+  return new Promise((resolve) => {
+    const healthOptions = {
+      hostname: CONFIG.server.hostname,
+      port: CONFIG.server.port,
+      path: '/health',
+      method: 'GET',
+      timeout: 5000
+    };
+
+    const req = http.request(healthOptions, (res) => {
+      res.on('data', () => {}); // Consume response
+      res.on('end', () => {
+        resolve(res.statusCode === 200);
+      });
+    });
+
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+
+    req.end();
+  });
+}
+
 // Send HTTP request with retry logic
 function sendHttpRequest(request, retryCount = 0) {
   return new Promise((resolve, reject) => {
@@ -147,12 +175,16 @@ function sendHttpRequest(request, retryCount = 0) {
       });
     });
 
-    req.on('error', (err) => {
+    req.on('error', async (err) => {
       log('error', 'HTTP request error', { error: err.message, retryCount });
       
       // Retry logic for network errors
       if (retryCount < CONFIG.server.maxRetries && 
           (err.code === 'ECONNREFUSED' || err.code === 'ETIMEDOUT' || err.code === 'ENOTFOUND')) {
+        
+        // Check server health before retrying
+        const isHealthy = await checkServerHealth();
+        log('debug', 'Server health check', { isHealthy, retryCount });
         
         setTimeout(() => {
           sendHttpRequest(request, retryCount + 1)
@@ -321,9 +353,24 @@ process.on('SIGTERM', () => {
   rl.close();
 });
 
-// Log startup
-log('info', 'MCP proxy started', { 
-  config: CONFIG,
-  pid: process.pid,
-  nodeVersion: process.version 
-});
+// Initial health check and startup
+(async () => {
+  log('info', 'MCP proxy starting', { 
+    config: CONFIG,
+    pid: process.pid,
+    nodeVersion: process.version 
+  });
+  
+  // Perform initial health check
+  const isHealthy = await checkServerHealth();
+  log('info', 'Initial server health check', { 
+    isHealthy,
+    endpoint: `${CONFIG.server.hostname}:${CONFIG.server.port}/health`
+  });
+  
+  if (!isHealthy) {
+    log('warn', 'Server not responding to health check - will retry on requests');
+  }
+  
+  log('info', 'MCP proxy ready');
+})();
