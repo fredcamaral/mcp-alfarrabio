@@ -69,6 +69,10 @@ COPY --chown=mcpuser:mcpuser configs/docker/ /app/config/
 # Copy MCP proxy for stdio <> HTTP bridging
 COPY --chown=mcpuser:mcpuser mcp-proxy.js /app/
 
+# Create required directories with proper ownership
+RUN mkdir -p /app/data /app/logs /app/backups /app/audit_logs && \
+    chown -R mcpuser:mcpuser /app/data /app/logs /app/backups /app/audit_logs
+
 # Switch to non-root user
 USER mcpuser
 

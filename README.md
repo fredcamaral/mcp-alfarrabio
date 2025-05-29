@@ -6,176 +6,130 @@ Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any M
 
 ## 🚀 Quick Start (5 minutes)
 
-### Option 1: Single Docker Commands (Quick Test)
+### Step 1: Start the Server
 
 ```bash
-# 1. Start Chroma vector database
-docker run -d --name mcp-chroma \
-  -p 8000:8000 \
-  -v chroma_data:/chroma/chroma \
-  chromadb/chroma:latest
+git clone https://github.com/fredcamaral/mcp-memory.git
+cd mcp-memory
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
 
-# 2. Start MCP Memory Server
-docker run -d --name mcp-memory \
-  -p 9080:9080 \
-  -e OPENAI_API_KEY="your-api-key-here" \
-  -e MCP_MEMORY_CHROMA_ENDPOINT="http://host.docker.internal:8000" \
-  -v mcp_data:/app/data \
-  --link mcp-chroma:chroma \
-  ghcr.io/fredcamaral/mcp-memory:latest
-
-# 3. Optional: Auto-updater (watches for new releases)
-docker run -d --name mcp-auto-updater \
-  -v /var/run/docker.sock:/var/run/docker.sock \
-  -e WATCHTOWER_CLEANUP=true \
-  -e WATCHTOWER_POLL_INTERVAL=3600 \
-  -e WATCHTOWER_SCOPE=mcp-memory \
-  containrrr/watchtower:latest
+# Start everything
+docker-compose up -d
 ```
 
-### Option 2: Docker Compose (Recommended - Full Setup)
+### Step 2: Choose Your Connection Method
 
-1. **Clone and start everything:**
-   ```bash
-   git clone https://github.com/fredcamaral/mcp-memory.git
-   cd mcp-memory
-   cp .env.example .env
-   # Edit .env and add your OPENAI_API_KEY
-   
-   # Local development (builds from source)
-   docker-compose up -d
-   
-   # Production with auto-updates (uses registry + Watchtower)
-   docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile auto-update up -d
-   ```
+The MCP Memory Server supports **multiple transport protocols** for maximum compatibility:
 
-2. **Configure your AI client** (e.g., Claude Desktop, Claude Code, Windsurf, Cursor, etc):
+| Protocol | Use Case | Configuration Complexity |
+|----------|----------|-------------------------|
+| **📡 stdio + proxy** | Legacy MCP clients (Claude Desktop, VS Code) | Easy |
+| **🔌 WebSocket** | Real-time bidirectional communication | Easy |
+| **📤 SSE (Server-Sent Events)** | Event streaming + direct HTTP | Medium |
+| **🌐 Direct HTTP** | Simple request/response | Easy |
 
-   The MCP server works through a stdio <> HTTP proxy bridge written in Node.js that runs inside the container.
-   
-   ```json
-   {
-     "mcpServers": {
-       "memory": {
-         "command": "docker",
-         "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
-         "env": {
-           "MCP_SERVER_HOST": "localhost",
-           "MCP_SERVER_PORT": "9080",
-           "MCP_SERVER_PATH": "/mcp"
-         }
-       }
-     }
-   }
-   ```
-   
-   **Alternative: SSE protocol** (Server-Sent Events for real-time communication):
-   ```json
-   {
-     "mcpServers": {
-       "memory": {
-         "type": "sse",
-         "url": "http://localhost:9080/sse"
-       }
-     }
-   }
-   ```
+---
 
-3. **Test it!** 🎉
-   - Open your AI client (Claude Desktop, etc.)
-   - Ask it to store a memory: *"Please remember that I prefer TypeScript over JavaScript"*
-   - Later ask: *"What do you remember about my coding preferences?"*
+## 🔌 MCP Protocol Options
+
+### Option 1: stdio + proxy (Recommended for Most Clients)
+
+**Best for:** Claude Desktop, Claude Code CLI, VS Code with Continue, Cursor
+
+The server includes a Node.js proxy that bridges stdio ↔ HTTP for full compatibility with existing MCP clients.
+
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "docker",
+      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "env": {
+        "MCP_SERVER_HOST": "localhost",
+        "MCP_SERVER_PORT": "9080",
+        "MCP_SERVER_PATH": "/mcp"
+      }
+    }
+  }
+}
+```
+
+### Option 2: WebSocket (Real-time Bidirectional)
+
+**Best for:** Custom applications, real-time use cases
+
+```javascript
+const ws = new WebSocket('ws://localhost:9080/ws');
+ws.send(JSON.stringify({
+  jsonrpc: "2.0",
+  method: "initialize",
+  params: { protocolVersion: "2024-11-05", capabilities: {} },
+  id: 1
+}));
+```
+
+### Option 3: Server-Sent Events (Event Streaming)
+
+**Best for:** Web applications needing real-time updates
+
+```javascript
+// Stream connection
+const eventSource = new EventSource('http://localhost:9080/sse');
+
+// Direct JSON-RPC requests
+fetch('http://localhost:9080/sse', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    jsonrpc: "2.0",
+    method: "tools/list",
+    id: 1
+  })
+});
+```
+
+### Option 4: Direct HTTP (Simple REST-like)
+
+**Best for:** Testing, simple integrations
+
+```bash
+curl -X POST http://localhost:9080/mcp \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+```
+
+---
+
+## 🛠️ Client-Specific Configurations
 
 <details>
-<summary><b>📋 Full docker-compose.yml Reference</b></summary>
+<summary><b>🖥️ Claude Desktop</b></summary>
 
-```yaml
-services:
-  # Chroma Vector Database
-  chroma:
-    image: chromadb/chroma:latest
-    container_name: mcp-chroma
-    restart: unless-stopped
-    ports:
-      - "8000:8000"
-    volumes:
-      - chroma_data:/chroma/chroma
-    networks:
-      - mcp_network
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
 
-  # Main MCP Memory Server
-  mcp-memory-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mcp-memory-server
-    restart: unless-stopped
-    depends_on:
-      - chroma
-    ports:
-      - "9080:9080"
-      - "9081:8081"
-      - "9082:8082"
-    environment:
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
-      - MCP_MEMORY_DB_TYPE=sqlite
-      - MCP_MEMORY_DB_PATH=/app/data/memory.db
-    volumes:
-      - mcp_data:/app/data
-      - mcp_logs:/app/logs
-      - mcp_backups:/app/backups
-    networks:
-      - mcp_network
-
-  # Auto-updater sidecar (optional - use --profile auto-update)
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: mcp-auto-updater
-    restart: unless-stopped
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=3600  # Check hourly
-      - WATCHTOWER_SCOPE=mcp-memory-server
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - mcp_network
-    profiles:
-      - auto-update
-
-networks:
-  mcp_network:
-    driver: bridge
-
-volumes:
-  chroma_data:
-    name: mcp_memory_chroma_vector_db_NEVER_DELETE
-  mcp_data:
-    name: mcp_memory_app_data_NEVER_DELETE
-  mcp_logs:
-    name: mcp_memory_logs_NEVER_DELETE
-  mcp_backups:
-    name: mcp_memory_backups_NEVER_DELETE
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "docker",
+      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "env": {
+        "MCP_SERVER_HOST": "localhost",
+        "MCP_SERVER_PORT": "9080",
+        "MCP_SERVER_PATH": "/mcp"
+      }
+    }
+  }
+}
 ```
 </details>
 
+<details>
+<summary><b>💻 Claude Code CLI</b></summary>
 
-## 🎯 What Does This Do?
+Add to `.claude/mcp.json` in your project root:
 
-**MCP Memory** transforms your AI assistant into a smart companion that:
-
-- **📚 Remembers Everything**: Stores all your conversations and contexts across sessions
-- **🔍 Smart Search**: Finds relevant past conversations using AI-powered similarity search  
-- **🧠 Pattern Learning**: Recognizes your preferences, coding patterns, and decision-making
-- **💡 Proactive Suggestions**: Automatically suggests relevant context from your history
-- **🔄 Cross-Project Intelligence**: Learns patterns across all your repositories and projects
-
-## 🛠️ Configuration Files
-
-### Claude Desktop Configuration
-
-**Configuration:**
 ```json
 {
   "mcpServers": {
@@ -191,29 +145,13 @@ volumes:
   }
 }
 ```
+</details>
 
-### Claude Code CLI
-
-Add to your `.claude/mcp.json` in your project root:
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
-      "env": {
-        "MCP_SERVER_HOST": "localhost",
-        "MCP_SERVER_PORT": "9080",
-        "MCP_SERVER_PATH": "/mcp"
-      }
-    }
-  }
-}
-```
-
-### VS Code with Continue
+<details>
+<summary><b>📝 VS Code with Continue</b></summary>
 
 Add to your Continue configuration:
+
 ```json
 {
   "models": [...],
@@ -230,10 +168,11 @@ Add to your Continue configuration:
   }
 }
 ```
+</details>
 
-### Cursor, Windsurf, or Other MCP Clients
+<details>
+<summary><b>🖱️ Cursor, Windsurf, Other MCP Clients</b></summary>
 
-For any MCP-compatible client, use:
 ```json
 {
   "mcpServers": {
@@ -249,140 +188,142 @@ For any MCP-compatible client, use:
   }
 }
 ```
+</details>
 
-### Environment Variables (.env file)
+---
 
-```bash
-# Required
-OPENAI_API_KEY=your-openai-api-key-here
+## 🎯 What Does This Do?
 
-# Optional (defaults work for Docker setup)
-CHROMA_URL=http://chroma:8000
-MCP_MEMORY_DATA_DIR=./data
-MCP_MEMORY_LOG_LEVEL=info
-```
+**MCP Memory** transforms your AI assistant into a smart companion that:
 
-## 🌟 Key Features
+- **📚 Remembers Everything**: Stores conversations and contexts across sessions
+- **🔍 Smart Search**: AI-powered similarity search through your history  
+- **🧠 Pattern Learning**: Recognizes your preferences and coding patterns
+- **💡 Proactive Suggestions**: Suggests relevant context automatically
+- **🔄 Cross-Project Intelligence**: Learns across all your repositories
 
-### Memory Tools Available to Your AI
+### 🛠️ Available Memory Tools
 
-Once configured, your AI assistant automatically gets these powerful memory abilities:
+Once configured, your AI gets 23+ powerful memory tools:
 
-- **Store important moments**: `memory_store_chunk` - Save conversations, decisions, solutions
-- **Smart search**: `memory_search` - Find similar past conversations and contexts  
-- **Get context**: `memory_get_context` - Retrieve project overview and recent activity
-- **Find patterns**: `memory_get_patterns` - Identify recurring themes and solutions
-- **Health monitoring**: `memory_health_dashboard` - Track memory system effectiveness
-- **Intelligent decay**: `memory_decay_management` - Automatically summarize and archive old memories
+- `memory_store_chunk` - Save important conversations
+- `memory_search` - Find similar past contexts  
+- `memory_get_context` - Get project overview
+- `memory_get_patterns` - Identify recurring themes
+- `memory_health_dashboard` - System monitoring
+- `memory_decay_management` - Smart archiving
+- ...and many more!
 
-### Advanced Intelligence
-
-- **🧠 Conversation Flow Detection**: Recognizes when you're debugging, implementing, or planning
-- **🔗 Relationship Mapping**: Automatically links related memories and contexts
-- **📊 Pattern Recognition**: Learns your coding patterns, preferences, and decision-making
-- **💡 Smart Suggestions**: Proactively suggests relevant memories based on current context
-- **🗂️ Multi-Repository Support**: Works across all your projects with intelligent cross-referencing
+---
 
 ## 🔧 Troubleshooting
 
-### Common Issues
+### Quick Diagnostics
 
-**🔴 "Connection refused" or "Server not responding"**
 ```bash
-# Check if containers are running
+# Check if everything is running
 docker-compose ps
 
-# Check logs
-docker-compose logs mcp-memory-server
+# Test the server
+curl http://localhost:9081/health
 
-# Restart services
+# Test MCP proxy
+echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}' | docker exec -i mcp-memory-server node /app/mcp-proxy.js
+
+# View logs
+docker logs mcp-memory-server
+```
+
+### Common Issues
+
+**🔴 Connection refused**
+```bash
 docker-compose restart
 ```
 
-**🔴 "OpenAI API errors"**
-- Check your API key in `.env` file
-- Verify you have credits in your OpenAI account
-- Check network connectivity
+**🔴 OpenAI API errors**
+- Check your API key in `.env`
+- Verify account credits
 
-**🔴 "Memory not persisting"**
+**🔴 Node.js not found**
 ```bash
-# Check database connection
-docker-compose logs chroma
-
-# Verify data directory permissions
-ls -la ./data/
-```
-
-**🔴 "Node.js not found in container"**
-The container now uses Debian slim with Node.js pre-installed. If you're using an older image:
-```bash
-# Pull latest image
-docker-compose pull
-
-# Rebuild from source  
 docker-compose build --no-cache
 ```
 
-### Checking if Everything Works
+### Testing Individual Protocols
 
-1. **Test the server directly:**
-   ```bash
-   # Health check
-   curl http://localhost:9081/health
-   
-   # Test MCP proxy inside container
-   echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true},"sampling":{}}},"id":1}' | docker exec -i mcp-memory-server node /app/mcp-proxy.js
-   ```
+```bash
+# Test HTTP endpoint
+curl -X POST http://localhost:9080/mcp -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
 
-2. **Check container logs:**
-   ```bash
-   # View server logs
-   docker logs mcp-memory-server
-   
-   # Check if containers are running
-   docker-compose ps
-   ```
+# Test SSE endpoint  
+curl -X POST http://localhost:9080/sse -H "Content-Type: application/json" -d '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}'
 
-3. **Test with your AI client:**
-   - Ask it to remember something: *"Please store that I work on the mcp-memory project"*
-   - Ask it to recall: *"What do you remember about my current projects?"*
-   - Try: *"Use memory_health to check the memory system status"*
+# Test WebSocket (requires ws tool)
+echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}' | websocat ws://localhost:9080/ws
+```
+
+---
+
+## 🏗️ Architecture Overview
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   MCP Clients   │    │   MCP Server     │    │    Storage      │
+│                 │    │                  │    │                 │
+│ Claude Desktop  │◄──►│ stdio + proxy    │    │   ChromaDB      │
+│ Claude Code CLI │    │ WebSocket        │◄──►│   (Vectors)     │
+│ VS Code/Continue│    │ SSE              │    │                 │
+│ Cursor/Windsurf │    │ Direct HTTP      │    │   SQLite        │
+│ Custom Apps     │    │                  │    │   (Metadata)    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+**Available Endpoints:**
+- `http://localhost:9080/mcp` - Direct HTTP JSON-RPC
+- `http://localhost:9080/sse` - Server-Sent Events + HTTP
+- `ws://localhost:9080/ws` - WebSocket bidirectional
+- `http://localhost:9081/health` - Health check
+- `http://localhost:9082` - Metrics (optional)
+
+---
 
 ## 🎛️ Advanced Configuration
 
+### Environment Variables
+
+```bash
+# Required
+OPENAI_API_KEY=your-key-here
+
+# Optional server configuration  
+MCP_MEMORY_LOG_LEVEL=info
+MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
+MCP_MEMORY_DB_TYPE=sqlite
+MCP_MEMORY_BACKUP_ENABLED=true
+
+# Optional proxy configuration
+MCP_SERVER_HOST=localhost
+MCP_SERVER_PORT=9080
+MCP_SERVER_PATH=/mcp
+MCP_PROXY_DEBUG=false
+```
+
 ### Production Deployment
 
-For production use, see the detailed configurations:
-- [Production Config](configs/production/config.yaml)
+For production use:
 - [Docker Deployment Guide](docs/DEPLOYMENT.md)
 - [Monitoring Setup](docs/MONITORING.md)
+- [Production Config](configs/production/config.yaml)
 
-### Custom Configuration
-
-```yaml
-# configs/custom/config.yaml
-storage:
-  chroma:
-    url: "http://your-chroma-instance:8000"
-    
-embeddings:
-  openai:
-    api_key: "${OPENAI_API_KEY}"
-    model: "text-embedding-ada-002"
-    
-security:
-  encryption:
-    enabled: true
-  access_control:
-    enabled: true
-```
+---
 
 ## 📚 More Information
 
 - **📖 [Full Documentation](docs/README.md)** - Complete guides and API reference  
-- **🔍 [Health Monitoring](http://localhost:9081/health)** - System status and metrics
-- **📊 [Metrics](http://localhost:9082)** - Performance and usage metrics
-- **🐳 [Container Logs](./docs/DEPLOYMENT.md)** - Docker deployment guides
+- **🔍 [Health Monitoring](http://localhost:9081/health)** - System status
+- **📊 [Metrics Dashboard](http://localhost:9082)** - Performance metrics
+- **🐳 [Container Logs](./docs/DEPLOYMENT.md)** - Docker guides
 
 ## 🤝 Contributing
 
@@ -394,6 +335,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**🚀 Ready to give your AI assistant a perfect memory?** Follow the Quick Start above and you'll be up and running in minutes!
+**🚀 Ready to give your AI assistant a perfect memory?** 
+
+Start with the [Quick Start](#-quick-start-5-minutes) above and choose your preferred [protocol option](#-mcp-protocol-options).
 
 **Questions?** [Open an issue](https://github.com/fredcamaral/mcp-memory/issues) or check our [documentation](docs/README.md).
