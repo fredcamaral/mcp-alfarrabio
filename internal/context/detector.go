@@ -7,7 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
-	
+
 	"mcp-memory/pkg/types"
 )
 
@@ -27,7 +27,7 @@ func NewDetector() (*Detector, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to get working directory: %w", err)
 	}
-	
+
 	return &Detector{
 		workingDir: wd,
 	}, nil
@@ -36,10 +36,10 @@ func NewDetector() (*Detector, error) {
 // DetectLocationContext detects location-related context
 func (d *Detector) DetectLocationContext() map[string]interface{} {
 	context := make(map[string]interface{})
-	
+
 	// Working directory
 	context[types.EMKeyWorkingDir] = d.workingDir
-	
+
 	// Git information
 	if gitInfo := d.detectGitInfo(); gitInfo != nil {
 		if branch, ok := gitInfo["branch"]; ok {
@@ -54,25 +54,25 @@ func (d *Detector) DetectLocationContext() map[string]interface{} {
 			context[types.EMKeyRelativePath] = relPath
 		}
 	}
-	
+
 	// Project type detection
 	context[types.EMKeyProjectType] = d.detectProjectType()
-	
+
 	return context
 }
 
 // DetectClientContext detects client-related context
 func (d *Detector) DetectClientContext(clientType string) map[string]interface{} {
 	context := make(map[string]interface{})
-	
+
 	// Client type (provided by caller)
 	if clientType != "" {
 		context[types.EMKeyClientType] = clientType
 	}
-	
+
 	// Platform information
 	context[types.EMKeyPlatform] = runtime.GOOS + "/" + runtime.GOARCH
-	
+
 	// Environment variables (filtered for safety)
 	env := make(map[string]string)
 	safeEnvVars := []string{
@@ -80,24 +80,24 @@ func (d *Detector) DetectClientContext(clientType string) map[string]interface{}
 		"CI", "CI_COMMIT_SHA", "CI_BRANCH", "GITHUB_ACTIONS",
 		"TERM", "SHELL", "EDITOR", "LANG", "LC_ALL",
 	}
-	
+
 	for _, key := range safeEnvVars {
 		if value := os.Getenv(key); value != "" {
 			env[key] = value
 		}
 	}
-	
+
 	if len(env) > 0 {
 		context[types.EMKeyEnvironment] = env
 	}
-	
+
 	return context
 }
 
 // DetectLanguageVersions detects programming language versions
 func (d *Detector) DetectLanguageVersions() map[string]string {
 	versions := make(map[string]string)
-	
+
 	// Go version
 	if out, err := exec.Command("go", "version").Output(); err == nil {
 		parts := strings.Fields(string(out))
@@ -105,7 +105,7 @@ func (d *Detector) DetectLanguageVersions() map[string]string {
 			versions["go"] = strings.TrimPrefix(parts[2], "go")
 		}
 	}
-	
+
 	// Python version
 	if out, err := exec.Command("python3", "--version").Output(); err == nil {
 		parts := strings.Fields(string(out))
@@ -113,12 +113,12 @@ func (d *Detector) DetectLanguageVersions() map[string]string {
 			versions["python"] = parts[1]
 		}
 	}
-	
+
 	// Node.js version
 	if out, err := exec.Command("node", "--version").Output(); err == nil {
 		versions["node"] = strings.TrimSpace(strings.TrimPrefix(string(out), "v"))
 	}
-	
+
 	// Java version
 	if out, err := exec.Command("java", "-version").CombinedOutput(); err == nil {
 		lines := strings.Split(string(out), "\n")
@@ -129,25 +129,25 @@ func (d *Detector) DetectLanguageVersions() map[string]string {
 			}
 		}
 	}
-	
+
 	return versions
 }
 
 // DetectDependencies detects project dependencies
 func (d *Detector) DetectDependencies() map[string]string {
 	deps := make(map[string]string)
-	
+
 	// Go modules
 	if _, err := os.Stat(filepath.Join(d.workingDir, "go.mod")); err == nil {
 		deps["go.mod"] = presentValue
 		// Could parse go.mod for specific versions if needed
 	}
-	
+
 	// Node.js
 	if _, err := os.Stat(filepath.Join(d.workingDir, "package.json")); err == nil {
 		deps["package.json"] = presentValue
 	}
-	
+
 	// Python
 	if _, err := os.Stat(filepath.Join(d.workingDir, "requirements.txt")); err == nil {
 		deps["requirements.txt"] = presentValue
@@ -155,19 +155,19 @@ func (d *Detector) DetectDependencies() map[string]string {
 	if _, err := os.Stat(filepath.Join(d.workingDir, "pyproject.toml")); err == nil {
 		deps["pyproject.toml"] = presentValue
 	}
-	
+
 	// Rust
 	if _, err := os.Stat(filepath.Join(d.workingDir, "Cargo.toml")); err == nil {
 		deps["Cargo.toml"] = presentValue
 	}
-	
+
 	return deps
 }
 
 // detectGitInfo detects git repository information
 func (d *Detector) detectGitInfo() map[string]interface{} {
 	info := make(map[string]interface{})
-	
+
 	// Check if we're in a git repository
 	cmd := exec.Command("git", "rev-parse", "--show-toplevel")
 	cmd.Dir = d.workingDir
@@ -175,24 +175,24 @@ func (d *Detector) detectGitInfo() map[string]interface{} {
 	if err != nil {
 		return nil
 	}
-	
+
 	repoRoot := strings.TrimSpace(string(out))
 	info["repo_root"] = repoRoot
-	
+
 	// Get current branch
 	cmd = exec.Command("git", "rev-parse", "--abbrev-ref", "HEAD")
 	cmd.Dir = d.workingDir
 	if out, err := cmd.Output(); err == nil {
 		info["branch"] = strings.TrimSpace(string(out))
 	}
-	
+
 	// Get current commit
 	cmd = exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = d.workingDir
 	if out, err := cmd.Output(); err == nil {
 		info["commit"] = strings.TrimSpace(string(out))[:8] // Short SHA
 	}
-	
+
 	return info
 }
 
@@ -214,13 +214,13 @@ func (d *Detector) detectProjectType() string {
 		{"pom.xml", types.ProjectTypeJava},
 		{"build.gradle", types.ProjectTypeJava},
 	}
-	
+
 	for _, check := range checks {
 		if _, err := os.Stat(filepath.Join(d.workingDir, check.file)); err == nil {
 			return check.projType
 		}
 	}
-	
+
 	// Check for file extensions as fallback
 	entries, err := os.ReadDir(d.workingDir)
 	if err == nil {
@@ -231,11 +231,11 @@ func (d *Detector) detectProjectType() string {
 				extCounts[ext]++
 			}
 		}
-		
+
 		// Determine by most common extension
 		maxCount := 0
 		var dominantType string
-		
+
 		for ext, count := range extCounts {
 			if count > maxCount {
 				maxCount = count
@@ -255,11 +255,11 @@ func (d *Detector) detectProjectType() string {
 				}
 			}
 		}
-		
+
 		if dominantType != "" {
 			return dominantType
 		}
 	}
-	
+
 	return types.ProjectTypeUnknown
 }

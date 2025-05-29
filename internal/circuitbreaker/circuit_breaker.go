@@ -59,14 +59,14 @@ func DefaultConfig() *Config {
 // CircuitBreaker implements the circuit breaker pattern
 type CircuitBreaker struct {
 	config *Config
-	
+
 	state           int32 // atomic State
 	lastFailureTime int64 // atomic time.Time as unix nano
-	
-	consecutiveFailures int32
+
+	consecutiveFailures  int32
 	consecutiveSuccesses int32
-	halfOpenRequests    int32
-	
+	halfOpenRequests     int32
+
 	totalRequests   int64
 	totalFailures   int64
 	totalSuccesses  int64
@@ -78,7 +78,7 @@ func New(config *Config) *CircuitBreaker {
 	if config == nil {
 		config = DefaultConfig()
 	}
-	
+
 	return &CircuitBreaker{
 		config: config,
 		state:  int32(StateClosed),
@@ -100,30 +100,30 @@ func (cb *CircuitBreaker) ExecuteWithFallback(ctx context.Context, fn func(conte
 		}
 		return cbErr
 	}
-	
+
 	atomic.AddInt64(&cb.totalRequests, 1)
-	
+
 	// Execute the function
 	err := fn(ctx)
-	
+
 	// Record the result
 	cb.recordResult(err)
-	
+
 	if err != nil && fallback != nil {
 		return fallback(ctx, err)
 	}
-	
+
 	return err
 }
 
 // canExecute checks if a request can be executed
 func (cb *CircuitBreaker) canExecute() error {
 	state := cb.getState()
-	
+
 	switch state {
 	case StateClosed:
 		return nil
-		
+
 	case StateOpen:
 		// Check if we should transition to half-open
 		if cb.shouldTransitionToHalfOpen() {
@@ -131,7 +131,7 @@ func (cb *CircuitBreaker) canExecute() error {
 			return nil
 		}
 		return ErrCircuitOpen
-		
+
 	case StateHalfOpen:
 		// Limit concurrent requests in half-open state
 		current := atomic.AddInt32(&cb.halfOpenRequests, 1)
@@ -147,7 +147,7 @@ func (cb *CircuitBreaker) canExecute() error {
 			return ErrTooManyConcurrentRequests
 		}
 		return nil
-		
+
 	default:
 		return fmt.Errorf("unknown circuit breaker state: %v", state)
 	}
@@ -156,13 +156,13 @@ func (cb *CircuitBreaker) canExecute() error {
 // recordResult records the result of a request
 func (cb *CircuitBreaker) recordResult(err error) {
 	state := cb.getState()
-	
+
 	if err != nil {
 		cb.recordFailure()
 	} else {
 		cb.recordSuccess()
 	}
-	
+
 	// Decrement half-open counter if needed
 	if state == StateHalfOpen {
 		atomic.AddInt32(&cb.halfOpenRequests, -1)
@@ -172,13 +172,13 @@ func (cb *CircuitBreaker) recordResult(err error) {
 // recordSuccess records a successful request
 func (cb *CircuitBreaker) recordSuccess() {
 	atomic.AddInt64(&cb.totalSuccesses, 1)
-	
+
 	state := cb.getState()
 	switch state {
 	case StateClosed:
 		// Reset consecutive failures
 		atomic.StoreInt32(&cb.consecutiveFailures, 0)
-		
+
 	case StateHalfOpen:
 		successes := atomic.AddInt32(&cb.consecutiveSuccesses, 1)
 		// Bounds check to prevent integer overflow
@@ -197,7 +197,7 @@ func (cb *CircuitBreaker) recordSuccess() {
 func (cb *CircuitBreaker) recordFailure() {
 	atomic.AddInt64(&cb.totalFailures, 1)
 	atomic.StoreInt64(&cb.lastFailureTime, time.Now().UnixNano())
-	
+
 	state := cb.getState()
 	switch state {
 	case StateClosed:
@@ -210,8 +210,7 @@ func (cb *CircuitBreaker) recordFailure() {
 		}
 	case StateOpen:
 		// Already open, no action needed
-	
-		
+
 	case StateHalfOpen:
 		// Any failure in half-open state reopens the circuit
 		cb.transitionTo(StateOpen)
@@ -224,7 +223,7 @@ func (cb *CircuitBreaker) shouldTransitionToHalfOpen() bool {
 	if lastFailure == 0 {
 		return true
 	}
-	
+
 	elapsed := time.Since(time.Unix(0, lastFailure))
 	return elapsed >= cb.config.Timeout
 }
@@ -233,25 +232,25 @@ func (cb *CircuitBreaker) shouldTransitionToHalfOpen() bool {
 func (cb *CircuitBreaker) transitionTo(newState State) {
 	// Safe conversion - State values are constants 0, 1, 2
 	oldState := State(atomic.SwapInt32(&cb.state, int32(newState))) //nolint:gosec // State values are constants
-	
+
 	if oldState == newState {
 		return
 	}
-	
+
 	// Reset counters based on transition
 	switch newState {
 	case StateClosed:
 		atomic.StoreInt32(&cb.consecutiveFailures, 0)
 		atomic.StoreInt32(&cb.consecutiveSuccesses, 0)
-		
+
 	case StateOpen:
 		atomic.StoreInt32(&cb.consecutiveSuccesses, 0)
-		
+
 	case StateHalfOpen:
 		atomic.StoreInt32(&cb.consecutiveSuccesses, 0)
 		atomic.StoreInt32(&cb.halfOpenRequests, 0)
 	}
-	
+
 	// Notify state change
 	if cb.config.OnStateChange != nil {
 		cb.config.OnStateChange(oldState, newState)
@@ -284,18 +283,18 @@ type Stats struct {
 func (cb *CircuitBreaker) GetStats() Stats {
 	requests := atomic.LoadInt64(&cb.totalRequests)
 	failures := atomic.LoadInt64(&cb.totalFailures)
-	
+
 	var failureRate float64
 	if requests > 0 {
 		failureRate = float64(failures) / float64(requests)
 	}
-	
+
 	lastFailureNano := atomic.LoadInt64(&cb.lastFailureTime)
 	var lastFailureTime time.Time
 	if lastFailureNano > 0 {
 		lastFailureTime = time.Unix(0, lastFailureNano)
 	}
-	
+
 	return Stats{
 		State:             cb.getState(),
 		TotalRequests:     requests,

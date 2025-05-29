@@ -20,28 +20,30 @@ const (
 	ChainTypeEvolution    ChainType = "evolution"
 	ChainTypeConflict     ChainType = "conflict"
 	ChainTypeSupport      ChainType = "support"
+	ChainTypeThread       ChainType = "thread"   // Memory thread grouping
+	ChainTypeWorkflow     ChainType = "workflow" // Workflow-based chains
 )
 
 // ChainLink represents a link between two memories
 type ChainLink struct {
-	FromChunkID string    `json:"from_chunk_id"`
-	ToChunkID   string    `json:"to_chunk_id"`
-	Type        ChainType `json:"type"`
-	Strength    float64   `json:"strength"` // 0.0 to 1.0
-	CreatedAt   time.Time `json:"created_at"`
+	FromChunkID string                 `json:"from_chunk_id"`
+	ToChunkID   string                 `json:"to_chunk_id"`
+	Type        ChainType              `json:"type"`
+	Strength    float64                `json:"strength"` // 0.0 to 1.0
+	CreatedAt   time.Time              `json:"created_at"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // MemoryChain represents a chain of related memories
 type MemoryChain struct {
-	ID          string                   `json:"id"`
-	Name        string                   `json:"name"`
-	Description string                   `json:"description"`
-	ChunkIDs    []string                 `json:"chunk_ids"`
-	Links       []ChainLink              `json:"links"`
-	CreatedAt   time.Time                `json:"created_at"`
-	UpdatedAt   time.Time                `json:"updated_at"`
-	Metadata    map[string]interface{}   `json:"metadata,omitempty"`
+	ID          string                 `json:"id"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description"`
+	ChunkIDs    []string               `json:"chunk_ids"`
+	Links       []ChainLink            `json:"links"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // ChainStore interface for persisting chains
@@ -56,10 +58,10 @@ type ChainStore interface {
 
 // ChainBuilder builds memory chains
 type ChainBuilder struct {
-	store     ChainStore
-	analyzer  ChainAnalyzer
-	mu        sync.RWMutex
-	chains    map[string]*MemoryChain
+	store    ChainStore
+	analyzer ChainAnalyzer
+	mu       sync.RWMutex
+	chains   map[string]*MemoryChain
 }
 
 // ChainAnalyzer analyzes relationships between memories
@@ -353,14 +355,14 @@ func (cb *ChainBuilder) bfsPath(graph map[string][]string, start, end string) []
 	for len(queue) > 0 {
 		path := queue[0]
 		queue = queue[1:]
-		
+
 		node := path[len(path)-1]
-		
+
 		for _, neighbor := range graph[node] {
 			if neighbor == end {
 				return append(path, neighbor)
 			}
-			
+
 			if !visited[neighbor] {
 				visited[neighbor] = true
 				newPath := make([]string, len(path)+1)

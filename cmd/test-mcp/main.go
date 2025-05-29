@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/fredcamaral/gomcp-sdk/protocol"
 	"log"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/mcp"
-	"github.com/fredcamaral/gomcp-sdk/protocol"
 	"os"
 )
 
@@ -27,10 +27,10 @@ func main() {
 			MaxTokens:      8192,
 		},
 		Chunking: config.ChunkingConfig{
-			Strategy:             "adaptive",
-			MinContentLength:     100,
-			MaxContentLength:     2000,
-			SimilarityThreshold:  0.8,
+			Strategy:            "adaptive",
+			MinContentLength:    100,
+			MaxContentLength:    2000,
+			SimilarityThreshold: 0.8,
 		},
 	}
 

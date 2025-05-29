@@ -20,28 +20,28 @@ type ToolUsage struct {
 
 // ToolSequence represents a sequence of tool usages that led to an outcome
 type ToolSequence struct {
-	ID          string      `json:"id"`
-	SessionID   string      `json:"session_id"`
-	Repository  string      `json:"repository"`
-	StartTime   time.Time   `json:"start_time"`
-	EndTime     time.Time   `json:"end_time"`
-	Tools       []ToolUsage `json:"tools"`
+	ID          string        `json:"id"`
+	SessionID   string        `json:"session_id"`
+	Repository  string        `json:"repository"`
+	StartTime   time.Time     `json:"start_time"`
+	EndTime     time.Time     `json:"end_time"`
+	Tools       []ToolUsage   `json:"tools"`
 	Outcome     types.Outcome `json:"outcome"`
-	ProblemType string      `json:"problem_type"`
-	Solution    string      `json:"solution"`
-	Tags        []string    `json:"tags"`
+	ProblemType string        `json:"problem_type"`
+	Solution    string        `json:"solution"`
+	Tags        []string      `json:"tags"`
 }
 
 // PatternType represents different types of problem-solving patterns
 type PatternType string
 
 const (
-	PatternInvestigative PatternType = "investigative"    // Read → Grep → Read → Edit
-	PatternBuildFix      PatternType = "build_fix"        // Build → Error → Edit → Build
-	PatternTestDriven    PatternType = "test_driven"      // Test → Edit → Test
-	PatternExploration   PatternType = "exploration"      // Glob → Read → Grep → Read
-	PatternConfiguration PatternType = "configuration"    // Read config → Edit → Test
-	PatternDebug         PatternType = "debug"            // Error → Search → Read → Fix
+	PatternInvestigative PatternType = "investigative" // Read → Grep → Read → Edit
+	PatternBuildFix      PatternType = "build_fix"     // Build → Error → Edit → Build
+	PatternTestDriven    PatternType = "test_driven"   // Test → Edit → Test
+	PatternExploration   PatternType = "exploration"   // Glob → Read → Grep → Read
+	PatternConfiguration PatternType = "configuration" // Read config → Edit → Test
+	PatternDebug         PatternType = "debug"         // Error → Search → Read → Fix
 )
 
 // SuccessPattern represents a proven successful pattern
@@ -56,19 +56,19 @@ type SuccessPattern struct {
 
 // PatternAnalyzer analyzes tool usage patterns and identifies successful sequences
 type PatternAnalyzer struct {
-	sequences        []ToolSequence
-	successPatterns  []SuccessPattern
-	currentSequence  *ToolSequence
-	contextSwitches  []ContextSwitch
+	sequences       []ToolSequence
+	successPatterns []SuccessPattern
+	currentSequence *ToolSequence
+	contextSwitches []ContextSwitch
 }
 
 // ContextSwitch represents when Claude switches between different tasks/repos
 type ContextSwitch struct {
-	Timestamp    time.Time `json:"timestamp"`
-	FromRepo     string    `json:"from_repo"`
-	ToRepo       string    `json:"to_repo"`
-	TriggerTool  string    `json:"trigger_tool"`
-	Reason       string    `json:"reason"`
+	Timestamp   time.Time `json:"timestamp"`
+	FromRepo    string    `json:"from_repo"`
+	ToRepo      string    `json:"to_repo"`
+	TriggerTool string    `json:"trigger_tool"`
+	Reason      string    `json:"reason"`
 }
 
 // NewPatternAnalyzer creates a new pattern analyzer
@@ -99,16 +99,16 @@ func (pa *PatternAnalyzer) RecordToolUsage(tool string, context map[string]inter
 		// Auto-start sequence if none exists
 		pa.StartSequence("auto", "unknown", "unknown")
 	}
-	
+
 	usage := ToolUsage{
 		Tool:      tool,
 		Timestamp: time.Now(),
 		Context:   context,
 		Success:   success,
 	}
-	
+
 	pa.currentSequence.Tools = append(pa.currentSequence.Tools, usage)
-	
+
 	// Check for context switches
 	pa.detectContextSwitch(usage)
 }
@@ -118,20 +118,20 @@ func (pa *PatternAnalyzer) EndSequence(outcome types.Outcome, solution string) {
 	if pa.currentSequence == nil {
 		return
 	}
-	
+
 	pa.currentSequence.EndTime = time.Now()
 	pa.currentSequence.Outcome = outcome
 	pa.currentSequence.Solution = solution
 	pa.currentSequence.Tags = pa.extractSequenceTags(*pa.currentSequence)
-	
+
 	// Add to completed sequences
 	pa.sequences = append(pa.sequences, *pa.currentSequence)
-	
+
 	// Analyze for patterns if successful
 	if outcome == types.OutcomeSuccess {
 		pa.analyzeSuccessfulSequence(*pa.currentSequence)
 	}
-	
+
 	pa.currentSequence = nil
 }
 
@@ -150,7 +150,7 @@ func (pa *PatternAnalyzer) DetectPatternType(tools []string) PatternType {
 		},
 		PatternTestDriven: {
 			{"Test", "Edit", "Test"},
-			{"Bash", "Edit", "Bash"},  // test via bash
+			{"Bash", "Edit", "Bash"}, // test via bash
 		},
 		PatternExploration: {
 			{"Glob", "Read", "Grep", "Read"},
@@ -165,11 +165,11 @@ func (pa *PatternAnalyzer) DetectPatternType(tools []string) PatternType {
 			{"Bash", "Grep", "Read", "Edit"},
 		},
 	}
-	
+
 	// Find best matching pattern
 	bestMatch := PatternExploration // default
 	maxScore := 0
-	
+
 	for patternType, signatures := range patterns {
 		for _, signature := range signatures {
 			score := pa.calculatePatternMatch(tools, signature)
@@ -179,14 +179,14 @@ func (pa *PatternAnalyzer) DetectPatternType(tools []string) PatternType {
 			}
 		}
 	}
-	
+
 	return bestMatch
 }
 
 // calculatePatternMatch calculates how well a tool sequence matches a pattern
 func (pa *PatternAnalyzer) calculatePatternMatch(tools, pattern []string) int {
 	maxConsecutiveMatches := 0
-	
+
 	// Case 1: tools is longer or equal - look for pattern as subsequence
 	if len(tools) >= len(pattern) {
 		for i := 0; i <= len(tools)-len(pattern); i++ {
@@ -203,7 +203,7 @@ func (pa *PatternAnalyzer) calculatePatternMatch(tools, pattern []string) int {
 			}
 		}
 	}
-	
+
 	// Case 2: tools is shorter - check if tools is prefix of pattern
 	if len(tools) < len(pattern) {
 		consecutiveMatches := 0
@@ -218,7 +218,7 @@ func (pa *PatternAnalyzer) calculatePatternMatch(tools, pattern []string) int {
 			maxConsecutiveMatches = consecutiveMatches
 		}
 	}
-	
+
 	return maxConsecutiveMatches
 }
 
@@ -228,9 +228,9 @@ func (pa *PatternAnalyzer) analyzeSuccessfulSequence(sequence ToolSequence) {
 	for i, tool := range sequence.Tools {
 		tools[i] = tool.Tool
 	}
-	
+
 	patternType := pa.DetectPatternType(tools)
-	
+
 	// Update or create success pattern
 	pa.updateSuccessPattern(patternType, tools, sequence.Solution)
 }
@@ -248,7 +248,7 @@ func (pa *PatternAnalyzer) updateSuccessPattern(patternType PatternType, tools [
 			return
 		}
 	}
-	
+
 	// Create new pattern
 	pattern := SuccessPattern{
 		Type:        patternType,
@@ -258,7 +258,7 @@ func (pa *PatternAnalyzer) updateSuccessPattern(patternType PatternType, tools [
 		SuccessRate: 1.0, // Start optimistic
 		Examples:    []string{solution},
 	}
-	
+
 	pa.successPatterns = append(pa.successPatterns, pattern)
 }
 
@@ -286,13 +286,13 @@ func (pa *PatternAnalyzer) generatePatternDescription(patternType PatternType, t
 func (pa *PatternAnalyzer) recalculateSuccessRate(pattern *SuccessPattern) {
 	total := 0
 	successful := 0
-	
+
 	for _, sequence := range pa.sequences {
 		tools := make([]string, len(sequence.Tools))
 		for i, tool := range sequence.Tools {
 			tools[i] = tool.Tool
 		}
-		
+
 		if pa.DetectPatternType(tools) == pattern.Type {
 			total++
 			if sequence.Outcome == types.OutcomeSuccess {
@@ -300,7 +300,7 @@ func (pa *PatternAnalyzer) recalculateSuccessRate(pattern *SuccessPattern) {
 			}
 		}
 	}
-	
+
 	if total > 0 {
 		pattern.SuccessRate = float64(successful) / float64(total)
 	}
@@ -311,10 +311,10 @@ func (pa *PatternAnalyzer) detectContextSwitch(usage ToolUsage) {
 	if len(pa.sequences) == 0 {
 		return
 	}
-	
+
 	lastSequence := pa.sequences[len(pa.sequences)-1]
 	currentRepo := pa.currentSequence.Repository
-	
+
 	// Check for repository change
 	if lastSequence.Repository != currentRepo && currentRepo != "unknown" {
 		contextSwitch := ContextSwitch{
@@ -324,7 +324,7 @@ func (pa *PatternAnalyzer) detectContextSwitch(usage ToolUsage) {
 			TriggerTool: usage.Tool,
 			Reason:      pa.inferSwitchReason(usage),
 		}
-		
+
 		pa.contextSwitches = append(pa.contextSwitches, contextSwitch)
 	}
 }
@@ -360,15 +360,15 @@ func (pa *PatternAnalyzer) inferSwitchReason(usage ToolUsage) string {
 // extractSequenceTags generates relevant tags for a sequence
 func (pa *PatternAnalyzer) extractSequenceTags(sequence ToolSequence) []string {
 	tags := make([]string, 0)
-	
+
 	// Add outcome tag
 	tags = append(tags, string(sequence.Outcome))
-	
+
 	// Add repository tag
 	if sequence.Repository != "unknown" {
 		tags = append(tags, fmt.Sprintf("repo-%s", sequence.Repository))
 	}
-	
+
 	// Add pattern type tag
 	tools := make([]string, len(sequence.Tools))
 	for i, tool := range sequence.Tools {
@@ -376,7 +376,7 @@ func (pa *PatternAnalyzer) extractSequenceTags(sequence ToolSequence) []string {
 	}
 	patternType := pa.DetectPatternType(tools)
 	tags = append(tags, string(patternType))
-	
+
 	// Add duration tag
 	duration := sequence.EndTime.Sub(sequence.StartTime)
 	switch {
@@ -387,19 +387,19 @@ func (pa *PatternAnalyzer) extractSequenceTags(sequence ToolSequence) []string {
 	default:
 		tags = append(tags, "short-session")
 	}
-	
+
 	// Add tool-specific tags
 	toolCounts := make(map[string]int)
 	for _, tool := range sequence.Tools {
 		toolCounts[tool.Tool]++
 	}
-	
+
 	for tool, count := range toolCounts {
 		if count > 3 {
 			tags = append(tags, fmt.Sprintf("heavy-%s", strings.ToLower(tool)))
 		}
 	}
-	
+
 	return tags
 }
 
@@ -421,7 +421,7 @@ func (pa *PatternAnalyzer) GetContextSwitches() []ContextSwitch {
 // GetPatternRecommendations suggests patterns based on current context
 func (pa *PatternAnalyzer) GetPatternRecommendations(currentTools []string, problemType string) []SuccessPattern {
 	recommendations := make([]SuccessPattern, 0)
-	
+
 	// Find patterns with high success rates
 	for _, pattern := range pa.successPatterns {
 		if pattern.SuccessRate > 0.7 && pattern.Frequency > 2 {
@@ -432,7 +432,7 @@ func (pa *PatternAnalyzer) GetPatternRecommendations(currentTools []string, prob
 			}
 		}
 	}
-	
+
 	return recommendations
 }
 

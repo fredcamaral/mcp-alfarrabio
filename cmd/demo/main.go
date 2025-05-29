@@ -31,10 +31,10 @@ func main() {
 				MaxTokens:      8192,
 			},
 			Chunking: config.ChunkingConfig{
-				Strategy:             "adaptive",
-				MinContentLength:     100,
-				MaxContentLength:     2000,
-				SimilarityThreshold:  0.8,
+				Strategy:            "adaptive",
+				MinContentLength:    100,
+				MaxContentLength:    2000,
+				SimilarityThreshold: 0.8,
 			},
 		}
 	}
@@ -72,7 +72,7 @@ func main() {
 	for toolName, result := range results {
 		fmt.Printf("\n🔧 %s:\n", toolName)
 		fmt.Println("---")
-		
+
 		// Pretty print JSON result
 		jsonBytes, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
@@ -85,7 +85,7 @@ func main() {
 	fmt.Println("\n✅ Demo completed successfully!")
 	fmt.Println("\n💡 Next Steps:")
 	fmt.Println("- Set up OpenAI API key for full embedding functionality")
-	fmt.Println("- Configure Chroma vector database for production use") 
+	fmt.Println("- Configure Chroma vector database for production use")
 	fmt.Println("- Deploy using Docker Compose for full stack")
 	fmt.Println("- Integrate with actual Claude MCP protocol")
 

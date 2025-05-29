@@ -10,17 +10,17 @@ import (
 
 // Action constants
 const (
-	actionReportProblem = "report_problem"
+	actionReportProblem  = "report_problem"
 	actionVerifySolution = "verify_solution"
 )
 
 // BasicPatternMatcher implements the PatternMatcher interface
 type BasicPatternMatcher struct {
 	// Compiled regexes for feature extraction
-	entityRegex    *regexp.Regexp
-	actionRegex    *regexp.Regexp
-	intentRegex    *regexp.Regexp
-	outcomeRegex   *regexp.Regexp
+	entityRegex  *regexp.Regexp
+	actionRegex  *regexp.Regexp
+	intentRegex  *regexp.Regexp
+	outcomeRegex *regexp.Regexp
 }
 
 // NewBasicPatternMatcher creates a new basic pattern matcher
@@ -38,67 +38,67 @@ func (bpm *BasicPatternMatcher) MatchPattern(chunks []types.ConversationChunk, p
 	if len(chunks) == 0 {
 		return 0.0
 	}
-	
+
 	features := bpm.ExtractFeatures(chunks)
 	sequence := bpm.IdentifySequence(chunks)
-	
+
 	// Calculate different matching scores
 	keywordScore := bpm.calculateKeywordMatch(features, pattern)
 	sequenceScore := bpm.calculateSequenceMatch(sequence, pattern.Steps)
 	contextScore := bpm.calculateContextMatch(features, pattern.Context)
 	typeScore := bpm.calculateTypeMatch(features, pattern.Type)
-	
+
 	// Weighted combination
 	overallScore := (keywordScore*0.3 + sequenceScore*0.3 + contextScore*0.2 + typeScore*0.2)
-	
+
 	return math.Min(overallScore, 1.0)
 }
 
 // ExtractFeatures extracts relevant features from conversation chunks
 func (bpm *BasicPatternMatcher) ExtractFeatures(chunks []types.ConversationChunk) map[string]any {
 	features := make(map[string]any)
-	
+
 	text := extractText(chunks)
-	
+
 	// Basic features
 	features["chunk_count"] = len(chunks)
 	features["total_length"] = len(text)
 	features["avg_chunk_length"] = float64(len(text)) / float64(len(chunks))
 	features["conversation_duration"] = bpm.calculateDuration(chunks)
-	
+
 	// Pattern-specific features
 	features["entities"] = bpm.extractEntities(text)
 	features["actions"] = bpm.extractActions(text)
 	features["intents"] = bpm.extractIntents(text)
 	features["outcomes"] = bpm.extractOutcomes(text)
-	
+
 	// Technical features
 	features["has_code"] = strings.Contains(text, "```")
 	features["has_errors"] = regexp.MustCompile(`(?i)(error|exception|fail)`).MatchString(text)
 	features["has_commands"] = regexp.MustCompile(`(?i)(run|execute|install)`).MatchString(text)
 	features["has_files"] = regexp.MustCompile(`\.(go|js|py|java|cpp|h)(\s|$)`).MatchString(text)
-	
+
 	// Sentiment and urgency
 	features["urgency"] = bpm.calculateUrgency(text)
 	features["complexity"] = bpm.calculateComplexity(text)
 	features["question_count"] = strings.Count(text, "?")
 	features["exclamation_count"] = strings.Count(text, "!")
-	
+
 	// Role distribution
 	roleDistribution := bpm.calculateRoleDistribution(chunks)
 	features["role_distribution"] = roleDistribution
-	
+
 	return features
 }
 
 // IdentifySequence identifies the sequence of steps in the conversation
 func (bpm *BasicPatternMatcher) IdentifySequence(chunks []types.ConversationChunk) []PatternStep {
 	steps := make([]PatternStep, 0, len(chunks))
-	
+
 	for i, chunk := range chunks {
 		action := bpm.identifyAction(chunk.Content)
 		confidence := bpm.calculateStepConfidence(chunk, chunks)
-		
+
 		step := PatternStep{
 			Order:       i,
 			Action:      action,
@@ -107,10 +107,10 @@ func (bpm *BasicPatternMatcher) IdentifySequence(chunks []types.ConversationChun
 			Confidence:  confidence,
 			Context:     bpm.extractStepContext(chunk),
 		}
-		
+
 		steps = append(steps, step)
 	}
-	
+
 	return steps
 }
 
@@ -119,14 +119,14 @@ func (bpm *BasicPatternMatcher) IdentifySequence(chunks []types.ConversationChun
 func (bpm *BasicPatternMatcher) calculateKeywordMatch(features map[string]any, pattern Pattern) float64 {
 	// Extract keywords from features
 	currentKeywords := make([]string, 0)
-	
+
 	if entities, ok := features["entities"].([]string); ok {
 		currentKeywords = append(currentKeywords, entities...)
 	}
 	if actions, ok := features["actions"].([]string); ok {
 		currentKeywords = append(currentKeywords, actions...)
 	}
-	
+
 	return calculateOverlap(currentKeywords, pattern.Keywords)
 }
 
@@ -134,17 +134,17 @@ func (bpm *BasicPatternMatcher) calculateSequenceMatch(currentSequence []Pattern
 	if len(currentSequence) == 0 || len(patternSteps) == 0 {
 		return 0.0
 	}
-	
+
 	// Calculate similarity between action sequences
 	matches := 0
 	minLength := int(math.Min(float64(len(currentSequence)), float64(len(patternSteps))))
-	
+
 	for i := 0; i < minLength; i++ {
-			if bpm.actionsMatch(currentSequence[i].Action, patternSteps[i].Action) {
+		if bpm.actionsMatch(currentSequence[i].Action, patternSteps[i].Action) {
 			matches++
 		}
 	}
-	
+
 	return float64(matches) / float64(math.Max(float64(len(currentSequence)), float64(len(patternSteps))))
 }
 
@@ -152,18 +152,18 @@ func (bpm *BasicPatternMatcher) calculateContextMatch(currentFeatures map[string
 	if len(patternContext) == 0 {
 		return 0.5 // Neutral score for patterns without context
 	}
-	
+
 	matches := 0
 	total := len(patternContext)
-	
+
 	for key, patternValue := range patternContext {
 		if currentValue, exists := currentFeatures[key]; exists {
-				if bpm.valuesMatch(currentValue, patternValue) {
+			if bpm.valuesMatch(currentValue, patternValue) {
 				matches++
 			}
 		}
 	}
-	
+
 	return float64(matches) / float64(total)
 }
 
@@ -171,7 +171,7 @@ func (bpm *BasicPatternMatcher) calculateTypeMatch(features map[string]any, patt
 	hasCode := features["has_code"].(bool)
 	hasErrors := features["has_errors"].(bool)
 	hasCommands := features["has_commands"].(bool)
-	
+
 	switch patternType {
 	case PatternTypeProblemSolution:
 		if hasErrors {
@@ -234,42 +234,42 @@ func (bpm *BasicPatternMatcher) calculateDuration(chunks []types.ConversationChu
 	if len(chunks) < 2 {
 		return 0.0
 	}
-	
+
 	start := chunks[0].Timestamp
 	end := chunks[len(chunks)-1].Timestamp
-	
+
 	return end.Sub(start).Seconds()
 }
 
 func (bpm *BasicPatternMatcher) calculateUrgency(text string) float64 {
 	urgentWords := []string{"urgent", "emergency", "asap", "immediately", "critical", "blocking"}
 	urgencyScore := 0.0
-	
+
 	lowerText := strings.ToLower(text)
 	for _, word := range urgentWords {
 		if strings.Contains(lowerText, word) {
 			urgencyScore += 0.2
 		}
 	}
-	
+
 	// Account for multiple exclamation marks
 	exclamations := strings.Count(text, "!")
 	urgencyScore += math.Min(float64(exclamations)*0.1, 0.3)
-	
+
 	return math.Min(urgencyScore, 1.0)
 }
 
 func (bpm *BasicPatternMatcher) calculateComplexity(text string) float64 {
 	// Simple complexity heuristics
 	complexity := 0.0
-	
+
 	// Length contributes to complexity
 	complexity += math.Min(float64(len(text))/1000.0, 0.5)
-	
+
 	// Code blocks increase complexity
 	codeBlocks := strings.Count(text, "```")
 	complexity += math.Min(float64(codeBlocks)*0.2, 0.3)
-	
+
 	// Technical terms increase complexity
 	techTerms := []string{"api", "database", "algorithm", "architecture", "framework"}
 	lowerText := strings.ToLower(text)
@@ -278,29 +278,29 @@ func (bpm *BasicPatternMatcher) calculateComplexity(text string) float64 {
 			complexity += 0.1
 		}
 	}
-	
+
 	return math.Min(complexity, 1.0)
 }
 
 func (bpm *BasicPatternMatcher) calculateRoleDistribution(chunks []types.ConversationChunk) map[string]float64 {
 	typeCount := make(map[string]int)
 	total := len(chunks)
-	
+
 	for _, chunk := range chunks {
 		typeCount[string(chunk.Type)]++
 	}
-	
+
 	distribution := make(map[string]float64)
 	for chunkType, count := range typeCount {
 		distribution[chunkType] = float64(count) / float64(total)
 	}
-	
+
 	return distribution
 }
 
 func (bpm *BasicPatternMatcher) identifyAction(content string) string {
 	content = strings.ToLower(content)
-	
+
 	if strings.Contains(content, "error") || strings.Contains(content, "fail") {
 		return actionReportProblem
 	}
@@ -319,29 +319,29 @@ func (bpm *BasicPatternMatcher) identifyAction(content string) string {
 	if strings.Contains(content, "run") || strings.Contains(content, "execute") {
 		return "execute_command"
 	}
-	
+
 	return "general_interaction"
 }
 
 func (bpm *BasicPatternMatcher) calculateStepConfidence(chunk types.ConversationChunk, _ []types.ConversationChunk) float64 {
 	// Base confidence on chunk properties
 	baseConfidence := 0.5
-	
+
 	// Longer chunks generally have higher confidence
 	if len(chunk.Content) > 100 {
 		baseConfidence += 0.2
 	}
-	
+
 	// Chunks with specific patterns have higher confidence
 	if regexp.MustCompile(`(?i)(step|then|next|after)`).MatchString(chunk.Content) {
 		baseConfidence += 0.2
 	}
-	
+
 	// Code or technical content has higher confidence
 	if strings.Contains(chunk.Content, "```") {
 		baseConfidence += 0.1
 	}
-	
+
 	return math.Min(baseConfidence, 1.0)
 }
 
@@ -366,12 +366,12 @@ func (bpm *BasicPatternMatcher) generateStepDescription(action, _ string) string
 
 func (bpm *BasicPatternMatcher) extractStepContext(chunk types.ConversationChunk) map[string]any {
 	context := make(map[string]any)
-	
+
 	context["type"] = string(chunk.Type)
 	context["length"] = len(chunk.Content)
 	context["has_code"] = strings.Contains(chunk.Content, "```")
 	context["timestamp"] = chunk.Timestamp
-	
+
 	return context
 }
 
@@ -380,21 +380,21 @@ func (bpm *BasicPatternMatcher) actionsMatch(action1, action2 string) bool {
 	if action1 == action2 {
 		return true
 	}
-	
+
 	// Semantic similarity for actions
 	semanticGroups := map[string][]string{
-		"problem": {actionReportProblem, "identify_issue"},
-		"solution": {"provide_solution", "fix_issue", "resolve_problem"},
-		"creation": {"create_resource", "add_resource", "build_resource"},
+		"problem":      {actionReportProblem, "identify_issue"},
+		"solution":     {"provide_solution", "fix_issue", "resolve_problem"},
+		"creation":     {"create_resource", "add_resource", "build_resource"},
 		"modification": {"modify_resource", "update_resource", "change_resource"},
 		"verification": {actionVerifySolution, "test_solution", "validate_solution"},
-		"execution": {"execute_command", "run_command", "perform_action"},
+		"execution":    {"execute_command", "run_command", "perform_action"},
 	}
-	
+
 	for _, group := range semanticGroups {
 		contains1 := false
 		contains2 := false
-		
+
 		for _, action := range group {
 			if action == action1 {
 				contains1 = true
@@ -403,12 +403,12 @@ func (bpm *BasicPatternMatcher) actionsMatch(action1, action2 string) bool {
 				contains2 = true
 			}
 		}
-		
+
 		if contains1 && contains2 {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -432,6 +432,6 @@ func (bpm *BasicPatternMatcher) valuesMatch(value1, value2 any) bool {
 			return v1 == v2
 		}
 	}
-	
+
 	return false
 }

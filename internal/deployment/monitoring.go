@@ -14,45 +14,45 @@ import (
 
 // MonitoringManager handles application monitoring and metrics
 type MonitoringManager struct {
-	logger       logging.Logger
-	metrics      *MetricsCollector
-	alerts       *AlertManager
-	healthMgr    *HealthManager
-	enabled      bool
-	interval     time.Duration
-	stopChan     chan struct{}
-	doneChan     chan struct{}
-	mutex        sync.RWMutex
+	logger    logging.Logger
+	metrics   *MetricsCollector
+	alerts    *AlertManager
+	healthMgr *HealthManager
+	enabled   bool
+	interval  time.Duration
+	stopChan  chan struct{}
+	doneChan  chan struct{}
+	mutex     sync.RWMutex
 }
 
 // MetricsCollector collects and stores application metrics
 type MetricsCollector struct {
-	mutex            sync.RWMutex
-	counters         map[string]int64
-	gauges           map[string]float64
-	histograms       map[string][]float64
-	lastReset        time.Time
-	retentionPeriod  time.Duration
+	mutex           sync.RWMutex
+	counters        map[string]int64
+	gauges          map[string]float64
+	histograms      map[string][]float64
+	lastReset       time.Time
+	retentionPeriod time.Duration
 }
 
 // MetricSnapshot represents a point-in-time view of metrics
 type MetricSnapshot struct {
-	Timestamp  time.Time         `json:"timestamp"`
-	Counters   map[string]int64  `json:"counters"`
-	Gauges     map[string]float64 `json:"gauges"`
+	Timestamp  time.Time                 `json:"timestamp"`
+	Counters   map[string]int64          `json:"counters"`
+	Gauges     map[string]float64        `json:"gauges"`
 	Histograms map[string]HistogramStats `json:"histograms"`
-	System     SystemMetrics     `json:"system"`
+	System     SystemMetrics             `json:"system"`
 }
 
 // HistogramStats provides statistical analysis of histogram data
 type HistogramStats struct {
-	Count   int     `json:"count"`
-	Min     float64 `json:"min"`
-	Max     float64 `json:"max"`
-	Mean    float64 `json:"mean"`
-	Median  float64 `json:"median"`
-	P95     float64 `json:"p95"`
-	P99     float64 `json:"p99"`
+	Count  int     `json:"count"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	Mean   float64 `json:"mean"`
+	Median float64 `json:"median"`
+	P95    float64 `json:"p95"`
+	P99    float64 `json:"p99"`
 }
 
 // SystemMetrics contains system-level metrics
@@ -210,7 +210,7 @@ func (mm *MonitoringManager) collectMetrics(ctx context.Context) {
 	// Collect health metrics if health manager is available
 	if mm.healthMgr != nil {
 		health := mm.healthMgr.CheckHealth(ctx)
-		
+
 		// Convert health status to numeric score
 		var healthScore float64
 		switch health.Status {
@@ -228,7 +228,7 @@ func (mm *MonitoringManager) collectMetrics(ctx context.Context) {
 			healthScore = 0.0
 		}
 		mm.metrics.SetGauge("health.overall.score", healthScore)
-		
+
 		for _, check := range health.Checks {
 			var checkScore float64
 			switch check.Status {
@@ -291,13 +291,13 @@ func (mc *MetricsCollector) GetGauge(name string) float64 {
 func (mc *MetricsCollector) RecordHistogram(name string, value float64) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
-	
+
 	if mc.histograms[name] == nil {
 		mc.histograms[name] = make([]float64, 0)
 	}
-	
+
 	mc.histograms[name] = append(mc.histograms[name], value)
-	
+
 	// Limit histogram size to prevent memory issues
 	if len(mc.histograms[name]) > 10000 {
 		mc.histograms[name] = mc.histograms[name][len(mc.histograms[name])-5000:]
@@ -356,7 +356,7 @@ func calculateHistogramStats(values []float64) HistogramStats {
 	// Sort values for percentile calculations
 	sorted := make([]float64, len(values))
 	copy(sorted, values)
-	
+
 	// Simple bubble sort for small datasets
 	for i := 0; i < len(sorted); i++ {
 		for j := 0; j < len(sorted)-1-i; j++ {
@@ -392,15 +392,15 @@ func percentile(sorted []float64, p float64) float64 {
 	if len(sorted) == 0 {
 		return 0
 	}
-	
+
 	index := p * float64(len(sorted)-1)
 	lower := int(index)
 	upper := lower + 1
-	
+
 	if upper >= len(sorted) {
 		return sorted[len(sorted)-1]
 	}
-	
+
 	weight := index - float64(lower)
 	return sorted[lower]*(1-weight) + sorted[upper]*weight
 }
@@ -409,7 +409,7 @@ func percentile(sorted []float64, p float64) float64 {
 func (mm *MonitoringManager) HTTPHandler() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		snapshot := mm.GetSnapshot()
-		
+
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(snapshot); err != nil {
 			http.Error(w, "Failed to encode metrics", http.StatusInternalServerError)
@@ -422,7 +422,7 @@ func (mm *MonitoringManager) HTTPHandler() http.HandlerFunc {
 func (am *AlertManager) AddRule(rule AlertRule) {
 	am.mutex.Lock()
 	defer am.mutex.Unlock()
-	
+
 	rule.cooldown = 5 * time.Minute // Default cooldown
 	am.rules = append(am.rules, rule)
 	am.logger.Info("Added alert rule", "name", rule.Name)

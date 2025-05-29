@@ -57,7 +57,7 @@ func (cs *ChromaStore) Initialize(ctx context.Context) error {
 
 	// Create or get collection with custom embedding function wrapper
 	embeddingFunc := &noOpEmbeddingFunction{}
-	
+
 	collection, err := cs.client.GetOrCreateCollection(
 		ctx,
 		cs.config.Collection,
@@ -167,7 +167,7 @@ func (cs *ChromaStore) Search(ctx context.Context, query types.MemoryQuery, quer
 	if qr == nil {
 		return results, nil
 	}
-	
+
 	return cs.processQueryResults(qr, &query, results), nil
 }
 
@@ -176,24 +176,24 @@ func (cs *ChromaStore) processQueryResults(qr chromav2.QueryResult, query *types
 	if len(docs) == 0 || len(docs[0]) == 0 {
 		return results
 	}
-	
+
 	results.Total = len(docs[0])
 	metadatas := qr.GetMetadatasGroups()
 	distances := qr.GetDistancesGroups()
 	ids := qr.GetIDGroups()
-	
+
 	// Ensure all result groups have data
 	if len(metadatas) == 0 || len(distances) == 0 || len(ids) == 0 {
 		return results
 	}
-	
+
 	for i := 0; i < len(docs[0]); i++ {
 		result := cs.processSearchResult(i, ids[0], docs[0], cs.convertMetadatas(metadatas[0]), cs.convertDistances(distances[0]), query.MinRelevanceScore)
 		if result != nil {
 			results.Results = append(results.Results, *result)
 		}
 	}
-	
+
 	return results
 }
 
@@ -201,14 +201,14 @@ func (cs *ChromaStore) processSearchResult(index int, ids []chromav2.DocumentID,
 	chunkID := cs.extractChunkID(index, ids)
 	metadata := cs.extractMetadata(index, metadatas)
 	content := cs.extractContent(index, docs)
-	
+
 	chunk := cs.chromaResultToChunk(chunkID, content, metadata)
-	
+
 	score := cs.calculateScore(index, distances)
 	if score < minScore {
 		return nil
 	}
-	
+
 	return &types.SearchResult{
 		Chunk: *chunk,
 		Score: score,
@@ -535,15 +535,15 @@ func (cs *ChromaStore) documentMetadataToMap(dm chromav2.DocumentMetadata) map[s
 	if dm == nil {
 		return make(map[string]interface{})
 	}
-	
+
 	// Get the underlying implementation to access Keys() method
 	impl, ok := dm.(*chromav2.DocumentMetadataImpl)
 	if !ok {
 		return make(map[string]interface{})
 	}
-	
+
 	result := make(map[string]interface{})
-	
+
 	// Iterate through all keys and extract values
 	for _, key := range impl.Keys() {
 		if val, ok := dm.GetString(key); ok {
@@ -556,7 +556,7 @@ func (cs *ChromaStore) documentMetadataToMap(dm chromav2.DocumentMetadata) map[s
 			result[key] = val
 		}
 	}
-	
+
 	return result
 }
 
@@ -585,7 +585,7 @@ func (cs *ChromaStore) chunkToMetadata(chunk types.ConversationChunk) map[string
 
 func (cs *ChromaStore) metadataToAttributes(metadata map[string]interface{}) []*chromav2.MetaAttribute {
 	attrs := make([]*chromav2.MetaAttribute, 0, len(metadata))
-	
+
 	for key, value := range metadata {
 		switch v := value.(type) {
 		case string:
@@ -604,7 +604,7 @@ func (cs *ChromaStore) metadataToAttributes(metadata map[string]interface{}) []*
 			attrs = append(attrs, chromav2.NewStringAttribute(key, fmt.Sprintf("%v", v)))
 		}
 	}
-	
+
 	return attrs
 }
 

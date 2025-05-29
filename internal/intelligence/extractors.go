@@ -28,7 +28,7 @@ func NewBasicConceptExtractor() *BasicConceptExtractor {
 func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error) {
 	// Pre-allocate with estimated capacity based on typical matches
 	concepts := make([]Concept, 0, 50)
-	
+
 	// Extract technical terms
 	technicalMatches := bce.technicalTerms.FindAllString(text, -1)
 	for _, match := range technicalMatches {
@@ -44,7 +44,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 		}
 		concepts = append(concepts, concept)
 	}
-	
+
 	// Extract architectural patterns
 	codeMatches := bce.codePatterns.FindAllString(text, -1)
 	for _, match := range codeMatches {
@@ -60,7 +60,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 		}
 		concepts = append(concepts, concept)
 	}
-	
+
 	// Extract action concepts
 	actionMatches := bce.actionWords.FindAllString(text, -1)
 	for _, match := range actionMatches {
@@ -76,7 +76,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 		}
 		concepts = append(concepts, concept)
 	}
-	
+
 	// Extract abstract concepts
 	conceptMatches := bce.conceptWords.FindAllString(text, -1)
 	for _, match := range conceptMatches {
@@ -92,7 +92,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 		}
 		concepts = append(concepts, concept)
 	}
-	
+
 	// Extract key phrases (noun phrases)
 	phrases := bce.ExtractKeyPhrases(text)
 	for _, phrase := range phrases {
@@ -110,10 +110,10 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 			concepts = append(concepts, concept)
 		}
 	}
-	
+
 	// Remove duplicates and sort by confidence
 	uniqueConcepts := bce.removeDuplicateConcepts(concepts)
-	
+
 	return uniqueConcepts, nil
 }
 
@@ -128,17 +128,17 @@ func (bce *BasicConceptExtractor) ExtractKeyPhrases(text string) []string {
 	// Simple noun phrase extraction using patterns
 	nounPhraseRegex := regexp.MustCompile(`(?i)\b([A-Z][a-z]+ (?:[A-Z][a-z]+ )*[A-Z][a-z]+)\b`)
 	camelCaseRegex := regexp.MustCompile(`\b[a-z]+[A-Z][a-zA-Z]*\b`)
-	
+
 	var phrases []string
-	
+
 	// Extract capitalized noun phrases
 	nounMatches := nounPhraseRegex.FindAllString(text, -1)
 	phrases = append(phrases, nounMatches...)
-	
+
 	// Extract camelCase identifiers
 	camelMatches := camelCaseRegex.FindAllString(text, -1)
 	phrases = append(phrases, camelMatches...)
-	
+
 	return bce.unique(phrases)
 }
 
@@ -170,7 +170,7 @@ func (bee *BasicEntityExtractor) ExtractFiles(text string) []string {
 func (bee *BasicEntityExtractor) ExtractFunctions(text string) []string {
 	matches := bee.functionRegex.FindAllString(text, -1)
 	var functions []string
-	
+
 	for _, match := range matches {
 		// Remove the opening parenthesis
 		funcName := strings.TrimSuffix(strings.TrimSpace(match), "(")
@@ -178,7 +178,7 @@ func (bee *BasicEntityExtractor) ExtractFunctions(text string) []string {
 			functions = append(functions, funcName)
 		}
 	}
-	
+
 	return bee.unique(functions)
 }
 
@@ -188,7 +188,7 @@ func (bee *BasicEntityExtractor) ExtractVariables(text string) []string {
 	// In practice, you'd want more sophisticated parsing
 	codeBlockRegex := regexp.MustCompile("```[\\s\\S]*?```")
 	codeBlocks := codeBlockRegex.FindAllString(text, -1)
-	
+
 	var variables []string
 	for _, block := range codeBlocks {
 		matches := bee.variableRegex.FindAllString(block, -1)
@@ -198,7 +198,7 @@ func (bee *BasicEntityExtractor) ExtractVariables(text string) []string {
 			}
 		}
 	}
-	
+
 	return bee.unique(variables)
 }
 
@@ -206,13 +206,13 @@ func (bee *BasicEntityExtractor) ExtractVariables(text string) []string {
 func (bee *BasicEntityExtractor) ExtractCommands(text string) []string {
 	matches := bee.commandRegex.FindAllStringSubmatch(text, -1)
 	var commands []string
-	
+
 	for _, match := range matches {
 		if len(match) > 1 {
 			commands = append(commands, match[1])
 		}
 	}
-	
+
 	return bee.unique(commands)
 }
 
@@ -220,25 +220,25 @@ func (bee *BasicEntityExtractor) ExtractCommands(text string) []string {
 
 func (bce *BasicConceptExtractor) isCommonPhrase(phrase string) bool {
 	commonPhrases := map[string]bool{
-		"the system":     true,
-		"the process":    true,
-		"the method":     true,
-		"the function":   true,
-		"the component":  true,
-		"the service":    true,
+		"the system":      true,
+		"the process":     true,
+		"the method":      true,
+		"the function":    true,
+		"the component":   true,
+		"the service":     true,
 		"the application": true,
-		"the user":       true,
-		"the client":     true,
-		"the server":     true,
+		"the user":        true,
+		"the client":      true,
+		"the server":      true,
 	}
-	
+
 	return commonPhrases[strings.ToLower(phrase)]
 }
 
 func (bce *BasicConceptExtractor) removeDuplicateConcepts(concepts []Concept) []Concept {
 	seen := make(map[string]bool)
 	var result []Concept
-	
+
 	for _, concept := range concepts {
 		key := strings.ToLower(concept.Name)
 		if !seen[key] {
@@ -246,21 +246,21 @@ func (bce *BasicConceptExtractor) removeDuplicateConcepts(concepts []Concept) []
 			result = append(result, concept)
 		}
 	}
-	
+
 	return result
 }
 
 func (bce *BasicConceptExtractor) unique(items []string) []string {
 	seen := make(map[string]bool)
 	var result []string
-	
+
 	for _, item := range items {
 		if !seen[item] {
 			seen[item] = true
 			result = append(result, item)
 		}
 	}
-	
+
 	return result
 }
 
@@ -278,7 +278,7 @@ func (bee *BasicEntityExtractor) isCommonWord(word string) bool {
 		"too": true, "use": true, "may": true, "end": true, "why": true,
 		"try": true, "ask": true, "men": true, "run": true, "own": true,
 	}
-	
+
 	return commonWords[strings.ToLower(word)]
 }
 
@@ -296,20 +296,20 @@ func (bee *BasicEntityExtractor) isKeyword(word string) bool {
 		"true": true, "false": true, "null": true, "undefined": true,
 		"package": true, "namespace": true, "using": true, "include": true,
 	}
-	
+
 	return keywords[strings.ToLower(word)]
 }
 
 func (bee *BasicEntityExtractor) unique(items []string) []string {
 	seen := make(map[string]bool)
 	var result []string
-	
+
 	for _, item := range items {
 		if !seen[item] {
 			seen[item] = true
 			result = append(result, item)
 		}
 	}
-	
+
 	return result
 }

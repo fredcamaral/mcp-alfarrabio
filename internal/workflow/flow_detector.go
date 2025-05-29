@@ -11,34 +11,34 @@ import (
 
 // ConversationSegment represents a segment of conversation with identified flow type
 type ConversationSegment struct {
-	ID        string                `json:"id"`
-	StartTime time.Time             `json:"start_time"`
-	EndTime   time.Time             `json:"end_time"`
-	Flow      types.ConversationFlow `json:"flow"`
-	Content   string                `json:"content"`
-	Confidence float64              `json:"confidence"` // 0.0 to 1.0
-	Keywords   []string             `json:"keywords"`
-	Entities   []string             `json:"entities"`   // File names, error codes, etc.
+	ID         string                 `json:"id"`
+	StartTime  time.Time              `json:"start_time"`
+	EndTime    time.Time              `json:"end_time"`
+	Flow       types.ConversationFlow `json:"flow"`
+	Content    string                 `json:"content"`
+	Confidence float64                `json:"confidence"` // 0.0 to 1.0
+	Keywords   []string               `json:"keywords"`
+	Entities   []string               `json:"entities"` // File names, error codes, etc.
 }
 
 // FlowTransition represents a transition between conversation flows
 type FlowTransition struct {
 	From      types.ConversationFlow `json:"from"`
 	To        types.ConversationFlow `json:"to"`
-	Timestamp time.Time             `json:"timestamp"`
-	Trigger   string                `json:"trigger"`
+	Timestamp time.Time              `json:"timestamp"`
+	Trigger   string                 `json:"trigger"`
 	Context   map[string]interface{} `json:"context"`
 }
 
 // ConversationSession represents a complete conversation session with flow analysis
 type ConversationSession struct {
-	SessionID   string                 `json:"session_id"`
-	Repository  string                 `json:"repository"`
-	StartTime   time.Time              `json:"start_time"`
-	EndTime     *time.Time             `json:"end_time,omitempty"`
-	Segments    []ConversationSegment  `json:"segments"`
-	Transitions []FlowTransition       `json:"transitions"`
-	Summary     SessionSummary         `json:"summary"`
+	SessionID   string                `json:"session_id"`
+	Repository  string                `json:"repository"`
+	StartTime   time.Time             `json:"start_time"`
+	EndTime     *time.Time            `json:"end_time,omitempty"`
+	Segments    []ConversationSegment `json:"segments"`
+	Transitions []FlowTransition      `json:"transitions"`
+	Summary     SessionSummary        `json:"summary"`
 }
 
 // SessionSummary provides high-level analysis of the conversation session
@@ -64,11 +64,11 @@ type FlowDetector struct {
 
 // FlowPattern defines patterns for detecting conversation flows
 type FlowPattern struct {
-	Keywords    []string    `json:"keywords"`
-	Phrases     []string    `json:"phrases"`
-	Regex       []*regexp.Regexp `json:"-"`
-	ToolUsage   []string    `json:"tool_usage"`
-	Weight      float64     `json:"weight"`
+	Keywords  []string         `json:"keywords"`
+	Phrases   []string         `json:"phrases"`
+	Regex     []*regexp.Regexp `json:"-"`
+	ToolUsage []string         `json:"tool_usage"`
+	Weight    float64          `json:"weight"`
 }
 
 // EntityExtractor identifies entities like file names, error codes, etc.
@@ -86,7 +86,7 @@ func NewFlowDetector() *FlowDetector {
 		flowPatterns:    make(map[types.ConversationFlow]*FlowPattern),
 		entityExtractor: NewEntityExtractor(),
 	}
-	
+
 	detector.initializePatterns()
 	return detector
 }
@@ -105,36 +105,36 @@ func NewEntityExtractor() *EntityExtractor {
 func (fd *FlowDetector) initializePatterns() {
 	// Problem flow patterns
 	fd.flowPatterns[types.FlowProblem] = &FlowPattern{
-		Keywords: []string{"error", "issue", "problem", "bug", "broken", "failed", "failing", "exception", "crash"},
-		Phrases:  []string{"I'm getting", "there's an issue", "something's wrong", "not working", "help me with"},
+		Keywords:  []string{"error", "issue", "problem", "bug", "broken", "failed", "failing", "exception", "crash"},
+		Phrases:   []string{"I'm getting", "there's an issue", "something's wrong", "not working", "help me with"},
 		ToolUsage: []string{"Read", "LS", "Grep"},
-		Weight:   1.0,
+		Weight:    1.0,
 	}
-	
-	// Investigation flow patterns  
+
+	// Investigation flow patterns
 	fd.flowPatterns[types.FlowInvestigation] = &FlowPattern{
-		Keywords: []string{"let me check", "investigating", "looking at", "examining", "analyzing", "debugging"},
-		Phrases:  []string{"let me search", "I'll look for", "checking the", "let me examine", "investigating this"},
+		Keywords:  []string{"let me check", "investigating", "looking at", "examining", "analyzing", "debugging"},
+		Phrases:   []string{"let me search", "I'll look for", "checking the", "let me examine", "investigating this"},
 		ToolUsage: []string{"Grep", "Read", "Bash", "Glob"},
-		Weight:   1.0,
+		Weight:    1.0,
 	}
-	
+
 	// Solution flow patterns
 	fd.flowPatterns[types.FlowSolution] = &FlowPattern{
-		Keywords: []string{"fix", "solution", "resolve", "implement", "create", "add", "update", "modify"},
-		Phrases:  []string{"here's the fix", "I'll implement", "let me create", "the solution is", "to fix this"},
+		Keywords:  []string{"fix", "solution", "resolve", "implement", "create", "add", "update", "modify"},
+		Phrases:   []string{"here's the fix", "I'll implement", "let me create", "the solution is", "to fix this"},
 		ToolUsage: []string{"Edit", "Write", "MultiEdit"},
-		Weight:   1.0,
+		Weight:    1.0,
 	}
-	
+
 	// Verification flow patterns
 	fd.flowPatterns[types.FlowVerification] = &FlowPattern{
-		Keywords: []string{"test", "verify", "check", "confirm", "validate", "build", "run", "compile"},
-		Phrases:  []string{"let's test", "running the", "checking if", "verifying that", "testing the fix"},
+		Keywords:  []string{"test", "verify", "check", "confirm", "validate", "build", "run", "compile"},
+		Phrases:   []string{"let's test", "running the", "checking if", "verifying that", "testing the fix"},
 		ToolUsage: []string{"Bash", "Test"},
-		Weight:   1.0,
+		Weight:    1.0,
 	}
-	
+
 	// Compile regex patterns
 	for _, pattern := range fd.flowPatterns {
 		for _, phrase := range pattern.Phrases {
@@ -155,17 +155,17 @@ func (fd *FlowDetector) StartSession(sessionID, repository string) {
 		Segments:    make([]ConversationSegment, 0),
 		Transitions: make([]FlowTransition, 0),
 	}
-	
+
 	fd.sessions[sessionID] = session
 }
 
 // ProcessMessage analyzes a conversation message and updates flow state
 func (fd *FlowDetector) ProcessMessage(sessionID, content string, toolUsed string, context map[string]interface{}) {
 	session := fd.getOrCreateSession(sessionID)
-	
+
 	// Detect flow type for this content
 	detectedFlow, confidence := fd.detectFlow(content, toolUsed)
-	
+
 	// Check if we need to create a new segment or continue current one
 	if fd.shouldCreateNewSegment(detectedFlow, confidence) {
 		fd.finishCurrentSegment(session)
@@ -173,7 +173,7 @@ func (fd *FlowDetector) ProcessMessage(sessionID, content string, toolUsed strin
 	} else {
 		fd.updateCurrentSegment(content, confidence)
 	}
-	
+
 	// Extract entities from content
 	entities := fd.entityExtractor.Extract(content)
 	if fd.currentSegment != nil {
@@ -186,7 +186,7 @@ func (fd *FlowDetector) detectFlow(content, toolUsed string) (types.Conversation
 	contentLower := strings.ToLower(content)
 	maxScore := 0.0
 	detectedFlow := types.FlowProblem // default
-	
+
 	for flow, pattern := range fd.flowPatterns {
 		score := fd.calculateFlowScore(contentLower, toolUsed, pattern)
 		if score > maxScore {
@@ -194,34 +194,34 @@ func (fd *FlowDetector) detectFlow(content, toolUsed string) (types.Conversation
 			detectedFlow = flow
 		}
 	}
-	
+
 	// Normalize confidence to 0-1 range
 	confidence := maxScore / 3.0 // Max possible score is roughly 3 (keyword + phrase + tool)
 	if confidence > 1.0 {
 		confidence = 1.0
 	}
-	
+
 	return detectedFlow, confidence
 }
 
 // calculateFlowScore computes a score for how well content matches a flow pattern
 func (fd *FlowDetector) calculateFlowScore(content, toolUsed string, pattern *FlowPattern) float64 {
 	score := 0.0
-	
+
 	// Check keywords
 	for _, keyword := range pattern.Keywords {
 		if strings.Contains(content, keyword) {
 			score += 0.5
 		}
 	}
-	
+
 	// Check regex phrases
 	for _, regex := range pattern.Regex {
 		if regex.MatchString(content) {
 			score += 1.0
 		}
 	}
-	
+
 	// Check tool usage
 	for _, tool := range pattern.ToolUsage {
 		if tool == toolUsed {
@@ -229,7 +229,7 @@ func (fd *FlowDetector) calculateFlowScore(content, toolUsed string, pattern *Fl
 			break
 		}
 	}
-	
+
 	return score * pattern.Weight
 }
 
@@ -239,17 +239,17 @@ func (fd *FlowDetector) shouldCreateNewSegment(flow types.ConversationFlow, conf
 	if fd.currentSegment == nil {
 		return true
 	}
-	
+
 	// Create new segment if flow changed and confidence is high
 	if fd.currentSegment.Flow != flow && confidence > 0.6 {
 		return true
 	}
-	
+
 	// Create new segment if current segment is getting too long
 	if time.Since(fd.currentSegment.StartTime) > 10*time.Minute {
 		return true
 	}
-	
+
 	return false
 }
 
@@ -258,10 +258,10 @@ func (fd *FlowDetector) finishCurrentSegment(session *ConversationSession) {
 	if fd.currentSegment == nil {
 		return
 	}
-	
+
 	fd.currentSegment.EndTime = time.Now()
 	fd.currentSegment.Keywords = fd.extractKeywords(fd.currentSegment.Content)
-	
+
 	// Record transition if there was a previous segment
 	if len(session.Segments) > 0 {
 		lastFlow := session.Segments[len(session.Segments)-1].Flow
@@ -275,7 +275,7 @@ func (fd *FlowDetector) finishCurrentSegment(session *ConversationSession) {
 			session.Transitions = append(session.Transitions, transition)
 		}
 	}
-	
+
 	session.Segments = append(session.Segments, *fd.currentSegment)
 	fd.currentSegment = nil
 }
@@ -298,7 +298,7 @@ func (fd *FlowDetector) updateCurrentSegment(content string, confidence float64)
 	if fd.currentSegment == nil {
 		return
 	}
-	
+
 	fd.currentSegment.Content += "\n" + content
 	// Update confidence as weighted average
 	totalContent := len(strings.Split(fd.currentSegment.Content, "\n"))
@@ -311,17 +311,17 @@ func (fd *FlowDetector) EndSession(sessionID string, outcome types.Outcome) {
 	if session == nil {
 		return
 	}
-	
+
 	// Finish any current segment
 	fd.finishCurrentSegment(session)
-	
+
 	// Mark session as ended
 	now := time.Now()
 	session.EndTime = &now
-	
+
 	// Generate session summary
 	session.Summary = fd.generateSessionSummary(session)
-	
+
 	// Clean up current segment
 	fd.currentSegment = nil
 }
@@ -332,21 +332,21 @@ func (fd *FlowDetector) generateSessionSummary(session *ConversationSession) Ses
 		Technologies: make([]string, 0),
 		KeyDecisions: make([]string, 0),
 	}
-	
+
 	if session.EndTime != nil {
 		summary.TotalDuration = session.EndTime.Sub(session.StartTime)
 	}
-	
+
 	// Analyze segments for timing and flow distribution
 	flowDurations := make(map[types.ConversationFlow]time.Duration)
 	flowCounts := make(map[types.ConversationFlow]int)
-	
+
 	for _, segment := range session.Segments {
 		duration := segment.EndTime.Sub(segment.StartTime)
 		flowDurations[segment.Flow] += duration
 		flowCounts[segment.Flow]++
 	}
-	
+
 	// Find primary flow (most time spent)
 	maxDuration := time.Duration(0)
 	for flow, duration := range flowDurations {
@@ -355,12 +355,12 @@ func (fd *FlowDetector) generateSessionSummary(session *ConversationSession) Ses
 			summary.PrimaryFlow = flow
 		}
 	}
-	
+
 	// Set specific timing
 	summary.InvestigationTime = flowDurations[types.FlowInvestigation]
 	summary.SolutionTime = flowDurations[types.FlowSolution]
 	summary.VerificationTime = flowDurations[types.FlowVerification]
-	
+
 	// Count problems solved (transitions from problem to solution)
 	for _, transition := range session.Transitions {
 		if transition.From == types.FlowProblem && transition.To == types.FlowSolution {
@@ -370,11 +370,11 @@ func (fd *FlowDetector) generateSessionSummary(session *ConversationSession) Ses
 			summary.SuccessfulOutcomes++
 		}
 	}
-	
+
 	// Extract technologies from entities
 	summary.Technologies = fd.extractTechnologies(session)
 	summary.KeyDecisions = fd.extractDecisions(session)
-	
+
 	return summary
 }
 
@@ -383,10 +383,10 @@ func (fd *FlowDetector) extractKeywords(content string) []string {
 	// Simple keyword extraction - could be enhanced with NLP
 	words := strings.Fields(strings.ToLower(content))
 	keywords := make([]string, 0)
-	
+
 	// Tech keywords
 	techKeywords := []string{"go", "golang", "docker", "chroma", "vector", "embedding", "mcp", "server", "api", "http", "json", "test", "build", "deploy"}
-	
+
 	for _, word := range words {
 		for _, tech := range techKeywords {
 			if strings.Contains(word, tech) && len(word) > 2 {
@@ -395,14 +395,14 @@ func (fd *FlowDetector) extractKeywords(content string) []string {
 			}
 		}
 	}
-	
+
 	return keywords
 }
 
 // extractTechnologies identifies technologies used in the session
 func (fd *FlowDetector) extractTechnologies(session *ConversationSession) []string {
 	techMap := make(map[string]bool)
-	
+
 	for _, segment := range session.Segments {
 		for _, entity := range segment.Entities {
 			// Check file extensions
@@ -417,7 +417,7 @@ func (fd *FlowDetector) extractTechnologies(session *ConversationSession) []stri
 				techMap["Docker"] = true
 			}
 		}
-		
+
 		// Check keywords
 		for _, keyword := range segment.Keywords {
 			switch {
@@ -430,32 +430,32 @@ func (fd *FlowDetector) extractTechnologies(session *ConversationSession) []stri
 			}
 		}
 	}
-	
+
 	technologies := make([]string, 0, len(techMap))
 	for tech := range techMap {
 		technologies = append(technologies, tech)
 	}
-	
+
 	return technologies
 }
 
 // extractDecisions identifies key decisions made during the session
 func (fd *FlowDetector) extractDecisions(session *ConversationSession) []string {
 	decisions := make([]string, 0)
-	
+
 	for _, segment := range session.Segments {
 		if segment.Flow != types.FlowSolution {
 			continue
 		}
-		
+
 		newDecisions := fd.extractDecisionsFromSegment(&segment)
 		decisions = append(decisions, newDecisions...)
-		
+
 		if len(decisions) >= 5 { // Limit to 5 key decisions
 			return decisions[:5]
 		}
 	}
-	
+
 	return decisions
 }
 
@@ -464,7 +464,7 @@ func (fd *FlowDetector) extractDecisionsFromSegment(segment *ConversationSegment
 	if !fd.containsDecisionLanguage(content) {
 		return nil
 	}
-	
+
 	return fd.extractDecisionLines(segment.Content)
 }
 
@@ -481,7 +481,7 @@ func (fd *FlowDetector) containsDecisionLanguage(content string) bool {
 func (fd *FlowDetector) extractDecisionLines(content string) []string {
 	var decisions []string
 	lines := strings.Split(content, "\n")
-	
+
 	for _, line := range lines {
 		trimmedLine := strings.TrimSpace(line)
 		if fd.isValidDecisionLine(trimmedLine) {
@@ -491,7 +491,7 @@ func (fd *FlowDetector) extractDecisionLines(content string) []string {
 			}
 		}
 	}
-	
+
 	return decisions
 }
 
@@ -520,7 +520,7 @@ func (fd *FlowDetector) getOrCreateSession(sessionID string) *ConversationSessio
 	if session, exists := fd.sessions[sessionID]; exists {
 		return session
 	}
-	
+
 	fd.StartSession(sessionID, "unknown")
 	return fd.sessions[sessionID]
 }
@@ -545,23 +545,23 @@ func (fd *FlowDetector) GetActiveSessions() map[string]*ConversationSession {
 // Extract extracts entities from text content
 func (ee *EntityExtractor) Extract(content string) []string {
 	entities := make([]string, 0)
-	
+
 	// Extract file paths
 	files := ee.filePattern.FindAllString(content, -1)
 	entities = append(entities, files...)
-	
+
 	// Extract error codes/messages
 	errors := ee.errorPattern.FindAllString(content, -1)
 	entities = append(entities, errors...)
-	
+
 	// Extract commands
 	commands := ee.commandPattern.FindAllString(content, -1)
 	entities = append(entities, commands...)
-	
+
 	// Extract URLs
 	urls := ee.urlPattern.FindAllString(content, -1)
 	entities = append(entities, urls...)
-	
+
 	return entities
 }
 

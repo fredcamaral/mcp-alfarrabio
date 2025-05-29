@@ -10,19 +10,19 @@ import (
 
 func TestNewEncryptionManager(t *testing.T) {
 	tests := []struct {
-		name          string
+		name           string
 		masterPassword string
-		wantEnabled   bool
+		wantEnabled    bool
 	}{
 		{
-			name:          "With password",
+			name:           "With password",
 			masterPassword: "test-password-123",
-			wantEnabled:   true,
+			wantEnabled:    true,
 		},
 		{
-			name:          "Without password",
+			name:           "Without password",
 			masterPassword: "",
-			wantEnabled:   false,
+			wantEnabled:    false,
 		},
 	}
 
@@ -80,7 +80,7 @@ func TestEncryptionManager_EncryptDecryptString(t *testing.T) {
 			require.NoError(t, err)
 			assert.NotNil(t, encrypted)
 			assert.Equal(t, "aes-gcm", encrypted.Algorithm)
-			
+
 			// Ensure encrypted data is different from plaintext (unless empty)
 			if tt.plaintext != "" {
 				assert.NotEqual(t, tt.plaintext, encrypted.Data)
@@ -98,7 +98,7 @@ func TestEncryptionManager_DisabledEncryption(t *testing.T) {
 	em := NewEncryptionManager("") // Disabled
 
 	plaintext := "test data"
-	
+
 	// Encrypt with disabled encryption
 	encrypted, err := em.EncryptString(plaintext)
 	require.NoError(t, err)
@@ -210,7 +210,7 @@ func TestEncryptionManager_AnonymizeData(t *testing.T) {
 			content: "Email: test@example.com, IP: 10.0.0.1",
 			expected: map[string]string{
 				"test@example.com": "[EMAIL_REDACTED]",
-				"10.0.0.1":        "[IP_REDACTED]",
+				"10.0.0.1":         "[IP_REDACTED]",
 			},
 		},
 	}
@@ -257,7 +257,7 @@ func TestEncryptionManager_HashSensitiveData(t *testing.T) {
 				assert.Empty(t, hash1)
 			} else {
 				assert.NotEmpty(t, hash1)
-				assert.Equal(t, hash1, hash2) // Same input produces same hash
+				assert.Equal(t, hash1, hash2)      // Same input produces same hash
 				assert.NotEqual(t, tt.data, hash1) // Hash is different from input
 			}
 		})
@@ -283,7 +283,7 @@ func TestEncryptionManager_ValidateEncryption(t *testing.T) {
 
 func TestEncryptionManager_EnableDisable(t *testing.T) {
 	em := NewEncryptionManager("")
-	
+
 	// Initially disabled
 	assert.False(t, em.IsEnabled())
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sync"
 	"time"
-	
+
 	"mcp-memory/pkg/types"
 )
 
@@ -13,12 +13,12 @@ import (
 type RelationshipType string
 
 const (
-	RelTypeParentChild   RelationshipType = "parent_child"
-	RelTypeSupersedes    RelationshipType = "supersedes"
-	RelTypeRelated       RelationshipType = "related"
-	RelTypeContinuation  RelationshipType = "continuation"
-	RelTypeAlternative   RelationshipType = "alternative"
-	RelTypeReference     RelationshipType = "reference"
+	RelTypeParentChild  RelationshipType = "parent_child"
+	RelTypeSupersedes   RelationshipType = "supersedes"
+	RelTypeRelated      RelationshipType = "related"
+	RelTypeContinuation RelationshipType = "continuation"
+	RelTypeAlternative  RelationshipType = "alternative"
+	RelTypeReference    RelationshipType = "reference"
 )
 
 // Relationship represents a connection between two memories
@@ -51,15 +51,15 @@ func (m *Manager) AddRelationship(ctx context.Context, from, to string, relType 
 	if from == "" || to == "" {
 		return nil, fmt.Errorf("both from and to chunk IDs are required")
 	}
-	
+
 	if from == to {
 		return nil, fmt.Errorf("cannot create relationship to self")
 	}
-	
+
 	if strength < 0 || strength > 1 {
 		return nil, fmt.Errorf("strength must be between 0 and 1")
 	}
-	
+
 	rel := &Relationship{
 		ID:           fmt.Sprintf("%s_%s_%s_%d", from, to, relType, time.Now().UnixNano()),
 		FromChunkID:  from,
@@ -70,18 +70,18 @@ func (m *Manager) AddRelationship(ctx context.Context, from, to string, relType 
 		CreatedAt:    time.Now().UTC(),
 		AutoDetected: false,
 	}
-	
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	// Add to both chunk's relationships for bidirectional lookup
 	m.relationships[from] = append(m.relationships[from], *rel)
-	
+
 	// For bidirectional relationships and parent-child (for child lookup), also index by the target
 	if relType == RelTypeRelated || relType == RelTypeContinuation || relType == RelTypeParentChild || relType == RelTypeSupersedes {
 		m.relationships[to] = append(m.relationships[to], *rel)
 	}
-	
+
 	return rel, nil
 }
 
@@ -89,7 +89,7 @@ func (m *Manager) AddRelationship(ctx context.Context, from, to string, relType 
 func (m *Manager) GetRelationships(chunkID string) []Relationship {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	return m.relationships[chunkID]
 }
 
@@ -97,7 +97,7 @@ func (m *Manager) GetRelationships(chunkID string) []Relationship {
 func (m *Manager) GetRelationshipsByType(chunkID string, relType RelationshipType) []Relationship {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	var filtered []Relationship
 	for _, rel := range m.relationships[chunkID] {
 		if rel.Type == relType {
@@ -111,7 +111,7 @@ func (m *Manager) GetRelationshipsByType(chunkID string, relType RelationshipTyp
 func (m *Manager) FindParent(chunkID string) (string, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	for _, rel := range m.relationships[chunkID] {
 		if rel.Type == RelTypeParentChild && rel.ToChunkID == chunkID {
 			return rel.FromChunkID, true
@@ -124,7 +124,7 @@ func (m *Manager) FindParent(chunkID string) (string, bool) {
 func (m *Manager) FindChildren(chunkID string) []string {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	var children []string
 	for _, rel := range m.relationships[chunkID] {
 		if rel.Type == RelTypeParentChild && rel.FromChunkID == chunkID {
@@ -138,7 +138,7 @@ func (m *Manager) FindChildren(chunkID string) []string {
 func (m *Manager) FindSupersededBy(chunkID string) (string, bool) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	for _, rel := range m.relationships[chunkID] {
 		if rel.Type == RelTypeSupersedes && rel.ToChunkID == chunkID {
 			return rel.FromChunkID, true
@@ -150,7 +150,7 @@ func (m *Manager) FindSupersededBy(chunkID string) (string, bool) {
 // DetectRelationships analyzes chunks to automatically detect relationships
 func (m *Manager) DetectRelationships(ctx context.Context, newChunk *types.ConversationChunk, existingChunks []types.ConversationChunk) []Relationship {
 	var detected []Relationship
-	
+
 	// Check for continuation (same session, close in time)
 	for _, existing := range existingChunks {
 		if existing.SessionID == newChunk.SessionID {
@@ -169,7 +169,7 @@ func (m *Manager) DetectRelationships(ctx context.Context, newChunk *types.Conve
 				detected = append(detected, rel)
 			}
 		}
-		
+
 		// Check for superseding (same problem, newer solution)
 		if existing.Type == types.ChunkTypeProblem && newChunk.Type == types.ChunkTypeSolution {
 			// Could use similarity scoring here
@@ -187,7 +187,7 @@ func (m *Manager) DetectRelationships(ctx context.Context, newChunk *types.Conve
 				detected = append(detected, rel)
 			}
 		}
-		
+
 		// Check for related by tags
 		commonTags := findCommonTags(existing.Metadata.Tags, newChunk.Metadata.Tags)
 		if len(commonTags) >= 2 {
@@ -205,18 +205,18 @@ func (m *Manager) DetectRelationships(ctx context.Context, newChunk *types.Conve
 			detected = append(detected, rel)
 		}
 	}
-	
+
 	// Store detected relationships
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	for _, rel := range detected {
 		m.relationships[rel.FromChunkID] = append(m.relationships[rel.FromChunkID], rel)
 		if rel.Type == RelTypeRelated || rel.Type == RelTypeContinuation {
 			m.relationships[rel.ToChunkID] = append(m.relationships[rel.ToChunkID], rel)
 		}
 	}
-	
+
 	return detected
 }
 
@@ -224,12 +224,12 @@ func (m *Manager) DetectRelationships(ctx context.Context, newChunk *types.Conve
 func (m *Manager) BuildRelationshipGraph(rootChunkID string, maxDepth int) map[string][]Relationship {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
-	
+
 	graph := make(map[string][]Relationship)
 	visited := make(map[string]bool)
-	
+
 	m.traverseGraph(rootChunkID, graph, visited, 0, maxDepth)
-	
+
 	return graph
 }
 
@@ -238,11 +238,11 @@ func (m *Manager) traverseGraph(chunkID string, graph map[string][]Relationship,
 	if depth > maxDepth || visited[chunkID] {
 		return
 	}
-	
+
 	visited[chunkID] = true
 	rels := m.relationships[chunkID]
 	graph[chunkID] = rels
-	
+
 	for _, rel := range rels {
 		nextID := rel.ToChunkID
 		if rel.ToChunkID == chunkID {
@@ -258,7 +258,7 @@ func findCommonTags(tags1, tags2 []string) []string {
 	for _, tag := range tags1 {
 		tagMap[tag] = true
 	}
-	
+
 	var common []string
 	for _, tag := range tags2 {
 		if tagMap[tag] {

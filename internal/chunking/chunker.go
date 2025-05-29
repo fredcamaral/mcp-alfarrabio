@@ -27,6 +27,13 @@ type ChunkingService struct {
 	problemPatterns  []*regexp.Regexp
 	solutionPatterns []*regexp.Regexp
 	codePatterns     []*regexp.Regexp
+
+	// Smart detection patterns
+	highImpactPatterns    []*regexp.Regexp
+	reusablePatterns      []*regexp.Regexp
+	gotchaPatterns        []*regexp.Regexp
+	architecturalPatterns []*regexp.Regexp
+	performancePatterns   []*regexp.Regexp
 }
 
 // NewChunkingService creates a new chunking service
@@ -67,6 +74,54 @@ func (cs *ChunkingService) initializePatterns() {
 		regexp.MustCompile(`(?i)(import|require|include)`),
 		regexp.MustCompile("(?i)(```|`.*`)"), // Code blocks
 		regexp.MustCompile(`(?i)(file.*modified|changes.*to|updated.*file)`),
+	}
+
+	// High-impact decision patterns
+	cs.highImpactPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(decided to|chose|switched from .* to|migrated from)`),
+		regexp.MustCompile(`(?i)(architectural decision|design choice|went with)`),
+		regexp.MustCompile(`(?i)(breaking change|major refactor|significant update)`),
+		regexp.MustCompile(`(?i)(critical|important|significant|major)`),
+		regexp.MustCompile(`(?i)(production|deployment|release|launch)`),
+		regexp.MustCompile(`(?i)(security|vulnerability|exploit|authentication)`),
+	}
+
+	// Reusable pattern detection
+	cs.reusablePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(pattern|template|boilerplate|reusable)`),
+		regexp.MustCompile(`(?i)(common.*approach|standard.*way|typical.*solution)`),
+		regexp.MustCompile(`(?i)(utility|helper|library|framework)`),
+		regexp.MustCompile(`(?i)(best practice|recommended|guideline)`),
+		regexp.MustCompile(`(?i)(config|configuration|setup|initialization)`),
+	}
+
+	// Gotcha and pitfall patterns
+	cs.gotchaPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(watch out|careful|gotcha|common mistake|pitfall)`),
+		regexp.MustCompile(`(?i)(troubleshooting|debugging tip|lesson learned)`),
+		regexp.MustCompile(`(?i)(make sure to|don't forget|important note)`),
+		regexp.MustCompile(`(?i)(avoid|never|don't.*do|warning)`),
+		regexp.MustCompile(`(?i)(edge case|corner case|exception|special case)`),
+		regexp.MustCompile(`(?i)(tricky|subtle|unexpected|surprising)`),
+	}
+
+	// Architectural decision patterns
+	cs.architecturalPatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(architecture|design|structure|organization)`),
+		regexp.MustCompile(`(?i)(microservice|monolith|distributed|centralized)`),
+		regexp.MustCompile(`(?i)(database|storage|persistence|cache)`),
+		regexp.MustCompile(`(?i)(api|interface|contract|protocol)`),
+		regexp.MustCompile(`(?i)(scalability|performance|reliability|availability)`),
+		regexp.MustCompile(`(?i)(technology.*stack|tech.*choice|framework.*selection)`),
+	}
+
+	// Performance-related patterns
+	cs.performancePatterns = []*regexp.Regexp{
+		regexp.MustCompile(`(?i)(performance|optimization|speed|latency)`),
+		regexp.MustCompile(`(?i)(memory.*usage|cpu.*usage|resource.*consumption)`),
+		regexp.MustCompile(`(?i)(benchmark|profiling|monitoring|metrics)`),
+		regexp.MustCompile(`(?i)(bottleneck|slow.*down|inefficient)`),
+		regexp.MustCompile(`(?i)(caching|indexing|query.*optimization)`),
 	}
 }
 
@@ -224,6 +279,25 @@ func (cs *ChunkingService) enrichMetadata(metadata types.ChunkMetadata, content 
 	if metadata.Outcome == "" {
 		metadata.Outcome = cs.assessOutcome(content)
 	}
+
+	// Smart detection: Add specialized tags for high-impact content
+	smartTags := cs.detectSmartTags(content)
+	for _, tag := range smartTags {
+		// Avoid duplicates
+		found := false
+		for _, existing := range metadata.Tags {
+			if existing == tag {
+				found = true
+				break
+			}
+		}
+		if !found {
+			metadata.Tags = append(metadata.Tags, tag)
+		}
+	}
+
+	// Calculate impact score and reusability score
+	metadata.ExtendedMetadata = cs.buildExtendedMetadata(content, metadata)
 
 	return metadata
 }
@@ -491,24 +565,24 @@ func (cs *ChunkingService) ProcessConversation(ctx context.Context, sessionID st
 	}
 
 	chunks := []types.ConversationChunk{}
-	
+
 	// Split conversation by natural boundaries
 	segments := cs.splitConversation(conversation)
-	
+
 	// Process each segment
 	for _, segment := range segments {
 		if strings.TrimSpace(segment) == "" {
 			continue
 		}
-		
+
 		// Create chunk for this segment
 		chunk, err := cs.CreateChunk(ctx, sessionID, segment, baseMetadata)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create chunk: %w", err)
 		}
-		
+
 		chunks = append(chunks, *chunk)
-		
+
 		// Check if we should create a summary chunk after multiple segments
 		if len(chunks) > 0 && len(chunks)%5 == 0 {
 			summaryChunk := cs.createSummaryChunk(ctx, sessionID, chunks[len(chunks)-5:], baseMetadata)
@@ -517,7 +591,7 @@ func (cs *ChunkingService) ProcessConversation(ctx context.Context, sessionID st
 			}
 		}
 	}
-	
+
 	// Create final session summary if we have multiple chunks
 	if len(chunks) > 3 {
 		summaryChunk := cs.createSessionSummary(ctx, sessionID, chunks, baseMetadata)
@@ -525,7 +599,7 @@ func (cs *ChunkingService) ProcessConversation(ctx context.Context, sessionID st
 			chunks = append(chunks, *summaryChunk)
 		}
 	}
-	
+
 	return chunks, nil
 }
 
@@ -534,15 +608,15 @@ func (cs *ChunkingService) splitConversation(conversation string) []string {
 	segments := []string{}
 	currentSegment := ""
 	lines := strings.Split(conversation, "\n")
-	
+
 	// Patterns that indicate segment boundaries
 	boundaryPatterns := []*regexp.Regexp{
 		regexp.MustCompile(`^(Human|Assistant|User|AI|Claude):`),
 		regexp.MustCompile(`^###|^---|^===`), // Section markers
-		regexp.MustCompile(`^\d+\.\s`),        // Numbered lists
+		regexp.MustCompile(`^\d+\.\s`),       // Numbered lists
 		regexp.MustCompile(`^(Step|Task|Problem|Solution)[\s:]`),
 	}
-	
+
 	for i, line := range lines {
 		// Check if this line marks a boundary
 		isBoundary := false
@@ -552,7 +626,7 @@ func (cs *ChunkingService) splitConversation(conversation string) []string {
 				break
 			}
 		}
-		
+
 		// If boundary and we have content, save segment
 		if isBoundary && currentSegment != "" {
 			segments = append(segments, strings.TrimSpace(currentSegment))
@@ -560,25 +634,25 @@ func (cs *ChunkingService) splitConversation(conversation string) []string {
 		} else {
 			currentSegment += line + "\n"
 		}
-		
+
 		// Check for size-based splitting
 		if len(currentSegment) > cs.config.MaxContentLength {
 			segments = append(segments, strings.TrimSpace(currentSegment))
 			currentSegment = ""
 		}
-		
+
 		// Check for natural paragraph breaks (multiple newlines)
 		if i < len(lines)-1 && line == "" && lines[i+1] == "" && len(currentSegment) > 500 {
 			segments = append(segments, strings.TrimSpace(currentSegment))
 			currentSegment = ""
 		}
 	}
-	
+
 	// Add final segment
 	if currentSegment != "" {
 		segments = append(segments, strings.TrimSpace(currentSegment))
 	}
-	
+
 	return segments
 }
 
@@ -587,7 +661,7 @@ func (cs *ChunkingService) createSummaryChunk(ctx context.Context, sessionID str
 	if len(chunks) == 0 {
 		return nil
 	}
-	
+
 	// Aggregate content for summary
 	contentParts := []string{"Summary of recent conversation:"}
 	for _, chunk := range chunks {
@@ -595,17 +669,17 @@ func (cs *ChunkingService) createSummaryChunk(ctx context.Context, sessionID str
 			contentParts = append(contentParts, fmt.Sprintf("- %s", chunk.Summary))
 		}
 	}
-	
+
 	summaryContent := strings.Join(contentParts, "\n")
-	
+
 	summaryMetadata := baseMetadata
 	summaryMetadata.Tags = append(summaryMetadata.Tags, "summary", "aggregated")
-	
+
 	summaryChunk, err := cs.CreateChunk(ctx, sessionID, summaryContent, summaryMetadata)
 	if err != nil {
 		return nil
 	}
-	
+
 	summaryChunk.Type = types.ChunkTypeSessionSummary
 	return summaryChunk
 }
@@ -617,16 +691,16 @@ func (cs *ChunkingService) createSessionSummary(ctx context.Context, sessionID s
 	for _, chunk := range chunks {
 		typeCounts[chunk.Type]++
 	}
-	
+
 	// Build summary content
 	contentParts := []string{"Session Summary:"}
 	contentParts = append(contentParts, fmt.Sprintf("Total chunks: %d", len(chunks)))
-	
+
 	// Add type breakdown
 	for chunkType, count := range typeCounts {
 		contentParts = append(contentParts, fmt.Sprintf("- %s: %d", chunkType, count))
 	}
-	
+
 	// Add key outcomes
 	successCount := 0
 	for _, chunk := range chunks {
@@ -635,7 +709,7 @@ func (cs *ChunkingService) createSessionSummary(ctx context.Context, sessionID s
 		}
 	}
 	contentParts = append(contentParts, fmt.Sprintf("Successful outcomes: %d", successCount))
-	
+
 	// Add tools and files summary
 	toolsUsed := make(map[string]bool)
 	filesModified := make(map[string]bool)
@@ -647,7 +721,7 @@ func (cs *ChunkingService) createSessionSummary(ctx context.Context, sessionID s
 			filesModified[file] = true
 		}
 	}
-	
+
 	if len(toolsUsed) > 0 {
 		tools := []string{}
 		for tool := range toolsUsed {
@@ -655,21 +729,21 @@ func (cs *ChunkingService) createSessionSummary(ctx context.Context, sessionID s
 		}
 		contentParts = append(contentParts, fmt.Sprintf("Tools used: %s", strings.Join(tools, ", ")))
 	}
-	
+
 	if len(filesModified) > 0 {
 		contentParts = append(contentParts, fmt.Sprintf("Files modified: %d", len(filesModified)))
 	}
-	
+
 	summaryContent := strings.Join(contentParts, "\n")
-	
+
 	summaryMetadata := baseMetadata
 	summaryMetadata.Tags = append(summaryMetadata.Tags, "session-summary", "final")
-	
+
 	summaryChunk, err := cs.CreateChunk(ctx, sessionID, summaryContent, summaryMetadata)
 	if err != nil {
 		return nil
 	}
-	
+
 	summaryChunk.Type = types.ChunkTypeSessionSummary
 	return summaryChunk
 }
@@ -689,4 +763,353 @@ func getEnvInt(key string, defaultValue int) int {
 		}
 	}
 	return defaultValue
+}
+
+// Smart Detection Functions
+
+// detectSmartTags identifies specialized tags based on content patterns
+func (cs *ChunkingService) detectSmartTags(content string) []string {
+	tags := []string{}
+
+	// High-impact decision detection
+	for _, pattern := range cs.highImpactPatterns {
+		if pattern.MatchString(content) {
+			tags = append(tags, "high-impact")
+			break
+		}
+	}
+
+	// Reusable pattern detection
+	for _, pattern := range cs.reusablePatterns {
+		if pattern.MatchString(content) {
+			tags = append(tags, "reusable-pattern")
+			break
+		}
+	}
+
+	// Gotcha detection
+	for _, pattern := range cs.gotchaPatterns {
+		if pattern.MatchString(content) {
+			tags = append(tags, "gotcha")
+			break
+		}
+	}
+
+	// Architectural decision detection
+	for _, pattern := range cs.architecturalPatterns {
+		if pattern.MatchString(content) {
+			tags = append(tags, "architecture")
+			break
+		}
+	}
+
+	// Performance-related detection
+	for _, pattern := range cs.performancePatterns {
+		if pattern.MatchString(content) {
+			tags = append(tags, "performance")
+			break
+		}
+	}
+
+	// Additional smart tags based on content analysis
+	contentLower := strings.ToLower(content)
+
+	// Testing and quality
+	if strings.Contains(contentLower, "test") || strings.Contains(contentLower, "testing") {
+		tags = append(tags, "testing")
+	}
+
+	// Documentation
+	if strings.Contains(contentLower, "document") || strings.Contains(contentLower, "readme") {
+		tags = append(tags, "documentation")
+	}
+
+	// Security
+	if strings.Contains(contentLower, "security") || strings.Contains(contentLower, "auth") {
+		tags = append(tags, "security")
+	}
+
+	// DevOps and deployment
+	if strings.Contains(contentLower, "deploy") || strings.Contains(contentLower, "ci/cd") {
+		tags = append(tags, "devops")
+	}
+
+	// API and integration
+	if strings.Contains(contentLower, "api") || strings.Contains(contentLower, "endpoint") {
+		tags = append(tags, "api")
+	}
+
+	return tags
+}
+
+// buildExtendedMetadata creates rich metadata for smart analysis
+func (cs *ChunkingService) buildExtendedMetadata(content string, metadata types.ChunkMetadata) map[string]interface{} {
+	extended := make(map[string]interface{})
+
+	// Calculate impact score (0.0 to 1.0)
+	impactScore := cs.calculateImpactScore(content, metadata)
+	extended["impact_score"] = impactScore
+
+	// Calculate reusability score (0.0 to 1.0)
+	reusabilityScore := cs.calculateReusabilityScore(content)
+	extended["reusability_score"] = reusabilityScore
+
+	// Determine significance level
+	significanceLevel := cs.determineSignificanceLevel(impactScore, reusabilityScore)
+	extended["significance_level"] = significanceLevel
+
+	// Extract technical concepts
+	concepts := cs.extractTechnicalConcepts(content)
+	if len(concepts) > 0 {
+		extended["technical_concepts"] = concepts
+	}
+
+	// Analyze complexity indicators
+	complexity := cs.analyzeComplexity(content, metadata)
+	extended["complexity_indicators"] = complexity
+
+	// Time investment estimation
+	timeInvestment := cs.estimateTimeInvestment(content, metadata)
+	extended["time_investment_minutes"] = timeInvestment
+
+	// Learning value assessment
+	learningValue := cs.assessLearningValue(content, impactScore)
+	extended["learning_value"] = learningValue
+
+	return extended
+}
+
+// calculateImpactScore determines the impact level of the content
+func (cs *ChunkingService) calculateImpactScore(content string, metadata types.ChunkMetadata) float64 {
+	score := 0.0
+
+	// Base score from chunk type
+	switch metadata.Outcome {
+	case types.OutcomeSuccess:
+		score += 0.3
+	case types.OutcomeFailed:
+		score += 0.1
+	default:
+		score += 0.2
+	}
+
+	// High-impact pattern bonus
+	for _, pattern := range cs.highImpactPatterns {
+		if pattern.MatchString(content) {
+			score += 0.3
+			break
+		}
+	}
+
+	// Architectural decisions get high impact
+	for _, pattern := range cs.architecturalPatterns {
+		if pattern.MatchString(content) {
+			score += 0.2
+			break
+		}
+	}
+
+	// Tools used indicator
+	if len(metadata.ToolsUsed) > 3 {
+		score += 0.1
+	}
+
+	// Files modified indicator
+	if len(metadata.FilesModified) > 2 {
+		score += 0.1
+	}
+
+	// Content length and depth
+	if len(content) > 500 {
+		score += 0.1
+	}
+
+	// Cap at 1.0
+	if score > 1.0 {
+		score = 1.0
+	}
+
+	return score
+}
+
+// calculateReusabilityScore determines how reusable the content is
+func (cs *ChunkingService) calculateReusabilityScore(content string) float64 {
+	score := 0.0
+
+	// Reusable pattern bonus
+	for _, pattern := range cs.reusablePatterns {
+		if pattern.MatchString(content) {
+			score += 0.4
+			break
+		}
+	}
+
+	// Configuration and setup patterns
+	contentLower := strings.ToLower(content)
+	if strings.Contains(contentLower, "config") || strings.Contains(contentLower, "setup") {
+		score += 0.2
+	}
+
+	// Utility and helper patterns
+	if strings.Contains(contentLower, "utility") || strings.Contains(contentLower, "helper") {
+		score += 0.3
+	}
+
+	// Best practices
+	if strings.Contains(contentLower, "best practice") || strings.Contains(contentLower, "recommended") {
+		score += 0.2
+	}
+
+	// Code examples and templates
+	if strings.Contains(content, "```") || strings.Contains(contentLower, "template") {
+		score += 0.1
+	}
+
+	// Documentation value
+	if strings.Contains(contentLower, "document") || strings.Contains(contentLower, "guide") {
+		score += 0.1
+	}
+
+	// Cap at 1.0
+	if score > 1.0 {
+		score = 1.0
+	}
+
+	return score
+}
+
+// determineSignificanceLevel categorizes the overall significance
+func (cs *ChunkingService) determineSignificanceLevel(impactScore, reusabilityScore float64) string {
+	combinedScore := (impactScore + reusabilityScore) / 2
+
+	if combinedScore >= 0.8 {
+		return "critical"
+	} else if combinedScore >= 0.6 {
+		return "high"
+	} else if combinedScore >= 0.4 {
+		return "medium"
+	} else {
+		return "low"
+	}
+}
+
+// extractTechnicalConcepts identifies key technical concepts
+func (cs *ChunkingService) extractTechnicalConcepts(content string) []string {
+	concepts := []string{}
+
+	// Technology patterns
+	techPatterns := map[string]*regexp.Regexp{
+		"docker":      regexp.MustCompile(`(?i)\b(docker|container|image|dockerfile)\b`),
+		"kubernetes":  regexp.MustCompile(`(?i)\b(kubernetes|k8s|pod|service|deployment)\b`),
+		"database":    regexp.MustCompile(`(?i)\b(database|sql|nosql|postgres|mysql|mongodb)\b`),
+		"api":         regexp.MustCompile(`(?i)\b(api|rest|graphql|endpoint|http)\b`),
+		"security":    regexp.MustCompile(`(?i)\b(security|auth|jwt|oauth|ssl|tls)\b`),
+		"testing":     regexp.MustCompile(`(?i)\b(test|testing|unittest|integration|e2e)\b`),
+		"performance": regexp.MustCompile(`(?i)\b(performance|optimization|cache|memory|cpu)\b`),
+		"monitoring":  regexp.MustCompile(`(?i)\b(monitoring|logging|metrics|observability)\b`),
+	}
+
+	for concept, pattern := range techPatterns {
+		if pattern.MatchString(content) {
+			concepts = append(concepts, concept)
+		}
+	}
+
+	return concepts
+}
+
+// analyzeComplexity provides complexity indicators
+func (cs *ChunkingService) analyzeComplexity(content string, metadata types.ChunkMetadata) map[string]interface{} {
+	complexity := make(map[string]interface{})
+
+	// Content length indicator
+	complexity["content_length"] = len(content)
+
+	// Tools complexity
+	complexity["tools_count"] = len(metadata.ToolsUsed)
+
+	// Files complexity
+	complexity["files_count"] = len(metadata.FilesModified)
+
+	// Code blocks
+	codeBlocks := strings.Count(content, "```")
+	complexity["code_blocks"] = codeBlocks
+
+	// Technical terms density
+	technicalTerms := 0
+	techWords := []string{"function", "class", "method", "api", "database", "server", "client", "config", "deploy", "test"}
+	contentLower := strings.ToLower(content)
+
+	for _, term := range techWords {
+		if strings.Contains(contentLower, term) {
+			technicalTerms++
+		}
+	}
+	complexity["technical_density"] = technicalTerms
+
+	return complexity
+}
+
+// estimateTimeInvestment estimates time spent based on content and metadata
+func (cs *ChunkingService) estimateTimeInvestment(content string, metadata types.ChunkMetadata) int {
+	// Base time estimation
+	baseTime := 5 // minutes
+
+	// Content length factor
+	if len(content) > 1000 {
+		baseTime += 10
+	} else if len(content) > 500 {
+		baseTime += 5
+	}
+
+	// Tools used factor
+	baseTime += len(metadata.ToolsUsed) * 2
+
+	// Files modified factor
+	baseTime += len(metadata.FilesModified) * 3
+
+	// Complexity factor
+	if metadata.Difficulty == types.DifficultyComplex {
+		baseTime += 15
+	} else if metadata.Difficulty == types.DifficultyModerate {
+		baseTime += 7
+	}
+
+	// Problem resolution factor
+	contentLower := strings.ToLower(content)
+	if strings.Contains(contentLower, "debug") || strings.Contains(contentLower, "troubleshoot") {
+		baseTime += 10
+	}
+
+	return baseTime
+}
+
+// assessLearningValue determines the educational value of the content
+func (cs *ChunkingService) assessLearningValue(content string, impactScore float64) string {
+	// High impact usually means high learning value
+	if impactScore >= 0.7 {
+		return "high"
+	}
+
+	// Gotcha content is valuable for learning
+	for _, pattern := range cs.gotchaPatterns {
+		if pattern.MatchString(content) {
+			return "high"
+		}
+	}
+
+	// Best practices are medium learning value
+	contentLower := strings.ToLower(content)
+	if strings.Contains(contentLower, "best practice") || strings.Contains(contentLower, "lesson") {
+		return "medium"
+	}
+
+	// Architectural content is valuable
+	for _, pattern := range cs.architecturalPatterns {
+		if pattern.MatchString(content) {
+			return "medium"
+		}
+	}
+
+	return "low"
 }

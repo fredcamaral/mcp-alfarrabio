@@ -17,7 +17,7 @@ const (
 
 func TestNewFlowDetector(t *testing.T) {
 	detector := NewFlowDetector()
-	
+
 	assert.NotNil(t, detector)
 	assert.NotNil(t, detector.sessions)
 	assert.NotNil(t, detector.flowPatterns)
@@ -27,7 +27,7 @@ func TestNewFlowDetector(t *testing.T) {
 
 func TestNewEntityExtractor(t *testing.T) {
 	extractor := NewEntityExtractor()
-	
+
 	assert.NotNil(t, extractor)
 	assert.NotNil(t, extractor.filePattern)
 	assert.NotNil(t, extractor.errorPattern)
@@ -39,9 +39,9 @@ func TestFlowDetector_StartSession(t *testing.T) {
 	detector := NewFlowDetector()
 	sessionID := testSession
 	repository := "test-repo"
-	
+
 	detector.StartSession(sessionID, repository)
-	
+
 	session, exists := detector.GetSession(sessionID)
 	require.True(t, exists)
 	assert.Equal(t, sessionID, session.SessionID)
@@ -53,44 +53,44 @@ func TestFlowDetector_StartSession(t *testing.T) {
 
 func TestFlowDetector_DetectFlow(t *testing.T) {
 	detector := NewFlowDetector()
-	
+
 	testCases := []struct {
-		name         string
-		content      string
-		toolUsed     string
-		expectedFlow types.ConversationFlow
+		name          string
+		content       string
+		toolUsed      string
+		expectedFlow  types.ConversationFlow
 		minConfidence float64
 	}{
 		{
-			name:         "problem detection",
-			content:      "I'm getting an error when trying to build the project",
-			toolUsed:     "Read",
-			expectedFlow: types.FlowProblem,
+			name:          "problem detection",
+			content:       "I'm getting an error when trying to build the project",
+			toolUsed:      "Read",
+			expectedFlow:  types.FlowProblem,
 			minConfidence: 0.3,
 		},
 		{
-			name:         "investigation detection",
-			content:      "Let me check the configuration files to see what's wrong",
-			toolUsed:     "Grep",
-			expectedFlow: types.FlowInvestigation,
+			name:          "investigation detection",
+			content:       "Let me check the configuration files to see what's wrong",
+			toolUsed:      "Grep",
+			expectedFlow:  types.FlowInvestigation,
 			minConfidence: 0.3,
 		},
 		{
-			name:         "solution detection",
-			content:      "I'll implement a fix for this issue by updating the code",
-			toolUsed:     "Edit",
-			expectedFlow: types.FlowSolution,
+			name:          "solution detection",
+			content:       "I'll implement a fix for this issue by updating the code",
+			toolUsed:      "Edit",
+			expectedFlow:  types.FlowSolution,
 			minConfidence: 0.3,
 		},
 		{
-			name:         "verification detection",
-			content:      "Let's test the fix to make sure it works correctly",
-			toolUsed:     "Bash",
-			expectedFlow: types.FlowVerification,
+			name:          "verification detection",
+			content:       "Let's test the fix to make sure it works correctly",
+			toolUsed:      "Bash",
+			expectedFlow:  types.FlowVerification,
 			minConfidence: 0.3,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			flow, confidence := detector.detectFlow(tc.content, tc.toolUsed)
@@ -103,15 +103,15 @@ func TestFlowDetector_DetectFlow(t *testing.T) {
 func TestFlowDetector_ProcessMessage(t *testing.T) {
 	detector := NewFlowDetector()
 	sessionID := testSession
-	
+
 	detector.StartSession(sessionID, "test-repo")
-	
+
 	// Process a problem message
 	detector.ProcessMessage(sessionID, "There's an error in the build process", "Read", nil)
-	
+
 	_, exists := detector.GetSession(sessionID)
 	require.True(t, exists)
-	
+
 	// Should have created a current segment
 	assert.NotNil(t, detector.currentSegment)
 	assert.Equal(t, types.FlowProblem, detector.currentSegment.Flow)
@@ -120,59 +120,59 @@ func TestFlowDetector_ProcessMessage(t *testing.T) {
 func TestFlowDetector_SegmentTransitions(t *testing.T) {
 	detector := NewFlowDetector()
 	sessionID := testSession
-	
+
 	detector.StartSession(sessionID, "test-repo")
-	
+
 	// Step 1: Problem
 	detector.ProcessMessage(sessionID, "I'm getting an error when building", "Read", nil)
 	assert.NotNil(t, detector.currentSegment)
 	assert.Equal(t, types.FlowProblem, detector.currentSegment.Flow)
-	
+
 	// Step 2: Investigation (should trigger new segment)
 	detector.ProcessMessage(sessionID, "Let me investigate this issue by checking the logs", "Grep", nil)
-	
+
 	_, _ = detector.GetSession(sessionID) // test variable - unused
-	
+
 	// Should have finished the problem segment and started investigation
 	assert.NotNil(t, detector.currentSegment)
 	assert.Equal(t, types.FlowInvestigation, detector.currentSegment.Flow)
-	
+
 	// Step 3: Solution (should trigger another transition)
 	detector.ProcessMessage(sessionID, "I found the issue, let me implement a fix", "Edit", nil)
 	assert.Equal(t, types.FlowSolution, detector.currentSegment.Flow)
-	
+
 	// End session to finalize segments
 	detector.EndSession(sessionID, types.OutcomeSuccess)
-	
+
 	session, _ := detector.GetSession(sessionID)
 	assert.NotNil(t, session.EndTime)
-	assert.GreaterOrEqual(t, len(session.Segments), 2) // Should have multiple segments
+	assert.GreaterOrEqual(t, len(session.Segments), 2)    // Should have multiple segments
 	assert.GreaterOrEqual(t, len(session.Transitions), 1) // Should have transitions
 }
 
 func TestFlowDetector_SessionSummary(t *testing.T) {
 	detector := NewFlowDetector()
 	sessionID := testSession
-	
+
 	detector.StartSession(sessionID, "test-repo")
-	
+
 	// Simulate a complete problem-solving flow
 	detector.ProcessMessage(sessionID, "Error in authentication module", "Read", nil)
 	time.Sleep(10 * time.Millisecond) // Ensure measurable time differences
-	
+
 	detector.ProcessMessage(sessionID, "Let me examine the auth.go file", "Grep", nil)
 	time.Sleep(10 * time.Millisecond)
-	
+
 	detector.ProcessMessage(sessionID, "I'll fix the JWT validation logic", "Edit", nil)
 	time.Sleep(10 * time.Millisecond)
-	
+
 	detector.ProcessMessage(sessionID, "Running tests to verify the fix", "Bash", nil)
-	
+
 	detector.EndSession(sessionID, types.OutcomeSuccess)
-	
+
 	session, exists := detector.GetSession(sessionID)
 	require.True(t, exists)
-	
+
 	summary := session.Summary
 	assert.Greater(t, summary.TotalDuration, time.Duration(0))
 	assert.GreaterOrEqual(t, summary.ProblemsSolved, 0)
@@ -183,7 +183,7 @@ func TestFlowDetector_SessionSummary(t *testing.T) {
 
 func TestEntityExtractor_Extract(t *testing.T) {
 	extractor := NewEntityExtractor()
-	
+
 	testCases := []struct {
 		name     string
 		content  string
@@ -210,7 +210,7 @@ func TestEntityExtractor_Extract(t *testing.T) {
 			expected: 1,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			entities := extractor.Extract(tc.content)
@@ -222,7 +222,7 @@ func TestEntityExtractor_Extract(t *testing.T) {
 func TestFlowDetector_CalculateFlowScore(t *testing.T) {
 	detector := NewFlowDetector()
 	pattern := detector.flowPatterns[types.FlowProblem]
-	
+
 	testCases := []struct {
 		name     string
 		content  string
@@ -248,7 +248,7 @@ func TestFlowDetector_CalculateFlowScore(t *testing.T) {
 			expected: 0.0,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			score := detector.calculateFlowScore(tc.content, tc.toolUsed, pattern)
@@ -259,7 +259,7 @@ func TestFlowDetector_CalculateFlowScore(t *testing.T) {
 
 func TestFlowDetector_InferTransitionTrigger(t *testing.T) {
 	detector := NewFlowDetector()
-	
+
 	testCases := []struct {
 		from     types.ConversationFlow
 		to       types.ConversationFlow
@@ -286,7 +286,7 @@ func TestFlowDetector_InferTransitionTrigger(t *testing.T) {
 			expected: "discovered new issue",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.expected, func(t *testing.T) {
 			trigger := detector.inferTransitionTrigger(tc.from, tc.to)
@@ -297,7 +297,7 @@ func TestFlowDetector_InferTransitionTrigger(t *testing.T) {
 
 func TestFlowDetector_ExtractTechnologies(t *testing.T) {
 	detector := NewFlowDetector()
-	
+
 	session := &ConversationSession{
 		Segments: []ConversationSegment{
 			{
@@ -310,9 +310,9 @@ func TestFlowDetector_ExtractTechnologies(t *testing.T) {
 			},
 		},
 	}
-	
+
 	technologies := detector.extractTechnologies(session)
-	
+
 	assert.Contains(t, technologies, "Go")
 	assert.Contains(t, technologies, "Docker")
 	assert.Contains(t, technologies, "Chroma")
@@ -322,7 +322,7 @@ func TestFlowDetector_ExtractTechnologies(t *testing.T) {
 
 func TestFlowDetector_ExtractDecisions(t *testing.T) {
 	detector := NewFlowDetector()
-	
+
 	session := &ConversationSession{
 		Segments: []ConversationSegment{
 			{
@@ -335,9 +335,9 @@ func TestFlowDetector_ExtractDecisions(t *testing.T) {
 			},
 		},
 	}
-	
+
 	decisions := detector.extractDecisions(session)
-	
+
 	assert.Greater(t, len(decisions), 0)
 	// Should extract decision-making statements from solution segments
 	found := false
@@ -352,17 +352,17 @@ func TestFlowDetector_ExtractDecisions(t *testing.T) {
 
 func TestFlowDetector_GetActiveSessions(t *testing.T) {
 	detector := NewFlowDetector()
-	
+
 	// Create active session
 	detector.StartSession("active1", "repo1")
 	detector.StartSession("active2", "repo2")
-	
+
 	// Create and end a session
 	detector.StartSession("ended", "repo3")
 	detector.EndSession("ended", types.OutcomeSuccess)
-	
+
 	activeSessions := detector.GetActiveSessions()
-	
+
 	assert.Len(t, activeSessions, 2)
 	assert.Contains(t, activeSessions, "active1")
 	assert.Contains(t, activeSessions, "active2")
@@ -372,9 +372,9 @@ func TestFlowDetector_GetActiveSessions(t *testing.T) {
 func TestFlowDetector_CompleteWorkflow(t *testing.T) {
 	detector := NewFlowDetector()
 	sessionID := "complete-workflow"
-	
+
 	detector.StartSession(sessionID, "mcp-memory")
-	
+
 	// Simulate a realistic debugging workflow
 	messages := []struct {
 		content  string
@@ -388,28 +388,28 @@ func TestFlowDetector_CompleteWorkflow(t *testing.T) {
 		{"Let me test the fix by running the build", "Bash"},
 		{"Great! The build is now successful", "Bash"},
 	}
-	
+
 	for _, msg := range messages {
 		detector.ProcessMessage(sessionID, msg.content, msg.toolUsed, nil)
 		time.Sleep(1 * time.Millisecond) // Ensure different timestamps
 	}
-	
+
 	detector.EndSession(sessionID, types.OutcomeSuccess)
-	
+
 	session, exists := detector.GetSession(sessionID)
 	require.True(t, exists)
-	
+
 	// Verify session structure
 	assert.NotNil(t, session.EndTime)
 	assert.Greater(t, len(session.Segments), 1)
 	assert.Greater(t, len(session.Transitions), 0)
-	
+
 	// Verify summary
 	summary := session.Summary
 	assert.Greater(t, summary.TotalDuration, time.Duration(0))
 	assert.GreaterOrEqual(t, summary.ProblemsSolved, 1)
 	assert.Equal(t, 1, summary.SuccessfulOutcomes) // Should have verification
-	
+
 	// Should have detected different flows
 	flowTypes := make(map[types.ConversationFlow]bool)
 	for _, segment := range session.Segments {

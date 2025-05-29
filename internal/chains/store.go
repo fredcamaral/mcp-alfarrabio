@@ -280,9 +280,9 @@ func (s *InMemoryChainStore) GetStats() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"total_chains":        len(s.chains),
+		"total_chains":         len(s.chains),
 		"total_indexed_chunks": len(s.chunkIndex),
-		"total_links":         totalLinks,
+		"total_links":          totalLinks,
 		"avg_chunks_per_chain": avgChunksPerChain,
 	}
 }

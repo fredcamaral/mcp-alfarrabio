@@ -42,41 +42,41 @@ func TestProcessConversation(t *testing.T) {
 		FileChangeThreshold:   5,
 		TodoCompletionTrigger: true,
 	}
-	
+
 	embeddingService := &MockEmbeddingService{}
 	cs := NewChunkingService(cfg, embeddingService)
-	
+
 	ctx := context.Background()
 	sessionID := "test-session"
-	
+
 	// Test simple conversation
 	conversation := "Human: How do I fix this error?\n\nAssistant: You need to check the logs."
 	metadata := types.ChunkMetadata{Repository: "test-repo"}
-	
+
 	chunks, err := cs.ProcessConversation(ctx, sessionID, conversation, metadata)
 	if err != nil {
 		t.Fatalf("ProcessConversation failed: %v", err)
 	}
-	
+
 	if len(chunks) == 0 {
 		t.Error("Expected at least one chunk")
 	}
-	
+
 	// Verify chunk properties
 	for _, chunk := range chunks {
 		if chunk.SessionID != sessionID {
 			t.Errorf("Chunk has wrong session ID: got %s, want %s", chunk.SessionID, sessionID)
 		}
-		
+
 		if len(chunk.Embeddings) == 0 {
 			t.Error("Chunk missing embeddings")
 		}
-		
+
 		if chunk.Summary == "" {
 			t.Error("Chunk missing summary")
 		}
 	}
-	
+
 	// Test empty conversation
 	_, err = cs.ProcessConversation(ctx, sessionID, "", metadata)
 	if err == nil {
@@ -91,33 +91,33 @@ func TestCreateChunk(t *testing.T) {
 		FileChangeThreshold:   5,
 		TodoCompletionTrigger: true,
 	}
-	
+
 	embeddingService := &MockEmbeddingService{}
 	cs := NewChunkingService(cfg, embeddingService)
-	
+
 	ctx := context.Background()
 	sessionID := "test-session-2"
-	
+
 	// Test problem detection
 	content := "I'm getting an error when running the tests"
 	metadata := types.ChunkMetadata{Repository: "test-repo"}
-	
+
 	chunk, err := cs.CreateChunk(ctx, sessionID, content, metadata)
 	if err != nil {
 		t.Fatalf("CreateChunk failed: %v", err)
 	}
-	
+
 	if chunk.Type != types.ChunkTypeProblem {
 		t.Errorf("Expected chunk type %v, got %v", types.ChunkTypeProblem, chunk.Type)
 	}
-	
+
 	// Test solution detection
 	content = "I fixed the issue by updating the dependencies"
 	chunk, err = cs.CreateChunk(ctx, sessionID, content, metadata)
 	if err != nil {
 		t.Fatalf("CreateChunk failed: %v", err)
 	}
-	
+
 	if chunk.Type != types.ChunkTypeSolution {
 		t.Errorf("Expected chunk type %v, got %v", types.ChunkTypeSolution, chunk.Type)
 	}

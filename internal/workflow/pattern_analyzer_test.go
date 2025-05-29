@@ -12,7 +12,7 @@ import (
 
 func TestNewPatternAnalyzer(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	assert.NotNil(t, analyzer)
 	assert.NotNil(t, analyzer.sequences)
 	assert.NotNil(t, analyzer.successPatterns)
@@ -24,29 +24,29 @@ func TestNewPatternAnalyzer(t *testing.T) {
 
 func TestPatternAnalyzer_StartEndSequence(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	t.Run("starts new sequence", func(t *testing.T) {
 		analyzer.StartSequence("session1", "test-repo", "bug-fix")
-		
+
 		assert.NotNil(t, analyzer.currentSequence)
 		assert.Equal(t, "session1", analyzer.currentSequence.SessionID)
 		assert.Equal(t, "test-repo", analyzer.currentSequence.Repository)
 		assert.Equal(t, "bug-fix", analyzer.currentSequence.ProblemType)
 		assert.Len(t, analyzer.currentSequence.Tools, 0)
 	})
-	
+
 	t.Run("ends sequence with success", func(t *testing.T) {
 		analyzer.StartSequence("session2", "test-repo", "feature")
-		
+
 		// Add some tool usage
 		analyzer.RecordToolUsage("Read", map[string]interface{}{"file": "main.go"}, true)
 		analyzer.RecordToolUsage("Edit", map[string]interface{}{"file": "main.go"}, true)
-		
+
 		analyzer.EndSequence(types.OutcomeSuccess, "Added new feature")
-		
+
 		assert.Nil(t, analyzer.currentSequence)
 		assert.Len(t, analyzer.sequences, 1)
-		
+
 		sequence := analyzer.sequences[0]
 		assert.Equal(t, types.OutcomeSuccess, sequence.Outcome)
 		assert.Equal(t, "Added new feature", sequence.Solution)
@@ -56,30 +56,30 @@ func TestPatternAnalyzer_StartEndSequence(t *testing.T) {
 
 func TestPatternAnalyzer_RecordToolUsage(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	t.Run("records tool usage in existing sequence", func(t *testing.T) {
 		analyzer.StartSequence("session1", "test-repo", "debug")
-		
+
 		context := map[string]interface{}{
 			"file_path": "/path/to/file.go",
 			"command":   "grep error",
 		}
-		
+
 		analyzer.RecordToolUsage("Grep", context, true)
-		
+
 		assert.Len(t, analyzer.currentSequence.Tools, 1)
-		
+
 		usage := analyzer.currentSequence.Tools[0]
 		assert.Equal(t, "Grep", usage.Tool)
 		assert.True(t, usage.Success)
 		assert.Equal(t, context, usage.Context)
 	})
-	
+
 	t.Run("auto-starts sequence if none exists", func(t *testing.T) {
 		analyzer2 := NewPatternAnalyzer()
-		
+
 		analyzer2.RecordToolUsage("Read", map[string]interface{}{}, true)
-		
+
 		assert.NotNil(t, analyzer2.currentSequence)
 		assert.Len(t, analyzer2.currentSequence.Tools, 1)
 	})
@@ -87,10 +87,10 @@ func TestPatternAnalyzer_RecordToolUsage(t *testing.T) {
 
 func TestPatternAnalyzer_DetectPatternType(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	testCases := []struct {
-		name        string
-		tools       []string
+		name         string
+		tools        []string
 		expectedType PatternType
 	}{
 		{
@@ -124,7 +124,7 @@ func TestPatternAnalyzer_DetectPatternType(t *testing.T) {
 			expectedType: PatternDebug,
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			patternType := analyzer.DetectPatternType(tc.tools)
@@ -135,35 +135,35 @@ func TestPatternAnalyzer_DetectPatternType(t *testing.T) {
 
 func TestPatternAnalyzer_CalculatePatternMatch(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	t.Run("exact match", func(t *testing.T) {
 		tools := []string{"Read", "Edit", "Test"}
 		pattern := []string{"Read", "Edit", "Test"}
-		
+
 		score := analyzer.calculatePatternMatch(tools, pattern)
 		assert.Equal(t, 3, score)
 	})
-	
+
 	t.Run("partial match", func(t *testing.T) {
 		tools := []string{"Read", "Grep", "Edit", "Test"}
 		pattern := []string{"Read", "Edit"}
-		
+
 		score := analyzer.calculatePatternMatch(tools, pattern)
 		assert.Equal(t, 1, score) // Only "Read" matches consecutively at start
 	})
-	
+
 	t.Run("no match", func(t *testing.T) {
 		tools := []string{"Read", "Edit"}
 		pattern := []string{"Bash", "Test", "Deploy"}
-		
+
 		score := analyzer.calculatePatternMatch(tools, pattern)
 		assert.Equal(t, 0, score)
 	})
-	
+
 	t.Run("subsequence match", func(t *testing.T) {
 		tools := []string{"LS", "Read", "Edit", "Test", "Bash"}
 		pattern := []string{"Read", "Edit", "Test"}
-		
+
 		score := analyzer.calculatePatternMatch(tools, pattern)
 		assert.Equal(t, 3, score)
 	})
@@ -171,7 +171,7 @@ func TestPatternAnalyzer_CalculatePatternMatch(t *testing.T) {
 
 func TestPatternAnalyzer_AnalyzeSuccessfulSequence(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	// Create a successful investigative sequence
 	analyzer.StartSequence("session1", "test-repo", "bug-fix")
 	analyzer.RecordToolUsage("Read", map[string]interface{}{}, true)
@@ -179,10 +179,10 @@ func TestPatternAnalyzer_AnalyzeSuccessfulSequence(t *testing.T) {
 	analyzer.RecordToolUsage("Read", map[string]interface{}{}, true)
 	analyzer.RecordToolUsage("Edit", map[string]interface{}{}, true)
 	analyzer.EndSequence(types.OutcomeSuccess, "Fixed authentication bug")
-	
+
 	patterns := analyzer.GetSuccessPatterns()
 	require.Len(t, patterns, 1)
-	
+
 	pattern := patterns[0]
 	assert.Equal(t, PatternInvestigative, pattern.Type)
 	assert.Equal(t, 1, pattern.Frequency)
@@ -193,24 +193,24 @@ func TestPatternAnalyzer_AnalyzeSuccessfulSequence(t *testing.T) {
 
 func TestPatternAnalyzer_UpdateSuccessPattern(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	// First successful sequence
 	analyzer.StartSequence("session1", "repo1", "feature")
 	analyzer.RecordToolUsage("Test", map[string]interface{}{}, true)
 	analyzer.RecordToolUsage("Edit", map[string]interface{}{}, true)
 	analyzer.RecordToolUsage("Test", map[string]interface{}{}, true)
 	analyzer.EndSequence(types.OutcomeSuccess, "Added tests")
-	
+
 	// Second successful sequence of same type
 	analyzer.StartSequence("session2", "repo1", "feature")
 	analyzer.RecordToolUsage("Test", map[string]interface{}{}, true)
 	analyzer.RecordToolUsage("Edit", map[string]interface{}{}, true)
 	analyzer.RecordToolUsage("Test", map[string]interface{}{}, true)
 	analyzer.EndSequence(types.OutcomeSuccess, "Updated tests")
-	
+
 	patterns := analyzer.GetSuccessPatterns()
 	require.Len(t, patterns, 1)
-	
+
 	pattern := patterns[0]
 	assert.Equal(t, 2, pattern.Frequency)
 	assert.Equal(t, 1.0, pattern.SuccessRate)
@@ -219,7 +219,7 @@ func TestPatternAnalyzer_UpdateSuccessPattern(t *testing.T) {
 
 func TestPatternAnalyzer_InferSwitchReason(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	testCases := []struct {
 		name     string
 		usage    ToolUsage
@@ -228,7 +228,7 @@ func TestPatternAnalyzer_InferSwitchReason(t *testing.T) {
 		{
 			name: "exploration with LS",
 			usage: ToolUsage{
-				Tool: "LS",
+				Tool:    "LS",
 				Context: map[string]interface{}{},
 			},
 			expected: "exploring new codebase",
@@ -264,7 +264,7 @@ func TestPatternAnalyzer_InferSwitchReason(t *testing.T) {
 			expected: "git operations",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			reason := analyzer.inferSwitchReason(tc.usage)
@@ -275,7 +275,7 @@ func TestPatternAnalyzer_InferSwitchReason(t *testing.T) {
 
 func TestPatternAnalyzer_ExtractSequenceTags(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	sequence := ToolSequence{
 		SessionID:   "test",
 		Repository:  "test-repo",
@@ -288,18 +288,18 @@ func TestPatternAnalyzer_ExtractSequenceTags(t *testing.T) {
 			{Tool: "Edit"}, {Tool: "Bash"},
 		},
 	}
-	
+
 	tags := analyzer.extractSequenceTags(sequence)
-	
+
 	assert.Contains(t, tags, "success")
 	assert.Contains(t, tags, "repo-test-repo")
-	assert.Contains(t, tags, "long-session")  // 45 minutes
-	assert.Contains(t, tags, "heavy-read")    // 4+ reads
+	assert.Contains(t, tags, "long-session") // 45 minutes
+	assert.Contains(t, tags, "heavy-read")   // 4+ reads
 }
 
 func TestPatternAnalyzer_GetPatternRecommendations(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	// Create a high-success pattern
 	analyzer.successPatterns = []SuccessPattern{
 		{
@@ -321,18 +321,18 @@ func TestPatternAnalyzer_GetPatternRecommendations(t *testing.T) {
 			Frequency:   1, // Below frequency threshold
 		},
 	}
-	
+
 	currentTools := []string{"Test", "Edit"} // Partially matches test-driven
-	
+
 	recommendations := analyzer.GetPatternRecommendations(currentTools, "feature")
-	
+
 	assert.Len(t, recommendations, 1)
 	assert.Equal(t, PatternTestDriven, recommendations[0].Type)
 }
 
 func TestPatternAnalyzer_GeneratePatternDescription(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	testCases := []struct {
 		patternType PatternType
 		tools       []string
@@ -354,7 +354,7 @@ func TestPatternAnalyzer_GeneratePatternDescription(t *testing.T) {
 			expected:    "Test-driven development: Test → Code",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(string(tc.patternType), func(t *testing.T) {
 			description := analyzer.generatePatternDescription(tc.patternType, tc.tools)
@@ -365,19 +365,19 @@ func TestPatternAnalyzer_GeneratePatternDescription(t *testing.T) {
 
 func TestPatternAnalyzer_ContextSwitchDetection(t *testing.T) {
 	analyzer := NewPatternAnalyzer()
-	
+
 	// Create first sequence in repo1
 	analyzer.StartSequence("session1", "repo1", "feature")
 	analyzer.RecordToolUsage("Read", map[string]interface{}{}, true)
 	analyzer.EndSequence(types.OutcomeSuccess, "Done")
-	
+
 	// Start new sequence in repo2 (should trigger context switch)
 	analyzer.StartSequence("session1", "repo2", "bugfix")
 	analyzer.RecordToolUsage("LS", map[string]interface{}{}, true)
-	
+
 	switches := analyzer.GetContextSwitches()
 	require.Len(t, switches, 1)
-	
+
 	contextSwitch := switches[0]
 	assert.Equal(t, "repo1", contextSwitch.FromRepo)
 	assert.Equal(t, "repo2", contextSwitch.ToRepo)

@@ -345,7 +345,7 @@ func TestNewMemoryQuery(t *testing.T) {
 
 	assert.Equal(t, query, memQuery.Query)
 	assert.Equal(t, RecencyRecent, memQuery.Recency)
-	assert.Equal(t, 0.7, memQuery.MinRelevanceScore)
+	assert.Equal(t, 0.5, memQuery.MinRelevanceScore)
 	assert.Equal(t, 10, memQuery.Limit)
 	assert.Nil(t, memQuery.Repository)
 	assert.Empty(t, memQuery.FileContext)

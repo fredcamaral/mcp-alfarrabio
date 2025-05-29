@@ -16,57 +16,57 @@ import (
 type PatternType string
 
 const (
-	PatternTypeProblemSolution  PatternType = "problem_solution"
-	PatternTypeWorkflow         PatternType = "workflow"
-	PatternTypeDecisionMaking   PatternType = "decision_making"
-	PatternTypeErrorResolution  PatternType = "error_resolution"
-	PatternTypeCodeEvolution    PatternType = "code_evolution"
-	PatternTypeArchitectural    PatternType = "architectural"
-	PatternTypeConfiguration    PatternType = "configuration"
-	PatternTypeDebugging        PatternType = "debugging"
-	PatternTypeTesting          PatternType = "testing"
-	PatternTypeRefactoring      PatternType = "refactoring"
+	PatternTypeProblemSolution PatternType = "problem_solution"
+	PatternTypeWorkflow        PatternType = "workflow"
+	PatternTypeDecisionMaking  PatternType = "decision_making"
+	PatternTypeErrorResolution PatternType = "error_resolution"
+	PatternTypeCodeEvolution   PatternType = "code_evolution"
+	PatternTypeArchitectural   PatternType = "architectural"
+	PatternTypeConfiguration   PatternType = "configuration"
+	PatternTypeDebugging       PatternType = "debugging"
+	PatternTypeTesting         PatternType = "testing"
+	PatternTypeRefactoring     PatternType = "refactoring"
 )
 
 // Pattern represents a recognized conversation pattern
 type Pattern struct {
-	ID              string                 `json:"id"`
-	Type            PatternType            `json:"type"`
-	Name            string                 `json:"name"`
-	Description     string                 `json:"description"`
-	Confidence      float64                `json:"confidence"`
-	Frequency       int                    `json:"frequency"`
-	SuccessRate     float64                `json:"success_rate"`
-	Keywords        []string               `json:"keywords"`
-	Triggers        []string               `json:"triggers"`
-	Outcomes        []string               `json:"outcomes"`
-	Steps           []PatternStep          `json:"steps"`
-	Context         map[string]any         `json:"context"`
-	RelatedPatterns []string               `json:"related_patterns"`
-	Examples        []PatternExample       `json:"examples"`
-	CreatedAt       time.Time              `json:"created_at"`
-	UpdatedAt       time.Time              `json:"updated_at"`
-	LastUsed        time.Time              `json:"last_used"`
+	ID              string           `json:"id"`
+	Type            PatternType      `json:"type"`
+	Name            string           `json:"name"`
+	Description     string           `json:"description"`
+	Confidence      float64          `json:"confidence"`
+	Frequency       int              `json:"frequency"`
+	SuccessRate     float64          `json:"success_rate"`
+	Keywords        []string         `json:"keywords"`
+	Triggers        []string         `json:"triggers"`
+	Outcomes        []string         `json:"outcomes"`
+	Steps           []PatternStep    `json:"steps"`
+	Context         map[string]any   `json:"context"`
+	RelatedPatterns []string         `json:"related_patterns"`
+	Examples        []PatternExample `json:"examples"`
+	CreatedAt       time.Time        `json:"created_at"`
+	UpdatedAt       time.Time        `json:"updated_at"`
+	LastUsed        time.Time        `json:"last_used"`
 }
 
 // PatternStep represents a step in a pattern sequence
 type PatternStep struct {
-	Order       int                    `json:"order"`
-	Action      string                 `json:"action"`
-	Description string                 `json:"description"`
-	Optional    bool                   `json:"optional"`
-	Confidence  float64                `json:"confidence"`
-	Context     map[string]any         `json:"context"`
+	Order       int            `json:"order"`
+	Action      string         `json:"action"`
+	Description string         `json:"description"`
+	Optional    bool           `json:"optional"`
+	Confidence  float64        `json:"confidence"`
+	Context     map[string]any `json:"context"`
 }
 
 // PatternExample represents an example instance of a pattern
 type PatternExample struct {
-	ID            string                         `json:"id"`
-	ChunkIDs      []string                       `json:"chunk_ids"`
-	Conversation  []types.ConversationChunk      `json:"conversation"`
-	Outcome       PatternOutcome                 `json:"outcome"`
-	Confidence    float64                        `json:"confidence"`
-	Timestamp     time.Time                      `json:"timestamp"`
+	ID           string                    `json:"id"`
+	ChunkIDs     []string                  `json:"chunk_ids"`
+	Conversation []types.ConversationChunk `json:"conversation"`
+	Outcome      PatternOutcome            `json:"outcome"`
+	Confidence   float64                   `json:"confidence"`
+	Timestamp    time.Time                 `json:"timestamp"`
 }
 
 // PatternOutcome represents the result of applying a pattern
@@ -108,44 +108,44 @@ type PatternEngine struct {
 	storage    PatternStorage
 	matcher    PatternMatcher
 	recognizer SequenceRecognizer
-	
+
 	// Configuration
-	minConfidence     float64
-	maxPatterns       int
-	learningEnabled   bool
-	
+	minConfidence   float64
+	maxPatterns     int
+	learningEnabled bool
+
 	// Built-in pattern definitions
-	builtInPatterns   []Pattern
-	
+	builtInPatterns []Pattern
+
 	// Pattern matching regexes
-	problemRegex      *regexp.Regexp
-	solutionRegex     *regexp.Regexp
-	errorRegex        *regexp.Regexp
-	commandRegex      *regexp.Regexp
-	codeRegex         *regexp.Regexp
+	problemRegex  *regexp.Regexp
+	solutionRegex *regexp.Regexp
+	errorRegex    *regexp.Regexp
+	commandRegex  *regexp.Regexp
+	codeRegex     *regexp.Regexp
 }
 
 // NewPatternEngine creates a new pattern recognition engine
 func NewPatternEngine(storage PatternStorage) *PatternEngine {
 	engine := &PatternEngine{
-		storage:          storage,
-		minConfidence:    0.6,
-		maxPatterns:      1000,
-		learningEnabled:  true,
-		builtInPatterns:  getBuiltInPatterns(),
+		storage:         storage,
+		minConfidence:   0.6,
+		maxPatterns:     1000,
+		learningEnabled: true,
+		builtInPatterns: getBuiltInPatterns(),
 	}
-	
+
 	// Compile regexes for pattern matching
 	engine.problemRegex = regexp.MustCompile(`(?i)(error|issue|problem|bug|fail|broken|not working|doesn't work)`)
 	engine.solutionRegex = regexp.MustCompile(`(?i)(fix|solve|resolve|solution|fixed|resolved|working)`)
 	engine.errorRegex = regexp.MustCompile(`(?i)(error:|exception:|fatal:|panic:|warning:)`)
 	engine.commandRegex = regexp.MustCompile(`(?i)(run|execute|install|build|test|deploy)`)
 	engine.codeRegex = regexp.MustCompile("```[\\s\\S]*?```")
-	
+
 	// Initialize built-in pattern matcher and recognizer
 	engine.matcher = NewBasicPatternMatcher()
 	engine.recognizer = NewSequenceRecognizer(engine)
-	
+
 	return engine
 }
 
@@ -154,15 +154,15 @@ func (pe *PatternEngine) RecognizePatterns(ctx context.Context, chunks []types.C
 	if len(chunks) == 0 {
 		return []Pattern{}, nil
 	}
-	
+
 	var recognizedPatterns []Pattern
-	
+
 	// Try sequence recognition first
 	sequencePatterns, err := pe.recognizer.RecognizeSequence(chunks)
 	if err == nil {
 		recognizedPatterns = append(recognizedPatterns, sequencePatterns...)
 	}
-	
+
 	// Match against stored patterns
 	storedPatterns, err := pe.storage.ListPatterns(ctx, nil)
 	if err == nil {
@@ -174,7 +174,7 @@ func (pe *PatternEngine) RecognizePatterns(ctx context.Context, chunks []types.C
 			}
 		}
 	}
-	
+
 	// Match against built-in patterns
 	for _, pattern := range pe.builtInPatterns {
 		confidence := pe.matcher.MatchPattern(chunks, pattern)
@@ -183,16 +183,16 @@ func (pe *PatternEngine) RecognizePatterns(ctx context.Context, chunks []types.C
 			recognizedPatterns = append(recognizedPatterns, pattern)
 		}
 	}
-	
+
 	// Sort by confidence and limit results
 	sort.Slice(recognizedPatterns, func(i, j int) bool {
 		return recognizedPatterns[i].Confidence > recognizedPatterns[j].Confidence
 	})
-	
+
 	if len(recognizedPatterns) > 10 {
 		recognizedPatterns = recognizedPatterns[:10]
 	}
-	
+
 	return recognizedPatterns, nil
 }
 
@@ -201,25 +201,25 @@ func (pe *PatternEngine) LearnPattern(ctx context.Context, chunks []types.Conver
 	if !pe.learningEnabled || len(chunks) < 2 {
 		return nil
 	}
-	
+
 	// Extract pattern features
 	features := pe.matcher.ExtractFeatures(chunks)
 	steps := pe.matcher.IdentifySequence(chunks)
-	
+
 	// Create pattern from conversation
 	pattern := Pattern{
-		ID:           generatePatternID(),
-		Type:         pe.inferPatternType(chunks, features),
-		Name:         pe.generatePatternName(chunks, features),
-		Description:  pe.generatePatternDescription(chunks, features),
-		Confidence:   pe.calculatePatternConfidence(chunks, features),
-		Frequency:    1,
-		SuccessRate:  pe.calculateSuccessRate(outcome),
-		Keywords:     pe.extractKeywords(chunks),
-		Triggers:     pe.extractTriggers(chunks),
-		Outcomes:     pe.extractOutcomes(chunks),
-		Steps:        steps,
-		Context:      features,
+		ID:          generatePatternID(),
+		Type:        pe.inferPatternType(chunks, features),
+		Name:        pe.generatePatternName(chunks, features),
+		Description: pe.generatePatternDescription(chunks, features),
+		Confidence:  pe.calculatePatternConfidence(chunks, features),
+		Frequency:   1,
+		SuccessRate: pe.calculateSuccessRate(outcome),
+		Keywords:    pe.extractKeywords(chunks),
+		Triggers:    pe.extractTriggers(chunks),
+		Outcomes:    pe.extractOutcomes(chunks),
+		Steps:       steps,
+		Context:     features,
 		Examples: []PatternExample{{
 			ID:           fmt.Sprintf("%s_example_1", generatePatternID()),
 			ChunkIDs:     extractChunkIDs(chunks),
@@ -232,7 +232,7 @@ func (pe *PatternEngine) LearnPattern(ctx context.Context, chunks []types.Conver
 		UpdatedAt: time.Now(),
 		LastUsed:  time.Now(),
 	}
-	
+
 	// Try to find existing similar pattern
 	existingPatterns, err := pe.storage.SearchPatterns(ctx, pattern.Name, 5)
 	if err == nil && len(existingPatterns) > 0 {
@@ -244,11 +244,11 @@ func (pe *PatternEngine) LearnPattern(ctx context.Context, chunks []types.Conver
 			existing.Examples = append(existing.Examples, pattern.Examples[0])
 			existing.UpdatedAt = time.Now()
 			existing.LastUsed = time.Now()
-			
+
 			return pe.storage.UpdatePattern(ctx, existing)
 		}
 	}
-	
+
 	// Store new pattern
 	return pe.storage.StorePattern(ctx, pattern)
 }
@@ -258,21 +258,21 @@ func (pe *PatternEngine) GetPatternSuggestions(ctx context.Context, currentChunk
 	if len(currentChunks) == 0 {
 		return []Pattern{}, nil
 	}
-	
+
 	// Get all patterns
 	allPatterns, err := pe.storage.ListPatterns(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Calculate relevance for each pattern
 	type patternScore struct {
 		pattern   Pattern
 		relevance float64
 	}
-	
+
 	var scoredPatterns []patternScore
-	
+
 	for _, pattern := range allPatterns {
 		relevance := pe.calculateRelevance(currentChunks, pattern)
 		if relevance > 0.3 {
@@ -282,12 +282,12 @@ func (pe *PatternEngine) GetPatternSuggestions(ctx context.Context, currentChunk
 			})
 		}
 	}
-	
+
 	// Sort by relevance
 	sort.Slice(scoredPatterns, func(i, j int) bool {
 		return scoredPatterns[i].relevance > scoredPatterns[j].relevance
 	})
-	
+
 	// Return top patterns
 	result := make([]Pattern, 0, limit)
 	for i, scored := range scoredPatterns {
@@ -297,7 +297,7 @@ func (pe *PatternEngine) GetPatternSuggestions(ctx context.Context, currentChunk
 		scored.pattern.Confidence = scored.relevance
 		result = append(result, scored.pattern)
 	}
-	
+
 	return result, nil
 }
 
@@ -305,7 +305,7 @@ func (pe *PatternEngine) GetPatternSuggestions(ctx context.Context, currentChunk
 
 func (pe *PatternEngine) inferPatternType(chunks []types.ConversationChunk, _ map[string]any) PatternType {
 	text := extractText(chunks)
-	
+
 	if pe.problemRegex.MatchString(text) && pe.solutionRegex.MatchString(text) {
 		return PatternTypeProblemSolution
 	}
@@ -318,7 +318,7 @@ func (pe *PatternEngine) inferPatternType(chunks []types.ConversationChunk, _ ma
 	if pe.commandRegex.MatchString(text) {
 		return PatternTypeWorkflow
 	}
-	
+
 	return PatternTypeWorkflow
 }
 
@@ -338,12 +338,12 @@ func (pe *PatternEngine) generatePatternDescription(chunks []types.ConversationC
 func (pe *PatternEngine) calculatePatternConfidence(chunks []types.ConversationChunk, features map[string]any) float64 {
 	// Base confidence on conversation length and coherence
 	baseConfidence := math.Min(float64(len(chunks))/10.0, 1.0)
-	
+
 	// Adjust based on features
 	if len(features) > 3 {
 		baseConfidence += 0.1
 	}
-	
+
 	return math.Min(baseConfidence, 1.0)
 }
 
@@ -367,28 +367,28 @@ func (pe *PatternEngine) calculateSuccessRate(outcome PatternOutcome) float64 {
 func (pe *PatternEngine) extractKeywords(chunks []types.ConversationChunk) []string {
 	text := extractText(chunks)
 	words := strings.Fields(strings.ToLower(text))
-	
+
 	keywordCount := make(map[string]int)
 	for _, word := range words {
 		if len(word) > 3 && !isStopWord(word) {
 			keywordCount[word]++
 		}
 	}
-	
+
 	type wordCount struct {
 		word  string
 		count int
 	}
-	
+
 	wordCounts := make([]wordCount, 0, len(keywordCount))
 	for word, count := range keywordCount {
 		wordCounts = append(wordCounts, wordCount{word, count})
 	}
-	
+
 	sort.Slice(wordCounts, func(i, j int) bool {
 		return wordCounts[i].count > wordCounts[j].count
 	})
-	
+
 	// Pre-allocate for max 10 keywords
 	maxKeywords := 10
 	if len(wordCounts) < maxKeywords {
@@ -401,13 +401,13 @@ func (pe *PatternEngine) extractKeywords(chunks []types.ConversationChunk) []str
 		}
 		keywords = append(keywords, wc.word)
 	}
-	
+
 	return keywords
 }
 
 func (pe *PatternEngine) extractTriggers(chunks []types.ConversationChunk) []string {
 	var triggers []string
-	
+
 	for _, chunk := range chunks {
 		if pe.problemRegex.MatchString(chunk.Content) {
 			triggers = append(triggers, "problem_identified")
@@ -419,13 +419,13 @@ func (pe *PatternEngine) extractTriggers(chunks []types.ConversationChunk) []str
 			triggers = append(triggers, "command_execution")
 		}
 	}
-	
+
 	return unique(triggers)
 }
 
 func (pe *PatternEngine) extractOutcomes(chunks []types.ConversationChunk) []string {
 	var outcomes []string
-	
+
 	for _, chunk := range chunks {
 		if pe.solutionRegex.MatchString(chunk.Content) {
 			outcomes = append(outcomes, "solution_found")
@@ -434,7 +434,7 @@ func (pe *PatternEngine) extractOutcomes(chunks []types.ConversationChunk) []str
 			outcomes = append(outcomes, "task_completed")
 		}
 	}
-	
+
 	return unique(outcomes)
 }
 
@@ -442,14 +442,14 @@ func (pe *PatternEngine) calculateRelevance(currentChunks []types.ConversationCh
 	// Calculate keyword overlap
 	currentKeywords := pe.extractKeywords(currentChunks)
 	keywordOverlap := calculateOverlap(currentKeywords, pattern.Keywords)
-	
+
 	// Calculate trigger relevance
 	currentTriggers := pe.extractTriggers(currentChunks)
 	triggerOverlap := calculateOverlap(currentTriggers, pattern.Triggers)
-	
+
 	// Weight the relevance
 	relevance := (keywordOverlap*0.6 + triggerOverlap*0.4) * pattern.SuccessRate
-	
+
 	return math.Min(relevance, 1.0)
 }
 
@@ -492,14 +492,14 @@ func isStopWord(word string) bool {
 func unique(slice []string) []string {
 	seen := make(map[string]bool)
 	var result []string
-	
+
 	for _, item := range slice {
 		if !seen[item] {
 			seen[item] = true
 			result = append(result, item)
 		}
 	}
-	
+
 	return result
 }
 
@@ -507,18 +507,18 @@ func calculateOverlap(slice1, slice2 []string) float64 {
 	if len(slice1) == 0 || len(slice2) == 0 {
 		return 0.0
 	}
-	
+
 	set1 := make(map[string]bool)
 	for _, item := range slice1 {
 		set1[item] = true
 	}
-	
+
 	overlap := 0
 	for _, item := range slice2 {
 		if set1[item] {
 			overlap++
 		}
 	}
-	
+
 	return float64(overlap) / math.Max(float64(len(slice1)), float64(len(slice2)))
 }

@@ -69,7 +69,7 @@ func TestAccessControlManager_CreateUser(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			user, err := acm.CreateUser(tt.username, tt.email)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -90,7 +90,7 @@ func TestAccessControlManager_CreateUser(t *testing.T) {
 
 func TestAccessControlManager_GenerateToken(t *testing.T) {
 	acm := NewAccessControlManager()
-	
+
 	// Create a user
 	user, err := acm.CreateUser("testuser", "test@example.com")
 	require.NoError(t, err)
@@ -139,7 +139,7 @@ func TestAccessControlManager_GenerateToken(t *testing.T) {
 			}
 
 			token, err := acm.GenerateToken(tt.userID, tt.scope, tt.duration)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -161,11 +161,11 @@ func TestAccessControlManager_GenerateToken(t *testing.T) {
 
 func TestAccessControlManager_ValidateToken(t *testing.T) {
 	acm := NewAccessControlManager()
-	
+
 	// Create a user and token
 	user, err := acm.CreateUser("testuser", "test@example.com")
 	require.NoError(t, err)
-	
+
 	validToken, err := acm.GenerateToken(user.ID, []string{"read"}, time.Hour)
 	require.NoError(t, err)
 
@@ -219,7 +219,7 @@ func TestAccessControlManager_ValidateToken(t *testing.T) {
 			}
 
 			token, err := acm.ValidateToken(tt.tokenString)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -239,7 +239,7 @@ func TestAccessControlManager_ValidateToken(t *testing.T) {
 
 func TestAccessControlManager_GrantRevokePermission(t *testing.T) {
 	acm := NewAccessControlManager()
-	
+
 	// Create a user
 	user, err := acm.CreateUser("testuser", "test@example.com")
 	require.NoError(t, err)
@@ -292,11 +292,11 @@ func TestAccessControlManager_GrantRevokePermission(t *testing.T) {
 func TestAccessControlManager_CheckAccess(t *testing.T) {
 	acm := NewAccessControlManager()
 	ctx := context.Background()
-	
+
 	// Create users
 	user1, err := acm.CreateUser("user1", "user1@example.com")
 	require.NoError(t, err)
-	
+
 	user2, err := acm.CreateUser("user2", "user2@example.com")
 	require.NoError(t, err)
 
@@ -402,7 +402,7 @@ func TestAccessControlManager_CheckAccess(t *testing.T) {
 			}
 
 			got, err := acm.CheckAccess(ctx, tt.userID, tt.action, tt.resource)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 			} else {
@@ -419,11 +419,11 @@ func TestAccessControlManager_CheckAccess(t *testing.T) {
 
 func TestAccessControlManager_Repository(t *testing.T) {
 	acm := NewAccessControlManager()
-	
+
 	// Create users
 	owner, err := acm.CreateUser("owner", "owner@example.com")
 	require.NoError(t, err)
-	
+
 	user, err := acm.CreateUser("user", "user@example.com")
 	require.NoError(t, err)
 
@@ -441,7 +441,7 @@ func TestAccessControlManager_Repository(t *testing.T) {
 	err = acm.GrantRepositoryAccess(repo.ID, user.ID, AccessLevelRead)
 	require.NoError(t, err)
 	assert.Contains(t, repo.AllowedUsers, user.ID)
-	
+
 	// Check that permission was granted
 	assert.Len(t, user.Permissions, 1)
 	assert.Equal(t, fmt.Sprintf("repository:%s", repo.ID), user.Permissions[0].Resource)
@@ -457,7 +457,7 @@ func TestAccessControlManager_Repository(t *testing.T) {
 func TestAccessControlManager_Policies(t *testing.T) {
 	acm := NewAccessControlManager()
 	ctx := context.Background()
-	
+
 	// Create a user
 	user, err := acm.CreateUser("testuser", "test@example.com")
 	require.NoError(t, err)
@@ -501,7 +501,7 @@ func TestAccessControlManager_Policies(t *testing.T) {
 func TestAccessControlManager_PermissionExpiration(t *testing.T) {
 	acm := NewAccessControlManager()
 	ctx := context.Background()
-	
+
 	// Create a user
 	user, err := acm.CreateUser("testuser", "test@example.com")
 	require.NoError(t, err)
@@ -509,7 +509,7 @@ func TestAccessControlManager_PermissionExpiration(t *testing.T) {
 	// Grant permission with expiration
 	future := time.Now().Add(time.Hour)
 	past := time.Now().Add(-time.Hour)
-	
+
 	// Valid permission
 	err = acm.GrantPermission(user.ID, Permission{
 		Resource:  "repository:valid",
@@ -541,7 +541,7 @@ func TestAccessControlManager_PermissionExpiration(t *testing.T) {
 func TestAccessControlManager_Conditions(t *testing.T) {
 	acm := NewAccessControlManager()
 	ctx := context.Background()
-	
+
 	// Create users
 	user1, err := acm.CreateUser("user1", "user1@example.com")
 	require.NoError(t, err)
@@ -663,7 +663,7 @@ func TestGenerateSecureToken(t *testing.T) {
 func BenchmarkCheckAccess(b *testing.B) {
 	acm := NewAccessControlManager()
 	ctx := context.Background()
-	
+
 	// Create user with permissions
 	user, _ := acm.CreateUser("benchuser", "bench@example.com")
 	for i := 0; i < 10; i++ {

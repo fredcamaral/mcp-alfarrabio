@@ -37,7 +37,7 @@ func NewCircuitBreakerEmbeddingService(service EmbeddingService, config *circuit
 // GenerateEmbedding generates embeddings with circuit breaker protection
 func (s *CircuitBreakerEmbeddingService) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
 	var result []float64
-	
+
 	err := s.cb.ExecuteWithFallback(ctx,
 		func(ctx context.Context) error {
 			var err error
@@ -50,14 +50,14 @@ func (s *CircuitBreakerEmbeddingService) GenerateEmbedding(ctx context.Context, 
 			return fmt.Errorf("embedding service unavailable: %w", cbErr)
 		},
 	)
-	
+
 	return result, err
 }
 
 // GenerateBatchEmbeddings generates batch embeddings with circuit breaker protection
 func (s *CircuitBreakerEmbeddingService) GenerateBatchEmbeddings(ctx context.Context, texts []string) ([][]float64, error) {
 	var result [][]float64
-	
+
 	err := s.cb.ExecuteWithFallback(ctx,
 		func(ctx context.Context) error {
 			var err error
@@ -68,7 +68,7 @@ func (s *CircuitBreakerEmbeddingService) GenerateBatchEmbeddings(ctx context.Con
 			return fmt.Errorf("embedding service unavailable: %w", cbErr)
 		},
 	)
-	
+
 	return result, err
 }
 

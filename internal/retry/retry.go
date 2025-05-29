@@ -13,11 +13,11 @@ import (
 
 // Config holds retry configuration
 type Config struct {
-	MaxAttempts     int           // Maximum number of attempts (0 = unlimited)
-	InitialDelay    time.Duration // Initial delay between retries
-	MaxDelay        time.Duration // Maximum delay between retries
-	Multiplier      float64       // Backoff multiplier
-	RandomizeFactor float64       // Jitter factor (0-1)
+	MaxAttempts     int              // Maximum number of attempts (0 = unlimited)
+	InitialDelay    time.Duration    // Initial delay between retries
+	MaxDelay        time.Duration    // Maximum delay between retries
+	Multiplier      float64          // Backoff multiplier
+	RandomizeFactor float64          // Jitter factor (0-1)
 	RetryIf         func(error) bool // Function to determine if error is retryable
 }
 
@@ -114,7 +114,7 @@ retryLoop:
 
 		// Calculate next delay with jitter
 		nextDelay := r.calculateDelay(delay)
-		
+
 		// Wait for the delay or context cancellation
 		select {
 		case <-time.After(nextDelay):
@@ -147,13 +147,13 @@ func (r *Retrier) calculateDelay(delay time.Duration) time.Duration {
 	if deltaRange <= 0 {
 		return time.Duration(minDelay)
 	}
-	
+
 	randomDelta, err := rand.Int(rand.Reader, big.NewInt(deltaRange))
 	if err != nil {
 		// Fallback to no jitter on error
 		return delay
 	}
-	
+
 	randomDelay := minDelay + float64(randomDelta.Int64())
 	return time.Duration(randomDelay)
 }

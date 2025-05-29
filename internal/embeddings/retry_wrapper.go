@@ -54,14 +54,14 @@ func isRetryableEmbeddingError(err error) bool {
 		"temporary failure",
 		"i/o timeout",
 		"eof",
-		
+
 		// HTTP status codes (as strings in errors)
 		"429", // Too Many Requests
 		"500", // Internal Server Error
 		"502", // Bad Gateway
 		"503", // Service Unavailable
 		"504", // Gateway Timeout
-		
+
 		// OpenAI specific
 		"rate limit",
 		"quota exceeded",
@@ -111,13 +111,13 @@ func isRetryableEmbeddingError(err error) bool {
 // GenerateEmbedding generates embeddings with retry logic
 func (r *RetryableEmbeddingService) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
 	var embeddings []float64
-	
+
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		var err error
 		embeddings, err = r.service.GenerateEmbedding(ctx, text)
 		return err
 	})
-	
+
 	if result.Err != nil {
 		return nil, fmt.Errorf("failed to generate embedding after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -127,7 +127,7 @@ func (r *RetryableEmbeddingService) GenerateEmbedding(ctx context.Context, text 
 // GenerateBatchEmbeddings generates multiple embeddings with retry logic
 func (r *RetryableEmbeddingService) GenerateBatchEmbeddings(ctx context.Context, texts []string) ([][]float64, error) {
 	var embeddings [][]float64
-	
+
 	// For batch operations, we might want a different retry strategy
 	batchConfig := &retry.Config{
 		MaxAttempts:     3,
@@ -137,14 +137,14 @@ func (r *RetryableEmbeddingService) GenerateBatchEmbeddings(ctx context.Context,
 		RandomizeFactor: 0.3,
 		RetryIf:         isRetryableEmbeddingError,
 	}
-	
+
 	batchRetrier := retry.New(batchConfig)
 	result := batchRetrier.Do(ctx, func(ctx context.Context) error {
 		var err error
 		embeddings, err = r.service.GenerateBatchEmbeddings(ctx, texts)
 		return err
 	})
-	
+
 	if result.Err != nil {
 		return nil, fmt.Errorf("failed to generate batch embeddings after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -162,12 +162,12 @@ func (r *RetryableEmbeddingService) HealthCheck(ctx context.Context) error {
 		RandomizeFactor: 0.1,
 		RetryIf:         isRetryableEmbeddingError,
 	}
-	
+
 	healthRetrier := retry.New(healthConfig)
 	result := healthRetrier.Do(ctx, func(ctx context.Context) error {
 		return r.service.HealthCheck(ctx)
 	})
-	
+
 	if result.Err != nil {
 		return fmt.Errorf("health check failed after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -196,12 +196,12 @@ func RateLimitAwareRetryConfig() *retry.Config {
 			if err == nil {
 				return false
 			}
-			
+
 			errStr := strings.ToLower(err.Error())
 			// Only retry on rate limit errors
-			return strings.Contains(errStr, "429") || 
-				   strings.Contains(errStr, "rate limit") ||
-				   strings.Contains(errStr, "quota exceeded")
+			return strings.Contains(errStr, "429") ||
+				strings.Contains(errStr, "rate limit") ||
+				strings.Contains(errStr, "quota exceeded")
 		},
 	}
 }
@@ -210,7 +210,7 @@ func RateLimitAwareRetryConfig() *retry.Config {
 func CircuitBreakerRetryConfig() *retry.Config {
 	failureCount := 0
 	lastFailure := time.Time{}
-	
+
 	return &retry.Config{
 		MaxAttempts:     3,
 		InitialDelay:    100 * time.Millisecond,
@@ -222,22 +222,22 @@ func CircuitBreakerRetryConfig() *retry.Config {
 				failureCount = 0
 				return false
 			}
-			
+
 			now := time.Now()
-			
+
 			// Reset counter if last failure was more than 5 minutes ago
 			if now.Sub(lastFailure) > 5*time.Minute {
 				failureCount = 0
 			}
-			
+
 			failureCount++
 			lastFailure = now
-			
+
 			// Circuit breaker: stop retrying after 10 consecutive failures
 			if failureCount > 10 {
 				return false
 			}
-			
+
 			return isRetryableEmbeddingError(err)
 		},
 	}

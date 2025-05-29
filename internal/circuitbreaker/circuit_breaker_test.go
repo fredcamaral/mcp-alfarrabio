@@ -283,15 +283,15 @@ func TestCircuitBreaker_ConcurrentRequests(t *testing.T) {
 	// But since 2 successes close the circuit, we might get more successes
 	// The important thing is that we got some rejections
 	t.Logf("Success count: %d, Reject count: %d", successCount, rejectCount)
-	
+
 	if successCount == 0 {
 		t.Error("Expected at least some successful requests")
 	}
 	if rejectCount == 0 && successCount < 5 {
 		t.Error("Expected some requests to be rejected when exceeding concurrent limit")
 	}
-	if successCount + rejectCount != 5 {
-		t.Errorf("Expected total of 5 requests, got: %d", successCount + rejectCount)
+	if successCount+rejectCount != 5 {
+		t.Errorf("Expected total of 5 requests, got: %d", successCount+rejectCount)
 	}
 }
 

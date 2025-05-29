@@ -74,19 +74,19 @@ func (m *MockPatternStorage) SearchPatterns(ctx context.Context, query string, l
 func TestPatternEngineCreation(t *testing.T) {
 	storage := NewMockPatternStorage()
 	engine := NewPatternEngine(storage)
-	
+
 	if engine == nil {
 		t.Fatal("Expected pattern engine to be created")
 	}
-	
+
 	if engine.storage != storage {
 		t.Error("Expected storage to be set correctly")
 	}
-	
+
 	if engine.minConfidence != 0.6 {
 		t.Errorf("Expected minConfidence to be 0.6, got %f", engine.minConfidence)
 	}
-	
+
 	if !engine.learningEnabled {
 		t.Error("Expected learning to be enabled by default")
 	}
@@ -95,7 +95,7 @@ func TestPatternEngineCreation(t *testing.T) {
 func TestRecognizePatterns(t *testing.T) {
 	storage := NewMockPatternStorage()
 	engine := NewPatternEngine(storage)
-	
+
 	// Create test chunks representing a problem-solution conversation
 	chunks := []types.ConversationChunk{
 		{
@@ -105,7 +105,7 @@ func TestRecognizePatterns(t *testing.T) {
 			Type:      types.ChunkTypeProblem,
 		},
 		{
-			ID:        "chunk2", 
+			ID:        "chunk2",
 			Content:   "Let me analyze this error. It looks like you're missing an import statement.",
 			Timestamp: time.Now().Add(1 * time.Minute),
 			Type:      types.ChunkTypeAnalysis,
@@ -123,17 +123,17 @@ func TestRecognizePatterns(t *testing.T) {
 			Type:      types.ChunkTypeVerification,
 		},
 	}
-	
+
 	patterns, err := engine.RecognizePatterns(context.Background(), chunks)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	
+
 	if len(patterns) == 0 {
 		t.Skip("Pattern recognition needs tuning - skipping for now")
 		return
 	}
-	
+
 	// Check if we recognized a problem-solution pattern
 	foundProblemSolution := false
 	for _, pattern := range patterns {
@@ -142,7 +142,7 @@ func TestRecognizePatterns(t *testing.T) {
 			break
 		}
 	}
-	
+
 	if !foundProblemSolution {
 		t.Error("Expected to recognize a problem-solution pattern")
 	}
@@ -151,7 +151,7 @@ func TestRecognizePatterns(t *testing.T) {
 func TestLearnPattern(t *testing.T) {
 	storage := NewMockPatternStorage()
 	engine := NewPatternEngine(storage)
-	
+
 	chunks := []types.ConversationChunk{
 		{
 			ID:        "chunk1",
@@ -166,18 +166,18 @@ func TestLearnPattern(t *testing.T) {
 			Type:      types.ChunkTypeSolution,
 		},
 	}
-	
+
 	err := engine.LearnPattern(context.Background(), chunks, OutcomeSuccess)
 	if err != nil {
 		t.Fatalf("Expected no error learning pattern, got %v", err)
 	}
-	
+
 	// Verify pattern was stored
 	patterns, err := storage.ListPatterns(context.Background(), nil)
 	if err != nil {
 		t.Fatalf("Expected no error listing patterns, got %v", err)
 	}
-	
+
 	if len(patterns) == 0 {
 		t.Error("Expected at least one pattern to be learned and stored")
 	}
@@ -186,7 +186,7 @@ func TestLearnPattern(t *testing.T) {
 func TestGetPatternSuggestions(t *testing.T) {
 	storage := NewMockPatternStorage()
 	engine := NewPatternEngine(storage)
-	
+
 	// Store a test pattern
 	testPattern := Pattern{
 		ID:          "test_pattern",
@@ -197,12 +197,12 @@ func TestGetPatternSuggestions(t *testing.T) {
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
-	
+
 	err := storage.StorePattern(context.Background(), testPattern)
 	if err != nil {
 		t.Fatalf("Expected no error storing pattern, got %v", err)
 	}
-	
+
 	// Test with similar current chunks
 	currentChunks := []types.ConversationChunk{
 		{
@@ -212,12 +212,12 @@ func TestGetPatternSuggestions(t *testing.T) {
 			Type:      types.ChunkTypeQuestion,
 		},
 	}
-	
+
 	suggestions, err := engine.GetPatternSuggestions(context.Background(), currentChunks, 5)
 	if err != nil {
 		t.Fatalf("Expected no error getting suggestions, got %v", err)
 	}
-	
+
 	if len(suggestions) == 0 {
 		t.Skip("Pattern suggestions need tuning - skipping for now")
 		return
@@ -227,13 +227,13 @@ func TestGetPatternSuggestions(t *testing.T) {
 func TestPatternMatching(t *testing.T) {
 	storage := NewMockPatternStorage()
 	engine := NewPatternEngine(storage)
-	
+
 	// Test the basic pattern matcher
 	matcher := engine.matcher
 	if matcher == nil {
 		t.Fatal("Expected pattern matcher to be initialized")
 	}
-	
+
 	chunks := []types.ConversationChunk{
 		{
 			ID:      "test1",
@@ -241,12 +241,12 @@ func TestPatternMatching(t *testing.T) {
 			Type:    types.ChunkTypeProblem,
 		},
 	}
-	
+
 	features := matcher.ExtractFeatures(chunks)
 	if features == nil {
 		t.Error("Expected features to be extracted")
 	}
-	
+
 	if len(features) == 0 {
 		t.Error("Expected some features to be extracted")
 	}

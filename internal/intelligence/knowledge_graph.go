@@ -15,65 +15,65 @@ import (
 type NodeType string
 
 const (
-	NodeTypeChunk        NodeType = "chunk"
-	NodeTypeConcept      NodeType = "concept"
-	NodeTypeFile         NodeType = "file"
-	NodeTypeFunction     NodeType = "function"
-	NodeTypePattern      NodeType = "pattern"
-	NodeTypeProblem      NodeType = "problem"
-	NodeTypeSolution     NodeType = "solution"
-	NodeTypeDecision     NodeType = "decision"
-	NodeTypeRepository   NodeType = "repository"
-	NodeTypeWorkflow     NodeType = "workflow"
+	NodeTypeChunk      NodeType = "chunk"
+	NodeTypeConcept    NodeType = "concept"
+	NodeTypeFile       NodeType = "file"
+	NodeTypeFunction   NodeType = "function"
+	NodeTypePattern    NodeType = "pattern"
+	NodeTypeProblem    NodeType = "problem"
+	NodeTypeSolution   NodeType = "solution"
+	NodeTypeDecision   NodeType = "decision"
+	NodeTypeRepository NodeType = "repository"
+	NodeTypeWorkflow   NodeType = "workflow"
 )
 
 // RelationType represents different types of relationships
 type RelationType string
 
 const (
-	RelationFollows      RelationType = "follows"
-	RelationSolves       RelationType = "solves"
-	RelationReferences   RelationType = "references"
-	RelationSimilarTo    RelationType = "similar_to"
-	RelationCauses       RelationType = "causes"
-	RelationDependsOn    RelationType = "depends_on"
-	RelationImplements   RelationType = "implements"
-	RelationModifies     RelationType = "modifies"
-	RelationUsedWith     RelationType = "used_with"
-	RelationContains     RelationType = "contains"
-	RelationEvolvesFrom  RelationType = "evolves_from"
+	RelationFollows       RelationType = "follows"
+	RelationSolves        RelationType = "solves"
+	RelationReferences    RelationType = "references"
+	RelationSimilarTo     RelationType = "similar_to"
+	RelationCauses        RelationType = "causes"
+	RelationDependsOn     RelationType = "depends_on"
+	RelationImplements    RelationType = "implements"
+	RelationModifies      RelationType = "modifies"
+	RelationUsedWith      RelationType = "used_with"
+	RelationContains      RelationType = "contains"
+	RelationEvolvesFrom   RelationType = "evolves_from"
 	RelationConflictsWith RelationType = "conflicts_with"
 )
 
 // KnowledgeNode represents a node in the knowledge graph
 type KnowledgeNode struct {
-	ID          string                 `json:"id"`
-	Type        NodeType               `json:"type"`
-	Name        string                 `json:"name"`
-	Description string                 `json:"description"`
-	Content     string                 `json:"content"`
-	Properties  map[string]any         `json:"properties"`
-	Tags        []string               `json:"tags"`
-	ChunkID     *string                `json:"chunk_id,omitempty"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	LastUsed    time.Time              `json:"last_used"`
-	UsageCount  int                    `json:"usage_count"`
-	Confidence  float64                `json:"confidence"`
+	ID          string         `json:"id"`
+	Type        NodeType       `json:"type"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	Content     string         `json:"content"`
+	Properties  map[string]any `json:"properties"`
+	Tags        []string       `json:"tags"`
+	ChunkID     *string        `json:"chunk_id,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
+	UpdatedAt   time.Time      `json:"updated_at"`
+	LastUsed    time.Time      `json:"last_used"`
+	UsageCount  int            `json:"usage_count"`
+	Confidence  float64        `json:"confidence"`
 }
 
 // KnowledgeRelation represents a relationship between nodes
 type KnowledgeRelation struct {
-	ID          string                 `json:"id"`
-	FromNodeID  string                 `json:"from_node_id"`
-	ToNodeID    string                 `json:"to_node_id"`
-	Type        RelationType           `json:"type"`
-	Weight      float64                `json:"weight"`
-	Confidence  float64                `json:"confidence"`
-	Properties  map[string]any         `json:"properties"`
-	CreatedAt   time.Time              `json:"created_at"`
-	UpdatedAt   time.Time              `json:"updated_at"`
-	Evidence    []string               `json:"evidence"`
+	ID         string         `json:"id"`
+	FromNodeID string         `json:"from_node_id"`
+	ToNodeID   string         `json:"to_node_id"`
+	Type       RelationType   `json:"type"`
+	Weight     float64        `json:"weight"`
+	Confidence float64        `json:"confidence"`
+	Properties map[string]any `json:"properties"`
+	CreatedAt  time.Time      `json:"created_at"`
+	UpdatedAt  time.Time      `json:"updated_at"`
+	Evidence   []string       `json:"evidence"`
 }
 
 // KnowledgeGraph represents the main knowledge graph structure
@@ -87,17 +87,17 @@ type KnowledgeGraph struct {
 
 // GraphBuilder builds and maintains the knowledge graph
 type GraphBuilder struct {
-	graph           *KnowledgeGraph
-	patternEngine   *PatternEngine
-	
+	graph         *KnowledgeGraph
+	patternEngine *PatternEngine
+
 	// Configuration
-	minConfidence   float64
-	maxNodes        int
+	minConfidence     float64
+	maxNodes          int
 	relationThreshold float64
-	
+
 	// Entity extractors
-	conceptExtractor   ConceptExtractor
-	entityExtractor    EntityExtractor
+	conceptExtractor ConceptExtractor
+	entityExtractor  EntityExtractor
 }
 
 // ConceptExtractor interface for extracting concepts from text
@@ -117,11 +117,11 @@ type EntityExtractor interface {
 
 // Concept represents an extracted concept
 type Concept struct {
-	Name        string                 `json:"name"`
-	Type        string                 `json:"type"`
-	Description string                 `json:"description"`
-	Confidence  float64                `json:"confidence"`
-	Context     map[string]any         `json:"context"`
+	Name        string         `json:"name"`
+	Type        string         `json:"type"`
+	Description string         `json:"description"`
+	Confidence  float64        `json:"confidence"`
+	Context     map[string]any `json:"context"`
 }
 
 // GraphQuery represents a query for the knowledge graph
@@ -163,39 +163,39 @@ func (gb *GraphBuilder) BuildFromChunks(ctx context.Context, chunks []types.Conv
 	if len(chunks) == 0 {
 		return nil
 	}
-	
+
 	// First pass: create nodes for chunks and extract entities
 	for _, chunk := range chunks {
 		err := gb.addChunkNode(chunk)
 		if err != nil {
 			return fmt.Errorf("failed to add chunk node: %w", err)
 		}
-		
+
 		// Extract and add concept nodes
 		err = gb.extractAndAddConcepts(chunk)
 		if err != nil {
 			return fmt.Errorf("failed to extract concepts: %w", err)
 		}
-		
+
 		// Extract and add entity nodes
 		err = gb.extractAndAddEntities(chunk)
 		if err != nil {
 			return fmt.Errorf("failed to extract entities: %w", err)
 		}
 	}
-	
+
 	// Second pass: identify and create relations
 	err := gb.identifyRelations(chunks)
 	if err != nil {
 		return fmt.Errorf("failed to identify relations: %w", err)
 	}
-	
+
 	// Third pass: infer additional relationships
 	err = gb.inferRelationships()
 	if err != nil {
 		return fmt.Errorf("failed to infer relationships: %w", err)
 	}
-	
+
 	gb.graph.UpdatedAt = time.Now()
 	return nil
 }
@@ -205,15 +205,15 @@ func (gb *GraphBuilder) AddNode(node *KnowledgeNode) error {
 	if node.ID == "" {
 		return fmt.Errorf("node ID cannot be empty")
 	}
-	
+
 	if len(gb.graph.Nodes) >= gb.maxNodes {
 		return fmt.Errorf("maximum number of nodes reached")
 	}
-	
+
 	gb.graph.Nodes[node.ID] = node
 	gb.graph.NodeIndex[node.Type] = append(gb.graph.NodeIndex[node.Type], node.ID)
 	gb.graph.UpdatedAt = time.Now()
-	
+
 	return nil
 }
 
@@ -222,7 +222,7 @@ func (gb *GraphBuilder) AddRelation(relation *KnowledgeRelation) error {
 	if relation.ID == "" {
 		return fmt.Errorf("relation ID cannot be empty")
 	}
-	
+
 	// Verify nodes exist
 	if _, exists := gb.graph.Nodes[relation.FromNodeID]; !exists {
 		return fmt.Errorf("from node %s does not exist", relation.FromNodeID)
@@ -230,20 +230,20 @@ func (gb *GraphBuilder) AddRelation(relation *KnowledgeRelation) error {
 	if _, exists := gb.graph.Nodes[relation.ToNodeID]; !exists {
 		return fmt.Errorf("to node %s does not exist", relation.ToNodeID)
 	}
-	
+
 	gb.graph.Relations[relation.ID] = relation
 	gb.graph.UpdatedAt = time.Now()
-	
+
 	return nil
 }
 
 // QueryGraph queries the knowledge graph
 func (gb *GraphBuilder) QueryGraph(query GraphQuery) ([]*KnowledgeNode, error) {
 	var results []*KnowledgeNode
-	
+
 	// Filter nodes by type
 	candidateNodes := make([]*KnowledgeNode, 0)
-	
+
 	if len(query.NodeTypes) == 0 {
 		// Include all nodes
 		for _, node := range gb.graph.Nodes {
@@ -261,7 +261,7 @@ func (gb *GraphBuilder) QueryGraph(query GraphQuery) ([]*KnowledgeNode, error) {
 			}
 		}
 	}
-	
+
 	// Filter by confidence
 	for _, node := range candidateNodes {
 		if node.Confidence >= query.MinConfidence {
@@ -271,19 +271,19 @@ func (gb *GraphBuilder) QueryGraph(query GraphQuery) ([]*KnowledgeNode, error) {
 			}
 		}
 	}
-	
+
 	// Sort by relevance (confidence * usage)
 	sort.Slice(results, func(i, j int) bool {
 		scoreI := results[i].Confidence * float64(results[i].UsageCount+1)
 		scoreJ := results[j].Confidence * float64(results[j].UsageCount+1)
 		return scoreI > scoreJ
 	})
-	
+
 	// Apply limit
 	if query.Limit > 0 && len(results) > query.Limit {
 		results = results[:query.Limit]
 	}
-	
+
 	return results, nil
 }
 
@@ -292,12 +292,12 @@ func (gb *GraphBuilder) GetRelatedNodes(nodeID string, maxDepth int) ([]*Knowled
 	if maxDepth <= 0 {
 		return nil, fmt.Errorf("maxDepth must be positive")
 	}
-	
+
 	visited := make(map[string]bool)
 	var result []*KnowledgeNode
-	
+
 	gb.traverseRelations(nodeID, maxDepth, 0, visited, &result)
-	
+
 	return result, nil
 }
 
@@ -311,11 +311,11 @@ func (gb *GraphBuilder) addChunkNode(chunk types.ConversationChunk) error {
 		Description: gb.generateChunkDescription(chunk),
 		Content:     chunk.Content,
 		Properties: map[string]any{
-			"chunk_type":  string(chunk.Type),
-			"session_id":  chunk.SessionID,
-			"timestamp":   chunk.Timestamp,
-			"has_code":    strings.Contains(chunk.Content, "```"),
-			"word_count":  len(strings.Fields(chunk.Content)),
+			"chunk_type": string(chunk.Type),
+			"session_id": chunk.SessionID,
+			"timestamp":  chunk.Timestamp,
+			"has_code":   strings.Contains(chunk.Content, "```"),
+			"word_count": len(strings.Fields(chunk.Content)),
 		},
 		Tags:       gb.extractTags(chunk),
 		ChunkID:    &chunk.ID,
@@ -325,7 +325,7 @@ func (gb *GraphBuilder) addChunkNode(chunk types.ConversationChunk) error {
 		UsageCount: 1,
 		Confidence: 1.0,
 	}
-	
+
 	return gb.AddNode(node)
 }
 
@@ -334,13 +334,13 @@ func (gb *GraphBuilder) extractAndAddConcepts(chunk types.ConversationChunk) err
 	if err != nil {
 		return err
 	}
-	
+
 	for _, concept := range concepts {
 		if err := gb.processConcept(concept, chunk); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -348,13 +348,13 @@ func (gb *GraphBuilder) processConcept(concept Concept, chunk types.Conversation
 	if concept.Confidence < gb.minConfidence {
 		return nil
 	}
-	
+
 	// Check if concept already exists
 	existingNode := gb.findNodeByName(concept.Name, NodeTypeConcept)
 	if existingNode != nil {
 		return gb.updateExistingConcept(existingNode, concept)
 	}
-	
+
 	// Create new concept node
 	return gb.createConceptNode(concept, chunk)
 }
@@ -381,11 +381,11 @@ func (gb *GraphBuilder) createConceptNode(concept Concept, chunk types.Conversat
 		UsageCount:  1,
 		Confidence:  concept.Confidence,
 	}
-	
+
 	if err := gb.AddNode(node); err != nil {
 		return err
 	}
-	
+
 	// Add relation from chunk to concept
 	return gb.addConceptRelation(chunk, node, concept)
 }
@@ -404,7 +404,7 @@ func (gb *GraphBuilder) addConceptRelation(chunk types.ConversationChunk, node *
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	
+
 	return gb.AddRelation(relation)
 }
 
@@ -417,7 +417,7 @@ func (gb *GraphBuilder) extractAndAddEntities(chunk types.ConversationChunk) err
 			return err
 		}
 	}
-	
+
 	// Extract functions
 	functions := gb.entityExtractor.ExtractFunctions(chunk.Content)
 	for _, function := range functions {
@@ -426,20 +426,20 @@ func (gb *GraphBuilder) extractAndAddEntities(chunk types.ConversationChunk) err
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
 func (gb *GraphBuilder) addEntityNode(entityName string, nodeType NodeType, chunkID string) error {
 	nodeID := fmt.Sprintf("%s_%s", nodeType, gb.generateNodeID(entityName))
-	
+
 	// Check if entity already exists
 	if existingNode := gb.findNodeByName(entityName, nodeType); existingNode != nil {
 		existingNode.UsageCount++
 		existingNode.LastUsed = time.Now()
 		return nil
 	}
-	
+
 	node := &KnowledgeNode{
 		ID:          nodeID,
 		Type:        nodeType,
@@ -456,12 +456,12 @@ func (gb *GraphBuilder) addEntityNode(entityName string, nodeType NodeType, chun
 		UsageCount: 1,
 		Confidence: 0.8,
 	}
-	
+
 	err := gb.AddNode(node)
 	if err != nil {
 		return err
 	}
-	
+
 	// Add relation from chunk to entity
 	relation := &KnowledgeRelation{
 		ID:         fmt.Sprintf("rel_%s_%s", chunkID, nodeID),
@@ -476,7 +476,7 @@ func (gb *GraphBuilder) addEntityNode(entityName string, nodeType NodeType, chun
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	
+
 	return gb.AddRelation(relation)
 }
 
@@ -496,13 +496,13 @@ func (gb *GraphBuilder) identifyRelations(chunks []types.ConversationChunk) erro
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
 		}
-		
+
 		err := gb.AddRelation(relation)
 		if err != nil {
 			return err
 		}
 	}
-	
+
 	// Identify problem-solution relationships
 	for i, chunk := range chunks {
 		if chunk.Type == types.ChunkTypeProblem {
@@ -522,7 +522,7 @@ func (gb *GraphBuilder) identifyRelations(chunks []types.ConversationChunk) erro
 						CreatedAt: time.Now(),
 						UpdatedAt: time.Now(),
 					}
-					
+
 					err := gb.AddRelation(relation)
 					if err != nil {
 						return err
@@ -532,7 +532,7 @@ func (gb *GraphBuilder) identifyRelations(chunks []types.ConversationChunk) erro
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -542,7 +542,7 @@ func (gb *GraphBuilder) inferRelationships() error {
 	for _, node := range gb.graph.Nodes {
 		nodes = append(nodes, node)
 	}
-	
+
 	for i := 0; i < len(nodes); i++ {
 		for j := i + 1; j < len(nodes); j++ {
 			similarity := gb.calculateNodeSimilarity(nodes[i], nodes[j])
@@ -561,7 +561,7 @@ func (gb *GraphBuilder) inferRelationships() error {
 					CreatedAt: time.Now(),
 					UpdatedAt: time.Now(),
 				}
-				
+
 				err := gb.AddRelation(relation)
 				if err != nil {
 					return err
@@ -569,7 +569,7 @@ func (gb *GraphBuilder) inferRelationships() error {
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -577,13 +577,13 @@ func (gb *GraphBuilder) traverseRelations(nodeID string, maxDepth, currentDepth 
 	if currentDepth >= maxDepth || visited[nodeID] {
 		return
 	}
-	
+
 	visited[nodeID] = true
-	
+
 	if node, exists := gb.graph.Nodes[nodeID]; exists {
 		*result = append(*result, node)
 	}
-	
+
 	// Follow outgoing relations
 	for _, relation := range gb.graph.Relations {
 		if relation.FromNodeID == nodeID {
@@ -617,9 +617,9 @@ func (gb *GraphBuilder) generateChunkDescription(chunk types.ConversationChunk) 
 
 func (gb *GraphBuilder) extractTags(chunk types.ConversationChunk) []string {
 	var tags []string
-	
+
 	tags = append(tags, string(chunk.Type))
-	
+
 	if strings.Contains(chunk.Content, "```") {
 		tags = append(tags, "code")
 	}
@@ -629,7 +629,7 @@ func (gb *GraphBuilder) extractTags(chunk types.ConversationChunk) []string {
 	if strings.Contains(strings.ToLower(chunk.Content), "fix") {
 		tags = append(tags, "fix")
 	}
-	
+
 	return tags
 }
 
@@ -644,13 +644,13 @@ func (gb *GraphBuilder) findNodeByName(name string, nodeType NodeType) *Knowledg
 
 func (gb *GraphBuilder) nodeMatchesKeywords(node *KnowledgeNode, keywords []string) bool {
 	nodeText := strings.ToLower(node.Name + " " + node.Description + " " + node.Content)
-	
+
 	for _, keyword := range keywords {
 		if strings.Contains(nodeText, strings.ToLower(keyword)) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -658,7 +658,7 @@ func (gb *GraphBuilder) calculateSolutionRelevance(problem, solution types.Conve
 	// Simple keyword overlap calculation
 	problemWords := strings.Fields(strings.ToLower(problem.Content))
 	solutionWords := strings.Fields(strings.ToLower(solution.Content))
-	
+
 	overlap := 0
 	for _, pw := range problemWords {
 		for _, sw := range solutionWords {
@@ -667,7 +667,7 @@ func (gb *GraphBuilder) calculateSolutionRelevance(problem, solution types.Conve
 			}
 		}
 	}
-	
+
 	maxWords := math.Max(float64(len(problemWords)), float64(len(solutionWords)))
 	return float64(overlap) / maxWords
 }
@@ -676,14 +676,14 @@ func (gb *GraphBuilder) calculateNodeSimilarity(node1, node2 *KnowledgeNode) flo
 	if node1.Type != node2.Type {
 		return 0.0
 	}
-	
+
 	// Calculate content similarity
 	text1 := strings.ToLower(node1.Name + " " + node1.Content)
 	text2 := strings.ToLower(node2.Name + " " + node2.Content)
-	
+
 	words1 := strings.Fields(text1)
 	words2 := strings.Fields(text2)
-	
+
 	overlap := 0
 	for _, w1 := range words1 {
 		for _, w2 := range words2 {
@@ -692,12 +692,12 @@ func (gb *GraphBuilder) calculateNodeSimilarity(node1, node2 *KnowledgeNode) flo
 			}
 		}
 	}
-	
+
 	maxWords := math.Max(float64(len(words1)), float64(len(words2)))
 	if maxWords == 0 {
 		return 0.0
 	}
-	
+
 	return float64(overlap) / maxWords
 }
 
@@ -709,26 +709,26 @@ func (gb *GraphBuilder) GetGraph() *KnowledgeGraph {
 // GetStats returns statistics about the knowledge graph
 func (gb *GraphBuilder) GetStats() map[string]any {
 	stats := make(map[string]any)
-	
+
 	stats["total_nodes"] = len(gb.graph.Nodes)
 	stats["total_relations"] = len(gb.graph.Relations)
-	
+
 	// Node type distribution
 	nodeTypes := make(map[string]int)
 	for _, node := range gb.graph.Nodes {
 		nodeTypes[string(node.Type)]++
 	}
 	stats["node_types"] = nodeTypes
-	
+
 	// Relation type distribution
 	relationTypes := make(map[string]int)
 	for _, relation := range gb.graph.Relations {
 		relationTypes[string(relation.Type)]++
 	}
 	stats["relation_types"] = relationTypes
-	
+
 	stats["created_at"] = gb.graph.CreatedAt
 	stats["updated_at"] = gb.graph.UpdatedAt
-	
+
 	return stats
 }

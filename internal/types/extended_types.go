@@ -10,7 +10,7 @@ import (
 // This is used internally where we need more dynamic fields
 type ExtendedConversationChunk struct {
 	types.ConversationChunk
-	
+
 	// Additional fields not in the base type
 	Repository         string   `json:"repository,omitempty"`
 	Branch             string   `json:"branch,omitempty"`
@@ -24,7 +24,7 @@ type ExtendedConversationChunk struct {
 	Outcome            string   `json:"outcome,omitempty"`
 	LessonsLearned     string   `json:"lessons_learned,omitempty"`
 	NextSteps          string   `json:"next_steps,omitempty"`
-	
+
 	// Dynamic metadata
 	ExtendedMetadata map[string]interface{} `json:"extended_metadata,omitempty"`
 }
@@ -32,17 +32,17 @@ type ExtendedConversationChunk struct {
 // ToBase converts ExtendedConversationChunk to base ConversationChunk
 func (e *ExtendedConversationChunk) ToBase() types.ConversationChunk {
 	chunk := e.ConversationChunk
-	
+
 	// Copy repository to metadata if not already there
 	if e.Repository != "" && chunk.Metadata.Repository == "" {
 		chunk.Metadata.Repository = e.Repository
 	}
-	
+
 	// Copy branch to metadata if not already there
 	if e.Branch != "" && chunk.Metadata.Branch == "" {
 		chunk.Metadata.Branch = e.Branch
 	}
-	
+
 	// Merge tags with concepts
 	if len(e.Concepts) > 0 {
 		// Deduplicate
@@ -56,7 +56,7 @@ func (e *ExtendedConversationChunk) ToBase() types.ConversationChunk {
 			}
 		}
 	}
-	
+
 	return chunk
 }
 
@@ -66,14 +66,14 @@ func FromBase(chunk types.ConversationChunk) *ExtendedConversationChunk {
 		ConversationChunk: chunk,
 		ExtendedMetadata:  make(map[string]interface{}),
 	}
-	
+
 	// Copy metadata fields to extended fields
 	extended.Repository = chunk.Metadata.Repository
 	extended.Branch = chunk.Metadata.Branch
-	
+
 	// Extract concepts from tags (simplified)
 	extended.Concepts = append(extended.Concepts, chunk.Metadata.Tags...)
-	
+
 	return extended
 }
 

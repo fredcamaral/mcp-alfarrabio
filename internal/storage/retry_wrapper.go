@@ -76,9 +76,9 @@ func isRetryableStorageError(err error) bool {
 
 // containsIgnoreCase checks if s contains substr (case-insensitive)
 func containsIgnoreCase(s, substr string) bool {
-	return len(s) >= len(substr) && 
-		(s == substr || 
-		 containsIgnoreCaseImpl(s, substr))
+	return len(s) >= len(substr) &&
+		(s == substr ||
+			containsIgnoreCaseImpl(s, substr))
 }
 
 func containsIgnoreCaseImpl(s, substr string) bool {
@@ -134,13 +134,13 @@ func (r *RetryableVectorStore) Store(ctx context.Context, chunk types.Conversati
 // Search performs search with retries
 func (r *RetryableVectorStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	var results *types.SearchResults
-	
+
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		var err error
 		results, err = r.store.Search(ctx, query, embeddings)
 		return err
 	})
-	
+
 	if result.Err != nil {
 		return nil, fmt.Errorf("search failed after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -150,13 +150,13 @@ func (r *RetryableVectorStore) Search(ctx context.Context, query types.MemoryQue
 // GetByID gets a chunk by ID with retries
 func (r *RetryableVectorStore) GetByID(ctx context.Context, id string) (*types.ConversationChunk, error) {
 	var chunk *types.ConversationChunk
-	
+
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		var err error
 		chunk, err = r.store.GetByID(ctx, id)
 		return err
 	})
-	
+
 	if result.Err != nil {
 		return nil, fmt.Errorf("failed to get chunk by ID after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -166,13 +166,13 @@ func (r *RetryableVectorStore) GetByID(ctx context.Context, id string) (*types.C
 // ListByRepository lists chunks with retries
 func (r *RetryableVectorStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
 	var chunks []types.ConversationChunk
-	
+
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		var err error
 		chunks, err = r.store.ListByRepository(ctx, repository, limit, offset)
 		return err
 	})
-	
+
 	if result.Err != nil {
 		return nil, fmt.Errorf("failed to list chunks after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -182,13 +182,13 @@ func (r *RetryableVectorStore) ListByRepository(ctx context.Context, repository 
 // ListBySession lists chunks by session ID with retries
 func (r *RetryableVectorStore) ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error) {
 	var chunks []types.ConversationChunk
-	
+
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		var err error
 		chunks, err = r.store.ListBySession(ctx, sessionID)
 		return err
 	})
-	
+
 	if result.Err != nil {
 		return nil, fmt.Errorf("failed to list chunks by session after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -228,12 +228,12 @@ func (r *RetryableVectorStore) HealthCheck(ctx context.Context) error {
 		RandomizeFactor: 0.1,
 		RetryIf:         isRetryableStorageError,
 	}
-	
+
 	healthRetrier := retry.New(healthConfig)
 	result := healthRetrier.Do(ctx, func(ctx context.Context) error {
 		return r.store.HealthCheck(ctx)
 	})
-	
+
 	if result.Err != nil {
 		return fmt.Errorf("health check failed after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -243,13 +243,13 @@ func (r *RetryableVectorStore) HealthCheck(ctx context.Context) error {
 // GetStats gets statistics with retries
 func (r *RetryableVectorStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	var stats *StoreStats
-	
+
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		var err error
 		stats, err = r.store.GetStats(ctx)
 		return err
 	})
-	
+
 	if result.Err != nil {
 		return nil, fmt.Errorf("failed to get stats after %d attempts: %w", result.Attempts, result.Err)
 	}
@@ -259,7 +259,7 @@ func (r *RetryableVectorStore) GetStats(ctx context.Context) (*StoreStats, error
 // Cleanup performs cleanup with retries
 func (r *RetryableVectorStore) Cleanup(ctx context.Context, retentionDays int) (int, error) {
 	var count int
-	
+
 	// Cleanup might take longer, use different config
 	cleanupConfig := &retry.Config{
 		MaxAttempts:     3,
@@ -269,14 +269,14 @@ func (r *RetryableVectorStore) Cleanup(ctx context.Context, retentionDays int) (
 		RandomizeFactor: 0.1,
 		RetryIf:         isRetryableStorageError,
 	}
-	
+
 	cleanupRetrier := retry.New(cleanupConfig)
 	result := cleanupRetrier.Do(ctx, func(ctx context.Context) error {
 		var err error
 		count, err = r.store.Cleanup(ctx, retentionDays)
 		return err
 	})
-	
+
 	if result.Err != nil {
 		return 0, fmt.Errorf("cleanup failed after %d attempts: %w", result.Attempts, result.Err)
 	}

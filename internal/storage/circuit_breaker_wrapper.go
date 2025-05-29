@@ -52,7 +52,7 @@ func (s *CircuitBreakerVectorStore) Store(ctx context.Context, chunk types.Conve
 // Search performs a search with fallback to empty results
 func (s *CircuitBreakerVectorStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	var result *types.SearchResults
-	
+
 	err := s.cb.ExecuteWithFallback(ctx,
 		func(ctx context.Context) error {
 			var err error
@@ -68,27 +68,27 @@ func (s *CircuitBreakerVectorStore) Search(ctx context.Context, query types.Memo
 			return nil
 		},
 	)
-	
+
 	return result, err
 }
 
 // GetByID gets a chunk by ID
 func (s *CircuitBreakerVectorStore) GetByID(ctx context.Context, id string) (*types.ConversationChunk, error) {
 	var result *types.ConversationChunk
-	
+
 	err := s.cb.Execute(ctx, func(ctx context.Context) error {
 		var err error
 		result, err = s.store.GetByID(ctx, id)
 		return err
 	})
-	
+
 	return result, err
 }
 
 // ListByRepository lists chunks by repository
 func (s *CircuitBreakerVectorStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
 	var result []types.ConversationChunk
-	
+
 	err := s.cb.ExecuteWithFallback(ctx,
 		func(ctx context.Context) error {
 			var err error
@@ -101,14 +101,14 @@ func (s *CircuitBreakerVectorStore) ListByRepository(ctx context.Context, reposi
 			return nil
 		},
 	)
-	
+
 	return result, err
 }
 
 // ListBySession lists chunks by session ID
 func (s *CircuitBreakerVectorStore) ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error) {
 	var result []types.ConversationChunk
-	
+
 	err := s.cb.ExecuteWithFallback(ctx,
 		func(ctx context.Context) error {
 			var err error
@@ -121,7 +121,7 @@ func (s *CircuitBreakerVectorStore) ListBySession(ctx context.Context, sessionID
 			return nil
 		},
 	)
-	
+
 	return result, err
 }
 
@@ -149,7 +149,7 @@ func (s *CircuitBreakerVectorStore) HealthCheck(ctx context.Context) error {
 // GetStats gets store statistics with fallback
 func (s *CircuitBreakerVectorStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	var result *StoreStats
-	
+
 	err := s.cb.ExecuteWithFallback(ctx,
 		func(ctx context.Context) error {
 			var err error
@@ -166,20 +166,20 @@ func (s *CircuitBreakerVectorStore) GetStats(ctx context.Context) (*StoreStats, 
 			return nil
 		},
 	)
-	
+
 	return result, err
 }
 
 // Cleanup performs cleanup
 func (s *CircuitBreakerVectorStore) Cleanup(ctx context.Context, retentionDays int) (int, error) {
 	var result int
-	
+
 	err := s.cb.Execute(ctx, func(ctx context.Context) error {
 		var err error
 		result, err = s.store.Cleanup(ctx, retentionDays)
 		return err
 	})
-	
+
 	return result, err
 }
 

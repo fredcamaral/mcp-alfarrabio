@@ -23,14 +23,14 @@ func (s *Schema) searchResolver(container *di.Container) graphql.FieldResolveFn 
 		if repo != "" {
 			repoPtr = &repo
 		}
-		
+
 		// Convert string types to ChunkType
 		typeStrings := getStringArrayOrDefault(input, "types")
 		chunkTypes := make([]types.ChunkType, len(typeStrings))
 		for i, t := range typeStrings {
 			chunkTypes[i] = types.ChunkType(t)
 		}
-		
+
 		query := types.MemoryQuery{
 			Query:             getStringOrDefault(input, "query", ""),
 			Repository:        repoPtr,
@@ -127,7 +127,7 @@ func (s *Schema) getPatternsResolver(container *di.Container) graphql.FieldResol
 		// Extract patterns from results
 		// analyzer := container.GetPatternAnalyzer() // Not used for now
 		patterns := []map[string]interface{}{}
-		
+
 		// Analyze patterns in chunks
 		for _, scored := range results.Results {
 			// This is a simplified pattern extraction
@@ -173,14 +173,14 @@ func (s *Schema) suggestRelatedResolver(container *di.Container) graphql.FieldRe
 
 		// Get suggestions
 		suggester := container.GetContextSuggester()
-		
+
 		// Analyze context to get suggestions
 		suggestions, err := suggester.AnalyzeContext(
 			ctx,
 			sessionID,
 			repository,
 			currentContext,
-			"", // toolUsed - not provided in GraphQL
+			"",                         // toolUsed - not provided in GraphQL
 			types.ConversationFlow(""), // currentFlow - not provided
 		)
 		if err != nil {
@@ -197,7 +197,7 @@ func (s *Schema) suggestRelatedResolver(container *di.Container) graphql.FieldRe
 		suggestedTasks := []interface{}{}
 		relatedConcepts := []interface{}{}
 		potentialIssues := []interface{}{}
-		
+
 		for _, suggestion := range suggestions {
 			// Convert related chunks
 			for _, chunk := range suggestion.RelatedChunks {
@@ -210,7 +210,7 @@ func (s *Schema) suggestRelatedResolver(container *di.Container) graphql.FieldRe
 					"timestamp":  chunk.Timestamp,
 				})
 			}
-			
+
 			// Categorize suggestions
 			switch suggestion.Type {
 			case workflow.SuggestionTypeDuplicateWork, workflow.SuggestionTypeTechnicalDebt:
@@ -272,7 +272,7 @@ func (s *Schema) findSimilarResolver(container *di.Container) graphql.FieldResol
 		if repository != "" {
 			repoPtr = &repository
 		}
-		
+
 		query := types.MemoryQuery{
 			Query:             problem,
 			Repository:        repoPtr,
@@ -316,8 +316,8 @@ func (s *Schema) storeChunkResolver(container *di.Container) graphql.FieldResolv
 				Tags:          getStringArrayOrDefault(input, "tags"),
 				ToolsUsed:     getStringArrayOrDefault(input, "toolsUsed"),
 				FilesModified: getStringArrayOrDefault(input, "filesModified"),
-				Outcome:       types.OutcomeSuccess,    // Default to success
-				Difficulty:    types.DifficultySimple,  // Default to simple
+				Outcome:       types.OutcomeSuccess,   // Default to success
+				Difficulty:    types.DifficultySimple, // Default to simple
 			},
 		}
 
@@ -439,23 +439,22 @@ func getFloatOrDefault(m interface{}, key string, defaultValue float64) float64 
 	return defaultValue
 }
 
-
 func getStringArrayOrDefault(m interface{}, key string) []string {
 	mapValue, ok := m.(map[string]interface{})
 	if !ok {
 		return nil
 	}
-	
+
 	value, exists := mapValue[key]
 	if !exists || value == nil {
 		return nil
 	}
-	
+
 	arr, ok := value.([]interface{})
 	if !ok {
 		return nil
 	}
-	
+
 	result := make([]string, 0, len(arr))
 	for _, v := range arr {
 		if str, ok := v.(string); ok {
@@ -513,16 +512,16 @@ func (s *Schema) traceRelatedResolver(container *di.Container) graphql.FieldReso
 		// Build a map to track visited chunks
 		visited := make(map[string]bool)
 		visited[chunkID] = true
-		
+
 		// Results to return
 		relatedChunks := []types.ConversationChunk{*startChunk}
 
 		// BFS to find related chunks up to depth
 		currentLevel := []types.ConversationChunk{*startChunk}
-		
+
 		for level := 1; level <= depth && len(currentLevel) > 0; level++ {
 			nextLevel := []types.ConversationChunk{}
-			
+
 			for _, chunk := range currentLevel {
 				// Search for similar chunks using content
 				query := types.MemoryQuery{
@@ -557,7 +556,7 @@ func (s *Schema) traceRelatedResolver(container *di.Container) graphql.FieldReso
 					}
 				}
 			}
-			
+
 			currentLevel = nextLevel
 		}
 

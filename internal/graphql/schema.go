@@ -406,4 +406,3 @@ func (s *Schema) GetSchema() graphql.Schema {
 
 // Helper to create a singleton schema instance
 var s = &Schema{}
-

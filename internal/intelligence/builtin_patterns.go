@@ -34,7 +34,7 @@ func createPattern(
 			Context:     step.Context,
 		}
 	}
-	
+
 	return Pattern{
 		ID:              id,
 		Type:            patternType,
@@ -82,7 +82,7 @@ func createFourStepPattern(
 			Confidence:  step.Confidence,
 		}
 	}
-	
+
 	return createPattern(
 		id, patternType, name, description,
 		keywords, triggers, outcomes,
@@ -118,7 +118,7 @@ func getBuiltInPatterns() []Pattern {
 				},
 				{
 					Order:       1,
-					Action:      "analyze_problem", 
+					Action:      "analyze_problem",
 					Description: "Assistant analyzes the reported problem",
 					Optional:    true,
 					Confidence:  0.8,
@@ -253,7 +253,7 @@ func getBuiltInPatterns() []Pattern {
 				"involves_code":    true,
 				"quality_focused":  true,
 				"iterative":        true,
-				"review_type":     "comprehensive",
+				"review_type":      "comprehensive",
 				"improvement_goal": "code_quality",
 			},
 			[]string{"refactoring_pattern", "optimization_pattern"},
@@ -306,10 +306,10 @@ func getBuiltInPatterns() []Pattern {
 			map[string]any{
 				"typical_length":   4,
 				"involves_code":    true,
-				"end_to_end":      true,
-				"deliverable":     true,
+				"end_to_end":       true,
+				"deliverable":      true,
 				"development_type": "feature",
-				"lifecycle_phase": "complete",
+				"lifecycle_phase":  "complete",
 			},
 			[]string{"development_workflow", "testing_pattern"},
 			0.8, 60, 0.80,
@@ -353,9 +353,9 @@ func getBuiltInPatterns() []Pattern {
 				},
 			},
 			map[string]any{
-				"typical_length":   4,
-				"involves_files":   true,
-				"system_level":     true,
+				"typical_length":    4,
+				"involves_files":    true,
+				"system_level":      true,
 				"environment_setup": true,
 			},
 			[]string{"setup_pattern", "deployment_pattern"},
@@ -406,12 +406,12 @@ func getBuiltInPatterns() []Pattern {
 				},
 			},
 			map[string]any{
-				"typical_length":   3,
-				"educational":      true,
+				"typical_length":     3,
+				"educational":        true,
 				"knowledge_transfer": true,
-				"interactive":      true,
-				"learning_pattern": "exploratory",
-				"knowledge_depth":  "conceptual",
+				"interactive":        true,
+				"learning_pattern":   "exploratory",
+				"knowledge_depth":    "conceptual",
 			},
 			[]string{"explanation_pattern", "tutorial_pattern"},
 			0.7, 30, 0.88,

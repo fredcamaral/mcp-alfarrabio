@@ -24,45 +24,45 @@ const (
 
 // HealthCheck represents a single health check
 type HealthCheck struct {
-	Name        string                 `json:"name"`
-	Status      HealthStatus           `json:"status"`
-	Message     string                 `json:"message,omitempty"`
-	LastCheck   time.Time              `json:"last_check"`
-	Duration    time.Duration          `json:"duration"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Name      string                 `json:"name"`
+	Status    HealthStatus           `json:"status"`
+	Message   string                 `json:"message,omitempty"`
+	LastCheck time.Time              `json:"last_check"`
+	Duration  time.Duration          `json:"duration"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // SystemHealth represents the overall system health
 type SystemHealth struct {
-	Status       HealthStatus   `json:"status"`
-	Version      string         `json:"version"`
-	Uptime       time.Duration  `json:"uptime"`
-	Timestamp    time.Time      `json:"timestamp"`
-	Checks       []HealthCheck  `json:"checks"`
-	SystemInfo   SystemInfo     `json:"system_info"`
+	Status     HealthStatus  `json:"status"`
+	Version    string        `json:"version"`
+	Uptime     time.Duration `json:"uptime"`
+	Timestamp  time.Time     `json:"timestamp"`
+	Checks     []HealthCheck `json:"checks"`
+	SystemInfo SystemInfo    `json:"system_info"`
 }
 
 // SystemInfo contains system information
 type SystemInfo struct {
-	OS           string    `json:"os"`
-	Architecture string    `json:"architecture"`
-	GoVersion    string    `json:"go_version"`
-	NumCPU       int       `json:"num_cpu"`
-	NumGoroutine int       `json:"num_goroutine"`
-	MemStats     MemStats  `json:"mem_stats"`
+	OS           string   `json:"os"`
+	Architecture string   `json:"architecture"`
+	GoVersion    string   `json:"go_version"`
+	NumCPU       int      `json:"num_cpu"`
+	NumGoroutine int      `json:"num_goroutine"`
+	MemStats     MemStats `json:"mem_stats"`
 }
 
 // MemStats contains memory statistics
 type MemStats struct {
-	Alloc        uint64  `json:"alloc"`
-	TotalAlloc   uint64  `json:"total_alloc"`
-	Sys          uint64  `json:"sys"`
-	NumGC        uint32  `json:"num_gc"`
-	HeapAlloc    uint64  `json:"heap_alloc"`
-	HeapSys      uint64  `json:"heap_sys"`
-	HeapInuse    uint64  `json:"heap_inuse"`
-	StackInuse   uint64  `json:"stack_inuse"`
-	StackSys     uint64  `json:"stack_sys"`
+	Alloc      uint64 `json:"alloc"`
+	TotalAlloc uint64 `json:"total_alloc"`
+	Sys        uint64 `json:"sys"`
+	NumGC      uint32 `json:"num_gc"`
+	HeapAlloc  uint64 `json:"heap_alloc"`
+	HeapSys    uint64 `json:"heap_sys"`
+	HeapInuse  uint64 `json:"heap_inuse"`
+	StackInuse uint64 `json:"stack_inuse"`
+	StackSys   uint64 `json:"stack_sys"`
 }
 
 // HealthChecker defines the interface for health checkers
@@ -92,10 +92,9 @@ type VectorStorageHealthChecker struct {
 	ping func(ctx context.Context) error
 }
 
-
 // MemoryHealthChecker checks memory usage
 type MemoryHealthChecker struct {
-	name string
+	name        string
 	maxMemoryMB uint64
 }
 
@@ -118,18 +117,18 @@ func (hm *HealthManager) AddChecker(checker HealthChecker) {
 func (hm *HealthManager) CheckHealth(ctx context.Context) *SystemHealth {
 	start := time.Now()
 	checks := make([]HealthCheck, 0, len(hm.checkers))
-	
+
 	// Run all health checks
 	for _, checker := range hm.checkers {
 		check := checker.Check(ctx)
 		checks = append(checks, check)
-		
+
 		// Cache the check result
 		hm.checksMutex.Lock()
 		hm.lastChecks[checker.Name()] = check
 		hm.checksMutex.Unlock()
 	}
-	
+
 	// Determine overall status
 	overallStatus := HealthStatusHealthy
 	for _, check := range checks {
@@ -149,7 +148,7 @@ func (hm *HealthManager) CheckHealth(ctx context.Context) *SystemHealth {
 			}
 		}
 	}
-	
+
 	return &SystemHealth{
 		Status:     overallStatus,
 		Version:    hm.version,
@@ -164,10 +163,10 @@ func (hm *HealthManager) CheckHealth(ctx context.Context) *SystemHealth {
 func (hm *HealthManager) GetCachedHealth() *SystemHealth {
 	hm.checksMutex.RLock()
 	defer hm.checksMutex.RUnlock()
-	
+
 	checks := make([]HealthCheck, 0, len(hm.lastChecks))
 	overallStatus := HealthStatusHealthy
-	
+
 	for _, check := range hm.lastChecks {
 		checks = append(checks, check)
 		switch check.Status {
@@ -186,7 +185,7 @@ func (hm *HealthManager) GetCachedHealth() *SystemHealth {
 			}
 		}
 	}
-	
+
 	return &SystemHealth{
 		Status:     overallStatus,
 		Version:    hm.version,
@@ -201,7 +200,7 @@ func (hm *HealthManager) GetCachedHealth() *SystemHealth {
 func (hm *HealthManager) StartPeriodicChecks(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -218,11 +217,11 @@ func (hm *HealthManager) HTTPHandler() http.HandlerFunc {
 		timeout := getEnvDuration("MCP_MEMORY_HEALTH_CHECK_TIMEOUT_SECONDS", 30)
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
-		
+
 		health := hm.CheckHealth(ctx)
-		
+
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		// Set HTTP status based on health
 		switch health.Status {
 		case HealthStatusHealthy:
@@ -238,7 +237,7 @@ func (hm *HealthManager) HTTPHandler() http.HandlerFunc {
 			// This should not happen given our HealthStatus enum
 			w.WriteHeader(http.StatusInternalServerError)
 		}
-		
+
 		if err := json.NewEncoder(w).Encode(health); err != nil {
 			http.Error(w, "Failed to encode health data", http.StatusInternalServerError)
 			return
@@ -252,11 +251,11 @@ func (hm *HealthManager) ReadinessHandler() http.HandlerFunc {
 		timeout := getEnvDuration("MCP_MEMORY_READINESS_TIMEOUT_SECONDS", 10)
 		ctx, cancel := context.WithTimeout(r.Context(), timeout)
 		defer cancel()
-		
+
 		health := hm.CheckHealth(ctx)
-		
+
 		w.Header().Set("Content-Type", "application/json")
-		
+
 		// Readiness is stricter - only healthy is ready
 		if health.Status == HealthStatusHealthy {
 			w.WriteHeader(http.StatusOK)
@@ -278,7 +277,7 @@ func (hm *HealthManager) LivenessHandler() http.HandlerFunc {
 		// Liveness just checks if the service is running
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		if _, err := fmt.Fprintf(w, `{"status":"alive","timestamp":"%s","uptime":"%s"}`, 
+		if _, err := fmt.Fprintf(w, `{"status":"alive","timestamp":"%s","uptime":"%s"}`,
 			time.Now().Format(time.RFC3339), time.Since(hm.startTime)); err != nil {
 			http.Error(w, "Failed to write response", http.StatusInternalServerError)
 		}
@@ -289,7 +288,7 @@ func (hm *HealthManager) LivenessHandler() http.HandlerFunc {
 func (hm *HealthManager) getSystemInfo() SystemInfo {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	return SystemInfo{
 		OS:           runtime.GOOS,
 		Architecture: runtime.GOARCH,
@@ -297,15 +296,15 @@ func (hm *HealthManager) getSystemInfo() SystemInfo {
 		NumCPU:       runtime.NumCPU(),
 		NumGoroutine: runtime.NumGoroutine(),
 		MemStats: MemStats{
-			Alloc:        memStats.Alloc,
-			TotalAlloc:   memStats.TotalAlloc,
-			Sys:          memStats.Sys,
-			NumGC:        memStats.NumGC,
-			HeapAlloc:    memStats.HeapAlloc,
-			HeapSys:      memStats.HeapSys,
-			HeapInuse:    memStats.HeapInuse,
-			StackInuse:   memStats.StackInuse,
-			StackSys:     memStats.StackSys,
+			Alloc:      memStats.Alloc,
+			TotalAlloc: memStats.TotalAlloc,
+			Sys:        memStats.Sys,
+			NumGC:      memStats.NumGC,
+			HeapAlloc:  memStats.HeapAlloc,
+			HeapSys:    memStats.HeapSys,
+			HeapInuse:  memStats.HeapInuse,
+			StackInuse: memStats.StackInuse,
+			StackSys:   memStats.StackSys,
 		},
 	}
 }
@@ -326,14 +325,14 @@ func (dhc *DatabaseHealthChecker) Name() string {
 
 func (dhc *DatabaseHealthChecker) Check(ctx context.Context) HealthCheck {
 	start := time.Now()
-	
+
 	timeout := getEnvDuration("MCP_MEMORY_DB_CHECK_TIMEOUT_SECONDS", 5)
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	
+
 	err := dhc.ping(checkCtx)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		return HealthCheck{
 			Name:      dhc.name,
@@ -343,17 +342,17 @@ func (dhc *DatabaseHealthChecker) Check(ctx context.Context) HealthCheck {
 			Duration:  duration,
 		}
 	}
-	
+
 	status := HealthStatusHealthy
 	message := "Database connection is healthy"
-	
+
 	// Check response time
 	slowThreshold := getEnvDuration("MCP_MEMORY_DB_SLOW_THRESHOLD_SECONDS", 1)
 	if duration > slowThreshold {
 		status = HealthStatusDegraded
 		message = fmt.Sprintf("Database response time is slow: %v", duration)
 	}
-	
+
 	return HealthCheck{
 		Name:      dhc.name,
 		Status:    status,
@@ -380,14 +379,14 @@ func (vshc *VectorStorageHealthChecker) Name() string {
 
 func (vshc *VectorStorageHealthChecker) Check(ctx context.Context) HealthCheck {
 	start := time.Now()
-	
+
 	timeout := getEnvDuration("MCP_MEMORY_VECTOR_CHECK_TIMEOUT_SECONDS", 10)
 	checkCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
-	
+
 	err := vshc.ping(checkCtx)
 	duration := time.Since(start)
-	
+
 	if err != nil {
 		return HealthCheck{
 			Name:      vshc.name,
@@ -397,17 +396,17 @@ func (vshc *VectorStorageHealthChecker) Check(ctx context.Context) HealthCheck {
 			Duration:  duration,
 		}
 	}
-	
+
 	status := HealthStatusHealthy
 	message := "Vector storage is healthy"
-	
+
 	// Check response time
 	slowThreshold := getEnvDuration("MCP_MEMORY_VECTOR_SLOW_THRESHOLD_SECONDS", 2)
 	if duration > slowThreshold {
 		status = HealthStatusDegraded
 		message = fmt.Sprintf("Vector storage response time is slow: %v", duration)
 	}
-	
+
 	return HealthCheck{
 		Name:      vshc.name,
 		Status:    status,
@@ -434,16 +433,16 @@ func (mhc *MemoryHealthChecker) Name() string {
 
 func (mhc *MemoryHealthChecker) Check(ctx context.Context) HealthCheck {
 	start := time.Now()
-	
+
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	allocMB := memStats.Alloc / 1024 / 1024
 	sysMB := memStats.Sys / 1024 / 1024
-	
+
 	status := HealthStatusHealthy
 	message := fmt.Sprintf("Memory usage: %d MB allocated, %d MB system", allocMB, sysMB)
-	
+
 	if mhc.maxMemoryMB > 0 {
 		if allocMB > mhc.maxMemoryMB {
 			status = HealthStatusUnhealthy
@@ -453,7 +452,7 @@ func (mhc *MemoryHealthChecker) Check(ctx context.Context) HealthCheck {
 			message = fmt.Sprintf("Memory usage is high: %d MB (limit: %d MB)", allocMB, mhc.maxMemoryMB)
 		}
 	}
-	
+
 	return HealthCheck{
 		Name:      mhc.name,
 		Status:    status,
@@ -461,11 +460,11 @@ func (mhc *MemoryHealthChecker) Check(ctx context.Context) HealthCheck {
 		LastCheck: start,
 		Duration:  time.Since(start),
 		Metadata: map[string]interface{}{
-			"alloc_mb":     allocMB,
-			"sys_mb":       sysMB,
-			"heap_mb":      memStats.HeapAlloc / 1024 / 1024,
-			"num_gc":       memStats.NumGC,
-			"goroutines":   runtime.NumGoroutine(),
+			"alloc_mb":   allocMB,
+			"sys_mb":     sysMB,
+			"heap_mb":    memStats.HeapAlloc / 1024 / 1024,
+			"num_gc":     memStats.NumGC,
+			"goroutines": runtime.NumGoroutine(),
 		},
 	}
 }

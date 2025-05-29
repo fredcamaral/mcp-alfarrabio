@@ -25,13 +25,13 @@ type BackupManager struct {
 
 // BackupMetadata contains information about a backup
 type BackupMetadata struct {
-	Version     string                 `json:"version"`
-	CreatedAt   time.Time              `json:"created_at"`
-	ChunkCount  int                    `json:"chunk_count"`
-	Size        int64                  `json:"size"`
-	Checksum    string                 `json:"checksum"`
-	Repository  string                 `json:"repository,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	Version    string                 `json:"version"`
+	CreatedAt  time.Time              `json:"created_at"`
+	ChunkCount int                    `json:"chunk_count"`
+	Size       int64                  `json:"size"`
+	Checksum   string                 `json:"checksum"`
+	Repository string                 `json:"repository,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // VectorStorage interface for backup operations
@@ -57,18 +57,18 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 	cleanRepo := filepath.Base(repository)
 	timestamp := time.Now().Format("20060102_150405")
 	backupFile := filepath.Join(bm.backupDir, fmt.Sprintf("backup_%s_%s.tar.gz", cleanRepo, timestamp))
-	
+
 	// Ensure backup directory exists
 	if err := os.MkdirAll(bm.backupDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
-	
+
 	// Get all chunks
 	chunks, err := bm.storage.GetAllChunks(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve chunks: %w", err)
 	}
-	
+
 	// Filter chunks by repository if specified
 	if repository != "" {
 		filteredChunks := make([]types.ConversationChunk, 0)
@@ -79,7 +79,7 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 		}
 		chunks = filteredChunks
 	}
-	
+
 	// Create backup file
 	file, err := os.Create(backupFile) // #nosec G304 -- Path is cleaned and safe
 	if err != nil {
@@ -91,7 +91,7 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 			_ = err
 		}
 	}()
-	
+
 	// Create gzip writer
 	gzipWriter := gzip.NewWriter(file)
 	defer func() {
@@ -100,7 +100,7 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 			_ = err
 		}
 	}()
-	
+
 	// Create tar writer
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer func() {
@@ -109,35 +109,35 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 			_ = err
 		}
 	}()
-	
+
 	// Write chunks to tar
 	for i, chunk := range chunks {
 		chunkData, err := json.MarshalIndent(chunk, "", "  ")
 		if err != nil {
 			return nil, fmt.Errorf("failed to marshal chunk %s: %w", chunk.ID, err)
 		}
-		
+
 		header := &tar.Header{
 			Name: fmt.Sprintf("chunks/chunk_%d_%s.json", i, chunk.ID),
 			Size: int64(len(chunkData)),
 			Mode: 0644,
 		}
-		
+
 		if err := tarWriter.WriteHeader(header); err != nil {
 			return nil, fmt.Errorf("failed to write tar header: %w", err)
 		}
-		
+
 		if _, err := tarWriter.Write(chunkData); err != nil {
 			return nil, fmt.Errorf("failed to write chunk data: %w", err)
 		}
 	}
-	
+
 	// Create metadata
 	stat, err := file.Stat()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file stats: %w", err)
 	}
-	
+
 	metadata := &BackupMetadata{
 		Version:    getEnv("MCP_MEMORY_BACKUP_VERSION", "1.0"),
 		CreatedAt:  time.Now(),
@@ -150,18 +150,18 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 			"format":      "tar",
 		},
 	}
-	
+
 	// Write metadata file
 	metadataFile := backupFile + ".meta.json"
 	metadataData, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
-	
+
 	if err := os.WriteFile(metadataFile, metadataData, 0600); err != nil {
 		return nil, fmt.Errorf("failed to write metadata file: %w", err)
 	}
-	
+
 	return metadata, nil
 }
 
@@ -172,19 +172,19 @@ func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, o
 	if !filepath.IsAbs(backupFile) {
 		backupFile = filepath.Join(bm.backupDir, backupFile)
 	}
-	
+
 	// Read metadata
 	metadataFile := backupFile + ".meta.json"
 	metadataData, err := os.ReadFile(metadataFile) // #nosec G304 -- Path is validated above
 	if err != nil {
 		return fmt.Errorf("failed to read metadata file: %w", err)
 	}
-	
+
 	var metadata BackupMetadata
 	if err := json.Unmarshal(metadataData, &metadata); err != nil {
 		return fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
-	
+
 	// Open backup file
 	file, err := os.Open(backupFile) // #nosec G304 -- Path is validated above
 	if err != nil {
@@ -196,7 +196,7 @@ func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, o
 			_ = err
 		}
 	}()
-	
+
 	// Create gzip reader
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
@@ -208,10 +208,10 @@ func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, o
 			_ = err
 		}
 	}()
-	
+
 	// Create tar reader
 	tarReader := tar.NewReader(gzipReader)
-	
+
 	// Read and restore chunks
 	restoredCount := 0
 	for {
@@ -222,42 +222,42 @@ func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, o
 		if err != nil {
 			return fmt.Errorf("failed to read tar header: %w", err)
 		}
-		
+
 		if !strings.HasPrefix(header.Name, "chunks/") {
 			continue
 		}
-		
+
 		// Read chunk data
 		chunkData := make([]byte, header.Size)
 		if _, err := io.ReadFull(tarReader, chunkData); err != nil {
 			return fmt.Errorf("failed to read chunk data: %w", err)
 		}
-		
+
 		// Unmarshal chunk
 		var chunk types.ConversationChunk
 		if err := json.Unmarshal(chunkData, &chunk); err != nil {
 			return fmt.Errorf("failed to unmarshal chunk: %w", err)
 		}
-		
+
 		// Store chunk
 		if err := bm.storage.StoreChunk(ctx, chunk); err != nil {
 			return fmt.Errorf("failed to store chunk %s: %w", chunk.ID, err)
 		}
-		
+
 		restoredCount++
 	}
-	
+
 	if restoredCount != metadata.ChunkCount {
 		return fmt.Errorf("chunk count mismatch: expected %d, restored %d", metadata.ChunkCount, restoredCount)
 	}
-	
+
 	return nil
 }
 
 // ListBackups returns a list of available backups
 func (bm *BackupManager) ListBackups() ([]BackupMetadata, error) {
 	var backups []BackupMetadata
-	
+
 	entries, err := os.ReadDir(bm.backupDir)
 	if err != nil {
 		if os.IsNotExist(err) {
@@ -265,43 +265,43 @@ func (bm *BackupManager) ListBackups() ([]BackupMetadata, error) {
 		}
 		return nil, fmt.Errorf("failed to read backup directory: %w", err)
 	}
-	
+
 	for _, entry := range entries {
 		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".meta.json") {
 			metadataFile := filepath.Join(bm.backupDir, entry.Name())
-			
+
 			metadataData, err := os.ReadFile(filepath.Clean(metadataFile)) // #nosec G304 -- Path is constructed safely
 			if err != nil {
 				continue
 			}
-			
+
 			var metadata BackupMetadata
 			if err := json.Unmarshal(metadataData, &metadata); err != nil {
 				continue
 			}
-			
+
 			backups = append(backups, metadata)
 		}
 	}
-	
+
 	return backups, nil
 }
 
 // CleanupOldBackups removes backups older than retention period
 func (bm *BackupManager) CleanupOldBackups() error {
 	cutoff := time.Now().AddDate(0, 0, -bm.retentionDays)
-	
+
 	backups, err := bm.ListBackups()
 	if err != nil {
 		return fmt.Errorf("failed to list backups: %w", err)
 	}
-	
+
 	for _, backup := range backups {
 		if err := bm.cleanupBackupIfOld(backup, cutoff); err != nil {
 			return err
 		}
 	}
-	
+
 	return nil
 }
 
@@ -309,18 +309,18 @@ func (bm *BackupManager) cleanupBackupIfOld(backup BackupMetadata, cutoff time.T
 	if !backup.CreatedAt.Before(cutoff) {
 		return nil
 	}
-	
+
 	// Get backup file path from metadata
 	backupFile, ok := backup.Metadata["backup_file"].(string)
 	if !ok {
 		return nil // Skip if no backup file in metadata
 	}
-	
+
 	// Remove backup file
 	if err := bm.removeBackupFile(backupFile); err != nil {
 		return err
 	}
-	
+
 	// Remove metadata file
 	return bm.removeMetadataFile(backup)
 }
@@ -337,12 +337,12 @@ func (bm *BackupManager) removeMetadataFile(backup BackupMetadata) error {
 	if !ok {
 		return nil
 	}
-	
+
 	metadataFile := backupFile + ".meta.json"
 	if err := os.Remove(metadataFile); err != nil && !os.IsNotExist(err) {
 		return fmt.Errorf("failed to remove metadata file %s: %w", metadataFile, err)
 	}
-	
+
 	return nil
 }
 
@@ -353,20 +353,20 @@ func (bm *BackupManager) MigrateData(ctx context.Context, fromVersion, toVersion
 	if err != nil {
 		return fmt.Errorf("failed to create pre-migration backup: %w", err)
 	}
-	
+
 	// Get all chunks
 	chunks, err := bm.storage.GetAllChunks(ctx)
 	if err != nil {
 		return fmt.Errorf("failed to retrieve chunks for migration: %w", err)
 	}
-	
+
 	// Apply migration logic based on versions
 	migratedChunks := make([]types.ConversationChunk, 0, len(chunks))
 	for _, chunk := range chunks {
 		migratedChunk := bm.migrateChunk(chunk, fromVersion, toVersion)
 		migratedChunks = append(migratedChunks, migratedChunk)
 	}
-	
+
 	// Store migrated chunks
 	for _, chunk := range migratedChunks {
 		if err := bm.storage.StoreChunk(ctx, chunk); err != nil {
@@ -374,13 +374,13 @@ func (bm *BackupManager) MigrateData(ctx context.Context, fromVersion, toVersion
 			return fmt.Errorf("failed to store migrated chunk %s: %w", chunk.ID, err)
 		}
 	}
-	
+
 	// Log successful migration
-	fmt.Printf("Successfully migrated %d chunks from version %s to %s\n", 
+	fmt.Printf("Successfully migrated %d chunks from version %s to %s\n",
 		len(migratedChunks), fromVersion, toVersion)
-	fmt.Printf("Pre-migration backup available: %s\n", 
+	fmt.Printf("Pre-migration backup available: %s\n",
 		backupMetadata.Metadata["backup_file"])
-	
+
 	return nil
 }
 
@@ -393,7 +393,7 @@ func (bm *BackupManager) migrateChunk(chunk types.ConversationChunk, fromVersion
 		if chunk.Metadata.Tags == nil {
 			chunk.Metadata.Tags = []string{}
 		}
-		
+
 	case fromVersion == "1.1" && toVersion == "2.0":
 		// Major version upgrade with breaking changes
 		// Migrate old format to new format
@@ -402,7 +402,7 @@ func (bm *BackupManager) migrateChunk(chunk types.ConversationChunk, fromVersion
 			chunk.Summary = chunk.Content[:100] + "..."
 		}
 	}
-	
+
 	return chunk
 }
 
@@ -412,26 +412,26 @@ func (bm *BackupManager) VerifyIntegrity(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to retrieve chunks: %w", err)
 	}
-	
+
 	for _, chunk := range chunks {
 		if err := chunk.Validate(); err != nil {
 			return fmt.Errorf("chunk %s failed validation: %w", chunk.ID, err)
 		}
-		
+
 		// Additional integrity checks
 		if chunk.ID == "" {
 			return fmt.Errorf("chunk has empty ID")
 		}
-		
+
 		if chunk.Timestamp.IsZero() {
 			return fmt.Errorf("chunk %s has zero timestamp", chunk.ID)
 		}
-		
+
 		if len(chunk.Embeddings) == 0 {
 			return fmt.Errorf("chunk %s has no embeddings", chunk.ID)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -442,15 +442,15 @@ func (bm *BackupManager) CompressData(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("failed to retrieve chunks: %w", err)
 	}
-	
+
 	// Apply compression to chunk content
 	compressedCount := 0
 	for _, chunk := range chunks {
 		originalSize := len(chunk.Content)
-		
+
 		// Simple compression: remove excessive whitespace
 		compressed := compressText(chunk.Content)
-		
+
 		if len(compressed) < originalSize {
 			chunk.Content = compressed
 			if err := bm.storage.StoreChunk(ctx, chunk); err != nil {
@@ -459,7 +459,7 @@ func (bm *BackupManager) CompressData(ctx context.Context) error {
 			compressedCount++
 		}
 	}
-	
+
 	fmt.Printf("Compressed %d chunks\n", compressedCount)
 	return nil
 }

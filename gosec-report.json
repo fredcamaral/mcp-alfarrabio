@@ -1,0 +1,1039 @@
+{
+	"Golang errors": {
+		"/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/commons/cohere/cohere_commons.go": [
+			{
+				"line": 12,
+				"column": 2,
+				"error": "could not import github.com/go-playground/validator/v10 (invalid package name: \"\")"
+			},
+			{
+				"line": 58,
+				"column": 14,
+				"error": "undefined: validator"
+			},
+			{
+				"line": 58,
+				"column": 28,
+				"error": "undefined: validator"
+			},
+			{
+				"line": 58,
+				"column": 67,
+				"error": "undefined: validator"
+			}
+		],
+		"/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/gemini/gemini.go": [
+			{
+				"line": 6,
+				"column": 2,
+				"error": "could not import github.com/google/generative-ai-go/genai (invalid package name: \"\")"
+			},
+			{
+				"line": 8,
+				"column": 2,
+				"error": "could not import google.golang.org/api/option (invalid package name: \"\")"
+			}
+		]
+	},
+	"Issues": [
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint8",
+			"file": "/Users/fredamaral/Library/Caches/go-build/11/11e7d774b5aa8e9508de950b3d60281d0062c634adbe1dc95be3c350aaf509fd-d",
+			"code": "191: \ttokenizer := unsafe.Pointer(uintptr((*(*func(data *byte, len  /*line :188:63*/_Ctype_uint /*line :188:69*/, maxLen  /*line :188:78*/_Ctype_uint /*line :188:84*/, dir  /*line :188:90*/_Ctype_uchar /*line :188:97*/) unsafe.Pointer)(unsafe.Pointer(\u0026fromBytesTruncFn)))(\n192: \t\t(*byte)(unsafe.Pointer(\u0026data[0])),\n193: \t\t /*line :190:3*/_Ctype_uint /*line :190:9*/(len(data)),\n",
+			"line": "192",
+			"column": "10",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint64",
+			"file": "/Users/fredamaral/Library/Caches/go-build/76/76a6a38d77f9b3b799d417576cabd03ffc2e997351c4b890240458bf7b45e240-d",
+			"code": "102: \t}\n103: \tp := _cgo_cmalloc(uint64(len(s)+1))\n104: \tsliceHeader := struct {\n",
+			"line": "103",
+			"column": "26",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint32",
+			"file": "/Users/fredamaral/Library/Caches/go-build/11/11e7d774b5aa8e9508de950b3d60281d0062c634adbe1dc95be3c350aaf509fd-d",
+			"code": "430: \tdecodeFn := (*[0]byte)(decodeFunc)\n431: \tresult := (*(*func(unsafe.Pointer, *uint32,  /*line :428:46*/_Ctype_uint /*line :428:52*/,  /*line :428:54*/_Ctype_bool /*line :428:60*/) * /*line :428:63*/_Ctype_char /*line :428:69*/)(unsafe.Pointer(\u0026decodeFn)))(\n432: \t\tt.tokenizer,\n",
+			"line": "431",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint32",
+			"file": "/Users/fredamaral/Library/Caches/go-build/11/11e7d774b5aa8e9508de950b3d60281d0062c634adbe1dc95be3c350aaf509fd-d",
+			"code": "189: \n190: \tfromBytesTruncFn := (*[0]byte)(fromBytesWithTruncationFunc)\n191: \ttokenizer := unsafe.Pointer(uintptr((*(*func(data *byte, len  /*line :188:63*/_Ctype_uint /*line :188:69*/, maxLen  /*line :188:78*/_Ctype_uint /*line :188:84*/, dir  /*line :188:90*/_Ctype_uchar /*line :188:97*/) unsafe.Pointer)(unsafe.Pointer(\u0026fromBytesTruncFn)))(\n",
+			"line": "190",
+			"column": "9",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e uint32",
+			"file": "/Users/fredamaral/Library/Caches/go-build/11/11e7d774b5aa8e9508de950b3d60281d0062c634adbe1dc95be3c350aaf509fd-d",
+			"code": "171: \t}\n172: \tfor _, opt := range opts {\n173: \t\topt(allOpts)\n",
+			"line": "172",
+			"column": "16",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e int32",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/types/types.go",
+			"code": "120: \t\tfor x, v := range embeddings {\n121: \t\t\tarrayOfInt32[x] = int32(v.(int))\n122: \t\t}\n",
+			"line": "121",
+			"column": "27",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e int32",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/circuitbreaker/circuit_breaker.go",
+			"code": "234: \t// Safe conversion - State values are constants 0, 1, 2\n235: \toldState := State(atomic.SwapInt32(\u0026cb.state, int32(newState))) //nolint:gosec // State values are constants\n236: \t\n",
+			"line": "235",
+			"column": "53",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e int32",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/circuitbreaker/circuit_breaker.go",
+			"code": "206: \t\tif cb.config.FailureThreshold \u003e 0 \u0026\u0026 cb.config.FailureThreshold \u003c= math.MaxInt32 {\n207: \t\t\tif failures \u003e= int32(cb.config.FailureThreshold) { //nolint:gosec // Bounds checked above\n208: \t\t\t\tcb.transitionTo(StateOpen)\n",
+			"line": "207",
+			"column": "24",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e int32",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/circuitbreaker/circuit_breaker.go",
+			"code": "185: \t\tif cb.config.SuccessThreshold \u003e 0 \u0026\u0026 cb.config.SuccessThreshold \u003c= math.MaxInt32 {\n186: \t\t\tif successes \u003e= int32(cb.config.SuccessThreshold) { //nolint:gosec // Bounds checked above\n187: \t\t\t\tcb.transitionTo(StateClosed)\n",
+			"line": "186",
+			"column": "25",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "190",
+				"url": "https://cwe.mitre.org/data/definitions/190.html"
+			},
+			"rule_id": "G115",
+			"details": "integer overflow conversion int -\u003e int32",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/circuitbreaker/circuit_breaker.go",
+			"code": "139: \t\tif cb.config.MaxConcurrentRequests \u003e 0 \u0026\u0026 cb.config.MaxConcurrentRequests \u003c= math.MaxInt32 {\n140: \t\t\tif current \u003e int32(cb.config.MaxConcurrentRequests) { //nolint:gosec // Bounds checked above\n141: \t\t\t\tatomic.AddInt32(\u0026cb.halfOpenRequests, -1)\n",
+			"line": "140",
+			"column": "22",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "338",
+				"url": "https://cwe.mitre.org/data/definitions/338.html"
+			},
+			"rule_id": "G404",
+			"details": "Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/types/types.go",
+			"code": "385: \tt := time.Now()\n386: \tentropy := rand.New(rand.NewSource(t.UnixNano()))\n387: \tdocULID := ulid.MustNew(ulid.Timestamp(t), entropy)\n",
+			"line": "386",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "338",
+				"url": "https://cwe.mitre.org/data/definitions/338.html"
+			},
+			"rule_id": "G404",
+			"details": "Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/api/v2/ids.go",
+			"code": "63: \tt := time.Now()\n64: \tentropy := rand.New(rand.NewSource(t.UnixNano()))\n65: \tdocULID := ulid.MustNew(ulid.Timestamp(t), entropy)\n",
+			"line": "64",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "338",
+				"url": "https://cwe.mitre.org/data/definitions/338.html"
+			},
+			"rule_id": "G404",
+			"details": "Use of weak random number generator (math/rand or math/rand/v2 instead of crypto/rand)",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/examples/v2/tenant_and_db/main.go",
+			"code": "23: \t}()\n24: \tr := rand.Int()\n25: \ttenant, err := client.CreateTenant(context.Background(), chroma.NewTenant(fmt.Sprintf(\"tenant-%d\", r)))\n",
+			"line": "24",
+			"column": "7",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS MinVersion too low.",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/api/v2/client.go",
+			"code": "710: \t\tdatabase:          NewDefaultDatabase(),\n711: \t\thttpTransport:     \u0026http.Transport{TLSClientConfig: \u0026tls.Config{}},\n712: \t\tactiveCollections: make([]Collection, 0),\n",
+			"line": "711",
+			"column": "56",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS MinVersion too low.",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/api/v2/client.go",
+			"code": "669: \t\tcase c.httpTransport.TLSClientConfig == nil:\n670: \t\t\tc.httpTransport.TLSClientConfig = \u0026tls.Config{}\n671: \t\t\tcertPool = x509.NewCertPool()\n",
+			"line": "670",
+			"column": "39",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "295",
+				"url": "https://cwe.mitre.org/data/definitions/295.html"
+			},
+			"rule_id": "G402",
+			"details": "TLS InsecureSkipVerify set true.",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/api/v2/client.go",
+			"code": "695: \t\t\tc.httpTransport.TLSClientConfig = \u0026tls.Config{\n696: \t\t\t\tInsecureSkipVerify: true,\n697: \t\t\t}\n",
+			"line": "696",
+			"column": "25",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/types/types.go",
+			"code": "606: \tAuthorizationTokenHeader TokenTransportHeader = \"Authorization\"\n607: \tXChromaTokenHeader       TokenTransportHeader = \"X-Chroma-Token\"\n608: )\n",
+			"line": "607",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/voyage/voyage.go",
+			"code": "36: \tEncodingFormatContextVar                = \"encodingFormat\"\n37: \tAPIKeyEnvVar                            = \"VOYAGE_API_KEY\"\n38: )\n",
+			"line": "37",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/nomic/nomic.go",
+			"code": "25: \tTaskTypeContextVar                = \"task_type\"\n26: \tAPIKeyEnvVar                      = \"NOMIC_API_KEY\"\n27: \tDefaultBaseURL                    = \"https://api-atlas.nomic.ai/v1/embedding\"\n",
+			"line": "26",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/mistral/mistral.go",
+			"code": "18: \tModelContextVar       = \"model\"\n19: \tAPIKeyEnvVar          = \"MISTRAL_API_KEY\"\n20: \tDefaultBaseURL        = \"https://api.mistral.ai\"\n",
+			"line": "19",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/gemini/gemini.go",
+			"code": "15: \tModelContextVar       = \"model\"\n16: \tAPIKeyEnvVar          = \"GEMINI_API_KEY\"\n17: )\n",
+			"line": "16",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/commons/cohere/cohere_commons.go",
+			"code": "27: const (\n28: \tAPIKeyEnv                    = \"COHERE_API_KEY\"\n29: \tDefaultBaseURL               = \"https://api.cohere.ai\"\n",
+			"line": "28",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "HIGH",
+			"confidence": "LOW",
+			"cwe": {
+				"id": "798",
+				"url": "https://cwe.mitre.org/data/definitions/798.html"
+			},
+			"rule_id": "G101",
+			"details": "Potential hardcoded credentials",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/api/v2/auth.go",
+			"code": "35: \tAuthorizationTokenHeader TokenTransportHeader = \"Authorization\"\n36: \tXChromaTokenHeader       TokenTransportHeader = \"X-Chroma-Token\"\n37: )\n",
+			"line": "36",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "108: \t\t\t// Create the destination file\n109: \t\t\toutFile, err := os.Create(filepath.Join(destPath, filepath.Base(header.Name)))\n110: \t\t\tif err != nil {\n",
+			"line": "109",
+			"column": "20",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "94: \t\t\t// Create the destination file\n95: \t\t\toutFile, err := os.Create(filepath.Join(destPath, filepath.Base(targetFile)))\n96: \t\t\tif err != nil {\n",
+			"line": "95",
+			"column": "20",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "63: \t// Open the .tar.gz file\n64: \tf, err := os.Open(tarGzPath)\n65: \tif err != nil {\n",
+			"line": "64",
+			"column": "12",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "43: \n44: \tout, err := os.Create(filepath)\n45: \tif err != nil {\n",
+			"line": "44",
+			"column": "14",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/default_ef.go",
+			"code": "286: \t// Read the file\n287: \tdata, err := os.ReadFile(filename)\n288: \tif err != nil {\n",
+			"line": "287",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/api/v2/utils.go",
+			"code": "68: \t// Write the private key to file\n69: \tkeyOut, err := os.OpenFile(keyPath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0600)\n70: \tif err != nil {\n",
+			"line": "69",
+			"column": "17",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/api/v2/utils.go",
+			"code": "55: \t// Write the certificate to file\n56: \tcertOut, err := os.Create(certPath)\n57: \tif err != nil {\n",
+			"line": "56",
+			"column": "18",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "22",
+				"url": "https://cwe.mitre.org/data/definitions/22.html"
+			},
+			"rule_id": "G304",
+			"details": "Potential file inclusion via variable",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/api/v2/client.go",
+			"code": "660: \t\t}\n661: \t\tcert, err := os.ReadFile(certPath)\n662: \t\tif err != nil {\n",
+			"line": "661",
+			"column": "16",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "88",
+				"url": "https://cwe.mitre.org/data/definitions/88.html"
+			},
+			"rule_id": "G107",
+			"details": "Potential HTTP request made with variable url",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "28: func downloadFile(filepath string, url string) error {\n29: \tresp, err := http.Get(url)\n30: \tif err != nil {\n",
+			"line": "29",
+			"column": "15",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "409",
+				"url": "https://cwe.mitre.org/data/definitions/409.html"
+			},
+			"rule_id": "G110",
+			"details": "Potential DoS vulnerability via decompression bomb",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "115: \t\t\t// Copy the file data from the tar archive to the destination file\n116: \t\t\tif _, err := io.Copy(outFile, tarReader); err != nil {\n117: \t\t\t\treturn errors.Wrap(err, \"could not copy file data\")\n",
+			"line": "116",
+			"column": "17",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "MEDIUM",
+			"cwe": {
+				"id": "409",
+				"url": "https://cwe.mitre.org/data/definitions/409.html"
+			},
+			"rule_id": "G110",
+			"details": "Potential DoS vulnerability via decompression bomb",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "101: \t\t\t// Copy the file data from the tar archive to the destination file\n102: \t\t\tif _, err := io.Copy(outFile, tarReader); err != nil {\n103: \t\t\t\treturn errors.Wrap(err, \"could not copy file data\")\n",
+			"line": "102",
+			"column": "17",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "234: \t\tdownloadAndExtractNeeded = true\n235: \t\tif err := os.MkdirAll(onnxModelCachePath, 0755); err != nil {\n236: \t\t\treturn errors.Wrap(err, \"failed to create onnx model cache\")\n",
+			"line": "235",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "196: \t\tdownloadAndExtractNeeded = true\n197: \t\tif err := os.MkdirAll(libTokenizersCacheDir, 0755); err != nil {\n198: \t\t\treturn errors.Wrap(err, \"failed to create libtokenizers cache\")\n",
+			"line": "197",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "MEDIUM",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "276",
+				"url": "https://cwe.mitre.org/data/definitions/276.html"
+			},
+			"rule_id": "G301",
+			"details": "Expect directory permissions to be 0750 or less",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/pkg/embeddings/default_ef/download_utils.go",
+			"code": "146: \t\tdownloadAndExtractNeeded = true\n147: \t\tif err := os.MkdirAll(onnxCacheDir, 0755); err != nil {\n148: \t\t\treturn errors.Wrap(err, \"failed to create onnx cache\")\n",
+			"line": "147",
+			"column": "13",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/client.go",
+			"code": "339: \t\theaderParams[\"Content-Length\"] = fmt.Sprintf(\"%d\", body.Len())\n340: \t\tw.Close()\n341: \t}\n",
+			"line": "340",
+			"column": "3",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/client.go",
+			"code": "316: \t\t\t\t} else { // form value\n317: \t\t\t\t\tw.WriteField(k, iv)\n318: \t\t\t\t}\n",
+			"line": "317",
+			"column": "6",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "2570: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n2571: \tlocalVarHTTPResponse.Body.Close()\n2572: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "2571",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "2462: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n2463: \tlocalVarHTTPResponse.Body.Close()\n2464: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "2463",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "2339: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n2340: \tlocalVarHTTPResponse.Body.Close()\n2341: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "2340",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "2216: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n2217: \tlocalVarHTTPResponse.Body.Close()\n2218: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "2217",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "2103: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n2104: \tlocalVarHTTPResponse.Body.Close()\n2105: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "2104",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "2005: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n2006: \tlocalVarHTTPResponse.Body.Close()\n2007: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "2006",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "1907: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n1908: \tlocalVarHTTPResponse.Body.Close()\n1909: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "1908",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "1809: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n1810: \tlocalVarHTTPResponse.Body.Close()\n1811: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "1810",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "1693: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n1694: \tlocalVarHTTPResponse.Body.Close()\n1695: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "1694",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "1585: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n1586: \tlocalVarHTTPResponse.Body.Close()\n1587: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "1586",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "1473: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n1474: \tlocalVarHTTPResponse.Body.Close()\n1475: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "1474",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "1350: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n1351: \tlocalVarHTTPResponse.Body.Close()\n1352: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "1351",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "1229: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n1230: \tlocalVarHTTPResponse.Body.Close()\n1231: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "1230",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "1099: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n1100: \tlocalVarHTTPResponse.Body.Close()\n1101: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "1100",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "976: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n977: \tlocalVarHTTPResponse.Body.Close()\n978: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "977",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "846: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n847: \tlocalVarHTTPResponse.Body.Close()\n848: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "847",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "723: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n724: \tlocalVarHTTPResponse.Body.Close()\n725: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "724",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "604: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n605: \tlocalVarHTTPResponse.Body.Close()\n606: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "605",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "476: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n477: \tlocalVarHTTPResponse.Body.Close()\n478: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "477",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "349: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n350: \tlocalVarHTTPResponse.Body.Close()\n351: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "350",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "223: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n224: \tlocalVarHTTPResponse.Body.Close()\n225: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "224",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/storage/chroma-go/swagger/api_default.go",
+			"code": "111: \tlocalVarBody, err := io.ReadAll(localVarHTTPResponse.Body)\n112: \tlocalVarHTTPResponse.Body.Close()\n113: \tlocalVarHTTPResponse.Body = io.NopCloser(bytes.NewBuffer(localVarBody))\n",
+			"line": "112",
+			"column": "2",
+			"nosec": false,
+			"suppressions": null
+		},
+		{
+			"severity": "LOW",
+			"confidence": "HIGH",
+			"cwe": {
+				"id": "703",
+				"url": "https://cwe.mitre.org/data/definitions/703.html"
+			},
+			"rule_id": "G104",
+			"details": "Errors unhandled",
+			"file": "/Users/fredamaral/Repos/fredcamaral/mcp-memory/internal/mcp/server.go",
+			"code": "3392: \t\tfor _, thread := range filteredThreads {\n3393: \t\t\tthreadStore.DeleteThread(ctx, thread.ID) // Clean up\n3394: \t\t}\n",
+			"line": "3393",
+			"column": "4",
+			"nosec": false,
+			"suppressions": null
+		}
+	],
+	"Stats": {
+		"files": 154,
+		"lines": 48235,
+		"nosec": 6,
+		"found": 62
+	},
+	"GosecVersion": "dev"
+}

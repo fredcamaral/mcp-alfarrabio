@@ -3,10 +3,10 @@ package storage
 import (
 	"context"
 	"fmt"
-	"mcp-memory/internal/config"
-	"mcp-memory/internal/storage/pool"
 	chromav2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
 	"github.com/amikos-tech/chroma-go/pkg/embeddings"
+	"mcp-memory/internal/config"
+	"mcp-memory/internal/storage/pool"
 	"mcp-memory/pkg/types"
 	"os"
 	"sort"
@@ -76,7 +76,7 @@ func NewChromaPooledConnection(ctx context.Context, cfg *config.ChromaConfig) (*
 func (c *ChromaPooledConnection) IsAlive() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	if !c.alive {
 		return false
 	}
@@ -98,7 +98,7 @@ func (c *ChromaPooledConnection) IsAlive() bool {
 func (c *ChromaPooledConnection) Close() error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	
+
 	c.alive = false
 	// Chroma client doesn't have explicit close, just mark as not alive
 	return nil
@@ -112,8 +112,8 @@ func (c *ChromaPooledConnection) Reset() error {
 
 // PooledChromaStore implements VectorStore using a connection pool
 type PooledChromaStore struct {
-	pool       *pool.ConnectionPool
-	config     *config.ChromaConfig
+	pool   *pool.ConnectionPool
+	config *config.ChromaConfig
 }
 
 // NewPooledChromaStore creates a new pooled Chroma store
@@ -196,7 +196,7 @@ func (s *PooledChromaStore) Store(ctx context.Context, chunk types.ConversationC
 	// Convert to Chroma format
 	metadata := chunkToMetadata(chunk)
 	attrs := metadataToAttributes(metadata)
-	
+
 	err = conn.collection.Add(
 		ctx,
 		chromav2.WithIDs(chromav2.DocumentID(chunk.ID)),
@@ -225,13 +225,13 @@ func (s *PooledChromaStore) Search(ctx context.Context, query types.MemoryQuery,
 		chromav2.WithNResults(query.Limit),
 		chromav2.WithIncludeQuery(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
 	}
-	
+
 	// Add where filter if needed
 	whereFilter := buildWhereFilter(query)
 	if whereFilter != nil {
 		queryOptions = append(queryOptions, chromav2.WithWhereQuery(whereFilter))
 	}
-	
+
 	// Perform query
 	results, err := conn.collection.Query(ctx, queryOptions...)
 	if err != nil {
@@ -253,7 +253,7 @@ func (s *PooledChromaStore) GetByID(ctx context.Context, id string) (*types.Conv
 		chromav2.WithIDsGet(chromav2.DocumentID(id)),
 		chromav2.WithIncludeGet(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
 	}
-	
+
 	results, err := conn.collection.Get(ctx, getOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get by ID: %w", err)
@@ -278,7 +278,7 @@ func (s *PooledChromaStore) ListByRepository(ctx context.Context, repository str
 		chromav2.WithWhereGet(chromav2.EqString("repository", repository)),
 		chromav2.WithIncludeGet(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
 	}
-	
+
 	// Chroma doesn't support offset directly, so we need to get all and slice
 	results, err := conn.collection.Get(ctx, getOptions...)
 	if err != nil {
@@ -288,7 +288,7 @@ func (s *PooledChromaStore) ListByRepository(ctx context.Context, repository str
 	if results == nil {
 		return []types.ConversationChunk{}, nil
 	}
-	
+
 	ids := results.GetIDs()
 	chunks := make([]types.ConversationChunk, 0)
 	for i := offset; i < len(ids) && i < offset+limit; i++ {
@@ -314,7 +314,7 @@ func (s *PooledChromaStore) ListBySession(ctx context.Context, sessionID string)
 		chromav2.WithWhereGet(chromav2.EqString("session_id", sessionID)),
 		chromav2.WithIncludeGet(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
 	}
-	
+
 	results, err := conn.collection.Get(ctx, getOptions...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list by session: %w", err)
@@ -323,7 +323,7 @@ func (s *PooledChromaStore) ListBySession(ctx context.Context, sessionID string)
 	if results == nil {
 		return []types.ConversationChunk{}, nil
 	}
-	
+
 	ids := results.GetIDs()
 	chunks := make([]types.ConversationChunk, 0, len(ids))
 	for i := 0; i < len(ids); i++ {
@@ -333,12 +333,12 @@ func (s *PooledChromaStore) ListBySession(ctx context.Context, sessionID string)
 		}
 		chunks = append(chunks, *chunk)
 	}
-	
+
 	// Sort by timestamp
 	sort.Slice(chunks, func(i, j int) bool {
 		return chunks[i].Timestamp.Before(chunks[j].Timestamp)
 	})
-	
+
 	return chunks, nil
 }
 
@@ -403,7 +403,7 @@ func (s *PooledChromaStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	poolStats := s.pool.Stats()
 
 	stats := &StoreStats{
-		TotalChunks: int64(count),
+		TotalChunks:  int64(count),
 		ChunksByType: make(map[string]int64),
 		ChunksByRepo: make(map[string]int64),
 		// Add pool stats as metadata
@@ -423,32 +423,32 @@ func (s *PooledChromaStore) Cleanup(ctx context.Context, retentionDays int) (int
 
 	// Calculate cutoff time
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
-	
+
 	// Get all chunks to find old ones
 	getOptions := []chromav2.CollectionGetOption{
 		chromav2.WithIncludeGet(chromav2.IncludeMetadatas),
 		// Note: WithLimit might not be available in Get, only in Query
 	}
-	
+
 	results, err := conn.collection.Get(ctx, getOptions...)
 	if err != nil {
 		return 0, fmt.Errorf("failed to get chunks for cleanup: %w", err)
 	}
-	
+
 	if results == nil {
 		return 0, nil
 	}
-	
+
 	// Find chunks to delete
 	var toDelete []chromav2.DocumentID
 	ids := results.GetIDs()
 	metas := results.GetMetadatas()
-	
+
 	for i, meta := range metas {
 		if meta == nil {
 			continue
 		}
-		
+
 		// Check timestamp
 		if timestamp, ok := meta.GetFloat("timestamp"); ok {
 			chunkTime := time.Unix(int64(timestamp), 0)
@@ -457,17 +457,17 @@ func (s *PooledChromaStore) Cleanup(ctx context.Context, retentionDays int) (int
 			}
 		}
 	}
-	
+
 	if len(toDelete) == 0 {
 		return 0, nil
 	}
-	
+
 	// Delete old chunks
 	err = conn.collection.Delete(ctx, chromav2.WithIDsDelete(toDelete...))
 	if err != nil {
 		return 0, fmt.Errorf("failed to delete old chunks: %w", err)
 	}
-	
+
 	return len(toDelete), nil
 }
 
@@ -496,43 +496,43 @@ func getEnvIntPool(key string, defaultValue int) int {
 // chunkToMetadata converts a chunk to Chroma metadata
 func chunkToMetadata(chunk types.ConversationChunk) map[string]interface{} {
 	metadata := make(map[string]interface{})
-	
+
 	// Required fields
 	metadata["session_id"] = chunk.SessionID
 	metadata["timestamp"] = chunk.Timestamp.Unix()
 	metadata["type"] = string(chunk.Type)
 	metadata["summary"] = chunk.Summary
-	
+
 	// Metadata fields
 	if chunk.Metadata.Repository != "" {
 		metadata["repository"] = chunk.Metadata.Repository
 	}
-	
+
 	if chunk.Metadata.Branch != "" {
 		metadata["branch"] = chunk.Metadata.Branch
 	}
-	
+
 	// Arrays
 	if len(chunk.Metadata.Tags) > 0 {
 		metadata["tags"] = chunk.Metadata.Tags
 	}
-	
+
 	if len(chunk.Metadata.FilesModified) > 0 {
 		metadata["files_modified"] = chunk.Metadata.FilesModified
 	}
-	
+
 	if len(chunk.Metadata.ToolsUsed) > 0 {
 		metadata["tools_used"] = chunk.Metadata.ToolsUsed
 	}
-	
+
 	// Optional fields
 	if chunk.Metadata.TimeSpent != nil {
 		metadata["time_spent"] = *chunk.Metadata.TimeSpent
 	}
-	
+
 	metadata["outcome"] = string(chunk.Metadata.Outcome)
 	metadata["difficulty"] = string(chunk.Metadata.Difficulty)
-	
+
 	return metadata
 }
 
@@ -541,7 +541,7 @@ func chunkToMetadata(chunk types.ConversationChunk) map[string]interface{} {
 // metadataToAttributes converts metadata to Chroma attributes
 func metadataToAttributes(metadata map[string]interface{}) []*chromav2.MetaAttribute {
 	attrs := make([]*chromav2.MetaAttribute, 0, len(metadata))
-	
+
 	for key, value := range metadata {
 		switch v := value.(type) {
 		case string:
@@ -558,11 +558,9 @@ func metadataToAttributes(metadata map[string]interface{}) []*chromav2.MetaAttri
 			attrs = append(attrs, chromav2.NewStringAttribute(key, fmt.Sprintf("%v", v)))
 		}
 	}
-	
+
 	return attrs
 }
-
-
 
 // interfaceSliceToStringSlice converts []interface{} to []string
 func interfaceSliceToStringSlice(slice []interface{}) []string {
@@ -578,12 +576,12 @@ func interfaceSliceToStringSlice(slice []interface{}) []string {
 // buildWhereFilter builds a where filter for ChromaDB queries
 func buildWhereFilter(query types.MemoryQuery) chromav2.WhereClause {
 	var clauses []chromav2.WhereClause
-	
+
 	// Add repository filter
 	if query.Repository != nil && *query.Repository != "" {
 		clauses = append(clauses, chromav2.EqString("repository", *query.Repository))
 	}
-	
+
 	// Add types filter
 	if len(query.Types) > 0 {
 		// Convert ChunkType to string slice
@@ -593,7 +591,7 @@ func buildWhereFilter(query types.MemoryQuery) chromav2.WhereClause {
 		}
 		clauses = append(clauses, chromav2.InString("type", typeStrings...))
 	}
-	
+
 	// Add recency filter based on the Recency enum
 	var startTime time.Time
 	now := time.Now()
@@ -606,12 +604,12 @@ func buildWhereFilter(query types.MemoryQuery) chromav2.WhereClause {
 		// No time filter for all time
 		startTime = time.Time{}
 	}
-	
+
 	if !startTime.IsZero() {
 		// Add timestamp filter - timestamps are stored as Unix timestamps (float64)
 		clauses = append(clauses, chromav2.GteFloat("timestamp", float32(startTime.Unix())))
 	}
-	
+
 	// Combine all clauses with AND
 	switch len(clauses) {
 	case 0:
@@ -629,28 +627,28 @@ func processQueryResults(result chromav2.QueryResult, minScore float64) *types.S
 		Results: make([]types.SearchResult, 0),
 		Total:   0,
 	}
-	
+
 	if result == nil {
 		return searchResults
 	}
-	
+
 	// ChromaDB v2 returns results in groups (for batch queries)
 	// We only query one at a time, so we get the first group
 	idGroups := result.GetIDGroups()
 	docGroups := result.GetDocumentsGroups()
 	metaGroups := result.GetMetadatasGroups()
 	distGroups := result.GetDistancesGroups()
-	
+
 	if len(idGroups) == 0 {
 		return searchResults
 	}
-	
+
 	// Get first group (we only have one query)
 	ids := idGroups[0]
 	docs := docGroups[0]
 	metas := metaGroups[0]
 	dists := distGroups[0]
-	
+
 	// Process each result
 	for i := 0; i < len(ids); i++ {
 		// Convert distance to similarity score
@@ -658,32 +656,32 @@ func processQueryResults(result chromav2.QueryResult, minScore float64) *types.S
 		if i < len(dists) {
 			score = 1.0 - float64(dists[i])
 		}
-		
+
 		if score < minScore {
 			continue
 		}
-		
+
 		chunk := &types.ConversationChunk{
 			ID:       string(ids[i]),
 			Metadata: types.ChunkMetadata{},
 		}
-		
+
 		// Set content
 		if i < len(docs) {
 			chunk.Content = docs[i].ContentString()
 		}
-		
+
 		// Parse metadata
 		if i < len(metas) && metas[i] != nil {
 			parseMetadataV2(metas[i], chunk)
 		}
-		
+
 		searchResults.Results = append(searchResults.Results, types.SearchResult{
 			Chunk: *chunk,
 			Score: score,
 		})
 	}
-	
+
 	searchResults.Total = len(searchResults.Results)
 	return searchResults
 }
@@ -693,28 +691,28 @@ func getResultToChunk(results chromav2.GetResult, index int) (*types.Conversatio
 	if results == nil {
 		return nil, fmt.Errorf("nil results")
 	}
-	
+
 	ids := results.GetIDs()
 	docs := results.GetDocuments()
 	metas := results.GetMetadatas()
-	
+
 	if index >= len(ids) {
 		return nil, fmt.Errorf("index out of bounds")
 	}
-	
+
 	chunk := &types.ConversationChunk{
 		ID:       string(ids[index]),
 		Metadata: types.ChunkMetadata{},
 	}
-	
+
 	if index < len(docs) {
 		chunk.Content = docs[index].ContentString()
 	}
-	
+
 	if index < len(metas) && metas[index] != nil {
 		parseMetadataV2(metas[index], chunk)
 	}
-	
+
 	return chunk, nil
 }
 
@@ -730,22 +728,22 @@ func parseMetadataV2(metadata chromav2.DocumentMetadata, chunk *types.Conversati
 	if v, ok := metadata.GetString("branch"); ok {
 		chunk.Metadata.Branch = v
 	}
-	
+
 	// Timestamp
 	if v, ok := metadata.GetFloat("timestamp"); ok {
 		chunk.Timestamp = time.Unix(int64(v), 0)
 	}
-	
+
 	// Type
 	if v, ok := metadata.GetString("type"); ok {
 		chunk.Type = types.ChunkType(v)
 	}
-	
+
 	// Summary
 	if v, ok := metadata.GetString("summary"); ok {
 		chunk.Summary = v
 	}
-	
+
 	// Arrays - these need special handling as they're stored as raw interface{}
 	if v, ok := metadata.GetRaw("tags"); ok {
 		if tags, ok := v.([]interface{}); ok {
@@ -754,7 +752,7 @@ func parseMetadataV2(metadata chromav2.DocumentMetadata, chunk *types.Conversati
 			chunk.Metadata.Tags = tags
 		}
 	}
-	
+
 	if v, ok := metadata.GetRaw("files_modified"); ok {
 		if files, ok := v.([]interface{}); ok {
 			chunk.Metadata.FilesModified = interfaceSliceToStringSlice(files)
@@ -762,7 +760,7 @@ func parseMetadataV2(metadata chromav2.DocumentMetadata, chunk *types.Conversati
 			chunk.Metadata.FilesModified = files
 		}
 	}
-	
+
 	if v, ok := metadata.GetRaw("tools_used"); ok {
 		if tools, ok := v.([]interface{}); ok {
 			chunk.Metadata.ToolsUsed = interfaceSliceToStringSlice(tools)
@@ -770,21 +768,20 @@ func parseMetadataV2(metadata chromav2.DocumentMetadata, chunk *types.Conversati
 			chunk.Metadata.ToolsUsed = tools
 		}
 	}
-	
+
 	// Optional fields
 	if v, ok := metadata.GetInt("time_spent"); ok {
 		i := int(v)
 		chunk.Metadata.TimeSpent = &i
 	}
-	
+
 	// Outcome
 	if v, ok := metadata.GetString("outcome"); ok {
 		chunk.Metadata.Outcome = types.Outcome(v)
 	}
-	
+
 	// Difficulty
 	if v, ok := metadata.GetString("difficulty"); ok {
 		chunk.Metadata.Difficulty = types.Difficulty(v)
 	}
 }
-

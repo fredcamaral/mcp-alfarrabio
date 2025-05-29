@@ -187,7 +187,7 @@ func TestConnectionPool_DeadConnection(t *testing.T) {
 	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
-	
+
 	// Get a connection
 	conn, err := pool.Get(ctx)
 	if err != nil {
@@ -243,7 +243,7 @@ func TestConnectionPool_HealthCheck(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 
 	ctx := context.Background()
-	
+
 	// Get and return a connection
 	conn, err := pool.Get(ctx)
 	if err != nil {
@@ -265,7 +265,7 @@ func TestConnectionPool_HealthCheck(t *testing.T) {
 	// Health check failures are tracked internally
 	// Just verify the pool is still working
 	stats := pool.Stats()
-	t.Logf("Pool stats after health check: CurrentSize=%d, IdleCount=%d, ActiveCount=%d", 
+	t.Logf("Pool stats after health check: CurrentSize=%d, IdleCount=%d, ActiveCount=%d",
 		stats.CurrentSize, stats.IdleCount, stats.ActiveCount)
 	if stats.CurrentSize == 0 {
 		t.Error("Pool should maintain minimum connections despite failures")
@@ -287,7 +287,7 @@ func TestConnectionPool_MaxLifetime(t *testing.T) {
 	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
-	
+
 	// Get a connection
 	conn, err := pool.Get(ctx)
 	if err != nil {
@@ -354,10 +354,10 @@ func TestConnectionPool_Concurrent(t *testing.T) {
 					errors <- err
 					return
 				}
-				
+
 				// Simulate work
 				time.Sleep(time.Millisecond)
-				
+
 				if err := pool.Put(conn); err != nil {
 					errors <- err
 					return
@@ -395,11 +395,11 @@ func TestConnectionPool_Close(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	
+
 	// Get some connections
 	conn1, _ := pool.Get(ctx)
 	conn2, _ := pool.Get(ctx)
-	
+
 	_ = pool.Put(conn1)
 	// Don't return conn2 - simulate in-use connection
 
@@ -439,7 +439,7 @@ func TestConnectionPool_FactoryError(t *testing.T) {
 	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
-	
+
 	// Try to get connection
 	_, err = pool.Get(ctx)
 	if err == nil {
@@ -462,7 +462,7 @@ func TestWrappedConn_Metrics(t *testing.T) {
 	defer func() { _ = pool.Close() }()
 
 	ctx := context.Background()
-	
+
 	// Get connection
 	conn, err := pool.Get(ctx)
 	if err != nil {

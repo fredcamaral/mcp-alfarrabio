@@ -14,7 +14,7 @@ import (
 type MemoryAnalytics struct {
 	store storage.VectorStore
 	mu    sync.RWMutex
-	
+
 	// In-memory cache for access counts to batch updates
 	accessCache map[string]*AccessMetrics
 	flushTicker *time.Ticker
@@ -37,10 +37,10 @@ func NewMemoryAnalytics(store storage.VectorStore) *MemoryAnalytics {
 		accessCache: make(map[string]*AccessMetrics),
 		flushTicker: time.NewTicker(30 * time.Second),
 	}
-	
+
 	// Start background flush process
 	go ma.flushLoop()
-	
+
 	return ma
 }
 
@@ -48,7 +48,7 @@ func NewMemoryAnalytics(store storage.VectorStore) *MemoryAnalytics {
 func (ma *MemoryAnalytics) RecordAccess(ctx context.Context, chunkID string) error {
 	ma.mu.Lock()
 	defer ma.mu.Unlock()
-	
+
 	metrics, exists := ma.accessCache[chunkID]
 	if !exists {
 		metrics = &AccessMetrics{
@@ -57,12 +57,12 @@ func (ma *MemoryAnalytics) RecordAccess(ctx context.Context, chunkID string) err
 		}
 		ma.accessCache[chunkID] = metrics
 	}
-	
+
 	metrics.mu.Lock()
 	metrics.AccessCount++
 	metrics.LastAccessed = time.Now()
 	metrics.mu.Unlock()
-	
+
 	return nil
 }
 
@@ -70,7 +70,7 @@ func (ma *MemoryAnalytics) RecordAccess(ctx context.Context, chunkID string) err
 func (ma *MemoryAnalytics) RecordUsage(ctx context.Context, chunkID string, successful bool) error {
 	ma.mu.Lock()
 	defer ma.mu.Unlock()
-	
+
 	metrics, exists := ma.accessCache[chunkID]
 	if !exists {
 		metrics = &AccessMetrics{
@@ -79,26 +79,26 @@ func (ma *MemoryAnalytics) RecordUsage(ctx context.Context, chunkID string, succ
 		}
 		ma.accessCache[chunkID] = metrics
 	}
-	
+
 	metrics.mu.Lock()
 	metrics.TotalUses++
 	if successful {
 		metrics.SuccessfulUses++
 	}
 	metrics.mu.Unlock()
-	
+
 	return nil
 }
 
 // CalculateEffectivenessScore calculates how effective a memory has been
 func (ma *MemoryAnalytics) CalculateEffectivenessScore(chunk *types.ConversationChunk) float64 {
 	score := 0.0
-	
+
 	// Get extended metadata
 	if chunk.Metadata.ExtendedMetadata == nil {
 		return 0.5 // Default neutral score
 	}
-	
+
 	// Factor 1: Success rate (40% weight)
 	successRate, hasSuccessRate := chunk.Metadata.ExtendedMetadata[types.EMKeySuccessRate].(float64)
 	if hasSuccessRate {
@@ -106,7 +106,7 @@ func (ma *MemoryAnalytics) CalculateEffectivenessScore(chunk *types.Conversation
 	} else {
 		score += 0.2 // Neutral if unknown
 	}
-	
+
 	// Factor 2: Access frequency (20% weight)
 	accessCount, hasAccessCount := chunk.Metadata.ExtendedMetadata[types.EMKeyAccessCount].(int)
 	if hasAccessCount {
@@ -116,7 +116,7 @@ func (ma *MemoryAnalytics) CalculateEffectivenessScore(chunk *types.Conversation
 	} else {
 		score += 0.1 // Neutral if unknown
 	}
-	
+
 	// Factor 3: Recency (20% weight)
 	lastAccessed, hasLastAccessed := chunk.Metadata.ExtendedMetadata[types.EMKeyLastAccessed].(string)
 	if hasLastAccessed {
@@ -131,7 +131,7 @@ func (ma *MemoryAnalytics) CalculateEffectivenessScore(chunk *types.Conversation
 		recencyScore := max(0, 1.0-daysSince/30.0)
 		score += recencyScore * 0.2
 	}
-	
+
 	// Factor 4: Problem resolution (20% weight)
 	switch chunk.Type {
 	case types.ChunkTypeSolution:
@@ -149,7 +149,7 @@ func (ma *MemoryAnalytics) CalculateEffectivenessScore(chunk *types.Conversation
 	case types.ChunkTypeDiscussion, types.ChunkTypeSessionSummary, types.ChunkTypeQuestion:
 		score += 0.1 // Neutral for conversational types
 	}
-	
+
 	return min(1.0, score)
 }
 
@@ -159,40 +159,40 @@ func (ma *MemoryAnalytics) UpdateChunkAnalytics(ctx context.Context, chunkID str
 	if err != nil {
 		return fmt.Errorf("failed to get chunk: %w", err)
 	}
-	
+
 	// Initialize extended metadata if needed
 	if chunk.Metadata.ExtendedMetadata == nil {
 		chunk.Metadata.ExtendedMetadata = make(map[string]interface{})
 	}
-	
+
 	// Get cached metrics
 	ma.mu.RLock()
 	metrics, exists := ma.accessCache[chunkID]
 	ma.mu.RUnlock()
-	
+
 	if exists {
 		metrics.mu.Lock()
-		
+
 		// Update access count
 		currentCount, _ := chunk.Metadata.ExtendedMetadata[types.EMKeyAccessCount].(int)
 		chunk.Metadata.ExtendedMetadata[types.EMKeyAccessCount] = currentCount + metrics.AccessCount
-		
+
 		// Update last accessed
 		chunk.Metadata.ExtendedMetadata[types.EMKeyLastAccessed] = metrics.LastAccessed.Format(time.RFC3339)
-		
+
 		// Update success rate
 		if metrics.TotalUses > 0 {
 			successRate := float64(metrics.SuccessfulUses) / float64(metrics.TotalUses)
 			chunk.Metadata.ExtendedMetadata[types.EMKeySuccessRate] = successRate
 		}
-		
+
 		metrics.mu.Unlock()
 	}
-	
+
 	// Calculate and update effectiveness score
 	effectivenessScore := ma.CalculateEffectivenessScore(chunk)
 	chunk.Metadata.ExtendedMetadata[types.EMKeyEffectivenessScore] = effectivenessScore
-	
+
 	// Update the chunk in storage
 	return ma.store.Update(ctx, *chunk)
 }
@@ -203,15 +203,15 @@ func (ma *MemoryAnalytics) MarkObsolete(ctx context.Context, chunkID string, rea
 	if err != nil {
 		return fmt.Errorf("failed to get chunk: %w", err)
 	}
-	
+
 	if chunk.Metadata.ExtendedMetadata == nil {
 		chunk.Metadata.ExtendedMetadata = make(map[string]interface{})
 	}
-	
+
 	chunk.Metadata.ExtendedMetadata[types.EMKeyIsObsolete] = true
 	chunk.Metadata.ExtendedMetadata[types.EMKeyArchivedAt] = time.Now().Format(time.RFC3339)
 	chunk.Metadata.ExtendedMetadata["obsolete_reason"] = reason
-	
+
 	return ma.store.Update(ctx, *chunk)
 }
 
@@ -222,24 +222,24 @@ func (ma *MemoryAnalytics) GetTopMemories(ctx context.Context, repository string
 	if err != nil {
 		return nil, fmt.Errorf("failed to search chunks: %w", err)
 	}
-	
+
 	// Calculate scores and sort
 	type scoredChunk struct {
 		chunk types.ConversationChunk
 		score float64
 	}
-	
+
 	scored := make([]scoredChunk, 0, len(chunks))
 	for _, chunk := range chunks {
 		// Skip obsolete chunks
 		if obsolete, ok := chunk.Metadata.ExtendedMetadata[types.EMKeyIsObsolete].(bool); ok && obsolete {
 			continue
 		}
-		
+
 		score := ma.CalculateEffectivenessScore(&chunk)
 		scored = append(scored, scoredChunk{chunk: chunk, score: score})
 	}
-	
+
 	// Sort by score descending
 	for i := 0; i < len(scored)-1; i++ {
 		for j := i + 1; j < len(scored); j++ {
@@ -248,13 +248,13 @@ func (ma *MemoryAnalytics) GetTopMemories(ctx context.Context, repository string
 			}
 		}
 	}
-	
+
 	// Return top N
 	result := make([]types.ConversationChunk, 0, limit)
 	for i := 0; i < len(scored) && i < limit; i++ {
 		result = append(result, scored[i].chunk)
 	}
-	
+
 	return result, nil
 }
 
@@ -268,7 +268,7 @@ func (ma *MemoryAnalytics) flushLoop() {
 // flush writes cached metrics to storage
 func (ma *MemoryAnalytics) flush() {
 	ctx := context.Background()
-	
+
 	ma.mu.Lock()
 	// Copy and clear cache
 	toFlush := make(map[string]*AccessMetrics)
@@ -277,7 +277,7 @@ func (ma *MemoryAnalytics) flush() {
 		delete(ma.accessCache, k)
 	}
 	ma.mu.Unlock()
-	
+
 	// Update each chunk
 	for chunkID := range toFlush {
 		if err := ma.UpdateChunkAnalytics(ctx, chunkID); err != nil {

@@ -4,9 +4,9 @@ package di
 import (
 	"context"
 	"fmt"
-	"os"
 	"mcp-memory/internal/analytics"
 	"mcp-memory/internal/audit"
+	"mcp-memory/internal/chains"
 	"mcp-memory/internal/chunking"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/embeddings"
@@ -14,8 +14,9 @@ import (
 	"mcp-memory/internal/persistence"
 	"mcp-memory/internal/relationships"
 	"mcp-memory/internal/storage"
+	"mcp-memory/internal/threading"
 	"mcp-memory/internal/workflow"
-	"mcp-memory/internal/chains"
+	"os"
 )
 
 const envValueTrue = "true"
@@ -34,9 +35,12 @@ type Container struct {
 	FlowDetector        *workflow.FlowDetector
 	PatternEngine       *intelligence.PatternEngine
 	GraphBuilder        *intelligence.GraphBuilder
+	MultiRepoEngine     *intelligence.MultiRepoEngine
 	ChainBuilder        *chains.ChainBuilder
 	ChainStore          chains.ChainStore
 	RelationshipManager *relationships.Manager
+	ThreadManager       *threading.ThreadManager
+	ThreadStore         threading.ThreadStore
 	MemoryAnalytics     *analytics.MemoryAnalytics
 	AuditLogger         *audit.AuditLogger
 }
@@ -64,7 +68,7 @@ func (c *Container) initializeStorage() error {
 	// Initialize vector store
 	var baseStore storage.VectorStore
 	var err error
-	
+
 	// Use pooled store if connection pooling is enabled
 	if usePooling := os.Getenv("CHROMA_USE_POOLING"); usePooling == envValueTrue {
 		baseStore, err = storage.NewPooledChromaStore(&c.Config.Chroma)
@@ -74,17 +78,17 @@ func (c *Container) initializeStorage() error {
 	} else {
 		baseStore = storage.NewChromaStore(&c.Config.Chroma)
 	}
-	
+
 	// Wrap with retry logic
 	retryStore := storage.NewRetryableVectorStore(baseStore, nil)
-	
+
 	// Wrap with circuit breaker if enabled
 	if useCircuitBreaker := os.Getenv("USE_CIRCUIT_BREAKER"); useCircuitBreaker == envValueTrue {
 		c.VectorStore = storage.NewCircuitBreakerVectorStore(retryStore, nil)
 	} else {
 		c.VectorStore = retryStore
 	}
-	
+
 	return nil
 }
 
@@ -92,10 +96,10 @@ func (c *Container) initializeStorage() error {
 func (c *Container) initializeServices() {
 	// Initialize embedding service
 	baseEmbedding := embeddings.NewOpenAIEmbeddingService(&c.Config.OpenAI)
-	
+
 	// Wrap with retry logic
 	retryEmbedding := embeddings.NewRetryableEmbeddingService(baseEmbedding, nil)
-	
+
 	// Wrap with circuit breaker if enabled
 	if useCircuitBreaker := os.Getenv("USE_CIRCUIT_BREAKER"); useCircuitBreaker == envValueTrue {
 		c.EmbeddingService = embeddings.NewCircuitBreakerEmbeddingService(retryEmbedding, nil)
@@ -112,14 +116,18 @@ func (c *Container) initializeServices() {
 		backupDir = "./backups"
 	}
 	c.BackupManager = persistence.NewBackupManager(nil, backupDir) // Note: VectorStore interface compatibility issue
-	
+
 	// Initialize relationship manager
 	c.RelationshipManager = relationships.NewManager()
-	
+
+	// Initialize threading components
+	c.ThreadStore = threading.NewInMemoryThreadStore()
+	c.ThreadManager = threading.NewThreadManager(c.ChainBuilder, c.RelationshipManager, c.ThreadStore)
+
 	// Initialize memory analytics
 	// Note: VectorStore interface compatibility issue - using nil for now
 	c.MemoryAnalytics = analytics.NewMemoryAnalytics(nil)
-	
+
 	// Initialize audit logger
 	auditDir := os.Getenv("MCP_MEMORY_AUDIT_DIRECTORY")
 	if auditDir == "" {
@@ -144,6 +152,9 @@ func (c *Container) initializeIntelligence() {
 
 	// Initialize learning engine
 	c.LearningEngine = intelligence.NewLearningEngine(c.PatternEngine, c.GraphBuilder)
+
+	// Initialize multi-repository engine
+	c.MultiRepoEngine = intelligence.NewMultiRepoEngine(c.PatternEngine, c.GraphBuilder, c.LearningEngine)
 }
 
 // initializeWorkflow sets up workflow components
@@ -162,7 +173,6 @@ func (c *Container) initializeWorkflow() {
 		c.FlowDetector,
 	)
 }
-
 
 // HealthCheck performs health checks on all services
 func (c *Container) HealthCheck(ctx context.Context) error {
@@ -185,12 +195,12 @@ func (c *Container) Shutdown() error {
 	if c.MemoryAnalytics != nil {
 		c.MemoryAnalytics.Stop()
 	}
-	
+
 	// Stop audit logger to flush pending logs
 	if c.AuditLogger != nil {
 		c.AuditLogger.Stop()
 	}
-	
+
 	if c.VectorStore != nil {
 		if err := c.VectorStore.Close(); err != nil {
 			return fmt.Errorf("failed to close vector store: %w", err)
@@ -259,4 +269,19 @@ func (c *Container) GetMemoryAnalytics() *analytics.MemoryAnalytics {
 // GetAuditLogger returns the audit logger instance
 func (c *Container) GetAuditLogger() *audit.AuditLogger {
 	return c.AuditLogger
+}
+
+// GetThreadManager returns the thread manager instance
+func (c *Container) GetThreadManager() *threading.ThreadManager {
+	return c.ThreadManager
+}
+
+// GetThreadStore returns the thread store instance
+func (c *Container) GetThreadStore() threading.ThreadStore {
+	return c.ThreadStore
+}
+
+// GetMultiRepoEngine returns the multi-repository engine instance
+func (c *Container) GetMultiRepoEngine() *intelligence.MultiRepoEngine {
+	return c.MultiRepoEngine
 }

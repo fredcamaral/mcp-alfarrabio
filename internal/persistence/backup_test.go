@@ -115,7 +115,7 @@ func createTestChunks() []types.ConversationChunk {
 func TestNewBackupManager(t *testing.T) {
 	tempDir := t.TempDir()
 	storage := NewMockVectorStorage()
-	
+
 	bm := NewBackupManager(storage, tempDir)
 	assert.NotNil(t, bm)
 	assert.Equal(t, tempDir, bm.GetBackupDir())
@@ -127,7 +127,7 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 	tempDir := t.TempDir()
 	storage := NewMockVectorStorage()
 	storage.chunks = createTestChunks()
-	
+
 	bm := NewBackupManager(storage, tempDir)
 
 	tests := []struct {
@@ -159,12 +159,12 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			metadata, err := bm.CreateBackup(ctx, tt.repository)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				return
 			}
-			
+
 			require.NoError(t, err)
 			assert.NotNil(t, metadata)
 			assert.Equal(t, tt.wantChunks, metadata.ChunkCount)
@@ -172,20 +172,20 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 			if tt.wantChunks > 0 {
 				assert.Greater(t, metadata.Size, int64(0))
 			}
-			
+
 			// Verify backup file exists
 			backupFile, ok := metadata.Metadata["backup_file"].(string)
 			assert.True(t, ok)
 			assert.FileExists(t, backupFile)
-			
+
 			// Verify metadata file exists
 			metadataFile := backupFile + ".meta.json"
 			assert.FileExists(t, metadataFile)
-			
+
 			// Verify metadata content
 			metadataData, err := os.ReadFile(metadataFile) //nolint:gosec // Test file in temp directory
 			require.NoError(t, err)
-			
+
 			var loadedMetadata BackupMetadata
 			err = json.Unmarshal(metadataData, &loadedMetadata)
 			require.NoError(t, err)
@@ -197,25 +197,25 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 func TestBackupManager_RestoreBackup(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
-	
+
 	// Create backup first
 	storage1 := NewMockVectorStorage()
 	storage1.chunks = createTestChunks()
 	bm1 := NewBackupManager(storage1, tempDir)
-	
+
 	metadata, err := bm1.CreateBackup(ctx, "test-repo")
 	require.NoError(t, err)
-	
+
 	backupFile, ok := metadata.Metadata["backup_file"].(string)
 	require.True(t, ok)
-	
+
 	// Test restore
 	storage2 := NewMockVectorStorage()
 	bm2 := NewBackupManager(storage2, tempDir)
-	
+
 	err = bm2.RestoreBackup(ctx, backupFile, false)
 	require.NoError(t, err)
-	
+
 	// Verify restored chunks
 	assert.Len(t, storage2.chunks, 2) // Only test-repo chunks
 	for _, chunk := range storage2.chunks {
@@ -285,21 +285,21 @@ func TestBackupManager_ListBackups(t *testing.T) {
 	storage := NewMockVectorStorage()
 	storage.chunks = createTestChunks()
 	bm := NewBackupManager(storage, tempDir)
-	
+
 	// Create multiple backups
 	_, err := bm.CreateBackup(ctx, "repo1")
 	require.NoError(t, err)
-	
+
 	time.Sleep(100 * time.Millisecond) // Ensure different timestamps
-	
+
 	_, err = bm.CreateBackup(ctx, "repo2")
 	require.NoError(t, err)
-	
+
 	// List backups
 	backups, err := bm.ListBackups()
 	require.NoError(t, err)
 	assert.Len(t, backups, 2)
-	
+
 	// Verify backup metadata
 	for _, backup := range backups {
 		assert.NotEmpty(t, backup.Version)
@@ -314,33 +314,33 @@ func TestBackupManager_CleanupOldBackups(t *testing.T) {
 	storage := NewMockVectorStorage()
 	storage.chunks = createTestChunks()
 	bm := NewBackupManager(storage, tempDir)
-	
+
 	// Set short retention for testing
 	bm.SetRetentionDays(0) // Cleanup immediately
-	
+
 	// Create backup
 	metadata, err := bm.CreateBackup(ctx, "test")
 	require.NoError(t, err)
-	
+
 	backupFile, ok := metadata.Metadata["backup_file"].(string)
 	require.True(t, ok)
 	metadataFile := backupFile + ".meta.json"
-	
+
 	// Verify files exist
 	assert.FileExists(t, backupFile)
 	assert.FileExists(t, metadataFile)
-	
+
 	// Modify creation time to make it old
 	oldTime := time.Now().AddDate(0, 0, -1)
 	metadata.CreatedAt = oldTime
 	metadataData, _ := json.Marshal(metadata)
 	err = os.WriteFile(metadataFile, metadataData, 0600)
 	require.NoError(t, err)
-	
+
 	// Run cleanup
 	err = bm.CleanupOldBackups()
 	require.NoError(t, err)
-	
+
 	// Verify files are removed
 	assert.NoFileExists(t, backupFile)
 	assert.NoFileExists(t, metadataFile)
@@ -350,27 +350,27 @@ func TestBackupManager_MigrateData(t *testing.T) {
 	ctx := context.Background()
 	tempDir := t.TempDir()
 	storage := NewMockVectorStorage()
-	
+
 	// Add chunks without summary (simulating v1.0)
 	chunks := createTestChunks()
 	for i := range chunks {
 		chunks[i].Summary = ""
 	}
 	storage.chunks = chunks
-	
+
 	bm := NewBackupManager(storage, tempDir)
-	
+
 	// Run migration from 1.1 to 2.0
 	err := bm.MigrateData(ctx, "1.1", "2.0")
 	require.NoError(t, err)
-	
+
 	// Verify migration applied
 	// Note: In real test, we'd verify the stored chunks have summaries
 	// For now, just verify no error and backup was created
 	backups, err := bm.ListBackups()
 	require.NoError(t, err)
 	assert.GreaterOrEqual(t, len(backups), 1)
-	
+
 	// Find pre-migration backup
 	found := false
 	for _, backup := range backups {
@@ -454,7 +454,7 @@ func TestBackupManager_VerifyIntegrity(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			storage.chunks = tt.chunks
 			err := bm.VerifyIntegrity(ctx)
-			
+
 			if tt.wantErr {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tt.errMsg)
@@ -468,7 +468,7 @@ func TestBackupManager_VerifyIntegrity(t *testing.T) {
 func TestBackupManager_CompressData(t *testing.T) {
 	ctx := context.Background()
 	storage := NewMockVectorStorage()
-	
+
 	// Create chunks with compressible content
 	chunks := []types.ConversationChunk{
 		{
@@ -489,13 +489,13 @@ func TestBackupManager_CompressData(t *testing.T) {
 		},
 	}
 	storage.chunks = chunks
-	
+
 	bm := NewBackupManager(storage, t.TempDir())
-	
+
 	// Run compression
 	err := bm.CompressData(ctx)
 	require.NoError(t, err)
-	
+
 	// Note: The actual compression in the code is simplistic
 	// In a real implementation, we'd verify the content is compressed
 }
@@ -519,9 +519,9 @@ func TestBackupManager_ErrorHandling(t *testing.T) {
 		storage.chunks = createTestChunks()
 		metadata, err := bm.CreateBackup(ctx, "")
 		require.NoError(t, err)
-		
+
 		backupFile, _ := metadata.Metadata["backup_file"].(string)
-		
+
 		// Make storage error on restore
 		storage.shouldError = true
 		err = bm.RestoreBackup(ctx, backupFile, false)
@@ -549,7 +549,7 @@ func TestBackupManager_PathSecurity(t *testing.T) {
 	maliciousRepo := "../../../etc/passwd"
 	metadata, err := bm.CreateBackup(ctx, maliciousRepo)
 	require.NoError(t, err)
-	
+
 	// Verify the path was cleaned
 	backupFile, _ := metadata.Metadata["backup_file"].(string)
 	assert.Contains(t, backupFile, filepath.Base(maliciousRepo))
@@ -561,7 +561,7 @@ func BenchmarkCreateBackup(b *testing.B) {
 	ctx := context.Background()
 	tempDir := b.TempDir()
 	storage := NewMockVectorStorage()
-	
+
 	// Create many chunks
 	for i := 0; i < 1000; i++ {
 		chunk := types.ConversationChunk{
@@ -578,9 +578,9 @@ func BenchmarkCreateBackup(b *testing.B) {
 		}
 		storage.chunks = append(storage.chunks, chunk)
 	}
-	
+
 	bm := NewBackupManager(storage, tempDir)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, err := bm.CreateBackup(ctx, "bench-repo")
@@ -595,21 +595,21 @@ func BenchmarkRestoreBackup(b *testing.B) {
 	tempDir := b.TempDir()
 	storage := NewMockVectorStorage()
 	storage.chunks = createTestChunks()
-	
+
 	bm := NewBackupManager(storage, tempDir)
-	
+
 	// Create backup once
 	metadata, err := bm.CreateBackup(ctx, "")
 	if err != nil {
 		b.Fatal(err)
 	}
 	backupFile, _ := metadata.Metadata["backup_file"].(string)
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		// Clear storage
 		storage.chunks = make([]types.ConversationChunk, 0)
-		
+
 		err := bm.RestoreBackup(ctx, backupFile, false)
 		if err != nil {
 			b.Fatal(err)

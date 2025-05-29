@@ -1,481 +1,250 @@
 # MCP Memory Server
 
-A high-performance Model Context Protocol (MCP) server that provides intelligent memory and context management for ANY AI application or client. Built with Go, it features advanced vector storage, pattern recognition, and contextual learning capabilities using Chroma vector database. Works seamlessly with Claude, VS Code Copilot, Continue, Cursor, and any MCP-compatible client.
+> **Smart memory for AI assistants** - A Model Context Protocol (MCP) server that remembers your conversations, learns from patterns, and provides intelligent context suggestions.
 
-## 📢 Important: MCP SDK Now Standalone
+Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any MCP-compatible AI client.
 
-The MCP Go implementation has been moved to a separate open-source project:
-- **GoMCP SDK**: [github.com/fredcamaral/gomcp-sdk](https://github.com/fredcamaral/gomcp-sdk)
+## 🚀 Quick Start (5 minutes)
 
-This allows the community to use the MCP SDK independently for building any MCP-compatible application.
+### Option 1: Docker (Recommended - Easiest)
 
-## 🚀 Features
-
-### Core Memory System
-- **Persistent Conversation Memory**: Store and retrieve conversation history across sessions
-- **Vector Similarity Search**: Find semantically similar conversations and contexts
-- **Hierarchical Memory Organization**: Project-based memory isolation and organization
-- **Intelligent Context Suggestions**: Proactive recommendations based on conversation patterns
-- **Web UI & GraphQL API**: Modern web interface for browsing memories with GraphQL API
-- **Memory Tracing**: Trace sessions and find related memories with visual timelines
-
-### Advanced Intelligence Layer
-- **Pattern Recognition**: Automatically detect conversation patterns and user preferences
-- **Knowledge Graph Construction**: Build semantic relationships between entities and concepts
-- **Learning & Adaptation**: Continuously improve suggestions based on user feedback
-- **Multi-Repository Intelligence**: Cross-project pattern detection and insights
-
-### Production-Ready Features
-- **Multi-Level Caching**: LRU/LFU/FIFO caching strategies for optimal performance
-- **Data Backup & Restore**: Automated backup with tar.gz compression and encryption
-- **Security & Access Control**: Repository-level permissions and AES-GCM encryption
-- **Health Monitoring**: Comprehensive health checks with Prometheus metrics
-- **Docker Containerization**: Production-ready containerization with multi-stage builds
-
-## 📋 Requirements
-
-- Go 1.21 or higher
-- Chroma vector database (required)
-- PostgreSQL 13+ (optional, for metadata storage)
-- Docker & Docker Compose (for containerized deployment)
-- Redis (optional, for distributed caching)
-- OpenAI API key (for embeddings generation)
-
-## 🛠️ Quick Start
-
-### Local Development
-
-1. **Clone the repository**
+1. **Clone and start everything:**
    ```bash
    git clone https://github.com/fredcamaral/mcp-memory.git
    cd mcp-memory
-   ```
-
-2. **Set up environment**
-   ```bash
    cp .env.example .env
-   # Edit .env to add your OPENAI_API_KEY and other configurations
+   # Edit .env and add your OPENAI_API_KEY
+   docker-compose up -d
    ```
 
-3. **Install dependencies**
+2. **Configure your AI client** (e.g., Claude Desktop):
+   
+   Add this to your `claude_desktop_config.json`:
+   ```json
+   {
+     "mcpServers": {
+       "memory": {
+         "type": "stdio",
+         "command": "docker",
+         "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory"]
+       }
+     }
+   }
+   ```
+
+3. **Test it!** 🎉
+   - Open your AI client (Claude Desktop, etc.)
+   - Ask it to store a memory: *"Please remember that I prefer TypeScript over JavaScript"*
+   - Later ask: *"What do you remember about my coding preferences?"*
+
+### Option 2: Local Development
+
+1. **Prerequisites:**
+   - Go 1.21+
+   - Docker (for Chroma database)
+   - OpenAI API key
+
+2. **Setup:**
    ```bash
-   go mod download
+   git clone https://github.com/fredcamaral/mcp-memory.git
+   cd mcp-memory
+   cp .env.example .env
+   # Edit .env and add your OPENAI_API_KEY
    ```
 
-4. **Start Chroma database**
+3. **Start the database:**
    ```bash
-   docker run -p 9000:8000 chromadb/chroma:latest run --path /data --host 0.0.0.0
+   docker run -d -p 8000:8000 --name chroma chromadb/chroma:latest
    ```
 
-5. **Run the MCP server (if using MCP tools)**
+4. **Run the MCP server:**
    ```bash
    go run cmd/server/main.go
    ```
 
-6. **Run the GraphQL server and Web UI**
-   ```bash
-   go run cmd/graphql/main.go
-   # Or use the binary:
-   # ./graphql
+5. **Configure your AI client:**
+   ```json
+   {
+     "mcpServers": {
+       "memory": {
+         "type": "stdio",
+         "command": "/path/to/mcp-memory/mcp-memory"
+       }
+     }
+   }
    ```
 
-7. **Access the Web UI**
-   - Open http://localhost:8082/ in your browser
-   - GraphQL playground: http://localhost:8082/graphql
-   - Health check: `curl http://localhost:8081/health`
+## 🎯 What Does This Do?
 
-### Docker Deployment
+**MCP Memory** transforms your AI assistant into a smart companion that:
 
-1. **Using Docker Compose (Recommended)**
-   ```bash
-   cp .env.example .env
-   # Edit .env to configure your environment
-   docker-compose up -d
-   ```
+- **📚 Remembers Everything**: Stores all your conversations and contexts across sessions
+- **🔍 Smart Search**: Finds relevant past conversations using AI-powered similarity search  
+- **🧠 Pattern Learning**: Recognizes your preferences, coding patterns, and decision-making
+- **💡 Proactive Suggestions**: Automatically suggests relevant context from your history
+- **🔄 Cross-Project Intelligence**: Learns patterns across all your repositories and projects
 
-2. **Using Docker directly**
-   ```bash
-   docker build -t mcp-memory .
-   docker run -p 8080:8080 -p 8081:8081 -p 8082:8082 \
-     -e OPENAI_API_KEY=your-api-key \
-     -e CHROMA_URL=http://chroma:8000 \
-     mcp-memory
-   ```
+## 🛠️ Configuration Files
 
-3. **Check deployment**
-   ```bash
-   curl http://localhost:8081/health
-   curl http://localhost:8082/metrics
-   ```
+### Claude Desktop Configuration
 
-## 📚 Documentation
+**Location:**
+- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
 
-All documentation is organized in the `docs/` directory. See the [Documentation Index](docs/README.md) for a complete overview.
-
-- [Development Setup](docs/DEV-HOT-RELOAD.md) - Hot reload development environment
-- [Deployment Guide](docs/DEPLOYMENT.md) - Production deployment instructions
-- [API Reference](docs/website/api-reference.md) - Complete API documentation
-- [Development Roadmap](docs/ROADMAP.md) - Current priorities and future plans
-- [Monitoring Setup](docs/MONITORING.md) - Observability and metrics configuration
-
-## 🔧 Configuration
-
-### Environment Variables
-
-See `.env.example` for a complete list of configuration options. Key variables include:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `OPENAI_API_KEY` | (required) | OpenAI API key for embeddings |
-| `CHROMA_URL` | `http://localhost:8000` | Chroma database URL |
-| `MCP_MEMORY_DATA_DIR` | `./data` | Data storage directory |
-| `MCP_MEMORY_LOG_LEVEL` | `info` | Logging level (debug, info, warn, error) |
-| `MCP_MEMORY_HTTP_PORT` | `8080` | Main MCP API port |
-| `MCP_MEMORY_HEALTH_PORT` | `8081` | Health check port |
-| `MCP_MEMORY_GRAPHQL_PORT` | `8082` | GraphQL API & Web UI port |
-| `MCP_MEMORY_METRICS_PORT` | `9090` | Prometheus metrics port |
-| `MCP_MEMORY_VECTOR_DIM` | `1536` | Vector dimension (OpenAI ada-002) |
-| `MCP_MEMORY_ENCRYPTION_ENABLED` | `false` | Enable data encryption |
-| `MCP_MEMORY_ACCESS_CONTROL_ENABLED` | `false` | Enable access control |
-| `MCP_MEMORY_CACHE_ENABLED` | `true` | Enable performance caching |
-
-### Configuration Files
-
-- **Development**: `configs/dev/config.yaml`
-- **Staging**: `configs/staging/config.yaml`
-- **Production**: `configs/production/config.yaml`
-- **Docker**: `configs/docker/config.yaml`
-
-## 📊 Monitoring & Observability
-
-### Health Checks
-- **Endpoint**: `http://localhost:8081/health`
-- **Liveness Probe**: Kubernetes-compatible health check
-- **Readiness Probe**: Service availability check
-
-### Metrics
-- **Endpoint**: `http://localhost:8082/metrics`
-- **Format**: Prometheus format
-- **Dashboards**: Pre-configured Grafana dashboards included
-
-### Logging
-- **Structured Logging**: JSON format for production
-- **Log Levels**: Debug, Info, Warn, Error
-- **Correlation IDs**: Request tracing support
-
-## 🔒 Security
-
-### Encryption
-- **Algorithm**: AES-GCM 256-bit encryption
-- **Key Derivation**: PBKDF2 with 100,000 iterations
-- **Scope**: Sensitive fields (API keys, passwords, tokens)
-
-### Access Control
-- **Repository-Level**: Isolated access per repository
-- **User Authentication**: Token-based authentication
-- **Permission System**: Read/Write/Admin permissions
-
-### Rate Limiting
-- **Default**: 60 requests per minute per user
-- **Burst**: 10 requests burst capacity
-- **Distributed**: Redis-backed rate limiting
-
-## 🌐 GraphQL API & Web UI
-
-### Web Interface
-Access the modern web UI at `http://localhost:8082/` to:
-- Browse and search memories
-- View memory details and metadata
-- Trace sessions with timeline visualization
-- Explore related memories with relationship graphs
-- Filter by repository, type, and time period
-
-### GraphQL API
-The GraphQL endpoint is available at `http://localhost:8082/graphql` with a built-in GraphiQL playground.
-
-#### Key Queries
-```graphql
-# Search memories
-query SearchMemories($input: MemoryQueryInput!) {
-  search(input: $input) {
-    chunks {
-      chunk { id content summary type timestamp }
-      score
+**Configuration:**
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "type": "stdio",
+      "command": "docker",
+      "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory"]
     }
   }
 }
-
-# Trace a session
-query TraceSession($sessionId: String!) {
-  traceSession(sessionId: $sessionId) {
-    id content type timestamp
-  }
-}
-
-# Find related memories
-query TraceRelated($chunkId: String!, $depth: Int) {
-  traceRelated(chunkId: $chunkId, depth: $depth) {
-    id content type timestamp
-  }
-}
 ```
 
-#### Key Mutations
-```graphql
-# Store a memory
-mutation StoreChunk($input: StoreChunkInput!) {
-  storeChunk(input: $input) {
-    id summary
+### VS Code with Continue
+
+Add to your Continue configuration:
+```json
+{
+  "models": [...],
+  "mcpServers": {
+    "memory": {
+      "type": "stdio",
+      "command": "docker",
+      "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory"]
+    }
   }
 }
 ```
 
-## 🚀 MCP Tools Reference (Legacy)
+### Environment Variables (.env file)
 
-**Note**: The MCP tools are still available but the GraphQL API is now the recommended interface for most use cases.
-
-The server implements the following MCP tools with the standardized naming convention:
-
-### Core Memory Tools
-
-#### `mcp__memory__store`
-Store a conversation or context in memory.
-```json
-{
-  "content": "User asked about implementing authentication",
-  "metadata": {
-    "type": "conversation",
-    "tags": ["auth", "security"],
-    "project": "my-app"
-  }
-}
-```
-
-#### `mcp__memory__search`
-Search for similar conversations or contexts using vector similarity.
-```json
-{
-  "query": "authentication implementation",
-  "limit": 10,
-  "threshold": 0.7,
-  "project": "my-app"
-}
-```
-
-#### `mcp__memory__list`
-List all stored memories with optional filtering.
-```json
-{
-  "project": "my-app",
-  "limit": 20,
-  "offset": 0
-}
-```
-
-#### `mcp__memory__delete`
-Delete specific memories by ID.
-```json
-{
-  "id": "memory-id-123"
-}
-```
-
-### Intelligence Tools
-
-#### `mcp__memory__suggest_related`
-Get AI-powered context suggestions based on current context.
-```json
-{
-  "current_context": "implementing user login",
-  "project": "my-app"
-}
-```
-
-#### `mcp__memory__analyze_patterns`
-Analyze conversation patterns and trends.
-```json
-{
-  "project": "my-app",
-  "time_range": "7d"
-}
-```
-
-### Advanced Tools
-
-#### `mcp__memory__export_project`
-Export all memory for a project.
-```json
-{
-  "project": "my-app",
-  "format": "json",
-  "include_vectors": false
-}
-```
-
-#### `mcp__memory__import_context`
-Import conversation context from external sources.
-```json
-{
-  "source": "file",
-  "data": "...",
-  "project": "my-app"
-}
-```
-
-#### `mcp__memory__get_stats`
-Get memory usage statistics.
-```json
-{
-  "project": "my-app"
-}
-```
-
-#### `mcp__memory__update_metadata`
-Update metadata for existing memories.
-```json
-{
-  "id": "memory-id-123",
-  "metadata": {
-    "tags": ["updated", "important"]
-  }
-}
-```
-
-## 🏗️ Development
-
-### Building from Source
 ```bash
-# Install dependencies
-go mod download
+# Required
+OPENAI_API_KEY=your-openai-api-key-here
 
-# Run tests
-go test ./...
-
-# Run tests with coverage
-go test -cover ./...
-
-# Run linting
-golangci-lint run
-
-# Build binary
-go build -o bin/mcp-memory cmd/server/main.go
-
-# Run with race detector
-go run -race cmd/server/main.go
+# Optional (defaults work for Docker setup)
+CHROMA_URL=http://chroma:8000
+MCP_MEMORY_DATA_DIR=./data
+MCP_MEMORY_LOG_LEVEL=info
 ```
 
-### Development Commands
+## 🌟 Key Features
+
+### Memory Tools Available to Your AI
+
+Once configured, your AI assistant automatically gets these powerful memory abilities:
+
+- **Store important moments**: `memory_store_chunk` - Save conversations, decisions, solutions
+- **Smart search**: `memory_search` - Find similar past conversations and contexts  
+- **Get context**: `memory_get_context` - Retrieve project overview and recent activity
+- **Find patterns**: `memory_get_patterns` - Identify recurring themes and solutions
+- **Health monitoring**: `memory_health_dashboard` - Track memory system effectiveness
+- **Intelligent decay**: `memory_decay_management` - Automatically summarize and archive old memories
+
+### Advanced Intelligence
+
+- **🧠 Conversation Flow Detection**: Recognizes when you're debugging, implementing, or planning
+- **🔗 Relationship Mapping**: Automatically links related memories and contexts
+- **📊 Pattern Recognition**: Learns your coding patterns, preferences, and decision-making
+- **💡 Smart Suggestions**: Proactively suggests relevant memories based on current context
+- **🗂️ Multi-Repository Support**: Works across all your projects with intelligent cross-referencing
+
+## 🔧 Troubleshooting
+
+### Common Issues
+
+**🔴 "Connection refused" or "Server not responding"**
 ```bash
-# Format code
-go fmt ./...
+# Check if containers are running
+docker-compose ps
 
-# Vet code
-go vet ./...
+# Check logs
+docker-compose logs mcp-memory-server
 
-# Generate mocks (if using mockgen)
-go generate ./...
-
-# Run specific tests
-go test -run TestFunctionName ./internal/...
-
-# Benchmark tests
-go test -bench=. ./...
+# Restart services
+docker-compose restart
 ```
 
-## 🐳 Docker
+**🔴 "OpenAI API errors"**
+- Check your API key in `.env` file
+- Verify you have credits in your OpenAI account
+- Check network connectivity
 
-### Multi-Stage Build
-- **Builder Stage**: Go compilation with optimizations
-- **Runtime Stage**: Alpine Linux minimal image
-- **Security**: Non-root user, minimal attack surface
-- **Size**: <50MB final image
-
-### Docker Compose Services
-- **mcp-memory**: Main MCP server application
-- **chroma**: Vector database for embeddings storage
-- **postgres**: Metadata database (optional)
-- **redis**: Distributed cache (optional)  
-- **prometheus**: Metrics collection
-- **grafana**: Metrics visualization with pre-built dashboards
-- **traefik**: Reverse proxy with automatic SSL
-
-## 📈 Performance
-
-### Benchmarks
-- **Memory Operations**: >10,000 ops/sec
-- **Vector Search**: <100ms p95 latency
-- **Concurrent Users**: 1,000+ simultaneous connections
-- **Memory Usage**: <500MB typical workload
-
-### Optimization Features
-- **Multi-Level Caching**: Memory, Query, and Vector caches
-- **Connection Pooling**: Database connection management
-- **Batch Processing**: Efficient bulk operations
-- **Graceful Degradation**: Fallback strategies
-
-## 🔄 Migration & Backup
-
-### Automatic Backups
-- **Schedule**: Configurable interval (default: 24h)
-- **Retention**: Configurable retention period (default: 30 days)
-- **Compression**: gzip compression to reduce storage
-- **Encryption**: Optional backup encryption
-
-### Manual Operations
+**🔴 "Memory not persisting"**
 ```bash
-# Create backup
-curl -X POST http://localhost:8080/api/backup
+# Check database connection
+docker-compose logs chroma
 
-# List backups
-curl http://localhost:8080/api/backups
-
-# Restore backup
-curl -X POST http://localhost:8080/api/restore \
-  -H "Content-Type: application/json" \
-  -d '{"backup_id": "backup-20241201-120000"}'
+# Verify data directory permissions
+ls -la ./data/
 ```
+
+### Checking if Everything Works
+
+1. **Test the server directly:**
+   ```bash
+   curl http://localhost:8081/health
+   ```
+
+2. **Browse the web interface:**
+   - Open http://localhost:8082 in your browser
+   - You should see the memory management dashboard
+
+3. **Test with your AI client:**
+   - Ask it to remember something: *"Please store that I work on the mcp-memory project"*
+   - Ask it to recall: *"What do you remember about my current projects?"*
+
+## 🎛️ Advanced Configuration
+
+### Production Deployment
+
+For production use, see the detailed configurations:
+- [Production Config](configs/production/config.yaml)
+- [Docker Deployment Guide](docs/DEPLOYMENT.md)
+- [Monitoring Setup](docs/MONITORING.md)
+
+### Custom Configuration
+
+```yaml
+# configs/custom/config.yaml
+storage:
+  chroma:
+    url: "http://your-chroma-instance:8000"
+    
+embeddings:
+  openai:
+    api_key: "${OPENAI_API_KEY}"
+    model: "text-embedding-ada-002"
+    
+security:
+  encryption:
+    enabled: true
+  access_control:
+    enabled: true
+```
+
+## 📚 More Information
+
+- **📖 [Full Documentation](docs/README.md)** - Complete guides and API reference
+- **🌐 [Web Interface](http://localhost:8082)** - Browse and manage memories
+- **📊 [GraphQL API](http://localhost:8082/graphql)** - Playground for advanced queries
+- **🔍 [Health Monitoring](http://localhost:8081/health)** - System status and metrics
 
 ## 🤝 Contributing
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'feat: add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-### Commit Convention
-- `feat:` New features
-- `fix:` Bug fixes  
-- `docs:` Documentation changes
-- `style:` Code style changes
-- `refactor:` Code refactoring
-- `test:` Test changes
-- `build:` Build system changes
+We welcome contributions! See [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- [Anthropic](https://www.anthropic.com/) for the Model Context Protocol specification
-- [Chroma](https://www.trychroma.com/) for the high-performance vector database
-- [OpenAI](https://openai.com/) for embedding model APIs
-- [Prometheus](https://prometheus.io/) & [Grafana](https://grafana.com/) communities for monitoring tools
-- Go community for excellent libraries and tooling
-
-## 📞 Support
-
-- **GitHub Issues**: [Report bugs and request features](https://github.com/fredcamaral/mcp-memory/issues)
-- **Documentation**: [Full documentation](https://github.com/fredcamaral/mcp-memory/wiki)
-- **Discord**: [Community support](https://discord.gg/mcp-memory)
-
-## 🔗 Related Projects
-
-- [MCP Specification](https://modelcontextprotocol.io/) - Official Model Context Protocol documentation
-- [chroma-go](https://github.com/amikos-tech/chroma-go) - Go client for Chroma vector database
-- [Claude Desktop](https://claude.ai/) - Desktop application with MCP support
+MIT License - see [LICENSE](LICENSE) file for details.
 
 ---
 
-**Made with ❤️ for the MCP ecosystem**
+**🚀 Ready to give your AI assistant a perfect memory?** Follow the Quick Start above and you'll be up and running in minutes!
+
+**Questions?** [Open an issue](https://github.com/fredcamaral/mcp-memory/issues) or check our [documentation](docs/README.md).

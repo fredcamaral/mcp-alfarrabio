@@ -11,7 +11,7 @@ import (
 )
 
 var (
-	ErrPoolClosed   = errors.New("pool is closed")
+	ErrPoolClosed    = errors.New("pool is closed")
 	ErrPoolExhausted = errors.New("pool is exhausted")
 	ErrInvalidConn   = errors.New("invalid connection")
 )
@@ -31,37 +31,37 @@ type Factory func(ctx context.Context) (Connection, error)
 
 // PoolConfig holds pool configuration
 type PoolConfig struct {
-	MaxSize         int           // Maximum number of connections
-	MinSize         int           // Minimum number of connections to maintain
-	MaxIdleTime     time.Duration // Maximum time a connection can be idle
-	MaxLifetime     time.Duration // Maximum lifetime of a connection
+	MaxSize             int           // Maximum number of connections
+	MinSize             int           // Minimum number of connections to maintain
+	MaxIdleTime         time.Duration // Maximum time a connection can be idle
+	MaxLifetime         time.Duration // Maximum lifetime of a connection
 	HealthCheckInterval time.Duration // How often to check connection health
 }
 
 // DefaultPoolConfig returns default pool configuration
 func DefaultPoolConfig() *PoolConfig {
 	return &PoolConfig{
-		MaxSize:         10,
-		MinSize:         2,
-		MaxIdleTime:     30 * time.Minute,
-		MaxLifetime:     2 * time.Hour,
+		MaxSize:             10,
+		MinSize:             2,
+		MaxIdleTime:         30 * time.Minute,
+		MaxLifetime:         2 * time.Hour,
 		HealthCheckInterval: 1 * time.Minute,
 	}
 }
 
 // pooledConn wraps a connection with metadata
 type pooledConn struct {
-	conn        Connection
-	createdAt   time.Time
-	lastUsedAt  time.Time
-	usageCount  int64
-	mu          sync.Mutex
+	conn       Connection
+	createdAt  time.Time
+	lastUsedAt time.Time
+	usageCount int64
+	mu         sync.Mutex
 }
 
 func (pc *pooledConn) isExpired(maxLifetime, maxIdleTime time.Duration) bool {
 	pc.mu.Lock()
 	defer pc.mu.Unlock()
-	
+
 	now := time.Now()
 	if maxLifetime > 0 && now.Sub(pc.createdAt) > maxLifetime {
 		return true
@@ -88,12 +88,12 @@ type ConnectionPool struct {
 	closed      int32
 	activeCount int32
 	waitCount   int32
-	
+
 	// Metrics
 	totalCreated   int64
 	totalDestroyed int64
 	totalErrors    int64
-	
+
 	// Health check
 	healthTicker *time.Ticker
 	healthDone   chan struct{}
@@ -105,25 +105,25 @@ func NewConnectionPool(config *PoolConfig, factory Factory) (*ConnectionPool, er
 	if config == nil {
 		config = DefaultPoolConfig()
 	}
-	
+
 	if config.MaxSize <= 0 {
 		return nil, errors.New("max size must be positive")
 	}
 	if config.MinSize < 0 || config.MinSize > config.MaxSize {
 		return nil, errors.New("invalid min size")
 	}
-	
+
 	pool := &ConnectionPool{
 		config:      config,
 		factory:     factory,
 		connections: make(chan *pooledConn, config.MaxSize),
 		healthDone:  make(chan struct{}),
 	}
-	
+
 	// Pre-create minimum connections
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-	
+
 	for i := 0; i < config.MinSize; i++ {
 		if err := pool.createConnection(ctx); err != nil {
 			// Clean up any created connections
@@ -131,14 +131,14 @@ func NewConnectionPool(config *PoolConfig, factory Factory) (*ConnectionPool, er
 			return nil, fmt.Errorf("failed to create initial connections: %w", err)
 		}
 	}
-	
+
 	// Start health check routine
 	if config.HealthCheckInterval > 0 {
 		pool.healthTicker = time.NewTicker(config.HealthCheckInterval)
 		pool.healthWg.Add(1)
 		go pool.healthCheckLoop()
 	}
-	
+
 	return pool, nil
 }
 
@@ -147,17 +147,17 @@ func (p *ConnectionPool) Get(ctx context.Context) (Connection, error) {
 	if atomic.LoadInt32(&p.closed) == 1 {
 		return nil, ErrPoolClosed
 	}
-	
+
 	atomic.AddInt32(&p.waitCount, 1)
 	defer atomic.AddInt32(&p.waitCount, -1)
-	
+
 	// Try to get an existing connection
 	select {
 	case pc := <-p.connections:
 		if pc == nil {
 			return nil, ErrInvalidConn
 		}
-		
+
 		// Check if connection is still valid
 		if pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) || !pc.conn.IsAlive() {
 			p.destroyConnection(pc)
@@ -167,11 +167,11 @@ func (p *ConnectionPool) Get(ctx context.Context) (Connection, error) {
 			}
 			return p.Get(ctx)
 		}
-		
+
 		pc.markUsed()
 		atomic.AddInt32(&p.activeCount, 1)
 		return &WrappedConn{pc: pc, pool: p}, nil
-		
+
 	default:
 		// No connection available, try to create one
 		currentSize := len(p.connections) + int(atomic.LoadInt32(&p.activeCount))
@@ -181,23 +181,23 @@ func (p *ConnectionPool) Get(ctx context.Context) (Connection, error) {
 			}
 			return p.Get(ctx)
 		}
-		
+
 		// Pool is at max size, wait for a connection
 		select {
 		case pc := <-p.connections:
 			if pc == nil {
 				return nil, ErrInvalidConn
 			}
-			
+
 			if pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) || !pc.conn.IsAlive() {
 				p.destroyConnection(pc)
 				return nil, ErrPoolExhausted
 			}
-			
+
 			pc.markUsed()
 			atomic.AddInt32(&p.activeCount, 1)
 			return &WrappedConn{pc: pc, pool: p}, nil
-			
+
 		case <-ctx.Done():
 			return nil, ctx.Err()
 		}
@@ -211,7 +211,7 @@ func (p *ConnectionPool) Put(conn Connection) error {
 	if !ok {
 		return ErrInvalidConn
 	}
-	
+
 	// If pool is closed, close the underlying connection directly
 	if atomic.LoadInt32(&p.closed) == 1 {
 		// Don't call wc.Close() to avoid infinite recursion
@@ -220,22 +220,22 @@ func (p *ConnectionPool) Put(conn Connection) error {
 		}
 		return ErrPoolClosed
 	}
-	
+
 	atomic.AddInt32(&p.activeCount, -1)
-	
+
 	// Reset the connection
 	if err := wc.pc.conn.Reset(); err != nil {
 		p.destroyConnection(wc.pc)
 		return nil
 	}
-	
+
 	// Check if we should keep this connection
 	currentSize := len(p.connections) + int(atomic.LoadInt32(&p.activeCount))
 	if currentSize > p.config.MaxSize {
 		p.destroyConnection(wc.pc)
 		return nil
 	}
-	
+
 	// Return to pool
 	select {
 	case p.connections <- wc.pc:
@@ -252,7 +252,7 @@ func (p *ConnectionPool) Close() error {
 	if !atomic.CompareAndSwapInt32(&p.closed, 0, 1) {
 		return nil // Already closed
 	}
-	
+
 	// Stop health check and wait for it to complete
 	if p.healthTicker != nil {
 		p.healthTicker.Stop()
@@ -260,7 +260,7 @@ func (p *ConnectionPool) Close() error {
 		// Wait for health check goroutine to exit
 		p.healthWg.Wait()
 	}
-	
+
 	// Close all connections
 	close(p.connections)
 	var lastErr error
@@ -269,7 +269,7 @@ func (p *ConnectionPool) Close() error {
 			lastErr = err
 		}
 	}
-	
+
 	return lastErr
 }
 
@@ -277,7 +277,7 @@ func (p *ConnectionPool) Close() error {
 func (p *ConnectionPool) Stats() PoolStats {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
-	
+
 	return PoolStats{
 		MaxSize:        p.config.MaxSize,
 		CurrentSize:    len(p.connections) + int(atomic.LoadInt32(&p.activeCount)),
@@ -297,13 +297,13 @@ func (p *ConnectionPool) createConnection(ctx context.Context) error {
 		atomic.AddInt64(&p.totalErrors, 1)
 		return fmt.Errorf("failed to create connection: %w", err)
 	}
-	
+
 	pc := &pooledConn{
 		conn:       conn,
 		createdAt:  time.Now(),
 		lastUsedAt: time.Now(),
 	}
-	
+
 	select {
 	case p.connections <- pc:
 		atomic.AddInt64(&p.totalCreated, 1)
@@ -320,7 +320,7 @@ func (p *ConnectionPool) destroyConnection(pc *pooledConn) {
 	if pc == nil || pc.conn == nil {
 		return
 	}
-	
+
 	if err := pc.conn.Close(); err != nil {
 		atomic.AddInt64(&p.totalErrors, 1)
 	}
@@ -355,19 +355,19 @@ func (p *ConnectionPool) performHealthCheck() {
 			goto checkConnections
 		}
 	}
-	
+
 checkConnections:
 	for _, pc := range toCheck {
 		// Check if connection should be destroyed
-		shouldDestroy := pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) || 
-			!pc.conn.IsAlive() || 
+		shouldDestroy := pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) ||
+			!pc.conn.IsAlive() ||
 			atomic.LoadInt32(&p.closed) == 1
-		
+
 		if shouldDestroy {
 			p.destroyConnection(pc)
 			continue
 		}
-		
+
 		// Try to put back healthy connection
 		select {
 		case p.connections <- pc:
@@ -377,7 +377,7 @@ checkConnections:
 			p.destroyConnection(pc)
 		}
 	}
-	
+
 	// Ensure minimum connections (only if pool is not closed)
 	if atomic.LoadInt32(&p.closed) == 0 {
 		currentSize := len(p.connections) + int(atomic.LoadInt32(&p.activeCount))
@@ -395,9 +395,9 @@ checkConnections:
 
 // WrappedConn wraps a pooled connection for safe return to pool
 type WrappedConn struct {
-	pc   *pooledConn
-	pool *ConnectionPool
-	mu   sync.Mutex
+	pc     *pooledConn
+	pool   *ConnectionPool
+	mu     sync.Mutex
 	closed bool
 }
 
@@ -418,7 +418,7 @@ func (wc *WrappedConn) Close() error {
 	}
 	wc.closed = true
 	wc.mu.Unlock()
-	
+
 	// Call Put without holding the lock to avoid deadlock
 	return wc.pool.Put(wc)
 }

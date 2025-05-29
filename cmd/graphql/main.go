@@ -31,7 +31,7 @@ func main() {
 	}
 	// Initialize services
 	ctx := context.Background()
-	
+
 	// Initialize vector store first
 	if err := container.GetVectorStore().Initialize(ctx); err != nil {
 		_ = container.Shutdown()
@@ -63,12 +63,12 @@ func main() {
 	mux := http.NewServeMux()
 	mux.Handle("/graphql", h)
 	mux.HandleFunc("/health", healthHandler(container))
-	
+
 	// Serve static files for web UI
 	staticDir := "./web/static"
 	fileServer := http.FileServer(http.Dir(staticDir))
 	mux.Handle("/static/", http.StripPrefix("/static/", fileServer))
-	
+
 	// Serve index.html at root
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/" {

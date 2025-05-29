@@ -25,28 +25,28 @@ const (
 
 // PerformanceMetric represents a performance measurement
 type PerformanceMetric struct {
-	Name        string                 `json:"name"`
-	Type        MetricType             `json:"type"`
-	Value       float64                `json:"value"`
-	Unit        string                 `json:"unit"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Context     map[string]any         `json:"context"`
-	Threshold   float64                `json:"threshold"`
-	IsHealthy   bool                   `json:"is_healthy"`
+	Name      string         `json:"name"`
+	Type      MetricType     `json:"type"`
+	Value     float64        `json:"value"`
+	Unit      string         `json:"unit"`
+	Timestamp time.Time      `json:"timestamp"`
+	Context   map[string]any `json:"context"`
+	Threshold float64        `json:"threshold"`
+	IsHealthy bool           `json:"is_healthy"`
 }
 
 // OptimizationRule represents a rule for optimization
 type OptimizationRule struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Condition   string                 `json:"condition"`
-	Action      string                 `json:"action"`
-	Parameters  map[string]any         `json:"parameters"`
-	Priority    int                    `json:"priority"`
-	IsActive    bool                   `json:"is_active"`
-	Enabled     bool                   `json:"enabled"`
-	LastApplied time.Time              `json:"last_applied"`
-	SuccessRate float64                `json:"success_rate"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Condition   string         `json:"condition"`
+	Action      string         `json:"action"`
+	Parameters  map[string]any `json:"parameters"`
+	Priority    int            `json:"priority"`
+	IsActive    bool           `json:"is_active"`
+	Enabled     bool           `json:"enabled"`
+	LastApplied time.Time      `json:"last_applied"`
+	SuccessRate float64        `json:"success_rate"`
 }
 
 // CacheConfig represents cache configuration
@@ -59,44 +59,44 @@ type CacheConfig struct {
 
 // Cache represents a simple in-memory cache
 type Cache struct {
-	data       map[string]*CacheItem
-	mutex      sync.RWMutex
-	config     CacheConfig
-	hits       int64
-	misses     int64
-	evictions  int64
+	data      map[string]*CacheItem
+	mutex     sync.RWMutex
+	config    CacheConfig
+	hits      int64
+	misses    int64
+	evictions int64
 }
 
 // CacheItem represents an item in the cache
 type CacheItem struct {
-	Key        string      `json:"key"`
-	Value      any         `json:"value"`
-	CreatedAt  time.Time   `json:"created_at"`
-	AccessedAt time.Time   `json:"accessed_at"`
-	AccessCount int64      `json:"access_count"`
-	Size       int         `json:"size"`
+	Key         string    `json:"key"`
+	Value       any       `json:"value"`
+	CreatedAt   time.Time `json:"created_at"`
+	AccessedAt  time.Time `json:"accessed_at"`
+	AccessCount int64     `json:"access_count"`
+	Size        int       `json:"size"`
 }
 
 // PerformanceOptimizer manages performance optimizations
 type PerformanceOptimizer struct {
 	// Caches
-	vectorCache   *Cache
-	patternCache  *Cache
-	queryCache    *Cache
-	
+	vectorCache  *Cache
+	patternCache *Cache
+	queryCache   *Cache
+
 	// Metrics
-	metrics       map[string]*PerformanceMetric
-	metricsMutex  sync.RWMutex
-	
+	metrics      map[string]*PerformanceMetric
+	metricsMutex sync.RWMutex
+
 	// Optimization rules
-	rules         map[string]*OptimizationRule
-	rulesMutex    sync.RWMutex
-	
+	rules      map[string]*OptimizationRule
+	rulesMutex sync.RWMutex
+
 	// Configuration
-	enabled           bool
-	metricsInterval   time.Duration
-	optimizeInterval  time.Duration
-	
+	enabled          bool
+	metricsInterval  time.Duration
+	optimizeInterval time.Duration
+
 	// State
 	lastOptimization  time.Time
 	optimizationCount int64
@@ -104,32 +104,32 @@ type PerformanceOptimizer struct {
 
 // BatchProcessor handles batch operations for better performance
 type BatchProcessor struct {
-	batchSize    int
+	batchSize     int
 	flushInterval time.Duration
-	queue        []BatchItem
-	queueMutex   sync.Mutex
-	processor    func([]BatchItem) error
-	lastFlush    time.Time
+	queue         []BatchItem
+	queueMutex    sync.Mutex
+	processor     func([]BatchItem) error
+	lastFlush     time.Time
 }
 
 // BatchItem represents an item in a batch
 type BatchItem struct {
-	ID        string      `json:"id"`
-	Type      string      `json:"type"`
-	Data      any         `json:"data"`
-	Timestamp time.Time   `json:"timestamp"`
+	ID        string    `json:"id"`
+	Type      string    `json:"type"`
+	Data      any       `json:"data"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // ConnectionPool manages database connections efficiently
 type ConnectionPool struct {
-	connections   []any
-	available     chan any
-	mutex         sync.Mutex
-	maxSize       int
-	currentSize   int
-	created       int64
-	borrowed      int64
-	returned      int64
+	connections []any
+	available   chan any
+	mutex       sync.Mutex
+	maxSize     int
+	currentSize int
+	created     int64
+	borrowed    int64
+	returned    int64
 }
 
 // NewPerformanceOptimizer creates a new performance optimizer
@@ -151,10 +151,10 @@ func NewPerformanceOptimizer() *PerformanceOptimizer {
 // NewCache creates a new cache with the given configuration
 func NewCache(config CacheConfig) *Cache {
 	return &Cache{
-		data:   make(map[string]*CacheItem),
-		config: config,
-		hits:   0,
-		misses: 0,
+		data:      make(map[string]*CacheItem),
+		config:    config,
+		hits:      0,
+		misses:    0,
 		evictions: 0,
 	}
 }
@@ -164,16 +164,16 @@ func (c *Cache) Get(key string) (any, bool) {
 	if !c.config.Enabled {
 		return nil, false
 	}
-	
+
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	
+
 	item, exists := c.data[key]
 	if !exists {
 		c.misses++
 		return nil, false
 	}
-	
+
 	// Check TTL
 	if time.Since(item.CreatedAt) > c.config.TTL {
 		c.mutex.RUnlock()
@@ -184,12 +184,12 @@ func (c *Cache) Get(key string) (any, bool) {
 		c.misses++
 		return nil, false
 	}
-	
+
 	// Update access information
 	item.AccessedAt = time.Now()
 	item.AccessCount++
 	c.hits++
-	
+
 	return item.Value, true
 }
 
@@ -198,15 +198,15 @@ func (c *Cache) Set(key string, value any) {
 	if !c.config.Enabled {
 		return
 	}
-	
+
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	// Check if we need to evict items
 	if len(c.data) >= c.config.MaxSize {
 		c.evict()
 	}
-	
+
 	c.data[key] = &CacheItem{
 		Key:         key,
 		Value:       value,
@@ -221,7 +221,7 @@ func (c *Cache) Set(key string, value any) {
 func (c *Cache) Delete(key string) {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	delete(c.data, key)
 }
 
@@ -229,7 +229,7 @@ func (c *Cache) Delete(key string) {
 func (c *Cache) Clear() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	c.data = make(map[string]*CacheItem)
 	c.hits = 0
 	c.misses = 0
@@ -240,21 +240,21 @@ func (c *Cache) Clear() {
 func (c *Cache) GetStats() map[string]any {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	
+
 	total := c.hits + c.misses
 	hitRate := 0.0
 	if total > 0 {
 		hitRate = float64(c.hits) / float64(total)
 	}
-	
+
 	return map[string]any{
-		"size":       len(c.data),
-		"max_size":   c.config.MaxSize,
-		"hits":       c.hits,
-		"misses":     c.misses,
-		"hit_rate":   hitRate,
-		"evictions":  c.evictions,
-		"enabled":    c.config.Enabled,
+		"size":      len(c.data),
+		"max_size":  c.config.MaxSize,
+		"hits":      c.hits,
+		"misses":    c.misses,
+		"hit_rate":  hitRate,
+		"evictions": c.evictions,
+		"enabled":   c.config.Enabled,
 	}
 }
 
@@ -263,7 +263,7 @@ func (c *Cache) evict() {
 	if len(c.data) == 0 {
 		return
 	}
-	
+
 	switch c.config.EvictionPolicy {
 	case "lru":
 		c.evictLRU()
@@ -274,21 +274,21 @@ func (c *Cache) evict() {
 	default:
 		c.evictLRU()
 	}
-	
+
 	c.evictions++
 }
 
 func (c *Cache) evictLRU() {
 	var oldestKey string
 	oldestTime := time.Now()
-	
+
 	for key, item := range c.data {
 		if item.AccessedAt.Before(oldestTime) {
 			oldestTime = item.AccessedAt
 			oldestKey = key
 		}
 	}
-	
+
 	if oldestKey != "" {
 		delete(c.data, oldestKey)
 	}
@@ -297,14 +297,14 @@ func (c *Cache) evictLRU() {
 func (c *Cache) evictLFU() {
 	var lfuKey string
 	var minAccess int64 = -1
-	
+
 	for key, item := range c.data {
 		if minAccess == -1 || item.AccessCount < minAccess {
 			minAccess = item.AccessCount
 			lfuKey = key
 		}
 	}
-	
+
 	if lfuKey != "" {
 		delete(c.data, lfuKey)
 	}
@@ -313,14 +313,14 @@ func (c *Cache) evictLFU() {
 func (c *Cache) evictFIFO() {
 	var oldestKey string
 	oldestTime := time.Now()
-	
+
 	for key, item := range c.data {
 		if item.CreatedAt.Before(oldestTime) {
 			oldestTime = item.CreatedAt
 			oldestKey = key
 		}
 	}
-	
+
 	if oldestKey != "" {
 		delete(c.data, oldestKey)
 	}
@@ -343,10 +343,10 @@ func (po *PerformanceOptimizer) RecordMetric(metric PerformanceMetric) {
 	if !po.enabled {
 		return
 	}
-	
+
 	metric.Timestamp = time.Now()
 	metric.IsHealthy = metric.Value <= metric.Threshold
-	
+
 	po.metricsMutex.Lock()
 	po.metrics[metric.Name] = &metric
 	po.metricsMutex.Unlock()
@@ -356,12 +356,12 @@ func (po *PerformanceOptimizer) RecordMetric(metric PerformanceMetric) {
 func (po *PerformanceOptimizer) GetMetrics() map[string]*PerformanceMetric {
 	po.metricsMutex.RLock()
 	defer po.metricsMutex.RUnlock()
-	
+
 	result := make(map[string]*PerformanceMetric)
 	for k, v := range po.metrics {
 		result[k] = v
 	}
-	
+
 	return result
 }
 
@@ -369,7 +369,7 @@ func (po *PerformanceOptimizer) GetMetrics() map[string]*PerformanceMetric {
 func (po *PerformanceOptimizer) AddOptimizationRule(rule OptimizationRule) {
 	po.rulesMutex.Lock()
 	defer po.rulesMutex.Unlock()
-	
+
 	rule.Enabled = true
 	rule.IsActive = true
 	po.rules[rule.ID] = &rule
@@ -380,7 +380,7 @@ func (po *PerformanceOptimizer) ApplyOptimizations(ctx context.Context) error {
 	if !po.enabled || time.Since(po.lastOptimization) < po.optimizeInterval {
 		return nil
 	}
-	
+
 	po.rulesMutex.RLock()
 	var applicableRules []*OptimizationRule
 	for _, rule := range po.rules {
@@ -389,23 +389,23 @@ func (po *PerformanceOptimizer) ApplyOptimizations(ctx context.Context) error {
 		}
 	}
 	po.rulesMutex.RUnlock()
-	
+
 	// Sort by priority
 	sort.Slice(applicableRules, func(i, j int) bool {
 		return applicableRules[i].Priority > applicableRules[j].Priority
 	})
-	
+
 	// Apply rules
 	for _, rule := range applicableRules {
 		err := po.applyRule(ctx, rule)
 		if err != nil {
 			continue // Log error in production
 		}
-		
+
 		rule.LastApplied = time.Now()
 		po.optimizationCount++
 	}
-	
+
 	po.lastOptimization = time.Now()
 	return nil
 }
@@ -438,7 +438,7 @@ func (po *PerformanceOptimizer) GetQueryCache() *Cache {
 func (po *PerformanceOptimizer) OptimizeQueries(ctx context.Context) error {
 	// Clear old cache entries
 	po.cleanupCaches()
-	
+
 	// Optimize vector searches
 	return po.optimizeVectorSearches(ctx)
 }
@@ -448,7 +448,7 @@ func (po *PerformanceOptimizer) OptimizeQueries(ctx context.Context) error {
 func (po *PerformanceOptimizer) ruleApplies(rule *OptimizationRule) bool {
 	po.metricsMutex.RLock()
 	defer po.metricsMutex.RUnlock()
-	
+
 	// Simple rule evaluation - in production, use a more sophisticated engine
 	switch rule.Condition {
 	case "high_latency":
@@ -465,7 +465,7 @@ func (po *PerformanceOptimizer) ruleApplies(rule *OptimizationRule) bool {
 			return metric.Value > metric.Threshold
 		}
 	}
-	
+
 	return false
 }
 
@@ -485,14 +485,14 @@ func (po *PerformanceOptimizer) applyRule(ctx context.Context, rule *Optimizatio
 	case "optimize_queries":
 		return po.OptimizeQueries(ctx)
 	}
-	
+
 	return fmt.Errorf("unknown optimization action: %s", rule.Action)
 }
 
 func (po *PerformanceOptimizer) cleanupCaches() {
 	// Clean up expired entries in all caches
 	caches := []*Cache{po.vectorCache, po.patternCache, po.queryCache}
-	
+
 	for _, cache := range caches {
 		cache.mutex.Lock()
 		for key, item := range cache.data {
@@ -522,10 +522,10 @@ func NewBatchProcessor(batchSize int, flushInterval time.Duration, processor fun
 		processor:     processor,
 		lastFlush:     time.Now(),
 	}
-	
+
 	// Start background flusher
 	go bp.backgroundFlush()
-	
+
 	return bp
 }
 
@@ -533,14 +533,14 @@ func NewBatchProcessor(batchSize int, flushInterval time.Duration, processor fun
 func (bp *BatchProcessor) Add(item BatchItem) error {
 	bp.queueMutex.Lock()
 	defer bp.queueMutex.Unlock()
-	
+
 	bp.queue = append(bp.queue, item)
-	
+
 	// Flush if batch is full
 	if len(bp.queue) >= bp.batchSize {
 		return bp.flush()
 	}
-	
+
 	return nil
 }
 
@@ -548,7 +548,7 @@ func (bp *BatchProcessor) Add(item BatchItem) error {
 func (bp *BatchProcessor) Flush() error {
 	bp.queueMutex.Lock()
 	defer bp.queueMutex.Unlock()
-	
+
 	return bp.flush()
 }
 
@@ -556,19 +556,19 @@ func (bp *BatchProcessor) flush() error {
 	if len(bp.queue) == 0 {
 		return nil
 	}
-	
+
 	items := make([]BatchItem, len(bp.queue))
 	copy(items, bp.queue)
 	bp.queue = bp.queue[:0] // Clear queue
 	bp.lastFlush = time.Now()
-	
+
 	return bp.processor(items)
 }
 
 func (bp *BatchProcessor) backgroundFlush() {
 	ticker := time.NewTicker(bp.flushInterval)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		bp.queueMutex.Lock()
 		if len(bp.queue) > 0 && time.Since(bp.lastFlush) >= bp.flushInterval {
@@ -600,7 +600,7 @@ func (cp *ConnectionPool) Get() (any, error) {
 	default:
 		cp.mutex.Lock()
 		defer cp.mutex.Unlock()
-		
+
 		if cp.currentSize < cp.maxSize {
 			// Create new connection (placeholder)
 			conn := fmt.Sprintf("connection_%d", cp.created)
@@ -610,7 +610,7 @@ func (cp *ConnectionPool) Get() (any, error) {
 			cp.borrowed++
 			return conn, nil
 		}
-		
+
 		return nil, fmt.Errorf("connection pool exhausted")
 	}
 }
@@ -629,7 +629,7 @@ func (cp *ConnectionPool) Put(conn any) {
 func (cp *ConnectionPool) GetStats() map[string]any {
 	cp.mutex.Lock()
 	defer cp.mutex.Unlock()
-	
+
 	return map[string]any{
 		"max_size":     cp.maxSize,
 		"current_size": cp.currentSize,
@@ -643,12 +643,12 @@ func (cp *ConnectionPool) GetStats() map[string]any {
 // GetPerformanceReport generates a comprehensive performance report
 func (po *PerformanceOptimizer) GetPerformanceReport() map[string]any {
 	report := make(map[string]any)
-	
+
 	// Basic stats
 	report["enabled"] = po.enabled
 	report["last_optimization"] = po.lastOptimization
 	report["optimization_count"] = po.optimizationCount
-	
+
 	// Metrics summary
 	po.metricsMutex.RLock()
 	healthyMetrics := 0
@@ -659,15 +659,15 @@ func (po *PerformanceOptimizer) GetPerformanceReport() map[string]any {
 		}
 	}
 	po.metricsMutex.RUnlock()
-	
+
 	report["metrics_health_rate"] = 0.0
 	if totalMetrics > 0 {
 		report["metrics_health_rate"] = float64(healthyMetrics) / float64(totalMetrics)
 	}
-	
+
 	// Cache performance
 	report["cache_stats"] = po.GetCacheStats()
-	
+
 	// Active rules
 	po.rulesMutex.RLock()
 	activeRules := 0
@@ -677,10 +677,10 @@ func (po *PerformanceOptimizer) GetPerformanceReport() map[string]any {
 		}
 	}
 	po.rulesMutex.RUnlock()
-	
+
 	report["active_rules"] = activeRules
 	report["total_rules"] = len(po.rules)
-	
+
 	return report
 }
 

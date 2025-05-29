@@ -3,8 +3,8 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"mcp-memory/internal/logging"
 	"github.com/fredcamaral/gomcp-sdk/protocol"
+	"mcp-memory/internal/logging"
 )
 
 // MCPToolExecutor provides a way to execute MCP tools for testing and demonstration
@@ -22,7 +22,7 @@ func NewMCPToolExecutor(server *MemoryServer) *MCPToolExecutor {
 // ExecuteTool executes a named MCP tool with given parameters
 func (executor *MCPToolExecutor) ExecuteTool(ctx context.Context, toolName string, params map[string]interface{}) (interface{}, error) {
 	logging.Info("MCP EXECUTOR: Executing tool", "tool_name", toolName, "params", params)
-	
+
 	// Create an MCP tools/call request
 	req := &protocol.JSONRPCRequest{
 		JSONRPC: "2.0",
@@ -35,12 +35,12 @@ func (executor *MCPToolExecutor) ExecuteTool(ctx context.Context, toolName strin
 	}
 
 	logging.Info("MCP EXECUTOR: Sending request to server", "method", req.Method, "tool_name", toolName)
-	
+
 	// Handle the request using our MCP server
 	response := executor.server.mcpServer.HandleRequest(ctx, req)
-	
+
 	logging.Info("MCP EXECUTOR: Received response", "has_error", response.Error != nil, "tool_name", toolName)
-	
+
 	if response.Error != nil {
 		logging.Error("MCP EXECUTOR: Tool execution failed", "error", response.Error.Message, "code", response.Error.Code, "tool_name", toolName)
 		return nil, fmt.Errorf("tool execution failed: %s", response.Error.Message)
@@ -61,7 +61,7 @@ func (executor *MCPToolExecutor) ListAvailableTools() []string {
 
 	// Handle the request using our MCP server
 	response := executor.server.mcpServer.HandleRequest(context.Background(), req)
-	
+
 	if response.Error != nil {
 		return []string{}
 	}
@@ -103,16 +103,16 @@ func (executor *MCPToolExecutor) GetToolInfo(toolName string) map[string]interfa
 // getToolDescription returns a description for each tool
 func getToolDescription(toolName string) string {
 	descriptions := map[string]string{
-		"mcp__memory__memory_store_chunk":      "Store a conversation chunk in memory with automatic analysis and embedding generation",
-		"mcp__memory__memory_search":           "Search for similar conversation chunks using semantic similarity",
-		"mcp__memory__memory_get_context":      "Get conversation context and recent activity for a repository",
-		"mcp__memory__memory_find_similar":     "Find similar past problems and solutions",
-		"mcp__memory__memory_store_decision":   "Store an architectural decision with rationale",
-		"mcp__memory__memory_get_patterns":     "Identify recurring patterns in project history",
-		"mcp__memory__memory_health":           "Check the health status of the memory system",
-		"mcp__memory__memory_suggest_related":  "Get AI-powered suggestions for related context based on current work",
-		"mcp__memory__memory_export_project":   "Export all memory data for a project in various formats",
-		"mcp__memory__memory_import_context":   "Import conversation context from external source",
+		"mcp__memory__memory_store_chunk":     "Store a conversation chunk in memory with automatic analysis and embedding generation",
+		"mcp__memory__memory_search":          "Search for similar conversation chunks using semantic similarity",
+		"mcp__memory__memory_get_context":     "Get conversation context and recent activity for a repository",
+		"mcp__memory__memory_find_similar":    "Find similar past problems and solutions",
+		"mcp__memory__memory_store_decision":  "Store an architectural decision with rationale",
+		"mcp__memory__memory_get_patterns":    "Identify recurring patterns in project history",
+		"mcp__memory__memory_health":          "Check the health status of the memory system",
+		"mcp__memory__memory_suggest_related": "Get AI-powered suggestions for related context based on current work",
+		"mcp__memory__memory_export_project":  "Export all memory data for a project in various formats",
+		"mcp__memory__memory_import_context":  "Import conversation context from external source",
 	}
 
 	if desc, exists := descriptions[toolName]; exists {
@@ -135,11 +135,11 @@ func (executor *MCPToolExecutor) DemoAllTools(ctx context.Context) map[string]in
 
 	// Demo memory_suggest_related
 	suggestParams := map[string]interface{}{
-		"current_context":   "I'm working on implementing authentication for my web application",
-		"repository":        "demo-project",
-		"max_suggestions":   float64(3),
-		"include_patterns":  true,
-		"session_id":        "demo-session-001",
+		"current_context":  "I'm working on implementing authentication for my web application",
+		"repository":       "demo-project",
+		"max_suggestions":  float64(3),
+		"include_patterns": true,
+		"session_id":       "demo-session-001",
 	}
 	suggestResult, err := executor.ExecuteTool(ctx, "mcp__memory__memory_suggest_related", suggestParams)
 	if err != nil {
@@ -150,10 +150,10 @@ func (executor *MCPToolExecutor) DemoAllTools(ctx context.Context) map[string]in
 
 	// Demo memory_export_project
 	exportParams := map[string]interface{}{
-		"repository":       "demo-project",
-		"format":           "json",
-		"include_vectors":  false,
-		"session_id":       "demo-session-001",
+		"repository":      "demo-project",
+		"format":          "json",
+		"include_vectors": false,
+		"session_id":      "demo-session-001",
 	}
 	exportResult, err := executor.ExecuteTool(ctx, "mcp__memory__memory_export_project", exportParams)
 	if err != nil {

@@ -14,12 +14,12 @@ import (
 
 // ShutdownManager handles graceful shutdown of the application
 type ShutdownManager struct {
-	logger       logging.Logger
-	timeout      time.Duration
+	logger        logging.Logger
+	timeout       time.Duration
 	shutdownFuncs []ShutdownFunc
-	mutex        sync.RWMutex
-	shutdownChan chan os.Signal
-	done         chan struct{}
+	mutex         sync.RWMutex
+	shutdownChan  chan os.Signal
+	done          chan struct{}
 }
 
 // ShutdownFunc represents a function to be called during shutdown
@@ -35,11 +35,11 @@ func NewShutdownManager(logger logging.Logger, timeout time.Duration) *ShutdownM
 	signal.Notify(shutdownChan, syscall.SIGINT, syscall.SIGTERM)
 
 	return &ShutdownManager{
-		logger:       logger,
-		timeout:      timeout,
+		logger:        logger,
+		timeout:       timeout,
 		shutdownFuncs: make([]ShutdownFunc, 0),
-		shutdownChan: shutdownChan,
-		done:         make(chan struct{}),
+		shutdownChan:  shutdownChan,
+		done:          make(chan struct{}),
 	}
 }
 
@@ -165,10 +165,10 @@ func (sh *ShutdownHook) CreateResourceCleanup(name string, cleanup func() error)
 func (sh *ShutdownHook) CreateAsyncWorkerShutdown(name string, stopChan chan<- struct{}, doneChan <-chan struct{}) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
 		sh.logger.Info("Stopping async worker", "name", name)
-		
+
 		// Signal worker to stop
 		close(stopChan)
-		
+
 		// Wait for worker to finish or timeout
 		select {
 		case <-doneChan:
@@ -184,16 +184,16 @@ func (sh *ShutdownHook) CreateAsyncWorkerShutdown(name string, stopChan chan<- s
 func (sh *ShutdownHook) CreateConnectionPoolShutdown(name string, pool interface{}) func(ctx context.Context) error {
 	return func(ctx context.Context) error {
 		sh.logger.Info("Draining connection pool", "name", name)
-		
+
 		// Try common connection pool interfaces
 		if drainer, ok := pool.(interface{ Drain() error }); ok {
 			return drainer.Drain()
 		}
-		
+
 		if closer, ok := pool.(interface{ Close() error }); ok {
 			return closer.Close()
 		}
-		
+
 		return fmt.Errorf("connection pool does not implement Drain or Close method")
 	}
 }

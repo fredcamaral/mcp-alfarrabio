@@ -8,34 +8,34 @@ type ExtendedMetadataKeys struct {
 	GitBranch        string
 	GitCommit        string
 	ProjectType      string
-	
+
 	// Client Context
 	ClientType    string
 	ClientVersion string
 	Platform      string
 	Environment   map[string]string
-	
+
 	// Enhanced Metadata
-	LanguageVersions   map[string]string
-	Dependencies       map[string]string
-	ErrorSignatures    []string
-	StackTraces        []string
-	CommandResults     []CommandResult
-	FileOperations     []FileOperation
-	
+	LanguageVersions map[string]string
+	Dependencies     map[string]string
+	ErrorSignatures  []string
+	StackTraces      []string
+	CommandResults   []CommandResult
+	FileOperations   []FileOperation
+
 	// Relationships
-	ParentChunkID      string
-	ChildChunkIDs      []string
-	RelatedChunkIDs    []string
-	SupersededByID     string
-	SupersedesID       string
-	
+	ParentChunkID   string
+	ChildChunkIDs   []string
+	RelatedChunkIDs []string
+	SupersededByID  string
+	SupersedesID    string
+
 	// Search & Analytics
 	AutoTags           []string
 	ProblemDomain      string
 	SemanticCategories []string
 	ConfidenceScore    float64
-	
+
 	// Usage Analytics
 	AccessCount        int
 	LastAccessedAt     string
@@ -63,18 +63,18 @@ type FileOperation struct {
 // Standard keys for extended metadata
 const (
 	// Location Context Keys
-	EMKeyWorkingDir    = "working_directory"
-	EMKeyRelativePath  = "relative_path"
-	EMKeyGitBranch     = "git_branch"
-	EMKeyGitCommit     = "git_commit"
-	EMKeyProjectType   = "project_type"
-	
+	EMKeyWorkingDir   = "working_directory"
+	EMKeyRelativePath = "relative_path"
+	EMKeyGitBranch    = "git_branch"
+	EMKeyGitCommit    = "git_commit"
+	EMKeyProjectType  = "project_type"
+
 	// Client Context Keys
 	EMKeyClientType    = "client_type"
 	EMKeyClientVersion = "client_version"
 	EMKeyPlatform      = "platform"
 	EMKeyEnvironment   = "environment"
-	
+
 	// Enhanced Metadata Keys
 	EMKeyLanguageVersions = "language_versions"
 	EMKeyDependencies     = "dependencies"
@@ -82,20 +82,20 @@ const (
 	EMKeyStackTraces      = "stack_traces"
 	EMKeyCommandResults   = "command_results"
 	EMKeyFileOperations   = "file_operations"
-	
+
 	// Relationship Keys
 	EMKeyParentChunk   = "parent_chunk_id"
 	EMKeyChildChunks   = "child_chunk_ids"
 	EMKeyRelatedChunks = "related_chunk_ids"
 	EMKeySupersededBy  = "superseded_by_id"
 	EMKeySupersedes    = "supersedes_id"
-	
+
 	// Search & Analytics Keys
 	EMKeyAutoTags           = "auto_tags"
 	EMKeyProblemDomain      = "problem_domain"
 	EMKeySemanticCategories = "semantic_categories"
 	EMKeyConfidenceScore    = "confidence_score"
-	
+
 	// Usage Analytics Keys
 	EMKeyAccessCount        = "access_count"
 	EMKeyLastAccessed       = "last_accessed_at"

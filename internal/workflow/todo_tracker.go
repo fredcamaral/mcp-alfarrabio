@@ -26,16 +26,16 @@ type TodoItem struct {
 
 // TodoSession tracks the complete lifecycle of todos in a session
 type TodoSession struct {
-	SessionID    string               `json:"session_id"`
-	Repository   string               `json:"repository"`
-	StartTime    time.Time            `json:"start_time"`
-	EndTime      *time.Time           `json:"end_time,omitempty"`
-	Todos        []TodoItem           `json:"todos"`
-	WorkContext  string               `json:"work_context"`
-	Outcomes     []string             `json:"outcomes"`
-	FilesChanged []string             `json:"files_changed"`
-	ToolsUsed    []string             `json:"tools_used"`
-	Status       types.Outcome        `json:"status"`
+	SessionID    string        `json:"session_id"`
+	Repository   string        `json:"repository"`
+	StartTime    time.Time     `json:"start_time"`
+	EndTime      *time.Time    `json:"end_time,omitempty"`
+	Todos        []TodoItem    `json:"todos"`
+	WorkContext  string        `json:"work_context"`
+	Outcomes     []string      `json:"outcomes"`
+	FilesChanged []string      `json:"files_changed"`
+	ToolsUsed    []string      `json:"tools_used"`
+	Status       types.Outcome `json:"status"`
 }
 
 // TodoTracker monitors and analyzes todo-driven workflows
@@ -55,13 +55,13 @@ func NewTodoTracker() *TodoTracker {
 // ProcessTodoWrite handles a TodoWrite operation from Claude
 func (tt *TodoTracker) ProcessTodoWrite(ctx context.Context, sessionID, repository string, todos []TodoItem) error {
 	session := tt.getOrCreateSession(sessionID, repository)
-	
+
 	// Track todo changes
 	previousTodos := make(map[string]TodoItem)
 	for _, todo := range session.Todos {
 		previousTodos[todo.ID] = todo
 	}
-	
+
 	// Detect completed todos and trigger chunk creation BEFORE updating session
 	for _, todo := range todos {
 		if previous, exists := previousTodos[todo.ID]; exists {
@@ -73,10 +73,10 @@ func (tt *TodoTracker) ProcessTodoWrite(ctx context.Context, sessionID, reposito
 			}
 		}
 	}
-	
+
 	// Update session with new todos AFTER processing changes
 	session.Todos = todos
-	
+
 	return nil
 }
 
@@ -90,12 +90,12 @@ func (tt *TodoTracker) ProcessToolUsage(sessionID string, toolName string, conte
 			}
 		}
 		session.ToolsUsed = append(session.ToolsUsed, toolName)
-		
+
 		// Extract file information from tool context
 		if files := tt.extractFilesFromContext(context); len(files) > 0 {
 			session.FilesChanged = append(session.FilesChanged, files...)
 		}
-		
+
 		// Update work context with tool usage
 		tt.updateWorkContext(session, toolName, context)
 	}
@@ -105,7 +105,7 @@ func (tt *TodoTracker) ProcessToolUsage(sessionID string, toolName string, conte
 func (tt *TodoTracker) captureCompletedWork(_ context.Context, session *TodoSession, completedTodo TodoItem) error {
 	// Build comprehensive content from the todo journey
 	content := tt.buildTodoJourneyContent(session, completedTodo)
-	
+
 	// Create metadata for the chunk
 	timeSpentMinutes := int(tt.calculateTimeSpent(session, completedTodo).Minutes())
 	metadata := types.ChunkMetadata{
@@ -117,7 +117,7 @@ func (tt *TodoTracker) captureCompletedWork(_ context.Context, session *TodoSess
 		ToolsUsed:     session.ToolsUsed,
 		Repository:    session.Repository,
 	}
-	
+
 	// Create the conversation chunk
 	chunk, err := types.NewConversationChunk(
 		session.SessionID,
@@ -128,29 +128,29 @@ func (tt *TodoTracker) captureCompletedWork(_ context.Context, session *TodoSess
 	if err != nil {
 		return fmt.Errorf("failed to create chunk: %w", err)
 	}
-	
+
 	// Add to completed work
 	tt.completedWork = append(tt.completedWork, *chunk)
-	
+
 	return nil
 }
 
 // buildTodoJourneyContent creates rich content from the todo completion journey
 func (tt *TodoTracker) buildTodoJourneyContent(session *TodoSession, todo TodoItem) string {
 	var content strings.Builder
-	
+
 	// Todo information
 	content.WriteString(fmt.Sprintf("# Completed: %s\n\n", todo.Content))
 	content.WriteString(fmt.Sprintf("**Priority**: %s\n", todo.Priority))
 	content.WriteString(fmt.Sprintf("**Repository**: %s\n\n", session.Repository))
-	
+
 	// Work context
 	if session.WorkContext != "" {
 		content.WriteString("## Work Context\n")
 		content.WriteString(session.WorkContext)
 		content.WriteString("\n\n")
 	}
-	
+
 	// Tools used
 	if len(session.ToolsUsed) > 0 {
 		content.WriteString("## Tools Used\n")
@@ -159,7 +159,7 @@ func (tt *TodoTracker) buildTodoJourneyContent(session *TodoSession, todo TodoIt
 		}
 		content.WriteString("\n")
 	}
-	
+
 	// Files changed
 	if len(session.FilesChanged) > 0 {
 		content.WriteString("## Files Modified\n")
@@ -168,7 +168,7 @@ func (tt *TodoTracker) buildTodoJourneyContent(session *TodoSession, todo TodoIt
 		}
 		content.WriteString("\n")
 	}
-	
+
 	// Related todos (context)
 	activeTodos := tt.getActiveTodos(session)
 	if len(activeTodos) > 0 {
@@ -178,7 +178,7 @@ func (tt *TodoTracker) buildTodoJourneyContent(session *TodoSession, todo TodoIt
 		}
 		content.WriteString("\n")
 	}
-	
+
 	return content.String()
 }
 
@@ -187,7 +187,7 @@ func (tt *TodoTracker) getOrCreateSession(sessionID, repository string) *TodoSes
 	if session, exists := tt.activeSessions[sessionID]; exists {
 		return session
 	}
-	
+
 	session := &TodoSession{
 		SessionID:    sessionID,
 		Repository:   repository,
@@ -198,7 +198,7 @@ func (tt *TodoTracker) getOrCreateSession(sessionID, repository string) *TodoSes
 		ToolsUsed:    make([]string, 0),
 		Status:       types.OutcomeInProgress,
 	}
-	
+
 	tt.activeSessions[sessionID] = session
 	return session
 }
@@ -206,10 +206,10 @@ func (tt *TodoTracker) getOrCreateSession(sessionID, repository string) *TodoSes
 // extractFilesFromContext extracts file paths from tool usage context
 func (tt *TodoTracker) extractFilesFromContext(context map[string]interface{}) []string {
 	files := make([]string, 0)
-	
+
 	// Look for common file path keys
 	fileKeys := []string{"file_path", "filepath", "path", "filename"}
-	
+
 	for _, key := range fileKeys {
 		if value, exists := context[key]; exists {
 			if filePath, ok := value.(string); ok && filePath != "" {
@@ -217,7 +217,7 @@ func (tt *TodoTracker) extractFilesFromContext(context map[string]interface{}) [
 			}
 		}
 	}
-	
+
 	return files
 }
 
@@ -232,15 +232,15 @@ func (tt *TodoTracker) updateWorkContext(session *TodoSession, toolName string, 
 // extractTags generates tags from todo and session context
 func (tt *TodoTracker) extractTags(session *TodoSession, todo TodoItem) []string {
 	tags := make([]string, 0)
-	
+
 	// Add priority as tag
 	tags = append(tags, fmt.Sprintf("priority-%s", todo.Priority))
-	
+
 	// Add repository
 	if session.Repository != "" {
 		tags = append(tags, fmt.Sprintf("repo-%s", session.Repository))
 	}
-	
+
 	// Extract technology tags from tools used
 	for _, tool := range session.ToolsUsed {
 		switch tool {
@@ -254,7 +254,7 @@ func (tt *TodoTracker) extractTags(session *TodoSession, todo TodoItem) []string
 			tags = append(tags, "git", "version-control")
 		}
 	}
-	
+
 	// Extract language tags from file extensions
 	for _, file := range session.FilesChanged {
 		switch {
@@ -266,14 +266,14 @@ func (tt *TodoTracker) extractTags(session *TodoSession, todo TodoItem) []string
 			tags = append(tags, "python")
 		}
 	}
-	
+
 	return tags
 }
 
 // assessDifficulty estimates the difficulty based on session data
 func (tt *TodoTracker) assessDifficulty(session *TodoSession, todo TodoItem) types.Difficulty {
 	score := 0
-	
+
 	// Factor in time spent
 	timeSpent := tt.calculateTimeSpent(session, todo)
 	if timeSpent > 30*time.Minute {
@@ -281,19 +281,19 @@ func (tt *TodoTracker) assessDifficulty(session *TodoSession, todo TodoItem) typ
 	} else if timeSpent > 10*time.Minute {
 		score += 1
 	}
-	
+
 	// Factor in number of tools used
 	if len(session.ToolsUsed) > 5 {
 		score += 2
 	} else if len(session.ToolsUsed) > 2 {
 		score += 1
 	}
-	
+
 	// Factor in number of files changed
 	if len(session.FilesChanged) > 3 {
 		score += 1
 	}
-	
+
 	// Convert score to difficulty
 	switch {
 	case score >= 4:
@@ -340,13 +340,13 @@ func (tt *TodoTracker) EndSession(sessionID string, outcome types.Outcome) {
 		now := time.Now()
 		session.EndTime = &now
 		session.Status = outcome
-		
+
 		// Move to completed work if successful
 		if outcome == types.OutcomeSuccess {
 			// Create a final summary chunk
 			tt.createSessionSummary(session)
 		}
-		
+
 		// Remove from active sessions
 		delete(tt.activeSessions, sessionID)
 	}
@@ -355,7 +355,7 @@ func (tt *TodoTracker) EndSession(sessionID string, outcome types.Outcome) {
 // createSessionSummary creates a summary chunk for the entire session
 func (tt *TodoTracker) createSessionSummary(session *TodoSession) {
 	content := tt.buildSessionSummaryContent(session)
-	
+
 	timeSpentMinutes := int(time.Since(session.StartTime).Minutes())
 	metadata := types.ChunkMetadata{
 		Tags:          []string{"session-summary", fmt.Sprintf("repo-%s", session.Repository)},
@@ -366,7 +366,7 @@ func (tt *TodoTracker) createSessionSummary(session *TodoSession) {
 		ToolsUsed:     session.ToolsUsed,
 		Repository:    session.Repository,
 	}
-	
+
 	chunk, err := types.NewConversationChunk(
 		session.SessionID,
 		content,
@@ -381,11 +381,11 @@ func (tt *TodoTracker) createSessionSummary(session *TodoSession) {
 // buildSessionSummaryContent creates content for session summary
 func (tt *TodoTracker) buildSessionSummaryContent(session *TodoSession) string {
 	var content strings.Builder
-	
+
 	content.WriteString(fmt.Sprintf("# Session Summary: %s\n\n", session.Repository))
 	content.WriteString(fmt.Sprintf("**Duration**: %v\n", time.Since(session.StartTime)))
 	content.WriteString(fmt.Sprintf("**Status**: %s\n\n", session.Status))
-	
+
 	// Completed todos
 	completedTodos := make([]TodoItem, 0)
 	for _, todo := range session.Todos {
@@ -393,7 +393,7 @@ func (tt *TodoTracker) buildSessionSummaryContent(session *TodoSession) string {
 			completedTodos = append(completedTodos, todo)
 		}
 	}
-	
+
 	if len(completedTodos) > 0 {
 		content.WriteString("## Completed Tasks\n")
 		for _, todo := range completedTodos {
@@ -401,12 +401,12 @@ func (tt *TodoTracker) buildSessionSummaryContent(session *TodoSession) string {
 		}
 		content.WriteString("\n")
 	}
-	
+
 	// Tools and files summary
 	content.WriteString("## Impact\n")
 	content.WriteString(fmt.Sprintf("- **Tools Used**: %d (%s)\n", len(session.ToolsUsed), strings.Join(session.ToolsUsed, ", ")))
 	content.WriteString(fmt.Sprintf("- **Files Changed**: %d\n", len(session.FilesChanged)))
-	
+
 	return content.String()
 }
 
@@ -414,31 +414,31 @@ func (tt *TodoTracker) buildSessionSummaryContent(session *TodoSession) string {
 func (tt *TodoTracker) assessSessionDifficulty(session *TodoSession) types.Difficulty {
 	totalTodos := len(session.Todos)
 	completedTodos := 0
-	
+
 	for _, todo := range session.Todos {
 		if todo.Status == statusCompleted {
 			completedTodos++
 		}
 	}
-	
+
 	// Factor in completion rate, duration, and complexity
 	duration := time.Since(session.StartTime)
 	score := 0
-	
+
 	if duration > time.Hour {
 		score += 2
 	} else if duration > 30*time.Minute {
 		score += 1
 	}
-	
+
 	if totalTodos > 5 {
 		score += 1
 	}
-	
+
 	if len(session.ToolsUsed) > 8 {
 		score += 1
 	}
-	
+
 	switch {
 	case score >= 3:
 		return types.DifficultyComplex

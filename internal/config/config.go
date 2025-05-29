@@ -16,6 +16,7 @@ type Config struct {
 	OpenAI   OpenAIConfig   `json:"openai"`
 	Storage  StorageConfig  `json:"storage"`
 	Chunking ChunkingConfig `json:"chunking"`
+	Search   SearchConfig   `json:"search"`
 	Logging  LoggingConfig  `json:"logging"`
 }
 
@@ -83,6 +84,16 @@ type ChunkingConfig struct {
 	SimilarityThreshold   float64 `json:"similarity_threshold"`
 }
 
+// SearchConfig represents search behavior configuration
+type SearchConfig struct {
+	DefaultMinRelevance      float64 `json:"default_min_relevance"`
+	RelaxedMinRelevance      float64 `json:"relaxed_min_relevance"`
+	BroadestMinRelevance     float64 `json:"broadest_min_relevance"`
+	EnableProgressiveSearch  bool    `json:"enable_progressive_search"`
+	EnableRepositoryFallback bool    `json:"enable_repository_fallback"`
+	MaxRelatedRepos          int     `json:"max_related_repos"`
+}
+
 // LoggingConfig represents logging configuration
 type LoggingConfig struct {
 	Level      string `json:"level"`
@@ -137,6 +148,14 @@ func DefaultConfig() *Config {
 			FileChangeThreshold:   3,
 			TimeThresholdMinutes:  10,
 			SimilarityThreshold:   0.8,
+		},
+		Search: SearchConfig{
+			DefaultMinRelevance:      0.5,
+			RelaxedMinRelevance:      0.3,
+			BroadestMinRelevance:     0.2,
+			EnableProgressiveSearch:  true,
+			EnableRepositoryFallback: true,
+			MaxRelatedRepos:          3,
 		},
 		Logging: LoggingConfig{
 			Level:      "info",
@@ -311,7 +330,7 @@ func loadChunkingConfig(config *Config) {
 	}
 }
 
-// loadLoggingConfig loads logging configuration from environment  
+// loadLoggingConfig loads logging configuration from environment
 func loadLoggingConfig(config *Config) {
 	if level := os.Getenv("MCP_MEMORY_LOG_LEVEL"); level != "" {
 		config.Logging.Level = level
@@ -381,9 +400,8 @@ func loadIntelligenceConfig(config *Config) {
 
 // loadPerformanceConfig loads performance configuration from environment
 func loadPerformanceConfig(config *Config) {
-	// Add performance config loading if needed  
+	// Add performance config loading if needed
 }
-
 
 // Validate validates the configuration
 func (c *Config) Validate() error {

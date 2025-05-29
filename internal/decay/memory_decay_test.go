@@ -145,15 +145,15 @@ func TestMemoryDecayManager_RunDecay(t *testing.T) {
 		ImportanceBoost:        DefaultDecayConfig().ImportanceBoost,
 		RetentionPeriod:        1 * time.Hour, // Short for testing
 	}
-	
+
 	manager := NewMemoryDecayManager(config, store, summarizer)
 	ctx := context.Background()
 
 	// Add test chunks
 	chunks := []types.ConversationChunk{
-		createTestChunk("new", 30*time.Minute, types.ChunkTypeDiscussion),     // Too new, should be kept
-		createTestChunk("old", 2*24*time.Hour, types.ChunkTypeDiscussion),     // Old, might be updated
-		createTestChunk("ancient", 180*24*time.Hour, types.ChunkTypeDiscussion), // Very old, should be deleted
+		createTestChunk("new", 30*time.Minute, types.ChunkTypeDiscussion),                  // Too new, should be kept
+		createTestChunk("old", 2*24*time.Hour, types.ChunkTypeDiscussion),                  // Old, might be updated
+		createTestChunk("ancient", 180*24*time.Hour, types.ChunkTypeDiscussion),            // Very old, should be deleted
 		createTestChunk("important", 30*24*time.Hour, types.ChunkTypeArchitectureDecision), // Old but important
 	}
 
@@ -169,7 +169,7 @@ func TestMemoryDecayManager_RunDecay(t *testing.T) {
 
 	// Check results
 	remaining, _ := store.GetAllChunks(ctx, "")
-	
+
 	// New chunk should still exist
 	found := false
 	for _, chunk := range remaining {
@@ -212,14 +212,14 @@ func TestMemoryDecayManager_Summarization(t *testing.T) {
 		ImportanceBoost:        DefaultDecayConfig().ImportanceBoost,
 		RetentionPeriod:        1 * time.Hour,
 	}
-	
+
 	manager := NewMemoryDecayManager(config, store, summarizer)
 	ctx := context.Background()
 
 	// Add related chunks that should be summarized
 	sessionID := "summarize-session"
 	baseTime := time.Now().Add(-50 * 24 * time.Hour) // 50 days ago
-	
+
 	for i := 0; i < 5; i++ {
 		chunk := types.ConversationChunk{
 			ID:        fmt.Sprintf("chunk-%d", i),
@@ -301,7 +301,7 @@ func TestDecayStrategies(t *testing.T) {
 			config := DefaultDecayConfig()
 			config.Strategy = tt.strategy
 			manager := NewMemoryDecayManager(config, nil, nil)
-			
+
 			score := manager.applyTimeDecay(1.0, tt.age)
 			if score < tt.expected-tt.delta || score > tt.expected+tt.delta {
 				t.Errorf("Expected score around %f (±%f), got %f", tt.expected, tt.delta, score)

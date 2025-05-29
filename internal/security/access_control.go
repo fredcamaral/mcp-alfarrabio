@@ -15,10 +15,10 @@ import (
 type AccessLevel string
 
 const (
-	AccessLevelNone   AccessLevel = "none"
-	AccessLevelRead   AccessLevel = "read"
-	AccessLevelWrite  AccessLevel = "write"
-	AccessLevelAdmin  AccessLevel = "admin"
+	AccessLevelNone  AccessLevel = "none"
+	AccessLevelRead  AccessLevel = "read"
+	AccessLevelWrite AccessLevel = "write"
+	AccessLevelAdmin AccessLevel = "admin"
 )
 
 // Permission represents a specific permission
@@ -31,24 +31,24 @@ type Permission struct {
 
 // AccessToken represents an authentication token
 type AccessToken struct {
-	Token     string      `json:"token"`
-	UserID    string      `json:"user_id"`
-	Scope     []string    `json:"scope"`
-	ExpiresAt time.Time   `json:"expires_at"`
-	CreatedAt time.Time   `json:"created_at"`
+	Token     string    `json:"token"`
+	UserID    string    `json:"user_id"`
+	Scope     []string  `json:"scope"`
+	ExpiresAt time.Time `json:"expires_at"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 // User represents a user in the system
 type User struct {
-	ID          string                 `json:"id"`
-	Username    string                 `json:"username"`
-	Email       string                 `json:"email"`
-	Permissions []Permission           `json:"permissions"`
-	Repositories []string              `json:"repositories"`
-	CreatedAt   time.Time              `json:"created_at"`
-	LastLogin   *time.Time             `json:"last_login,omitempty"`
-	IsActive    bool                   `json:"is_active"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	ID           string                 `json:"id"`
+	Username     string                 `json:"username"`
+	Email        string                 `json:"email"`
+	Permissions  []Permission           `json:"permissions"`
+	Repositories []string               `json:"repositories"`
+	CreatedAt    time.Time              `json:"created_at"`
+	LastLogin    *time.Time             `json:"last_login,omitempty"`
+	IsActive     bool                   `json:"is_active"`
+	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // AccessControlManager manages access control and permissions
@@ -62,32 +62,32 @@ type AccessControlManager struct {
 
 // Repository represents a repository with access controls
 type Repository struct {
-	ID          string      `json:"id"`
-	Name        string      `json:"name"`
-	Owner       string      `json:"owner"`
-	AccessLevel AccessLevel `json:"access_level"`
-	AllowedUsers []string   `json:"allowed_users"`
-	IsPublic    bool        `json:"is_public"`
-	CreatedAt   time.Time   `json:"created_at"`
+	ID           string      `json:"id"`
+	Name         string      `json:"name"`
+	Owner        string      `json:"owner"`
+	AccessLevel  AccessLevel `json:"access_level"`
+	AllowedUsers []string    `json:"allowed_users"`
+	IsPublic     bool        `json:"is_public"`
+	CreatedAt    time.Time   `json:"created_at"`
 }
 
 // AccessPolicy represents an access control policy
 type AccessPolicy struct {
-	ID          string                 `json:"id"`
-	Name        string                 `json:"name"`
-	Rules       []AccessRule           `json:"rules"`
-	IsActive    bool                   `json:"is_active"`
-	CreatedAt   time.Time              `json:"created_at"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	ID        string                 `json:"id"`
+	Name      string                 `json:"name"`
+	Rules     []AccessRule           `json:"rules"`
+	IsActive  bool                   `json:"is_active"`
+	CreatedAt time.Time              `json:"created_at"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // AccessRule represents a single access rule
 type AccessRule struct {
-	Resource    string      `json:"resource"`
-	Action      string      `json:"action"`
-	Effect      string      `json:"effect"` // "allow" or "deny"
-	Conditions  []Condition `json:"conditions"`
-	Priority    int         `json:"priority"`
+	Resource   string      `json:"resource"`
+	Action     string      `json:"action"`
+	Effect     string      `json:"effect"` // "allow" or "deny"
+	Conditions []Condition `json:"conditions"`
+	Priority   int         `json:"priority"`
 }
 
 // Condition represents a condition for access rules
@@ -126,14 +126,14 @@ func (acm *AccessControlManager) CreateUser(username, email string) (*User, erro
 	if username == "" || email == "" {
 		return nil, fmt.Errorf("username and email are required")
 	}
-	
+
 	// Check if user already exists
 	for _, user := range acm.users {
 		if user.Username == username || user.Email == email {
 			return nil, fmt.Errorf("user already exists")
 		}
 	}
-	
+
 	userID := generateSecureID()
 	user := &User{
 		ID:           userID,
@@ -145,7 +145,7 @@ func (acm *AccessControlManager) CreateUser(username, email string) (*User, erro
 		IsActive:     true,
 		Metadata:     make(map[string]interface{}),
 	}
-	
+
 	acm.users[userID] = user
 	return user, nil
 }
@@ -156,11 +156,11 @@ func (acm *AccessControlManager) GenerateToken(userID string, scope []string, du
 	if !exists {
 		return nil, fmt.Errorf("user not found")
 	}
-	
+
 	if !user.IsActive {
 		return nil, fmt.Errorf("user is not active")
 	}
-	
+
 	tokenString := generateSecureToken()
 	token := &AccessToken{
 		Token:     tokenString,
@@ -169,13 +169,13 @@ func (acm *AccessControlManager) GenerateToken(userID string, scope []string, du
 		ExpiresAt: time.Now().Add(duration),
 		CreatedAt: time.Now(),
 	}
-	
+
 	acm.tokens[tokenString] = token
-	
+
 	// Update user last login
 	now := time.Now()
 	user.LastLogin = &now
-	
+
 	return token, nil
 }
 
@@ -185,19 +185,19 @@ func (acm *AccessControlManager) ValidateToken(tokenString string) (*AccessToken
 	if !exists {
 		return nil, fmt.Errorf("invalid token")
 	}
-	
+
 	if time.Now().After(token.ExpiresAt) {
 		delete(acm.tokens, tokenString)
 		return nil, fmt.Errorf("token expired")
 	}
-	
+
 	// Check if user is still active
 	user, exists := acm.users[token.UserID]
 	if !exists || !user.IsActive {
 		delete(acm.tokens, tokenString)
 		return nil, fmt.Errorf("user not active")
 	}
-	
+
 	return token, nil
 }
 
@@ -206,16 +206,16 @@ func (acm *AccessControlManager) CheckAccess(ctx context.Context, userID, action
 	if !acm.enabled {
 		return true, nil
 	}
-	
+
 	user, exists := acm.users[userID]
 	if !exists {
 		return false, fmt.Errorf("user not found")
 	}
-	
+
 	if !user.IsActive {
 		return false, fmt.Errorf("user not active")
 	}
-	
+
 	// Check user permissions
 	hasPermission := false
 	for _, permission := range user.Permissions {
@@ -226,13 +226,13 @@ func (acm *AccessControlManager) CheckAccess(ctx context.Context, userID, action
 			}
 		}
 	}
-	
+
 	// Check policies
 	for _, policy := range acm.policies {
 		if !policy.IsActive {
 			continue
 		}
-		
+
 		for _, rule := range policy.Rules {
 			if acm.matchesRule(rule, action, resource, user) {
 				if rule.Effect == "deny" {
@@ -245,15 +245,15 @@ func (acm *AccessControlManager) CheckAccess(ctx context.Context, userID, action
 			}
 		}
 	}
-	
+
 	// Log access attempt
 	result := "denied"
 	if hasPermission {
 		result = "success"
 	}
-	
+
 	acm.logAccess(userID, action, resource, result, ctx)
-	
+
 	return hasPermission, nil
 }
 
@@ -263,7 +263,7 @@ func (acm *AccessControlManager) GrantPermission(userID string, permission Permi
 	if !exists {
 		return fmt.Errorf("user not found")
 	}
-	
+
 	// Check if permission already exists
 	for i, existing := range user.Permissions {
 		if existing.Resource == permission.Resource && existing.Action == permission.Action {
@@ -272,7 +272,7 @@ func (acm *AccessControlManager) GrantPermission(userID string, permission Permi
 			return nil
 		}
 	}
-	
+
 	// Add new permission
 	user.Permissions = append(user.Permissions, permission)
 	return nil
@@ -284,7 +284,7 @@ func (acm *AccessControlManager) RevokePermission(userID, resource, action strin
 	if !exists {
 		return fmt.Errorf("user not found")
 	}
-	
+
 	// Remove permission
 	for i, permission := range user.Permissions {
 		if permission.Resource == resource && permission.Action == action {
@@ -292,7 +292,7 @@ func (acm *AccessControlManager) RevokePermission(userID, resource, action strin
 			return nil
 		}
 	}
-	
+
 	return fmt.Errorf("permission not found")
 }
 
@@ -308,7 +308,7 @@ func (acm *AccessControlManager) CreateRepository(name, owner string, isPublic b
 		IsPublic:     isPublic,
 		CreatedAt:    time.Now(),
 	}
-	
+
 	acm.repositories[repoID] = repo
 	return repo, nil
 }
@@ -319,23 +319,23 @@ func (acm *AccessControlManager) GrantRepositoryAccess(repoID, userID string, le
 	if !exists {
 		return fmt.Errorf("repository not found")
 	}
-	
+
 	// Check if user already has access
 	for _, allowedUser := range repo.AllowedUsers {
 		if allowedUser == userID {
 			return nil // User already has access
 		}
 	}
-	
+
 	repo.AllowedUsers = append(repo.AllowedUsers, userID)
-	
+
 	// Grant specific permission
 	permission := Permission{
 		Resource: fmt.Sprintf("repository:%s", repoID),
 		Action:   "*",
 		Level:    level,
 	}
-	
+
 	return acm.GrantPermission(userID, permission)
 }
 
@@ -346,12 +346,12 @@ func (acm *AccessControlManager) matchesPermission(permission Permission, action
 	if permission.Resource != "*" && !strings.Contains(resource, permission.Resource) {
 		return false
 	}
-	
+
 	// Check action match
 	if permission.Action != "*" && permission.Action != action {
 		return false
 	}
-	
+
 	return true
 }
 
@@ -363,7 +363,7 @@ func (acm *AccessControlManager) matchesRule(rule AccessRule, action, resource s
 			return false
 		}
 	}
-	
+
 	// Check action pattern
 	if rule.Action != "*" {
 		matched, _ := regexp.MatchString(rule.Action, action)
@@ -371,20 +371,20 @@ func (acm *AccessControlManager) matchesRule(rule AccessRule, action, resource s
 			return false
 		}
 	}
-	
+
 	// Check conditions
 	for _, condition := range rule.Conditions {
 		if !acm.evaluateCondition(condition, user) {
 			return false
 		}
 	}
-	
+
 	return true
 }
 
 func (acm *AccessControlManager) evaluateCondition(condition Condition, user *User) bool {
 	var fieldValue interface{}
-	
+
 	switch condition.Field {
 	case "user.id":
 		fieldValue = user.ID
@@ -399,7 +399,7 @@ func (acm *AccessControlManager) evaluateCondition(condition Condition, user *Us
 			fieldValue = metadata
 		}
 	}
-	
+
 	switch condition.Operator {
 	case "equals":
 		return fieldValue == condition.Value
@@ -427,7 +427,7 @@ func (acm *AccessControlManager) evaluateCondition(condition Condition, user *Us
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -445,7 +445,7 @@ func (acm *AccessControlManager) logAccess(userID, action, resource, result stri
 			"context": "mcp_memory_access",
 		},
 	}
-	
+
 	// TODO: Write to persistent audit log storage
 	_ = log
 }

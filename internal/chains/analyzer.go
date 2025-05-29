@@ -3,9 +3,9 @@ package chains
 import (
 	"context"
 	"fmt"
+	"math"
 	"mcp-memory/internal/embeddings"
 	"mcp-memory/pkg/types"
-	"math"
 	"strings"
 	"time"
 )
@@ -30,13 +30,13 @@ func (a *DefaultChainAnalyzer) AnalyzeRelationship(ctx context.Context, chunk1, 
 	// Use tags as concepts for now
 	conceptOverlap := a.calculateConceptOverlap(chunk1.Metadata.Tags, chunk2.Metadata.Tags)
 	entityOverlap := 0.0 // No entities in base type
-	
+
 	// Determine chain type based on patterns
 	chainType := a.determineChainType(chunk1, chunk2, semanticSim, temporalProximity, conceptOverlap)
-	
+
 	// Calculate overall strength
 	strength := a.calculateOverallStrength(semanticSim, temporalProximity, conceptOverlap, entityOverlap)
-	
+
 	return chainType, strength, nil
 }
 
@@ -66,13 +66,13 @@ func (a *DefaultChainAnalyzer) SuggestChainName(ctx context.Context, chunks []ty
 
 	// Determine chain theme
 	theme := a.determineChainTheme(chunks)
-	
+
 	// Generate name
 	name := a.generateChainName(topConcept, theme, chunks[0].Metadata.Repository)
-	
+
 	// Generate description
 	description := a.generateChainDescription(chunks, theme, conceptFreq)
-	
+
 	return name, description, nil
 }
 
@@ -99,7 +99,7 @@ func (a *DefaultChainAnalyzer) calculateSemanticSimilarity(emb1, emb2 []float64)
 // calculateTemporalProximity calculates how close in time two chunks are
 func (a *DefaultChainAnalyzer) calculateTemporalProximity(t1, t2 time.Time) float64 {
 	diff := math.Abs(t1.Sub(t2).Hours())
-	
+
 	// Use exponential decay for temporal proximity
 	// Chunks within 1 hour have high proximity, decays over days
 	return math.Exp(-diff / 24.0) // 24 hours decay constant
@@ -137,35 +137,34 @@ func (a *DefaultChainAnalyzer) calculateConceptOverlap(concepts1, concepts2 []st
 	return float64(intersection) / float64(union)
 }
 
-
 // determineChainType determines the type of relationship
 func (a *DefaultChainAnalyzer) determineChainType(chunk1, chunk2 types.ConversationChunk, semanticSim, temporalProx, conceptOverlap float64) ChainType {
 	// Check for solution pattern
 	if (chunk1.Type == "problem" || chunk1.Type == "bug") && chunk2.Type == "solution" {
 		return ChainTypeSolution
 	}
-	
+
 	// Check for continuation (high temporal proximity and semantic similarity)
 	if temporalProx > 0.8 && semanticSim > 0.7 {
 		return ChainTypeContinuation
 	}
-	
+
 	// Check for evolution (moderate temporal distance but high concept overlap)
 	if temporalProx < 0.3 && conceptOverlap > 0.6 {
 		return ChainTypeEvolution
 	}
-	
+
 	// Check for conflict (similar concepts but different outcomes)
 	if conceptOverlap > 0.5 && chunk1.Metadata.Outcome != "" && chunk2.Metadata.Outcome != "" &&
 		chunk1.Metadata.Outcome != chunk2.Metadata.Outcome {
 		return ChainTypeConflict
 	}
-	
+
 	// Check for support (one supports the other)
 	if semanticSim > 0.6 && (chunk1.Type == "reference" || chunk2.Type == "reference") {
 		return ChainTypeSupport
 	}
-	
+
 	// Default to reference
 	return ChainTypeReference
 }
@@ -174,17 +173,17 @@ func (a *DefaultChainAnalyzer) determineChainType(chunk1, chunk2 types.Conversat
 func (a *DefaultChainAnalyzer) calculateOverallStrength(semanticSim, temporalProx, conceptOverlap, entityOverlap float64) float64 {
 	// Weighted average of different factors
 	weights := map[string]float64{
-		"semantic":  0.4,
-		"temporal":  0.2,
-		"concept":   0.25,
-		"entity":    0.15,
+		"semantic": 0.4,
+		"temporal": 0.2,
+		"concept":  0.25,
+		"entity":   0.15,
 	}
-	
+
 	strength := semanticSim*weights["semantic"] +
 		temporalProx*weights["temporal"] +
 		conceptOverlap*weights["concept"] +
 		entityOverlap*weights["entity"]
-	
+
 	// Ensure strength is between 0 and 1
 	return math.Min(math.Max(strength, 0.0), 1.0)
 }
@@ -196,7 +195,7 @@ func (a *DefaultChainAnalyzer) determineChainTheme(chunks []types.ConversationCh
 	for _, chunk := range chunks {
 		typeCount[string(chunk.Type)]++
 	}
-	
+
 	// Find dominant type
 	var dominantType string
 	maxCount := 0
@@ -206,7 +205,7 @@ func (a *DefaultChainAnalyzer) determineChainTheme(chunks []types.ConversationCh
 			dominantType = t
 		}
 	}
-	
+
 	// Map to theme
 	themeMap := map[string]string{
 		"problem":       "Problem Solving",
@@ -217,11 +216,11 @@ func (a *DefaultChainAnalyzer) determineChainTheme(chunks []types.ConversationCh
 		"documentation": "Documentation",
 		"learning":      "Learning Journey",
 	}
-	
+
 	if theme, exists := themeMap[dominantType]; exists {
 		return theme
 	}
-	
+
 	return "General Development"
 }
 
@@ -235,11 +234,11 @@ func (a *DefaultChainAnalyzer) generateChainName(topConcept, theme, repository s
 		}
 		return fmt.Sprintf("%s: %s", theme, titled)
 	}
-	
+
 	if repository != "" && repository != "_global" {
 		return fmt.Sprintf("%s in %s", theme, repository)
 	}
-	
+
 	return fmt.Sprintf("%s Chain", theme)
 }
 
@@ -255,22 +254,22 @@ func (a *DefaultChainAnalyzer) generateChainDescription(chunks []types.Conversat
 			maxTime = chunk.Timestamp
 		}
 	}
-	
+
 	// Get top concepts
 	topConcepts := a.getTopConcepts(conceptFreq, 3)
-	
+
 	// Build description
 	desc := fmt.Sprintf("%s chain spanning from %s to %s. ",
 		theme,
 		minTime.Format("Jan 2, 2006"),
 		maxTime.Format("Jan 2, 2006"))
-	
+
 	if len(topConcepts) > 0 {
 		desc += fmt.Sprintf("Key concepts: %s. ", strings.Join(topConcepts, ", "))
 	}
-	
+
 	desc += fmt.Sprintf("Contains %d related memories.", len(chunks))
-	
+
 	return desc
 }
 
@@ -281,12 +280,12 @@ func (a *DefaultChainAnalyzer) getTopConcepts(conceptFreq map[string]int, n int)
 		concept string
 		count   int
 	}
-	
+
 	counts := make([]conceptCount, 0, len(conceptFreq))
 	for concept, count := range conceptFreq {
 		counts = append(counts, conceptCount{concept, count})
 	}
-	
+
 	// Sort by count
 	for i := 0; i < len(counts)-1; i++ {
 		for j := i + 1; j < len(counts); j++ {
@@ -295,12 +294,12 @@ func (a *DefaultChainAnalyzer) getTopConcepts(conceptFreq map[string]int, n int)
 			}
 		}
 	}
-	
+
 	// Get top N
 	result := make([]string, 0, n)
 	for i := 0; i < n && i < len(counts); i++ {
 		result = append(result, counts[i].concept)
 	}
-	
+
 	return result
 }

@@ -49,7 +49,7 @@ func (m *MockStore) Search(ctx context.Context, query types.MemoryQuery, embeddi
 			}
 		}
 	}
-	
+
 	results := make([]types.SearchResult, 0, len(chunks))
 	for _, chunk := range chunks {
 		results = append(results, types.SearchResult{
@@ -57,7 +57,7 @@ func (m *MockStore) Search(ctx context.Context, query types.MemoryQuery, embeddi
 			Score: 0.8, // Fixed score for testing
 		})
 	}
-	
+
 	return &types.SearchResults{
 		Results:   results,
 		Total:     len(results),
@@ -225,8 +225,8 @@ func TestMemoryAnalytics_CalculateEffectivenessScore(t *testing.T) {
 				Timestamp: time.Now().Add(-24 * time.Hour),
 				Metadata: types.ChunkMetadata{
 					ExtendedMetadata: map[string]interface{}{
-						types.EMKeySuccessRate: 0.9,
-						types.EMKeyAccessCount: 10,
+						types.EMKeySuccessRate:  0.9,
+						types.EMKeyAccessCount:  10,
 						types.EMKeyLastAccessed: time.Now().Add(-2 * time.Hour).Format(time.RFC3339),
 					},
 				},
@@ -309,7 +309,7 @@ func TestMemoryAnalytics_UpdateChunkAnalytics(t *testing.T) {
 
 	// Verify updates
 	updatedChunk, _ := store.GetByID(ctx, chunkID)
-	
+
 	accessCount, ok := updatedChunk.Metadata.ExtendedMetadata[types.EMKeyAccessCount].(int)
 	if !ok || accessCount != 2 {
 		t.Errorf("Expected access count 2, got %v", accessCount)
@@ -355,7 +355,7 @@ func TestMemoryAnalytics_MarkObsolete(t *testing.T) {
 
 	// Verify
 	updatedChunk, _ := store.GetByID(ctx, chunkID)
-	
+
 	isObsolete, ok := updatedChunk.Metadata.ExtendedMetadata[types.EMKeyIsObsolete].(bool)
 	if !ok || !isObsolete {
 		t.Error("Expected chunk to be marked obsolete")
