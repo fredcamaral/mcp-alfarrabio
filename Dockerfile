@@ -1,21 +1,21 @@
 # Multi-stage Docker build inspired by HashiCorp's Terraform MCP
 # This follows HashiCorp's containerization best practices for security and efficiency
 
-# Build stage
-FROM golang:1.24-alpine AS builder
+# Build stage - Use Debian-based Go for glibc compatibility
+FROM golang:1.24-bookworm AS builder
 
 # Install build dependencies including C compiler for CGO
-RUN apk add --no-cache \
+RUN apt-get update && apt-get install -y \
     git \
     gcc \
-    musl-dev \
+    libc6-dev \
     ca-certificates \
     tzdata \
-    && update-ca-certificates
+    && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user for build
-RUN addgroup -g 1001 -S mcpuser && \
-    adduser -u 1001 -S mcpuser -G mcpuser
+RUN groupadd -g 1001 mcpuser && \
+    useradd -u 1001 -g mcpuser -s /bin/sh mcpuser
 
 # Set working directory
 WORKDIR /build
