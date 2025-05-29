@@ -51,16 +51,31 @@ docker run -d --name mcp-auto-updater \
 
 2. **Configure your AI client** (e.g., Claude Desktop, Claude Code, Windsurf, Cursor, etc):
 
-   !!! The MCP works through a simple stdio <> HTTP proxy written in javascript, as per shown below.
-   !!! SSE protocol is also available @ :9080/sse
+   The MCP server works through a stdio <> HTTP proxy bridge written in Node.js that runs inside the container.
    
    ```json
    {
      "mcpServers": {
        "memory": {
-         "type": "stdio",
          "command": "docker",
-         "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"]
+         "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+         "env": {
+           "MCP_SERVER_HOST": "localhost",
+           "MCP_SERVER_PORT": "9080",
+           "MCP_SERVER_PATH": "/mcp"
+         }
+       }
+     }
+   }
+   ```
+   
+   **Alternative: SSE protocol** (Server-Sent Events for real-time communication):
+   ```json
+   {
+     "mcpServers": {
+       "memory": {
+         "type": "sse",
+         "url": "http://localhost:9080/sse"
        }
      }
    }
@@ -165,9 +180,32 @@ volumes:
 {
   "mcpServers": {
     "memory": {
-      "type": "stdio",
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"]
+      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "env": {
+        "MCP_SERVER_HOST": "localhost",
+        "MCP_SERVER_PORT": "9080",
+        "MCP_SERVER_PATH": "/mcp"
+      }
+    }
+  }
+}
+```
+
+### Claude Code CLI
+
+Add to your `.claude/mcp.json` in your project root:
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "docker",
+      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "env": {
+        "MCP_SERVER_HOST": "localhost",
+        "MCP_SERVER_PORT": "9080",
+        "MCP_SERVER_PATH": "/mcp"
+      }
     }
   }
 }
@@ -181,9 +219,32 @@ Add to your Continue configuration:
   "models": [...],
   "mcpServers": {
     "memory": {
-      "type": "stdio",
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"]
+      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "env": {
+        "MCP_SERVER_HOST": "localhost",
+        "MCP_SERVER_PORT": "9080",
+        "MCP_SERVER_PATH": "/mcp"
+      }
+    }
+  }
+}
+```
+
+### Cursor, Windsurf, or Other MCP Clients
+
+For any MCP-compatible client, use:
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "command": "docker",
+      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "env": {
+        "MCP_SERVER_HOST": "localhost",
+        "MCP_SERVER_PORT": "9080", 
+        "MCP_SERVER_PATH": "/mcp"
+      }
     }
   }
 }
@@ -252,20 +313,40 @@ docker-compose logs chroma
 ls -la ./data/
 ```
 
+**🔴 "Node.js not found in container"**
+The container now uses Debian slim with Node.js pre-installed. If you're using an older image:
+```bash
+# Pull latest image
+docker-compose pull
+
+# Rebuild from source  
+docker-compose build --no-cache
+```
+
 ### Checking if Everything Works
 
 1. **Test the server directly:**
    ```bash
-   curl http://localhost:8081/health
+   # Health check
+   curl http://localhost:9081/health
+   
+   # Test MCP proxy inside container
+   echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{"roots":{"listChanged":true},"sampling":{}}},"id":1}' | docker exec -i mcp-memory-server node /app/mcp-proxy.js
    ```
 
-2. **Browse the web interface:**
-   - Open http://localhost:8082 in your browser
-   - You should see the memory management dashboard
+2. **Check container logs:**
+   ```bash
+   # View server logs
+   docker logs mcp-memory-server
+   
+   # Check if containers are running
+   docker-compose ps
+   ```
 
 3. **Test with your AI client:**
    - Ask it to remember something: *"Please store that I work on the mcp-memory project"*
    - Ask it to recall: *"What do you remember about my current projects?"*
+   - Try: *"Use memory_health to check the memory system status"*
 
 ## 🎛️ Advanced Configuration
 
@@ -298,10 +379,10 @@ security:
 
 ## 📚 More Information
 
-- **📖 [Full Documentation](docs/README.md)** - Complete guides and API reference
-- **🌐 [Web Interface](http://localhost:8082)** - Browse and manage memories
-- **📊 [GraphQL API](http://localhost:8082/graphql)** - Playground for advanced queries
-- **🔍 [Health Monitoring](http://localhost:8081/health)** - System status and metrics
+- **📖 [Full Documentation](docs/README.md)** - Complete guides and API reference  
+- **🔍 [Health Monitoring](http://localhost:9081/health)** - System status and metrics
+- **📊 [Metrics](http://localhost:9082)** - Performance and usage metrics
+- **🐳 [Container Logs](./docs/DEPLOYMENT.md)** - Docker deployment guides
 
 ## 🤝 Contributing
 

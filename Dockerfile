@@ -42,20 +42,35 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 # Verify the binary
 RUN ls -la mcp-memory-server
 
-# Production stage - Using distroless with Node.js for mcp-proxy.js
-FROM gcr.io/distroless/nodejs20-debian12:nonroot
+# Production stage - Using Debian slim with Node.js for mcp-proxy.js
+FROM debian:bookworm-slim
 
-# Copy necessary files from builder
+# Install Node.js and runtime dependencies
+RUN apt-get update && apt-get install -y \
+    nodejs \
+    npm \
+    ca-certificates \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -g 1001 mcpuser && \
+    useradd -u 1001 -g mcpuser -s /bin/sh mcpuser
+
+# Set working directory
 WORKDIR /app
 
 # Copy binary from builder stage
-COPY --from=builder --chown=nonroot:nonroot /build/mcp-memory-server /app/
+COPY --from=builder --chown=mcpuser:mcpuser /build/mcp-memory-server /app/
 
 # Copy configuration templates
-COPY --chown=nonroot:nonroot configs/docker/ /app/config/
+COPY --chown=mcpuser:mcpuser configs/docker/ /app/config/
 
 # Copy MCP proxy for stdio <> HTTP bridging
-COPY --chown=nonroot:nonroot mcp-proxy.js /app/
+COPY --chown=mcpuser:mcpuser mcp-proxy.js /app/
+
+# Switch to non-root user
+USER mcpuser
 
 # Expose ports
 EXPOSE 9080 8081 8082
