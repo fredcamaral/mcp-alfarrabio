@@ -298,31 +298,7 @@ func TestGetMetadata(t *testing.T) {
 	assert.Nil(t, getMetadata(nil, 0, 0))        // Nil metadatas
 }
 
-func TestNoOpEmbeddingFunction(t *testing.T) {
-	fn := &noOpEmbeddingFunction{}
-	ctx := context.Background()
-
-	// Test EmbedDocuments
-	docs := []string{"doc1", "doc2", "doc3"}
-	embeddings, err := fn.EmbedDocuments(ctx, docs)
-	assert.NoError(t, err)
-	assert.Len(t, embeddings, 3)
-	for _, emb := range embeddings {
-		assert.Equal(t, 1536, emb.Len())
-	}
-
-	// Test EmbedQuery
-	queryEmb, err := fn.EmbedQuery(ctx, "test query")
-	assert.NoError(t, err)
-	assert.Equal(t, 1536, queryEmb.Len())
-
-	// Test EmbedRecords
-	records := []map[string]interface{}{
-		{"id": "1", "text": "test"},
-	}
-	err = fn.EmbedRecords(ctx, records, false)
-	assert.NoError(t, err)
-}
+// TestNoOpEmbeddingFunction removed - no longer needed with simplified client
 
 func TestStoreStats(t *testing.T) {
 	stats := &StoreStats{

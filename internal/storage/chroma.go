@@ -12,8 +12,7 @@ import (
 	"strings"
 	"time"
 
-	chromav2 "github.com/amikos-tech/chroma-go/pkg/api/v2"
-	"github.com/amikos-tech/chroma-go/pkg/embeddings"
+	"mcp-memory/internal/chromasimple"
 )
 
 // Constants
@@ -23,8 +22,8 @@ const (
 
 // ChromaStore implements VectorStore interface for Chroma vector database
 type ChromaStore struct {
-	client     chromav2.Client
-	collection chromav2.Collection
+	client     chromasimple.Client
+	collection chromasimple.Collection
 	config     *config.ChromaConfig
 	metrics    *StorageMetrics
 }
@@ -48,27 +47,19 @@ func (cs *ChromaStore) Initialize(ctx context.Context) error {
 	defer cs.updateMetrics("initialize", start, nil)
 
 	// Create Chroma client
-	client, err := chromav2.NewHTTPClient(chromav2.WithBaseURL(cs.config.Endpoint))
-	if err != nil {
-		cs.metrics.ConnectionStatus = connectionStatusError
-		return fmt.Errorf("failed to create Chroma client: %w", err)
-	}
+	client := chromasimple.NewHTTPClient(cs.config.Endpoint)
 	cs.client = client
 
-	// Create or get collection with custom embedding function wrapper
-	embeddingFunc := &noOpEmbeddingFunction{}
+	// Create or get collection
+	collectionMetadata := map[string]interface{}{
+		"description": "Claude conversation memory storage",
+		"created_at":  time.Now().UTC().Format(time.RFC3339),
+	}
 
 	collection, err := cs.client.GetOrCreateCollection(
 		ctx,
 		cs.config.Collection,
-		chromav2.WithEmbeddingFunctionCreate(embeddingFunc),
-		chromav2.WithCollectionMetadataCreate(
-			chromav2.NewMetadata(
-				chromav2.NewStringAttribute("description", "Claude conversation memory storage"),
-				chromav2.NewStringAttribute("created_at", time.Now().UTC().Format(time.RFC3339)),
-			),
-		),
-		chromav2.WithHNSWSpaceCreate(embeddings.COSINE),
+		collectionMetadata,
 	)
 	if err != nil {
 		cs.metrics.ConnectionStatus = connectionStatusError
@@ -98,16 +89,13 @@ func (cs *ChromaStore) Store(ctx context.Context, chunk types.ConversationChunk)
 	document := cs.chunkToDocument(chunk)
 	metadata := cs.chunkToMetadata(chunk)
 
-	// Convert metadata to Chroma attributes
-	attrs := cs.metadataToAttributes(metadata)
-
 	// Add document to collection
 	err := cs.collection.Add(
 		ctx,
-		chromav2.WithIDs(chromav2.DocumentID(chunk.ID)),
-		chromav2.WithEmbeddings(embeddings.NewEmbeddingFromFloat64(chunk.Embeddings)),
-		chromav2.WithMetadatas(chromav2.NewDocumentMetadata(attrs...)),
-		chromav2.WithTexts(document),
+		[]string{chunk.ID},
+		[][]float64{chunk.Embeddings},
+		[]string{document},
+		[]map[string]interface{}{metadata},
 	)
 
 	if err != nil {
@@ -136,21 +124,17 @@ func (cs *ChromaStore) Search(ctx context.Context, query types.MemoryQuery, quer
 		limit = 10
 	}
 
-	// Build query options
-	queryOptions := []chromav2.CollectionQueryOption{
-		chromav2.WithQueryEmbeddings(embeddings.NewEmbeddingFromFloat64(queryEmbeddings)),
-		chromav2.WithNResults(limit),
-		chromav2.WithIncludeQuery(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
-	}
-
-	// Add where filters if needed
+	// Build where filters
 	whereFilter := cs.buildWhereFilter(query)
-	if whereFilter != nil {
-		queryOptions = append(queryOptions, chromav2.WithWhereQuery(whereFilter))
-	}
 
 	// Query the collection
-	qr, err := cs.collection.Query(ctx, queryOptions...)
+	qr, err := cs.collection.Query(
+		ctx,
+		[][]float64{queryEmbeddings},
+		limit,
+		whereFilter,
+		[]string{"documents", "metadatas", "distances"},
+	)
 	if err != nil {
 		cs.updateMetrics("search", start, err)
 		return nil, fmt.Errorf("failed to search: %w", err)
@@ -171,24 +155,20 @@ func (cs *ChromaStore) Search(ctx context.Context, query types.MemoryQuery, quer
 	return cs.processQueryResults(qr, &query, results), nil
 }
 
-func (cs *ChromaStore) processQueryResults(qr chromav2.QueryResult, query *types.MemoryQuery, results *types.SearchResults) *types.SearchResults {
-	docs := qr.GetDocumentsGroups()
-	if len(docs) == 0 || len(docs[0]) == 0 {
+func (cs *ChromaStore) processQueryResults(qr *chromasimple.QueryResult, query *types.MemoryQuery, results *types.SearchResults) *types.SearchResults {
+	if qr == nil || len(qr.IDs) == 0 || len(qr.IDs[0]) == 0 {
 		return results
 	}
 
-	results.Total = len(docs[0])
-	metadatas := qr.GetMetadatasGroups()
-	distances := qr.GetDistancesGroups()
-	ids := qr.GetIDGroups()
+	results.Total = len(qr.IDs[0])
 
 	// Ensure all result groups have data
-	if len(metadatas) == 0 || len(distances) == 0 || len(ids) == 0 {
+	if len(qr.Documents) == 0 || len(qr.Metadatas) == 0 || len(qr.Distances) == 0 {
 		return results
 	}
 
-	for i := 0; i < len(docs[0]); i++ {
-		result := cs.processSearchResult(i, ids[0], docs[0], cs.convertMetadatas(metadatas[0]), cs.convertDistances(distances[0]), query.MinRelevanceScore)
+	for i := 0; i < len(qr.IDs[0]); i++ {
+		result := cs.processSearchResult(i, qr.IDs[0], qr.Documents[0], qr.Metadatas[0], qr.Distances[0], query.MinRelevanceScore)
 		if result != nil {
 			results.Results = append(results.Results, *result)
 		}
@@ -197,7 +177,7 @@ func (cs *ChromaStore) processQueryResults(qr chromav2.QueryResult, query *types
 	return results
 }
 
-func (cs *ChromaStore) processSearchResult(index int, ids []chromav2.DocumentID, docs []chromav2.Document, metadatas []map[string]interface{}, distances []float32, minScore float64) *types.SearchResult {
+func (cs *ChromaStore) processSearchResult(index int, ids []string, docs []string, metadatas []map[string]interface{}, distances []float32, minScore float64) *types.SearchResult {
 	chunkID := cs.extractChunkID(index, ids)
 	metadata := cs.extractMetadata(index, metadatas)
 	content := cs.extractContent(index, docs)
@@ -215,9 +195,9 @@ func (cs *ChromaStore) processSearchResult(index int, ids []chromav2.DocumentID,
 	}
 }
 
-func (cs *ChromaStore) extractChunkID(index int, ids []chromav2.DocumentID) string {
+func (cs *ChromaStore) extractChunkID(index int, ids []string) string {
 	if len(ids) > index {
-		return string(ids[index])
+		return ids[index]
 	}
 	return ""
 }
@@ -229,9 +209,9 @@ func (cs *ChromaStore) extractMetadata(index int, metadatas []map[string]interfa
 	return nil
 }
 
-func (cs *ChromaStore) extractContent(index int, docs []chromav2.Document) string {
-	if len(docs) > index && docs[index] != nil {
-		return docs[index].ContentString()
+func (cs *ChromaStore) extractContent(index int, docs []string) string {
+	if len(docs) > index {
+		return docs[index]
 	}
 	return ""
 }
@@ -243,21 +223,7 @@ func (cs *ChromaStore) calculateScore(index int, distances []float32) float64 {
 	return 1.0
 }
 
-func (cs *ChromaStore) convertDistances(distances embeddings.Distances) []float32 {
-	result := make([]float32, len(distances))
-	for i, d := range distances {
-		result[i] = float32(d)
-	}
-	return result
-}
-
-func (cs *ChromaStore) convertMetadatas(metadatas chromav2.DocumentMetadatas) []map[string]interface{} {
-	result := make([]map[string]interface{}, len(metadatas))
-	for i, meta := range metadatas {
-		result[i] = cs.documentMetadataToMap(meta)
-	}
-	return result
-}
+// These methods are no longer needed as we work with native Go types
 
 // GetByID retrieves a chunk by its ID
 func (cs *ChromaStore) GetByID(ctx context.Context, id string) (*types.ConversationChunk, error) {
@@ -266,8 +232,9 @@ func (cs *ChromaStore) GetByID(ctx context.Context, id string) (*types.Conversat
 
 	result, err := cs.collection.Get(
 		ctx,
-		chromav2.WithIDsGet(chromav2.DocumentID(id)),
-		chromav2.WithIncludeGet(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
+		[]string{id},
+		nil,
+		[]string{"documents", "metadatas"},
 	)
 
 	if err != nil {
@@ -275,25 +242,16 @@ func (cs *ChromaStore) GetByID(ctx context.Context, id string) (*types.Conversat
 		return nil, fmt.Errorf("failed to get chunk: %w", err)
 	}
 
-	if result == nil || len(result.GetDocuments()) == 0 {
+	if result == nil || len(result.Documents) == 0 {
 		return nil, fmt.Errorf("chunk not found: %s", id)
 	}
 
-	docs := result.GetDocuments()
-	metadatas := result.GetMetadatas()
-	ids := result.GetIDs()
-
-	if len(ids) > 0 && len(docs) > 0 {
+	if len(result.IDs) > 0 && len(result.Documents) > 0 {
 		var metadata map[string]interface{}
-		if len(metadatas) > 0 {
-			metadata = cs.documentMetadataToMap(metadatas[0])
+		if len(result.Metadatas) > 0 {
+			metadata = result.Metadatas[0]
 		}
-		// Extract content from Document interface
-		var content string
-		if doc := docs[0]; doc != nil {
-			content = doc.ContentString()
-		}
-		return cs.chromaResultToChunk(string(ids[0]), content, metadata), nil
+		return cs.chromaResultToChunk(result.IDs[0], result.Documents[0], metadata), nil
 	}
 
 	return nil, fmt.Errorf("chunk not found: %s", id)
@@ -308,20 +266,18 @@ func (cs *ChromaStore) ListByRepository(ctx context.Context, repository string, 
 		limit = 10
 	}
 
-	// Build options for get
-	getOptions := []chromav2.CollectionGetOption{
-		chromav2.WithWhereGet(chromav2.EqString("repository", repository)),
-		chromav2.WithIncludeGet(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
+	// Build where filter for repository
+	whereFilter := map[string]interface{}{
+		"repository": repository,
 	}
 
-	if limit > 0 {
-		getOptions = append(getOptions, chromav2.WithLimitGet(limit))
-	}
-	if offset > 0 {
-		getOptions = append(getOptions, chromav2.WithOffsetGet(offset))
-	}
-
-	result, err := cs.collection.Get(ctx, getOptions...)
+	// Note: our simple client doesn't support limit/offset, would need to add this
+	result, err := cs.collection.Get(
+		ctx,
+		nil, // ids - nil means get all matching where clause
+		whereFilter,
+		[]string{"documents", "metadatas"},
+	)
 	if err != nil {
 		cs.updateMetrics("list_by_repository", start, err)
 		return nil, fmt.Errorf("failed to list chunks: %w", err)
@@ -329,29 +285,35 @@ func (cs *ChromaStore) ListByRepository(ctx context.Context, repository string, 
 
 	chunks := make([]types.ConversationChunk, 0)
 	if result != nil {
-		docs := result.GetDocuments()
-		metadatas := result.GetMetadatas()
-		ids := result.GetIDs()
-
-		for i := 0; i < len(docs); i++ {
+		for i := 0; i < len(result.IDs); i++ {
 			var chunkID string
-			if i < len(ids) {
-				chunkID = string(ids[i])
+			if i < len(result.IDs) {
+				chunkID = result.IDs[i]
 			}
 
 			var metadata map[string]interface{}
-			if i < len(metadatas) {
-				metadata = cs.documentMetadataToMap(metadatas[i])
+			if i < len(result.Metadatas) {
+				metadata = result.Metadatas[i]
 			}
 
-			// Extract content from Document interface
 			var content string
-			if i < len(docs) && docs[i] != nil {
-				content = docs[i].ContentString()
+			if i < len(result.Documents) {
+				content = result.Documents[i]
 			}
 
 			chunk := cs.chromaResultToChunk(chunkID, content, metadata)
 			chunks = append(chunks, *chunk)
+		}
+		
+		// Apply limit and offset manually since our simple client doesn't support it
+		if offset > 0 && offset < len(chunks) {
+			chunks = chunks[offset:]
+		} else if offset >= len(chunks) {
+			chunks = []types.ConversationChunk{}
+		}
+		
+		if limit > 0 && len(chunks) > limit {
+			chunks = chunks[:limit]
 		}
 	}
 
@@ -363,13 +325,17 @@ func (cs *ChromaStore) ListBySession(ctx context.Context, sessionID string) ([]t
 	start := time.Now()
 	defer cs.updateMetrics("list_by_session", start, nil)
 
-	// Build options for get - get all chunks for this session
-	getOptions := []chromav2.CollectionGetOption{
-		chromav2.WithWhereGet(chromav2.EqString("session_id", sessionID)),
-		chromav2.WithIncludeGet(chromav2.IncludeDocuments, chromav2.IncludeMetadatas),
+	// Build where filter for session
+	whereFilter := map[string]interface{}{
+		"session_id": sessionID,
 	}
 
-	result, err := cs.collection.Get(ctx, getOptions...)
+	result, err := cs.collection.Get(
+		ctx,
+		nil, // ids - nil means get all matching where clause
+		whereFilter,
+		[]string{"documents", "metadatas"},
+	)
 	if err != nil {
 		cs.updateMetrics("list_by_session", start, err)
 		return nil, fmt.Errorf("failed to list chunks by session: %w", err)
@@ -377,24 +343,20 @@ func (cs *ChromaStore) ListBySession(ctx context.Context, sessionID string) ([]t
 
 	chunks := make([]types.ConversationChunk, 0)
 	if result != nil {
-		docs := result.GetDocuments()
-		metadatas := result.GetMetadatas()
-		ids := result.GetIDs()
-
-		for i := 0; i < len(docs); i++ {
+		for i := 0; i < len(result.IDs); i++ {
 			var chunkID string
-			if i < len(ids) {
-				chunkID = string(ids[i])
+			if i < len(result.IDs) {
+				chunkID = result.IDs[i]
 			}
 
 			var content string
-			if i < len(docs) && docs[i] != nil {
-				content = docs[i].ContentString()
+			if i < len(result.Documents) {
+				content = result.Documents[i]
 			}
 
 			var metadata map[string]interface{}
-			if i < len(metadatas) && metadatas[i] != nil {
-				metadata = cs.documentMetadataToMap(metadatas[i])
+			if i < len(result.Metadatas) {
+				metadata = result.Metadatas[i]
 			}
 
 			chunk := cs.chromaResultToChunk(chunkID, content, metadata)
@@ -415,7 +377,7 @@ func (cs *ChromaStore) Delete(ctx context.Context, id string) error {
 	start := time.Now()
 	defer cs.updateMetrics("delete", start, nil)
 
-	err := cs.collection.Delete(ctx, chromav2.WithIDsDelete(chromav2.DocumentID(id)))
+	err := cs.collection.Delete(ctx, []string{id})
 	if err != nil {
 		cs.updateMetrics("delete", start, err)
 		return fmt.Errorf("failed to delete chunk: %w", err)
@@ -488,11 +450,18 @@ func (cs *ChromaStore) Cleanup(ctx context.Context, retentionDays int) (int, err
 	cutoffTime := time.Now().AddDate(0, 0, -retentionDays)
 	cutoffEpoch := cutoffTime.Unix()
 
-	// Get old chunks
+	// Get old chunks using timestamp filter
+	whereFilter := map[string]interface{}{
+		"timestamp_epoch": map[string]interface{}{
+			"$lt": float64(cutoffEpoch),
+		},
+	}
+
 	result, err := cs.collection.Get(
 		ctx,
-		chromav2.WithWhereGet(chromav2.LtFloat("timestamp_epoch", float32(cutoffEpoch))),
-		chromav2.WithIncludeGet(chromav2.IncludeMetadatas),
+		nil, // ids - nil means get all matching where clause
+		whereFilter,
+		[]string{"metadatas"},
 	)
 
 	if err != nil {
@@ -500,19 +469,18 @@ func (cs *ChromaStore) Cleanup(ctx context.Context, retentionDays int) (int, err
 		return 0, fmt.Errorf("failed to get old chunks: %w", err)
 	}
 
-	if result == nil || len(result.GetIDs()) == 0 {
+	if result == nil || len(result.IDs) == 0 {
 		return 0, nil
 	}
 
 	// Delete the old chunks
-	ids := result.GetIDs()
-	err = cs.collection.Delete(ctx, chromav2.WithIDsDelete(ids...))
+	err = cs.collection.Delete(ctx, result.IDs)
 	if err != nil {
 		cs.updateMetrics("cleanup", start, err)
 		return 0, fmt.Errorf("failed to delete old chunks: %w", err)
 	}
 
-	return len(ids), nil
+	return len(result.IDs), nil
 }
 
 // Close closes the client connection
@@ -530,35 +498,7 @@ func (cs *ChromaStore) chunkToDocument(chunk types.ConversationChunk) string {
 	return fmt.Sprintf("Type: %s\nContent: %s\nSummary: %s", chunk.Type, chunk.Content, chunk.Summary)
 }
 
-// documentMetadataToMap converts a DocumentMetadata interface to map[string]interface{}
-func (cs *ChromaStore) documentMetadataToMap(dm chromav2.DocumentMetadata) map[string]interface{} {
-	if dm == nil {
-		return make(map[string]interface{})
-	}
-
-	// Get the underlying implementation to access Keys() method
-	impl, ok := dm.(*chromav2.DocumentMetadataImpl)
-	if !ok {
-		return make(map[string]interface{})
-	}
-
-	result := make(map[string]interface{})
-
-	// Iterate through all keys and extract values
-	for _, key := range impl.Keys() {
-		if val, ok := dm.GetString(key); ok {
-			result[key] = val
-		} else if val, ok := dm.GetInt(key); ok {
-			result[key] = val
-		} else if val, ok := dm.GetFloat(key); ok {
-			result[key] = val
-		} else if val, ok := dm.GetBool(key); ok {
-			result[key] = val
-		}
-	}
-
-	return result
-}
+// documentMetadataToMap is no longer needed as we work with native Go maps
 
 func (cs *ChromaStore) chunkToMetadata(chunk types.ConversationChunk) map[string]interface{} {
 	metadata := map[string]interface{}{
@@ -583,30 +523,7 @@ func (cs *ChromaStore) chunkToMetadata(chunk types.ConversationChunk) map[string
 	return metadata
 }
 
-func (cs *ChromaStore) metadataToAttributes(metadata map[string]interface{}) []*chromav2.MetaAttribute {
-	attrs := make([]*chromav2.MetaAttribute, 0, len(metadata))
-
-	for key, value := range metadata {
-		switch v := value.(type) {
-		case string:
-			attrs = append(attrs, chromav2.NewStringAttribute(key, v))
-		case float64:
-			attrs = append(attrs, chromav2.NewFloatAttribute(key, v))
-		case int:
-			attrs = append(attrs, chromav2.NewIntAttribute(key, int64(v)))
-		case int64:
-			attrs = append(attrs, chromav2.NewIntAttribute(key, v))
-		case bool:
-			// Convert bool to string for Chroma
-			attrs = append(attrs, chromav2.NewStringAttribute(key, strconv.FormatBool(v)))
-		default:
-			// Convert other types to string
-			attrs = append(attrs, chromav2.NewStringAttribute(key, fmt.Sprintf("%v", v)))
-		}
-	}
-
-	return attrs
-}
+// metadataToAttributes is no longer needed as we work with native Go maps
 
 func (cs *ChromaStore) chromaResultToChunk(id string, document string, metadata map[string]interface{}) *types.ConversationChunk {
 	chunk := &types.ConversationChunk{
@@ -690,13 +607,13 @@ func (cs *ChromaStore) chromaResultToChunk(id string, document string, metadata 
 	return chunk
 }
 
-func (cs *ChromaStore) buildWhereFilter(query types.MemoryQuery) chromav2.WhereClause {
-	filters := []chromav2.WhereClause{}
+func (cs *ChromaStore) buildWhereFilter(query types.MemoryQuery) map[string]interface{} {
+	filters := make(map[string]interface{})
 
 	logging.Info("ChromaStore: Building where filters", "repository", query.Repository, "types", query.Types, "recency", query.Recency)
 
 	if query.Repository != nil && *query.Repository != "" {
-		filters = append(filters, chromav2.EqString("repository", *query.Repository))
+		filters["repository"] = *query.Repository
 		logging.Info("ChromaStore: Added repository filter", "repository", *query.Repository)
 	}
 
@@ -705,19 +622,25 @@ func (cs *ChromaStore) buildWhereFilter(query types.MemoryQuery) chromav2.WhereC
 		for i, t := range query.Types {
 			typeStrings[i] = string(t)
 		}
-		filters = append(filters, chromav2.InString("type", typeStrings...))
+		filters["type"] = map[string]interface{}{
+			"$in": typeStrings,
+		}
 		logging.Info("ChromaStore: Added type filter", "types", typeStrings)
 	}
 
 	// Add time-based filtering using epoch timestamps
 	switch query.Recency {
 	case types.RecencyRecent:
-		recentEpoch := float32(time.Now().AddDate(0, 0, -7).Unix())
-		filters = append(filters, chromav2.GtFloat("timestamp_epoch", recentEpoch))
+		recentEpoch := float64(time.Now().AddDate(0, 0, -7).Unix())
+		filters["timestamp_epoch"] = map[string]interface{}{
+			"$gt": recentEpoch,
+		}
 		logging.Info("ChromaStore: Added recent time filter", "since_epoch", recentEpoch)
 	case types.RecencyLastMonth:
-		monthEpoch := float32(time.Now().AddDate(0, -1, 0).Unix())
-		filters = append(filters, chromav2.GtFloat("timestamp_epoch", monthEpoch))
+		monthEpoch := float64(time.Now().AddDate(0, -1, 0).Unix())
+		filters["timestamp_epoch"] = map[string]interface{}{
+			"$gt": monthEpoch,
+		}
 		logging.Info("ChromaStore: Added month time filter", "since_epoch", monthEpoch)
 	case types.RecencyAllTime:
 		logging.Info("ChromaStore: No time filter (all time)")
@@ -727,13 +650,8 @@ func (cs *ChromaStore) buildWhereFilter(query types.MemoryQuery) chromav2.WhereC
 		return nil
 	}
 
-	if len(filters) == 1 {
-		return filters[0]
-	}
-
-	// Combine multiple filters with AND
-	logging.Info("ChromaStore: Combining filters with AND", "filter_count", len(filters))
-	return chromav2.And(filters...)
+	logging.Info("ChromaStore: Built where filter", "filter_count", len(filters))
+	return filters
 }
 
 func (cs *ChromaStore) updateMetrics(operation string, start time.Time, err error) {
@@ -757,29 +675,7 @@ func (cs *ChromaStore) updateMetrics(operation string, start time.Time, err erro
 	cs.metrics.LastOperation = &now
 }
 
-// noOpEmbeddingFunction is a no-op embedding function since we handle embeddings externally
-type noOpEmbeddingFunction struct{}
-
-func (n *noOpEmbeddingFunction) EmbedDocuments(ctx context.Context, documents []string) ([]embeddings.Embedding, error) {
-	// Return empty embeddings - we handle embeddings externally
-	dimension := getEnvInt("MCP_MEMORY_EMBEDDING_DIMENSION", 1536)
-	result := make([]embeddings.Embedding, len(documents))
-	for i := range result {
-		result[i] = embeddings.NewEmbeddingFromFloat64(make([]float64, dimension))
-	}
-	return result, nil
-}
-
-func (n *noOpEmbeddingFunction) EmbedQuery(ctx context.Context, query string) (embeddings.Embedding, error) {
-	// Return empty embedding - we handle embeddings externally
-	dimension := getEnvInt("MCP_MEMORY_EMBEDDING_DIMENSION", 1536)
-	return embeddings.NewEmbeddingFromFloat64(make([]float64, dimension)), nil
-}
-
-func (n *noOpEmbeddingFunction) EmbedRecords(ctx context.Context, records []map[string]interface{}, force bool) error {
-	// No-op - we handle embeddings externally
-	return nil
-}
+// Embedding functions are no longer needed with simplified client
 
 // getEnvInt gets an integer from environment variable with a default
 func getEnvInt(key string, defaultValue int) int {

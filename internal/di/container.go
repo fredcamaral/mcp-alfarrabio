@@ -67,17 +67,17 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 func (c *Container) initializeStorage() error {
 	// Initialize vector store
 	var baseStore storage.VectorStore
-	var err error
 
 	// Use pooled store if connection pooling is enabled
-	if usePooling := os.Getenv("CHROMA_USE_POOLING"); usePooling == envValueTrue {
-		baseStore, err = storage.NewPooledChromaStore(&c.Config.Chroma)
-		if err != nil {
-			return fmt.Errorf("failed to create pooled Chroma store: %w", err)
-		}
-	} else {
+	// TODO: Re-enable pooled store after updating to simplified client
+	// if usePooling := os.Getenv("CHROMA_USE_POOLING"); usePooling == envValueTrue {
+	//	baseStore, err := storage.NewPooledChromaStore(&c.Config.Chroma)
+	//	if err != nil {
+	//		return fmt.Errorf("failed to create pooled Chroma store: %w", err)
+	//	}
+	// } else {
 		baseStore = storage.NewChromaStore(&c.Config.Chroma)
-	}
+	// }
 
 	// Wrap with retry logic
 	retryStore := storage.NewRetryableVectorStore(baseStore, nil)
