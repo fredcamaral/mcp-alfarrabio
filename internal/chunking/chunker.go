@@ -13,6 +13,13 @@ import (
 	"time"
 )
 
+// Constants for significance levels
+const (
+	SignificanceHigh   = "high"
+	SignificanceMedium = "medium"
+	SignificanceLow    = "low"
+)
+
 // ChunkingService handles the intelligent chunking of conversations
 type ChunkingService struct {
 	config           *config.ChunkingConfig
@@ -889,6 +896,10 @@ func (cs *ChunkingService) calculateImpactScore(content string, metadata types.C
 		score += 0.3
 	case types.OutcomeFailed:
 		score += 0.1
+	case types.OutcomeInProgress:
+		score += 0.15
+	case types.OutcomeAbandoned:
+		score += 0.05
 	default:
 		score += 0.2
 	}
@@ -986,11 +997,11 @@ func (cs *ChunkingService) determineSignificanceLevel(impactScore, reusabilitySc
 	case combinedScore >= 0.8:
 		return "critical"
 	case combinedScore >= 0.6:
-		return "high"
+		return SignificanceHigh
 	case combinedScore >= 0.4:
-		return "medium"
+		return SignificanceMedium
 	default:
-		return "low"
+		return SignificanceLow
 	}
 }
 
@@ -1075,6 +1086,8 @@ func (cs *ChunkingService) estimateTimeInvestment(content string, metadata types
 		baseTime += 15
 	case types.DifficultyModerate:
 		baseTime += 7
+	case types.DifficultySimple:
+		baseTime += 2
 	}
 
 	// Problem resolution factor

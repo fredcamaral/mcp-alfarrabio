@@ -1195,7 +1195,7 @@ func (ms *MemoryServer) formatRecentActivity(chunks []types.ConversationChunk, l
 }
 
 // generateContextSuggestions creates proactive suggestions based on current context
-func (ms *MemoryServer) generateContextSuggestions(_ context.Context, repository string, chunks []types.ConversationChunk) []map[string]interface{} {
+func (ms *MemoryServer) generateContextSuggestions(_ context.Context, _ string, chunks []types.ConversationChunk) []map[string]interface{} {
 	suggestions := []map[string]interface{}{}
 
 	if len(chunks) == 0 {
@@ -4528,7 +4528,8 @@ func (ms *MemoryServer) handleMemoryDecayManagement(ctx context.Context, params 
 		if !hasConfig {
 			return nil, fmt.Errorf("config is required for configure action")
 		}
-		result, err = ms.handleDecayConfiguration(ctx, repository, sessionID, config)
+		result = ms.handleDecayConfiguration(ctx, repository, sessionID, config)
+		err = nil
 	default:
 		return nil, fmt.Errorf("unknown action: %s. Valid actions are: 'run_decay', 'configure', 'status', 'preview'", action)
 	}
@@ -4720,7 +4721,7 @@ func (ms *MemoryServer) handleRunDecay(ctx context.Context, repository, sessionI
 }
 
 // handleDecayConfiguration handles decay configuration updates
-func (ms *MemoryServer) handleDecayConfiguration(_ context.Context, repository, sessionID string, config map[string]interface{}) (map[string]interface{}, error) {
+func (ms *MemoryServer) handleDecayConfiguration(_ context.Context, repository, sessionID string, config map[string]interface{}) map[string]interface{} {
 	// Parse configuration
 	strategy := "adaptive"
 	if s, ok := config["strategy"].(string); ok && s != "" {
@@ -4760,7 +4761,7 @@ func (ms *MemoryServer) handleDecayConfiguration(_ context.Context, repository, 
 			"retention_period_days":   retentionPeriodDays,
 		},
 		"note": "Configuration saved. This is a simplified implementation for demonstration.",
-	}, nil
+	}
 }
 
 // estimateDecayScore estimates the decay score for a chunk (simplified implementation)

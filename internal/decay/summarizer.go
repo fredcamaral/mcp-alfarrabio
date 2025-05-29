@@ -569,6 +569,28 @@ func (l *LLMSummarizer) extractCriticalInformation(chunks []types.ConversationCh
 			if chunk.Metadata.Difficulty == types.DifficultyComplex {
 				info.Errors = append(info.Errors, chunk)
 			}
+		case types.ChunkTypeCodeChange:
+			// Code changes can be solutions if successful
+			if chunk.Metadata.Outcome == types.OutcomeSuccess {
+				info.Solutions = append(info.Solutions, chunk)
+			}
+		case types.ChunkTypeDiscussion:
+			// Discussions can contain learnings
+			if l.containsLearning(chunk) {
+				info.Learnings = append(info.Learnings, chunk)
+			}
+		case types.ChunkTypeSessionSummary:
+			// Session summaries already contain aggregated info
+		case types.ChunkTypeVerification:
+			// Verifications can be solutions if successful
+			if chunk.Metadata.Outcome == types.OutcomeSuccess {
+				info.Solutions = append(info.Solutions, chunk)
+			}
+		case types.ChunkTypeQuestion:
+			// Questions that lead to insights are learnings
+			if l.containsLearning(chunk) {
+				info.Learnings = append(info.Learnings, chunk)
+			}
 		}
 
 		// Extract technologies
@@ -731,6 +753,18 @@ func (l *LLMSummarizer) detectPhase(chunk types.ConversationChunk) types.Convers
 		return types.FlowSolution
 	case types.ChunkTypeVerification:
 		return types.FlowVerification
+	case types.ChunkTypeCodeChange:
+		return types.FlowSolution
+	case types.ChunkTypeDiscussion:
+		return types.FlowInvestigation
+	case types.ChunkTypeSessionSummary:
+		return types.FlowInvestigation
+	case types.ChunkTypeAnalysis:
+		return types.FlowInvestigation
+	case types.ChunkTypeQuestion:
+		return types.FlowProblem
+	case types.ChunkTypeArchitectureDecision:
+		return types.FlowSolution
 	default:
 		return types.FlowInvestigation
 	}
@@ -799,6 +833,16 @@ func (l *LLMSummarizer) isKeyEvent(chunk types.ConversationChunk) bool {
 		return chunk.Metadata.Difficulty == types.DifficultyComplex
 	case types.ChunkTypeVerification:
 		return chunk.Metadata.Outcome == types.OutcomeSuccess
+	case types.ChunkTypeCodeChange:
+		return chunk.Metadata.Outcome == types.OutcomeSuccess
+	case types.ChunkTypeDiscussion:
+		return false // Discussions are rarely key events by themselves
+	case types.ChunkTypeSessionSummary:
+		return false // Summaries are not events
+	case types.ChunkTypeAnalysis:
+		return l.containsLearning(chunk) // Analysis with insights are key
+	case types.ChunkTypeQuestion:
+		return false // Questions are not events by themselves
 	default:
 		// Check for breakthrough language
 		content := strings.ToLower(chunk.Content + " " + chunk.Summary)
@@ -826,6 +870,19 @@ func (l *LLMSummarizer) classifyEvent(chunk types.ConversationChunk) EventType {
 		return EventTypeDecisionMade
 	case types.ChunkTypeVerification:
 		return EventTypeErrorResolved
+	case types.ChunkTypeCodeChange:
+		if chunk.Metadata.Outcome == types.OutcomeSuccess {
+			return EventTypeSolutionFound
+		}
+		return EventTypeErrorResolved
+	case types.ChunkTypeDiscussion:
+		return EventTypeBreakthroughMade // Discussions often lead to insights
+	case types.ChunkTypeSessionSummary:
+		return EventTypeSolutionFound // Summaries capture completed work
+	case types.ChunkTypeAnalysis:
+		return EventTypeBreakthroughMade // Analysis often yields insights
+	case types.ChunkTypeQuestion:
+		return EventTypeProblemFound // Questions identify issues
 	default:
 		// Check content for breakthrough indicators
 		content := strings.ToLower(chunk.Content + " " + chunk.Summary)

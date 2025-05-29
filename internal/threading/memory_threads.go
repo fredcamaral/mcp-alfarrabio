@@ -181,7 +181,8 @@ func (tm *ThreadManager) CreateThread(ctx context.Context, chunks []types.Conver
 	// Create chain relationships
 	if err := tm.createThreadChain(ctx, thread, sortedChunks); err != nil {
 		// Log error but don't fail thread creation
-		// logging.Warn("Failed to create thread chain", "thread_id", thread.ID, "error", err)
+		// TODO: Enable logging when logger is available
+		_ = err // Acknowledge error for linter
 	}
 
 	return thread, nil
@@ -746,6 +747,9 @@ func (tm *ThreadManager) generateNextSteps(chunks []types.ConversationChunk, thr
 	case types.OutcomeFailed:
 		steps = append(steps, "Analyze the failure and identify root cause")
 		steps = append(steps, "Consider alternative approaches")
+	case types.OutcomeAbandoned:
+		steps = append(steps, "Reconsider the abandoned approach")
+		steps = append(steps, "Evaluate if circumstances have changed")
 	case types.OutcomeSuccess:
 		steps = append(steps, "Document the successful solution")
 		steps = append(steps, "Consider if there are related tasks")
