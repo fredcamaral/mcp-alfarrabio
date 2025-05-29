@@ -42,8 +42,8 @@ RUN CGO_ENABLED=1 GOOS=linux go build \
 # Verify the binary
 RUN ls -la mcp-memory-server
 
-# Production stage - Using distroless for minimal attack surface
-FROM gcr.io/distroless/base-debian12:nonroot
+# Production stage - Using distroless with Node.js for mcp-proxy.js
+FROM gcr.io/distroless/nodejs20-debian12:nonroot
 
 # Copy necessary files from builder
 WORKDIR /app
@@ -53,6 +53,9 @@ COPY --from=builder --chown=nonroot:nonroot /build/mcp-memory-server /app/
 
 # Copy configuration templates
 COPY --chown=nonroot:nonroot configs/docker/ /app/config/
+
+# Copy MCP proxy for stdio <> HTTP bridging
+COPY --chown=nonroot:nonroot mcp-proxy.js /app/
 
 # Expose ports
 EXPOSE 9080 8081 8082
