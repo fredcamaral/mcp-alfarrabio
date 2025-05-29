@@ -49,9 +49,8 @@ docker run -d --name mcp-auto-updater \
    docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile auto-update up -d
    ```
 
-2. **Configure your AI client** (e.g., Claude Desktop):
+2. **Configure your AI client** (e.g., Claude Desktop, Claude Code, Windsurf, Cursor, etc):
    
-   Add this to your `claude_desktop_config.json`:
    ```json
    {
      "mcpServers": {
