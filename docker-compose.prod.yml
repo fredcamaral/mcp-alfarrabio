@@ -1,0 +1,8 @@
+# Production override for auto-updates
+# Usage: docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile auto-update up -d
+
+services:
+  # Override MCP server to use registry image for Watchtower monitoring
+  mcp-memory-server:
+    image: ghcr.io/fredcamaral/mcp-memory:latest
+    build: {} # Clear build directive

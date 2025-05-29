@@ -41,10 +41,12 @@ docker run -d --name mcp-auto-updater \
    cd mcp-memory
    cp .env.example .env
    # Edit .env and add your OPENAI_API_KEY
+   
+   # Local development (builds from source)
    docker-compose up -d
    
-   # OR with auto-updates (pulls latest from registry every hour)
-   docker-compose --profile auto-update up -d
+   # Production with auto-updates (uses registry + Watchtower)
+   docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile auto-update up -d
    ```
 
 2. **Configure your AI client** (e.g., Claude Desktop):

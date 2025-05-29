@@ -23,7 +23,9 @@ services:
 
   # Main MCP Memory Server
   mcp-memory-server:
-    image: ghcr.io/fredcamaral/mcp-memory:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: mcp-memory-server
     restart: unless-stopped
     depends_on:
@@ -67,6 +69,9 @@ services:
       - mcp_network
 
   # Auto-updater sidecar (optional - use --profile auto-update)
+  # NOTE: Watchtower cannot watch locally built images, only registry images
+  # For auto-updates, override mcp-memory-server to use registry image:
+  # docker-compose -f docker-compose.yml -f docker-compose.prod.yml --profile auto-update up -d
   watchtower:
     image: containrrr/watchtower:latest
     container_name: mcp-auto-updater
@@ -79,6 +84,7 @@ services:
       - WATCHTOWER_SCOPE=mcp-memory-server  # Only watch MCP container
       - WATCHTOWER_NOTIFICATIONS_LEVEL=info
       - WATCHTOWER_ROLLING_RESTART=true
+      - WATCHTOWER_WARN_ON_HEAD_FAILURE=never  # Don't warn about local builds
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
