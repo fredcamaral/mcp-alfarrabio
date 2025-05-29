@@ -160,7 +160,9 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 
 			// Send JSON-RPC response
 			w.WriteHeader(http.StatusOK)
-			json.NewEncoder(w).Encode(resp)
+			if err := json.NewEncoder(w).Encode(resp); err != nil {
+				log.Printf("Error encoding SSE response: %v", err)
+			}
 			return
 		}
 
