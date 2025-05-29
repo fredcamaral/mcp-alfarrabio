@@ -50,6 +50,9 @@ docker run -d --name mcp-auto-updater \
    ```
 
 2. **Configure your AI client** (e.g., Claude Desktop, Claude Code, Windsurf, Cursor, etc):
+
+   !!! The MCP works through a simple stdio <> HTTP proxy written in javascript, as per shown below.
+   !!! SSE protocol is also available @ :9080/sse
    
    ```json
    {
@@ -57,7 +60,7 @@ docker run -d --name mcp-auto-updater \
        "memory": {
          "type": "stdio",
          "command": "docker",
-         "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory-server"]
+         "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"]
        }
      }
    }
@@ -142,42 +145,6 @@ volumes:
 ```
 </details>
 
-### Option 3: Local Development
-
-1. **Prerequisites:**
-   - Go 1.21+
-   - Docker (for Chroma database)
-   - OpenAI API key
-
-2. **Setup:**
-   ```bash
-   git clone https://github.com/fredcamaral/mcp-memory.git
-   cd mcp-memory
-   cp .env.example .env
-   # Edit .env and add your OPENAI_API_KEY
-   ```
-
-3. **Start the database:**
-   ```bash
-   docker run -d -p 8000:8000 --name chroma chromadb/chroma:latest
-   ```
-
-4. **Run the MCP server:**
-   ```bash
-   go run cmd/server/main.go
-   ```
-
-5. **Configure your AI client:**
-   ```json
-   {
-     "mcpServers": {
-       "memory": {
-         "type": "stdio",
-         "command": "/path/to/mcp-memory/mcp-memory"
-       }
-     }
-   }
-   ```
 
 ## 🎯 What Does This Do?
 
@@ -193,10 +160,6 @@ volumes:
 
 ### Claude Desktop Configuration
 
-**Location:**
-- **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
 **Configuration:**
 ```json
 {
@@ -204,7 +167,7 @@ volumes:
     "memory": {
       "type": "stdio",
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory-server"]
+      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"]
     }
   }
 }
@@ -220,7 +183,7 @@ Add to your Continue configuration:
     "memory": {
       "type": "stdio",
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory-server"]
+      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"]
     }
   }
 }
