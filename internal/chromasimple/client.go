@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"time"
 )
@@ -63,7 +64,7 @@ func (c *simpleClient) CreateCollection(ctx context.Context, name string, metada
 		"metadata": metadata,
 	}
 	
-	_, err := c.makeRequest(ctx, "POST", "/collections", reqBody)
+	_, err := c.makeRequest(ctx, "POST", "/api/v1/collections", reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create collection: %w", err)
 	}
@@ -78,7 +79,7 @@ func (c *simpleClient) GetOrCreateCollection(ctx context.Context, name string, m
 		"get_or_create":  true,
 	}
 	
-	_, err := c.makeRequest(ctx, "POST", "/collections", reqBody)
+	_, err := c.makeRequest(ctx, "POST", "/api/v1/collections", reqBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get or create collection: %w", err)
 	}
@@ -99,7 +100,7 @@ func (c *simpleCollection) Add(ctx context.Context, ids []string, embeddings [][
 		"metadatas":  metadatas,
 	}
 	
-	path := fmt.Sprintf("/collections/%s/add", c.name)
+	path := fmt.Sprintf("/api/v1/collections/%s/add", c.name)
 	_, err := c.client.makeRequest(ctx, "POST", path, reqBody)
 	return err
 }
@@ -114,7 +115,7 @@ func (c *simpleCollection) Query(ctx context.Context, queryEmbeddings [][]float6
 		reqBody["where"] = where
 	}
 	
-	path := fmt.Sprintf("/collections/%s/query", c.name)
+	path := fmt.Sprintf("/api/v1/collections/%s/query", c.name)
 	respBody, err := c.client.makeRequest(ctx, "POST", path, reqBody)
 	if err != nil {
 		return nil, err
@@ -139,7 +140,7 @@ func (c *simpleCollection) Get(ctx context.Context, ids []string, where map[stri
 		reqBody["where"] = where
 	}
 	
-	path := fmt.Sprintf("/collections/%s/get", c.name)
+	path := fmt.Sprintf("/api/v1/collections/%s/get", c.name)
 	respBody, err := c.client.makeRequest(ctx, "POST", path, reqBody)
 	if err != nil {
 		return nil, err
@@ -158,13 +159,13 @@ func (c *simpleCollection) Delete(ctx context.Context, ids []string) error {
 		"ids": ids,
 	}
 	
-	path := fmt.Sprintf("/collections/%s/delete", c.name)
+	path := fmt.Sprintf("/api/v1/collections/%s/delete", c.name)
 	_, err := c.client.makeRequest(ctx, "POST", path, reqBody)
 	return err
 }
 
 func (c *simpleCollection) Count(ctx context.Context) (int, error) {
-	path := fmt.Sprintf("/collections/%s/count", c.name)
+	path := fmt.Sprintf("/api/v1/collections/%s/count", c.name)
 	respBody, err := c.client.makeRequest(ctx, "GET", path, nil)
 	if err != nil {
 		return 0, err
@@ -209,13 +210,9 @@ func (c *simpleClient) makeRequest(ctx context.Context, method, path string, bod
 		return nil, fmt.Errorf("HTTP error: %d", resp.StatusCode)
 	}
 	
-	var respBody []byte
-	if resp.ContentLength != 0 {
-		respBody = make([]byte, resp.ContentLength)
-		_, err = resp.Body.Read(respBody)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read response body: %w", err)
-		}
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 	
 	return respBody, nil
