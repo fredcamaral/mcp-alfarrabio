@@ -58,7 +58,7 @@ docker run -d --name mcp-auto-updater \
        "memory": {
          "type": "stdio",
          "command": "docker",
-         "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory"]
+         "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory-server"]
        }
      }
    }
@@ -88,7 +88,9 @@ services:
 
   # Main MCP Memory Server
   mcp-memory-server:
-    image: ghcr.io/fredcamaral/mcp-memory:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: mcp-memory-server
     restart: unless-stopped
     depends_on:
@@ -203,7 +205,7 @@ volumes:
     "memory": {
       "type": "stdio",
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory"]
+      "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory-server"]
     }
   }
 }
@@ -219,7 +221,7 @@ Add to your Continue configuration:
     "memory": {
       "type": "stdio",
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory"]
+      "args": ["exec", "-i", "mcp-memory-server", "/app/mcp-memory-server"]
     }
   }
 }
