@@ -71,11 +71,32 @@ ws.send(JSON.stringify({
 
 ### Option 3: Server-Sent Events (Event Streaming)
 
-**Best for:** Web applications needing real-time updates
+**Best for:** Web applications, Claude/Cursor with SSE support, real-time updates
 
+#### For MCP Clients with SSE Support:
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "transport": "sse",
+      "url": "http://localhost:9080/sse",
+      "env": {
+        "MCP_SERVER_HOST": "localhost",
+        "MCP_SERVER_PORT": "9080"
+      }
+    }
+  }
+}
+```
+
+#### For Custom Applications:
 ```javascript
-// Stream connection
+// Stream connection for real-time events
 const eventSource = new EventSource('http://localhost:9080/sse');
+eventSource.onmessage = (event) => {
+  const response = JSON.parse(event.data);
+  console.log('Received:', response);
+};
 
 // Direct JSON-RPC requests
 fetch('http://localhost:9080/sse', {
@@ -86,7 +107,27 @@ fetch('http://localhost:9080/sse', {
     method: "tools/list",
     id: 1
   })
-});
+}).then(res => res.json());
+```
+
+#### For Python Applications:
+```python
+import requests
+import sseclient
+
+# SSE streaming
+response = requests.get('http://localhost:9080/sse', stream=True)
+client = sseclient.SSEClient(response)
+for event in client.events():
+    print(f"Received: {event.data}")
+
+# Direct JSON-RPC
+response = requests.post('http://localhost:9080/sse', json={
+    "jsonrpc": "2.0",
+    "method": "memory_search",
+    "params": {"query": "example"},
+    "id": 1
+})
 ```
 
 ### Option 4: Direct HTTP (Simple REST-like)
@@ -173,6 +214,7 @@ Add to your Continue configuration:
 <details>
 <summary><b>🖱️ Cursor, Windsurf, Other MCP Clients</b></summary>
 
+#### Option A: stdio + proxy (Recommended)
 ```json
 {
   "mcpServers": {
@@ -184,6 +226,37 @@ Add to your Continue configuration:
         "MCP_SERVER_PORT": "9080", 
         "MCP_SERVER_PATH": "/mcp"
       }
+    }
+  }
+}
+```
+
+#### Option B: Direct SSE (If client supports it)
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "transport": "sse",
+      "url": "http://localhost:9080/sse",
+      "timeout": 30000,
+      "env": {
+        "MCP_SERVER_HOST": "localhost",
+        "MCP_SERVER_PORT": "9080"
+      }
+    }
+  }
+}
+```
+
+#### Option C: WebSocket (If client supports it)
+```json
+{
+  "mcpServers": {
+    "memory": {
+      "transport": "websocket",
+      "url": "ws://localhost:9080/ws",
+      "timeout": 30000,
+      "reconnect": true
     }
   }
 }
@@ -271,7 +344,7 @@ echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-1
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
 │   MCP Clients   │    │   MCP Server     │    │    Storage      │
 │                 │    │                  │    │                 │
-│ Claude Desktop  │◄──►│ stdio + proxy    │    │   ChromaDB      │
+│ Claude Desktop  │◄──►│ stdio + proxy    │    │    Qdrant       │
 │ Claude Code CLI │    │ WebSocket        │◄──►│   (Vectors)     │
 │ VS Code/Continue│    │ SSE              │    │                 │
 │ Cursor/Windsurf │    │ Direct HTTP      │    │   SQLite        │
@@ -298,7 +371,8 @@ OPENAI_API_KEY=your-key-here
 
 # Optional server configuration  
 MCP_MEMORY_LOG_LEVEL=info
-MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
+QDRANT_HOST=localhost
+QDRANT_PORT=6334
 MCP_MEMORY_DB_TYPE=sqlite
 MCP_MEMORY_BACKUP_ENABLED=true
 
