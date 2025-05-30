@@ -135,7 +135,7 @@ func (m *MockStore) HealthCheck(ctx context.Context) error {
 
 // New interface methods for updated VectorStore interface
 func (m *MockStore) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) {
-	var chunks []types.ConversationChunk
+	chunks := make([]types.ConversationChunk, 0, len(m.chunks))
 	for _, chunk := range m.chunks {
 		chunks = append(chunks, *chunk)
 	}

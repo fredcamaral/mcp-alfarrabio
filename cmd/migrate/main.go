@@ -150,7 +150,7 @@ func (mt *MigrationTool) Migrate(ctx context.Context, force bool) error {
 	// Create backup before migration
 	if !mt.dryRun && !mt.validateOnly {
 		if err := mt.createPreMigrationBackup(ctx); err != nil {
-			log.Printf("Failed to create backup, continuing anyway", "error", err)
+			log.Printf("Failed to create backup, continuing anyway: %v", err)
 		}
 	}
 
@@ -161,7 +161,7 @@ func (mt *MigrationTool) Migrate(ctx context.Context, force bool) error {
 	}
 
 	mt.stats.TotalChunks = len(chunks)
-	log.Printf("Found chunks to migrate", "count", mt.stats.TotalChunks)
+	log.Printf("Found chunks to migrate: count=%d", mt.stats.TotalChunks)
 
 	if mt.validateOnly {
 		return mt.validateData(chunks)
@@ -180,12 +180,8 @@ func (mt *MigrationTool) Migrate(ctx context.Context, force bool) error {
 	}
 
 	mt.stats.Duration = time.Since(mt.stats.StartTime)
-	log.Printf("Migration completed successfully",
-		"total_chunks", mt.stats.TotalChunks,
-		"migrated_chunks", mt.stats.MigratedChunks,
-		"failed_chunks", mt.stats.FailedChunks,
-		"duration", mt.stats.Duration,
-	)
+	log.Printf("Migration completed successfully: total_chunks=%d, migrated_chunks=%d, failed_chunks=%d, duration=%v",
+		mt.stats.TotalChunks, mt.stats.MigratedChunks, mt.stats.FailedChunks, mt.stats.Duration)
 
 	return nil
 }
@@ -200,13 +196,17 @@ func (mt *MigrationTool) readChromaDBData(ctx context.Context) ([]types.Conversa
 
 // readJSONExport reads chunks from JSON export file
 func (mt *MigrationTool) readJSONExport() ([]types.ConversationChunk, error) {
-	log.Printf("Reading JSON export", "path", mt.inputPath)
+	log.Printf("Reading JSON export: path=%s", mt.inputPath)
 
 	file, err := os.Open(mt.inputPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open JSON export file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			log.Printf("Failed to close file: %v", closeErr)
+		}
+	}()
 
 	var exportData struct {
 		Chunks   []types.ConversationChunk `json:"chunks"`
@@ -218,11 +218,11 @@ func (mt *MigrationTool) readJSONExport() ([]types.ConversationChunk, error) {
 		return nil, fmt.Errorf("failed to decode JSON export: %w", err)
 	}
 
-	log.Printf("Loaded chunks from JSON export", "count", len(exportData.Chunks))
+	log.Printf("Loaded chunks from JSON export: count=%d", len(exportData.Chunks))
 	
 	if exportData.Metadata != nil {
 		if stats, ok := exportData.Metadata["stats"].(map[string]interface{}); ok {
-			log.Printf("Export metadata", "original_stats", stats)
+			log.Printf("Export metadata: original_stats=%v", stats)
 		}
 	}
 
@@ -231,7 +231,8 @@ func (mt *MigrationTool) readJSONExport() ([]types.ConversationChunk, error) {
 
 // readDirectChromaDB reads data directly from ChromaDB
 func (mt *MigrationTool) readDirectChromaDB(ctx context.Context) ([]types.ConversationChunk, error) {
-	log.Printf("Reading ChromaDB data", "path", mt.inputPath)
+	_ = ctx // unused in placeholder implementation
+	log.Printf("Reading ChromaDB data: path=%s", mt.inputPath)
 
 	// NOTE: This is a placeholder for ChromaDB reading logic
 	// In a real implementation, you would:
@@ -257,7 +258,7 @@ func (mt *MigrationTool) readDirectChromaDB(ctx context.Context) ([]types.Conver
 
 // migrateInBatches migrates chunks to Qdrant in batches
 func (mt *MigrationTool) migrateInBatches(ctx context.Context, chunks []types.ConversationChunk) error {
-	log.Printf("Starting batch migration", "total_chunks", len(chunks), "batch_size", batchSize)
+	log.Printf("Starting batch migration: total_chunks=%d, batch_size=%d", len(chunks), batchSize)
 
 	for i := 0; i < len(chunks); i += batchSize {
 		end := i + batchSize
@@ -268,11 +269,11 @@ func (mt *MigrationTool) migrateInBatches(ctx context.Context, chunks []types.Co
 		batch := chunks[i:end]
 		
 		if mt.dryRun {
-			log.Printf("DRY RUN: Would migrate batch", "batch", mt.stats.BatchesMigrated+1, "chunks", len(batch))
+			log.Printf("DRY RUN: Would migrate batch: batch=%d, chunks=%d", mt.stats.BatchesMigrated+1, len(batch))
 			mt.stats.MigratedChunks += len(batch)
 		} else {
 			if err := mt.migrateBatch(ctx, batch); err != nil {
-				log.Printf("Failed to migrate batch", "batch", mt.stats.BatchesMigrated+1, "error", err)
+				log.Printf("Failed to migrate batch: batch=%d, error=%v", mt.stats.BatchesMigrated+1, err)
 				mt.stats.FailedChunks += len(batch)
 				continue
 			}
@@ -283,12 +284,14 @@ func (mt *MigrationTool) migrateInBatches(ctx context.Context, chunks []types.Co
 		
 		// Progress update
 		progress := float64(mt.stats.MigratedChunks+mt.stats.FailedChunks) / float64(mt.stats.TotalChunks) * 100
-		log.Printf("Migration progress",
-			"progress", fmt.Sprintf("%.1f%%", progress),
-			"migrated", mt.stats.MigratedChunks,
-			"failed", mt.stats.FailedChunks,
-			"remaining", mt.stats.TotalChunks-(mt.stats.MigratedChunks+mt.stats.FailedChunks),
-		)
+		log.Printf("Migration progress: %.1f%%, migrated=%d, failed=%d, remaining=%d",
+			progress, mt.stats.MigratedChunks, mt.stats.FailedChunks,
+			mt.stats.TotalChunks-(mt.stats.MigratedChunks+mt.stats.FailedChunks))
+	}
+
+	// Check if too many chunks failed
+	if mt.stats.FailedChunks > 0 && float64(mt.stats.FailedChunks)/float64(mt.stats.TotalChunks) > 0.5 {
+		return fmt.Errorf("migration failed: too many chunks failed (%d/%d)", mt.stats.FailedChunks, mt.stats.TotalChunks)
 	}
 
 	return nil
@@ -302,11 +305,8 @@ func (mt *MigrationTool) migrateBatch(ctx context.Context, batch []types.Convers
 	}
 
 	if result.Failed > 0 {
-		log.Printf("Some chunks failed in batch",
-			"failed", result.Failed,
-			"success", result.Success,
-			"errors", result.Errors,
-		)
+		log.Printf("Some chunks failed in batch: failed=%d, success=%d, errors=%v",
+			result.Failed, result.Success, result.Errors)
 	}
 
 	return nil
@@ -322,11 +322,8 @@ func (mt *MigrationTool) validateMigration(ctx context.Context, originalChunks [
 		return fmt.Errorf("failed to get Qdrant stats: %w", err)
 	}
 
-	log.Printf("Qdrant stats after migration",
-		"total_chunks", stats.TotalChunks,
-		"chunks_by_type", stats.ChunksByType,
-		"chunks_by_repo", stats.ChunksByRepo,
-	)
+	log.Printf("Qdrant stats after migration: total_chunks=%d, chunks_by_type=%v, chunks_by_repo=%v",
+		stats.TotalChunks, stats.ChunksByType, stats.ChunksByRepo)
 
 	// Basic validation: check total count
 	if int64(len(originalChunks)) != stats.TotalChunks {
@@ -356,18 +353,18 @@ func (mt *MigrationTool) validateMigration(ctx context.Context, originalChunks [
 
 // validateData validates the data structure without migrating
 func (mt *MigrationTool) validateData(chunks []types.ConversationChunk) error {
-	log.Printf("Validating data structure", "chunks", len(chunks))
+	log.Printf("Validating data structure: chunks=%d", len(chunks))
 
 	invalidChunks := 0
 	for _, chunk := range chunks {
 		if err := chunk.Validate(); err != nil {
-			log.Printf("Invalid chunk found", "id", chunk.ID, "error", err)
+			log.Printf("Invalid chunk found: id=%s, error=%v", chunk.ID, err)
 			invalidChunks++
 		}
 	}
 
 	if invalidChunks > 0 {
-		log.Printf("Found invalid chunks", "count", invalidChunks, "total", len(chunks))
+		log.Printf("Found invalid chunks: count=%d, total=%d", invalidChunks, len(chunks))
 	} else {
 		log.Printf("All chunks are valid")
 		mt.stats.ValidationPassed = true
@@ -393,12 +390,29 @@ func (mt *MigrationTool) checkTargetCollection(ctx context.Context) error {
 
 // createPreMigrationBackup creates a backup before migration
 func (mt *MigrationTool) createPreMigrationBackup(ctx context.Context) error {
+	_ = ctx // unused in placeholder implementation
 	backupPath := filepath.Join(mt.backupDir, fmt.Sprintf("pre_migration_%s.tar.gz", time.Now().Format("20060102_150405")))
 	
-	log.Printf("Creating pre-migration backup", "path", backupPath)
+	log.Printf("Creating pre-migration backup: path=%s", backupPath)
+	
+	// Create the backup directory with secure permissions
+	if err := os.MkdirAll(mt.backupDir, 0750); err != nil {
+		return fmt.Errorf("failed to create backup directory: %w", err)
+	}
 	
 	// This would use the backup manager to create a backup
-	// For now, just create the directory structure
+	// For now, just create a placeholder file with secure path handling
+	placeholderPath := filepath.Clean(backupPath + ".placeholder")
+	file, err := os.Create(placeholderPath)
+	if err != nil {
+		return fmt.Errorf("failed to create backup placeholder: %w", err)
+	}
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			log.Printf("Failed to close backup file: %v", closeErr)
+		}
+	}()
+	
 	return nil
 }
 

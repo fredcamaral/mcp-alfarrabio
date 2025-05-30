@@ -39,8 +39,8 @@ func TestNewMemoryServer(t *testing.T) {
 func TestMemoryServer_Start(t *testing.T) {
 	cfg := &config.Config{
 		Qdrant: config.QdrantConfig{
-			Host:       "localhost",
-			Port:       6334,
+			Host:       "invalid-host-that-does-not-exist",
+			Port:       9999,
 			Collection: "test",
 		},
 		OpenAI: config.OpenAIConfig{

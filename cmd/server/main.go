@@ -228,7 +228,11 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 			log.Printf("WebSocket upgrade failed: %v", err)
 			return
 		}
-		defer conn.Close()
+		defer func() {
+			if closeErr := conn.Close(); closeErr != nil {
+				log.Printf("Failed to close WebSocket connection: %v", closeErr)
+			}
+		}()
 
 		log.Printf("WebSocket connection established from %s", r.RemoteAddr)
 
