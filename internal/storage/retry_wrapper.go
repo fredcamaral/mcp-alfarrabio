@@ -287,3 +287,107 @@ func (r *RetryableVectorStore) Cleanup(ctx context.Context, retentionDays int) (
 func (r *RetryableVectorStore) Close() error {
 	return r.store.Close()
 }
+
+// Additional methods for service compatibility (with retries)
+
+// GetAllChunks gets all chunks with retries
+func (r *RetryableVectorStore) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) {
+	var chunks []types.ConversationChunk
+
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		chunks, err = r.store.GetAllChunks(ctx)
+		return err
+	})
+
+	if result.Err != nil {
+		return nil, fmt.Errorf("failed to get all chunks after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return chunks, nil
+}
+
+// DeleteCollection deletes collection with retries
+func (r *RetryableVectorStore) DeleteCollection(ctx context.Context, collection string) error {
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		return r.store.DeleteCollection(ctx, collection)
+	})
+	if result.Err != nil {
+		return fmt.Errorf("failed to delete collection after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return nil
+}
+
+// ListCollections lists collections with retries
+func (r *RetryableVectorStore) ListCollections(ctx context.Context) ([]string, error) {
+	var collections []string
+
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		collections, err = r.store.ListCollections(ctx)
+		return err
+	})
+
+	if result.Err != nil {
+		return nil, fmt.Errorf("failed to list collections after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return collections, nil
+}
+
+// FindSimilar finds similar chunks with retries
+func (r *RetryableVectorStore) FindSimilar(ctx context.Context, content string, chunkType *types.ChunkType, limit int) ([]types.ConversationChunk, error) {
+	var chunks []types.ConversationChunk
+
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		chunks, err = r.store.FindSimilar(ctx, content, chunkType, limit)
+		return err
+	})
+
+	if result.Err != nil {
+		return nil, fmt.Errorf("failed to find similar chunks after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return chunks, nil
+}
+
+// StoreChunk stores chunk with retries
+func (r *RetryableVectorStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		return r.store.StoreChunk(ctx, chunk)
+	})
+	if result.Err != nil {
+		return fmt.Errorf("failed to store chunk after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return nil
+}
+
+// BatchStore stores chunks in batch with retries
+func (r *RetryableVectorStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error) {
+	var result *BatchResult
+
+	retryResult := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		result, err = r.store.BatchStore(ctx, chunks)
+		return err
+	})
+
+	if retryResult.Err != nil {
+		return nil, fmt.Errorf("batch store failed after %d attempts: %w", retryResult.Attempts, retryResult.Err)
+	}
+	return result, nil
+}
+
+// BatchDelete deletes chunks in batch with retries
+func (r *RetryableVectorStore) BatchDelete(ctx context.Context, ids []string) (*BatchResult, error) {
+	var result *BatchResult
+
+	retryResult := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		result, err = r.store.BatchDelete(ctx, ids)
+		return err
+	})
+
+	if retryResult.Err != nil {
+		return nil, fmt.Errorf("batch delete failed after %d attempts: %w", retryResult.Attempts, retryResult.Err)
+	}
+	return result, nil
+}

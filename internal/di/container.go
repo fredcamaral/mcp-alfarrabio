@@ -63,17 +63,16 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 
 // initializeStorage sets up storage layer
 func (c *Container) initializeStorage() {
-	// Initialize vector store
-	// Use pooled store if connection pooling is enabled
-	// TODO: Re-enable pooled store after updating to simplified client
-	// if usePooling := os.Getenv("CHROMA_USE_POOLING"); usePooling == envValueTrue {
-	//	baseStore, err := storage.NewPooledChromaStore(&c.Config.Chroma)
-	//	if err != nil {
-	//		return fmt.Errorf("failed to create pooled Chroma store: %w", err)
-	//	}
-	// } else {
-		baseStore := storage.NewChromaStore(&c.Config.Chroma)
-	// }
+	var baseStore storage.VectorStore
+
+	// Initialize vector store based on provider
+	switch c.Config.Storage.Provider {
+	case "qdrant":
+		baseStore = storage.NewQdrantStore(&c.Config.Qdrant)
+	default:
+		// Default to Qdrant for new installations
+		baseStore = storage.NewQdrantStore(&c.Config.Qdrant)
+	}
 
 	// Wrap with retry logic
 	retryStore := storage.NewRetryableVectorStore(baseStore, nil)
@@ -109,7 +108,7 @@ func (c *Container) initializeServices() {
 	if backupDir == "" {
 		backupDir = "./backups"
 	}
-	c.BackupManager = persistence.NewBackupManager(nil, backupDir) // Note: VectorStore interface compatibility issue
+	c.BackupManager = persistence.NewBackupManager(c.VectorStore, backupDir)
 
 	// Initialize relationship manager
 	c.RelationshipManager = relationships.NewManager()
@@ -119,8 +118,7 @@ func (c *Container) initializeServices() {
 	c.ThreadManager = threading.NewThreadManager(c.ChainBuilder, c.RelationshipManager, c.ThreadStore)
 
 	// Initialize memory analytics
-	// Note: VectorStore interface compatibility issue - using nil for now
-	c.MemoryAnalytics = analytics.NewMemoryAnalytics(nil)
+	c.MemoryAnalytics = analytics.NewMemoryAnalytics(c.VectorStore)
 
 	// Initialize audit logger
 	auditDir := os.Getenv("MCP_MEMORY_AUDIT_DIRECTORY")
@@ -137,9 +135,9 @@ func (c *Container) initializeServices() {
 
 // initializeIntelligence sets up intelligence layer
 func (c *Container) initializeIntelligence() {
-	// Initialize pattern engine
-	// Note: VectorStore interface compatibility issue - using nil for now
-	c.PatternEngine = intelligence.NewPatternEngine(nil)
+	// Initialize pattern engine with adapter
+	patternStorage := storage.NewPatternStorageAdapter(c.VectorStore)
+	c.PatternEngine = intelligence.NewPatternEngine(patternStorage)
 
 	// Initialize graph builder
 	c.GraphBuilder = intelligence.NewGraphBuilder(c.PatternEngine)
@@ -158,10 +156,10 @@ func (c *Container) initializeWorkflow() {
 	c.FlowDetector = workflow.NewFlowDetector()
 	c.PatternAnalyzer = workflow.NewPatternAnalyzer()
 
-	// Initialize context suggester with dependencies
-	// Note: VectorStore interface compatibility issue - using nil for now
+	// Initialize context suggester with dependencies and adapter
+	vectorStorage := storage.NewVectorStorageAdapter(c.VectorStore)
 	c.ContextSuggester = workflow.NewContextSuggester(
-		nil,
+		vectorStorage,
 		c.PatternAnalyzer,
 		c.TodoTracker,
 		c.FlowDetector,

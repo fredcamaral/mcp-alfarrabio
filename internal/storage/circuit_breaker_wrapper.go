@@ -193,3 +193,129 @@ func (s *CircuitBreakerVectorStore) Close() error {
 func (s *CircuitBreakerVectorStore) GetCircuitBreakerStats() circuitbreaker.Stats {
 	return s.cb.GetStats()
 }
+
+// Additional methods for service compatibility (with circuit breaker)
+
+// GetAllChunks gets all chunks with circuit breaker protection
+func (s *CircuitBreakerVectorStore) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) {
+	var result []types.ConversationChunk
+
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			result, err = s.store.GetAllChunks(ctx)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			// Return empty list on circuit breaker failure
+			result = []types.ConversationChunk{}
+			return nil
+		},
+	)
+
+	return result, err
+}
+
+// DeleteCollection deletes collection with circuit breaker protection
+func (s *CircuitBreakerVectorStore) DeleteCollection(ctx context.Context, collection string) error {
+	return s.cb.Execute(ctx, func(ctx context.Context) error {
+		return s.store.DeleteCollection(ctx, collection)
+	})
+}
+
+// ListCollections lists collections with circuit breaker protection
+func (s *CircuitBreakerVectorStore) ListCollections(ctx context.Context) ([]string, error) {
+	var result []string
+
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			result, err = s.store.ListCollections(ctx)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			// Return empty list on circuit breaker failure
+			result = []string{}
+			return nil
+		},
+	)
+
+	return result, err
+}
+
+// FindSimilar finds similar chunks with circuit breaker protection
+func (s *CircuitBreakerVectorStore) FindSimilar(ctx context.Context, content string, chunkType *types.ChunkType, limit int) ([]types.ConversationChunk, error) {
+	var result []types.ConversationChunk
+
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			result, err = s.store.FindSimilar(ctx, content, chunkType, limit)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			// Return empty list on circuit breaker failure
+			result = []types.ConversationChunk{}
+			return nil
+		},
+	)
+
+	return result, err
+}
+
+// StoreChunk stores chunk with circuit breaker protection
+func (s *CircuitBreakerVectorStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+	return s.cb.Execute(ctx, func(ctx context.Context) error {
+		return s.store.StoreChunk(ctx, chunk)
+	})
+}
+
+// BatchStore stores chunks in batch with circuit breaker protection
+func (s *CircuitBreakerVectorStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error) {
+	var result *BatchResult
+
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			result, err = s.store.BatchStore(ctx, chunks)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			// Return failed result on circuit breaker failure
+			result = &BatchResult{
+				Success:      0,
+				Failed:       len(chunks),
+				Errors:       []string{"circuit breaker open"},
+				ProcessedIDs: []string{},
+			}
+			return nil
+		},
+	)
+
+	return result, err
+}
+
+// BatchDelete deletes chunks in batch with circuit breaker protection
+func (s *CircuitBreakerVectorStore) BatchDelete(ctx context.Context, ids []string) (*BatchResult, error) {
+	var result *BatchResult
+
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			result, err = s.store.BatchDelete(ctx, ids)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			// Return failed result on circuit breaker failure
+			result = &BatchResult{
+				Success:      0,
+				Failed:       len(ids),
+				Errors:       []string{"circuit breaker open"},
+				ProcessedIDs: ids,
+			}
+			return nil
+		},
+	)
+
+	return result, err
+}
