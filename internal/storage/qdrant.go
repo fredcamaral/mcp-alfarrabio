@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"log"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/logging"
 	"mcp-memory/pkg/types"
@@ -245,12 +246,17 @@ func (qs *QdrantStore) ListByRepository(ctx context.Context, repository string, 
 		},
 	}
 
-	// Scroll through points
+	// Scroll through points (Note: Qdrant Scroll uses cursor-based pagination, not offsets)
+	// For simplicity, we'll get more points and slice manually for offset behavior
+	scrollLimit := uint32(limit + offset)
+	if scrollLimit > 10000 {
+		scrollLimit = 10000 // Max reasonable limit
+	}
+	
 	points, err := qs.client.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: qs.collectionName,
 		Filter:         filter,
-		Limit:          qdrant.PtrOf(uint32(limit)),
-		Offset:         qs.stringToPointId(strconv.Itoa(offset)),
+		Limit:          qdrant.PtrOf(scrollLimit),
 		WithPayload:    &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
 		WithVectors:    &qdrant.WithVectorsSelector{SelectorOptions: &qdrant.WithVectorsSelector_Enable{Enable: true}},
 	})
@@ -259,20 +265,30 @@ func (qs *QdrantStore) ListByRepository(ctx context.Context, repository string, 
 		return nil, fmt.Errorf("failed to list chunks by repository: %w", err)
 	}
 
-	chunks := make([]types.ConversationChunk, 0, len(points))
+	allChunks := make([]types.ConversationChunk, 0, len(points))
 	for _, point := range points {
 		chunk, err := qs.pointToChunk(point)
 		if err != nil {
-			logging.Error("Failed to convert point to chunk", "error", err, "point_id", point.GetId())
+			log.Printf("Failed to convert point to chunk: %v, point_id: %v", err, point.GetId())
 			continue
 		}
-		chunks = append(chunks, *chunk)
+		allChunks = append(allChunks, *chunk)
 	}
 
 	// Sort by timestamp (newest first)
-	sort.Slice(chunks, func(i, j int) bool {
-		return chunks[i].Timestamp.After(chunks[j].Timestamp)
+	sort.Slice(allChunks, func(i, j int) bool {
+		return allChunks[i].Timestamp.After(allChunks[j].Timestamp)
 	})
+	
+	// Apply manual offset and limit since Qdrant Scroll doesn't support traditional offset
+	var chunks []types.ConversationChunk
+	if offset < len(allChunks) {
+		end := offset + limit
+		if end > len(allChunks) {
+			end = len(allChunks)
+		}
+		chunks = allChunks[offset:end]
+	}
 
 	return chunks, nil
 }

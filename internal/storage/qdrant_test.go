@@ -2,8 +2,10 @@ package storage
 
 import (
 	"context"
+	"fmt"
 	"mcp-memory/internal/config"
 	"mcp-memory/pkg/types"
+	"sort"
 	"testing"
 	"time"
 
@@ -95,16 +97,29 @@ func (m *MockQdrantStore) GetByID(ctx context.Context, id string) (*types.Conver
 }
 
 func (m *MockQdrantStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
-	chunks := []types.ConversationChunk{}
-	count := 0
+	// First, collect all matching chunks
+	var allChunks []types.ConversationChunk
 	for _, chunk := range m.chunks {
 		if chunk.Metadata.Repository == repository {
-			if count >= offset && len(chunks) < limit {
-				chunks = append(chunks, chunk)
-			}
-			count++
+			allChunks = append(allChunks, chunk)
 		}
 	}
+	
+	// Sort by timestamp (newest first) to match Qdrant implementation
+	sort.Slice(allChunks, func(i, j int) bool {
+		return allChunks[i].Timestamp.After(allChunks[j].Timestamp)
+	})
+	
+	// Apply offset and limit
+	var chunks []types.ConversationChunk
+	if offset < len(allChunks) {
+		end := offset + limit
+		if end > len(allChunks) {
+			end = len(allChunks)
+		}
+		chunks = allChunks[offset:end]
+	}
+	
 	return chunks, nil
 }
 
@@ -630,4 +645,59 @@ func TestCleanup(t *testing.T) {
 
 	_, err = store.GetByID(ctx, "new-chunk")
 	assert.NoError(t, err)
+}
+
+func TestListByRepositoryPagination(t *testing.T) {
+	store := NewMockQdrantStore()
+	ctx := context.Background()
+
+	// Add multiple chunks to test pagination
+	repository := "pagination-test-repo"
+	for i := 0; i < 5; i++ {
+		chunk := types.ConversationChunk{
+			ID:         fmt.Sprintf("chunk-%d", i),
+			SessionID:  "pagination-session",
+			Type:       types.ChunkTypeProblem,
+			Content:    fmt.Sprintf("Chunk content %d", i),
+			Timestamp:  time.Now().Add(time.Duration(i) * time.Minute), // Different timestamps
+			Embeddings: []float64{0.1, 0.2},
+			Metadata:   types.ChunkMetadata{
+				Repository: repository,
+				Outcome:    types.OutcomeSuccess,
+				Difficulty: types.DifficultySimple,
+			},
+		}
+		err := store.Store(ctx, chunk)
+		require.NoError(t, err)
+	}
+
+	// Test first page (limit 2, offset 0)
+	firstPage, err := store.ListByRepository(ctx, repository, 2, 0)
+	require.NoError(t, err)
+	assert.Len(t, firstPage, 2)
+
+	// Test second page (limit 2, offset 2)
+	secondPage, err := store.ListByRepository(ctx, repository, 2, 2)
+	require.NoError(t, err)
+	assert.Len(t, secondPage, 2)
+
+	// Test third page (limit 2, offset 4) - should have 1 item
+	thirdPage, err := store.ListByRepository(ctx, repository, 2, 4)
+	require.NoError(t, err)
+	assert.Len(t, thirdPage, 1)
+
+	// Test beyond available items (limit 2, offset 10)
+	beyondPage, err := store.ListByRepository(ctx, repository, 2, 10)
+	require.NoError(t, err)
+	assert.Len(t, beyondPage, 0)
+
+	// Verify no duplicate chunks between pages
+	firstPageIDs := make(map[string]bool)
+	for _, chunk := range firstPage {
+		firstPageIDs[chunk.ID] = true
+	}
+	
+	for _, chunk := range secondPage {
+		assert.False(t, firstPageIDs[chunk.ID], "Found duplicate chunk ID between pages: %s", chunk.ID)
+	}
 }
