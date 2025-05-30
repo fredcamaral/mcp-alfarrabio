@@ -10,8 +10,9 @@ import (
 
 func TestNewMemoryServer(t *testing.T) {
 	cfg := &config.Config{
-		Chroma: config.ChromaConfig{
-			Endpoint:   "http://localhost:8000",
+		Qdrant: config.QdrantConfig{
+			Host:       "localhost",
+			Port:       6334,
 			Collection: "test",
 		},
 		OpenAI: config.OpenAIConfig{
@@ -37,8 +38,9 @@ func TestNewMemoryServer(t *testing.T) {
 
 func TestMemoryServer_Start(t *testing.T) {
 	cfg := &config.Config{
-		Chroma: config.ChromaConfig{
-			Endpoint:   "http://localhost:8000",
+		Qdrant: config.QdrantConfig{
+			Host:       "invalid-host-that-does-not-exist",
+			Port:       9999,
 			Collection: "test",
 		},
 		OpenAI: config.OpenAIConfig{
@@ -59,15 +61,16 @@ func TestMemoryServer_Start(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Start will fail due to no real Chroma instance, but it covers the method
+	// Start will fail due to no real Qdrant instance, but it covers the method
 	err = server.Start(ctx)
 	assert.Error(t, err) // Expected to fail without real services
 }
 
 func TestMemoryServer_Close(t *testing.T) {
 	cfg := &config.Config{
-		Chroma: config.ChromaConfig{
-			Endpoint:   "http://localhost:8000",
+		Qdrant: config.QdrantConfig{
+			Host:       "localhost",
+			Port:       6334,
 			Collection: "test",
 		},
 		OpenAI: config.OpenAIConfig{
@@ -92,8 +95,9 @@ func TestMemoryServer_Close(t *testing.T) {
 
 func TestMemoryServer_GetServer(t *testing.T) {
 	cfg := &config.Config{
-		Chroma: config.ChromaConfig{
-			Endpoint:   "http://localhost:8000",
+		Qdrant: config.QdrantConfig{
+			Host:       "localhost",
+			Port:       6334,
 			Collection: "test",
 		},
 		OpenAI: config.OpenAIConfig{
@@ -119,8 +123,9 @@ func TestMemoryServer_GetServer(t *testing.T) {
 
 func TestMemoryServer_HandleStoreChunk_InvalidInput(t *testing.T) {
 	cfg := &config.Config{
-		Chroma: config.ChromaConfig{
-			Endpoint:   "http://localhost:8000",
+		Qdrant: config.QdrantConfig{
+			Host:       "localhost",
+			Port:       6334,
 			Collection: "test",
 		},
 		OpenAI: config.OpenAIConfig{
@@ -160,8 +165,9 @@ func TestMemoryServer_HandleStoreChunk_InvalidInput(t *testing.T) {
 
 func TestMemoryServer_HandleSearch_InvalidInput(t *testing.T) {
 	cfg := &config.Config{
-		Chroma: config.ChromaConfig{
-			Endpoint:   "http://localhost:8000",
+		Qdrant: config.QdrantConfig{
+			Host:       "localhost",
+			Port:       6334,
 			Collection: "test",
 		},
 		OpenAI: config.OpenAIConfig{

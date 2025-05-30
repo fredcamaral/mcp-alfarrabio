@@ -23,18 +23,19 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, 30, cfg.Server.ReadTimeout)
 	assert.Equal(t, 30, cfg.Server.WriteTimeout)
 
-	// Chroma defaults
-	assert.Equal(t, "http://localhost:9000", cfg.Chroma.Endpoint)
-	assert.Equal(t, "claude_memory", cfg.Chroma.Collection)
-	assert.True(t, cfg.Chroma.HealthCheck)
-	assert.Equal(t, 3, cfg.Chroma.RetryAttempts)
-	assert.Equal(t, 30, cfg.Chroma.TimeoutSeconds)
+	// Qdrant defaults
+	assert.Equal(t, "localhost", cfg.Qdrant.Host)
+	assert.Equal(t, 6334, cfg.Qdrant.Port)
+	assert.Equal(t, "claude_memory", cfg.Qdrant.Collection)
+	assert.True(t, cfg.Qdrant.HealthCheck)
+	assert.Equal(t, 3, cfg.Qdrant.RetryAttempts)
+	assert.Equal(t, 30, cfg.Qdrant.TimeoutSeconds)
 
 	// Docker defaults
-	assert.True(t, cfg.Chroma.Docker.Enabled)
-	assert.Equal(t, "claude-memory-chroma", cfg.Chroma.Docker.ContainerName)
-	assert.Equal(t, "./data/chroma", cfg.Chroma.Docker.VolumePath)
-	assert.Equal(t, "ghcr.io/chroma-core/chroma:latest", cfg.Chroma.Docker.Image)
+	assert.True(t, cfg.Qdrant.Docker.Enabled)
+	assert.Equal(t, "claude-memory-qdrant", cfg.Qdrant.Docker.ContainerName)
+	assert.Equal(t, "./data/qdrant", cfg.Qdrant.Docker.VolumePath)
+	assert.Equal(t, "qdrant/qdrant:latest", cfg.Qdrant.Docker.Image)
 
 	// OpenAI defaults
 	assert.Equal(t, "text-embedding-ada-002", cfg.OpenAI.EmbeddingModel)
@@ -44,7 +45,7 @@ func TestDefaultConfig(t *testing.T) {
 	assert.Equal(t, 60, cfg.OpenAI.RateLimitRPM)
 
 	// Storage defaults
-	assert.Equal(t, "chroma", cfg.Storage.Provider)
+	assert.Equal(t, "qdrant", cfg.Storage.Provider)
 	assert.Equal(t, 90, cfg.Storage.RetentionDays)
 	assert.False(t, cfg.Storage.BackupEnabled)
 	assert.Equal(t, 24, cfg.Storage.BackupInterval)
@@ -117,34 +118,34 @@ func TestConfig_Validate(t *testing.T) {
 			errMsg:  "server host cannot be empty",
 		},
 		{
-			name: "empty chroma endpoint",
+			name: "empty qdrant host",
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.OpenAI.APIKey = testAPIKey
-				cfg.Chroma.Endpoint = ""
+				cfg.Qdrant.Host = ""
 				return cfg
 			},
 			wantErr: true,
-			errMsg:  "chroma endpoint cannot be empty",
+			errMsg:  "qdrant host cannot be empty",
 		},
 		{
-			name: "empty chroma collection",
+			name: "empty qdrant collection",
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.OpenAI.APIKey = testAPIKey
-				cfg.Chroma.Collection = ""
+				cfg.Qdrant.Collection = ""
 				return cfg
 			},
 			wantErr: true,
-			errMsg:  "chroma collection cannot be empty",
+			errMsg:  "qdrant collection cannot be empty",
 		},
 		{
 			name: "empty docker container name with docker enabled",
 			config: func() *Config {
 				cfg := DefaultConfig()
 				cfg.OpenAI.APIKey = testAPIKey
-				cfg.Chroma.Docker.Enabled = true
-				cfg.Chroma.Docker.ContainerName = ""
+				cfg.Qdrant.Docker.Enabled = true
+				cfg.Qdrant.Docker.ContainerName = ""
 				return cfg
 			},
 			wantErr: true,
@@ -248,18 +249,19 @@ func TestConfig_Validate(t *testing.T) {
 func TestLoadConfig_WithEnvVars(t *testing.T) {
 	// Set up environment variables
 	envVars := map[string]string{
-		"MCP_MEMORY_PORT":        "9090",
-		"MCP_MEMORY_HOST":        "0.0.0.0",
-		"CHROMA_ENDPOINT":        "http://custom:8001",
-		"CHROMA_COLLECTION":      "custom_memory",
-		"CHROMA_CONTAINER_NAME":  "custom-chroma",
-		"CHROMA_VOLUME_PATH":     "/custom/data",
-		"OPENAI_API_KEY":         "test-api-key",
-		"OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
-		"RETENTION_DAYS":         "30",
-		"MCP_MEMORY_LOG_LEVEL":   "debug",
-		"MCP_MEMORY_LOG_FORMAT":  "text",
-		"MCP_MEMORY_LOG_FILE":    "/var/log/memory.log",
+		"MCP_MEMORY_PORT":          "9090",
+		"MCP_MEMORY_HOST":          "0.0.0.0",
+		"QDRANT_HOST":              "custom",
+		"QDRANT_PORT":              "6333",
+		"QDRANT_COLLECTION":        "custom_memory",
+		"QDRANT_CONTAINER_NAME":    "custom-qdrant",
+		"QDRANT_VOLUME_PATH":       "/custom/data",
+		"OPENAI_API_KEY":           "test-api-key",
+		"OPENAI_EMBEDDING_MODEL":   "text-embedding-3-small",
+		"RETENTION_DAYS":           "30",
+		"MCP_MEMORY_LOG_LEVEL":     "debug",
+		"MCP_MEMORY_LOG_FORMAT":    "text",
+		"MCP_MEMORY_LOG_FILE":      "/var/log/memory.log",
 	}
 
 	// Set environment variables
@@ -280,10 +282,11 @@ func TestLoadConfig_WithEnvVars(t *testing.T) {
 	// Verify overrides
 	assert.Equal(t, 9090, cfg.Server.Port)
 	assert.Equal(t, "0.0.0.0", cfg.Server.Host)
-	assert.Equal(t, "http://custom:8001", cfg.Chroma.Endpoint)
-	assert.Equal(t, "custom_memory", cfg.Chroma.Collection)
-	assert.Equal(t, "custom-chroma", cfg.Chroma.Docker.ContainerName)
-	assert.Equal(t, "/custom/data", cfg.Chroma.Docker.VolumePath)
+	assert.Equal(t, "custom", cfg.Qdrant.Host)
+	assert.Equal(t, 6333, cfg.Qdrant.Port)
+	assert.Equal(t, "custom_memory", cfg.Qdrant.Collection)
+	assert.Equal(t, "custom-qdrant", cfg.Qdrant.Docker.ContainerName)
+	assert.Equal(t, "/custom/data", cfg.Qdrant.Docker.VolumePath)
 	assert.Equal(t, "test-api-key", cfg.OpenAI.APIKey)
 	assert.Equal(t, "text-embedding-3-small", cfg.OpenAI.EmbeddingModel)
 	assert.Equal(t, 30, cfg.Storage.RetentionDays)
@@ -325,7 +328,7 @@ func TestConfig_GetDataDir(t *testing.T) {
 	})
 
 	t.Run("custom data directory", func(t *testing.T) {
-		cfg.Chroma.Docker.VolumePath = "./test-data"
+		cfg.Qdrant.Docker.VolumePath = "./test-data"
 
 		dataDir, err := cfg.GetDataDir()
 		require.NoError(t, err)

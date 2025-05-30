@@ -35,9 +35,9 @@ MCP Memory works with any AI assistant that supports the Model Context Protocol:
 
 ### Do I need Docker?
 
-Docker is required for ChromaDB (the vector database). If you prefer not to use Docker, you can:
+Docker is required for Qdrant (the vector database). If you prefer not to use Docker, you can:
 - Use the in-memory storage option (data won't persist)
-- Deploy ChromaDB separately
+- Deploy Qdrant separately
 - Use an alternative vector database (requires code changes)
 
 ### What about the OpenAI API key?
@@ -123,17 +123,17 @@ Tags help categorize memories:
 
 1. Text is sent to embedding API (OpenAI by default)
 2. API returns a vector representation
-3. Vector is stored in ChromaDB
+3. Vector is stored in Qdrant
 4. Searches compare vector similarity
 
 ### Can I use a different vector database?
 
-Currently, ChromaDB is the primary option. To use alternatives:
+Currently, Qdrant is the primary option. To use alternatives:
 - Implement the `storage.VectorStore` interface
 - Update configuration to use your implementation
-- Popular alternatives: Pinecone, Weaviate, Qdrant
+- Popular alternatives: Pinecone, Weaviate, ChromaDB
 
-### What happens if ChromaDB is down?
+### What happens if Qdrant is down?
 
 MCP Memory will:
 - Return an error for search operations
@@ -154,7 +154,7 @@ Typical search performance:
 ### Is there a limit on stored conversations?
 
 No hard limit, but consider:
-- ChromaDB performance may degrade with millions of items
+- Qdrant performance may degrade with millions of items
 - Search becomes slower with very large datasets
 - Regular cleanup recommended for optimal performance
 
@@ -163,7 +163,7 @@ No hard limit, but consider:
 1. **Regular maintenance**: Archive old conversations
 2. **Optimize searches**: Use specific queries
 3. **Hardware**: SSD storage, adequate RAM
-4. **Configuration**: Tune ChromaDB settings
+4. **Configuration**: Tune Qdrant settings
 
 ## Troubleshooting
 
@@ -171,8 +171,8 @@ No hard limit, but consider:
 
 Check if services are running:
 ```bash
-# Check ChromaDB
-docker ps | grep chroma
+# Check Qdrant
+docker ps | grep qdrant
 
 # Check MCP Memory
 ps aux | grep mcp-memory
@@ -201,10 +201,10 @@ curl https://api.openai.com/v1/models \
 
 ### High memory usage
 
-- ChromaDB caches data in memory
-- Restart ChromaDB to clear cache
+- Qdrant caches data in memory
+- Restart Qdrant to clear cache
 - Consider archiving old data
-- Adjust ChromaDB memory limits
+- Adjust Qdrant memory limits
 
 ## Advanced Questions
 
@@ -232,16 +232,16 @@ Pattern recognition uses:
 Yes, several options:
 1. Use HTTP mode with shared server
 2. Export/import memory archives
-3. Sync ChromaDB data
+3. Sync Qdrant data
 4. Use centralized deployment
 
 ### How do I backup my data?
 
 ```bash
-# Backup ChromaDB volumes
-docker run --rm -v mcp-memory_chroma_data:/data \
+# Backup Qdrant volumes
+docker run --rm -v mcp-memory_qdrant_data:/data \
   -v $(pwd):/backup alpine \
-  tar -czf /backup/chroma-backup.tar.gz /data
+  tar -czf /backup/qdrant-backup.tar.gz /data
 
 # Export memories
 mcp-memory export --repository my-project \

@@ -17,8 +17,9 @@ func main() {
 
 	// Load minimal config for testing
 	cfg := &config.Config{
-		Chroma: config.ChromaConfig{
-			Endpoint:   "http://localhost:8000",
+		Qdrant: config.QdrantConfig{
+			Host:       "localhost",
+			Port:       6334,
 			Collection: "test_memory",
 		},
 		OpenAI: config.OpenAIConfig{

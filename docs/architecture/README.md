@@ -52,9 +52,9 @@ MCP Memory is an advanced AI memory management system built on the Model Context
               ┌─────────┴──────────┐
               │  External Services │
               ├───────────────────┤
-              │  ChromaDB         │
+              │  Qdrant           │
               │  OpenAI API       │
-              │  PostgreSQL       │
+              │  SQLite           │
               └───────────────────┘
 ```
 
@@ -65,8 +65,8 @@ MCP Memory is an advanced AI memory management system built on the Model Context
 #### VectorStore Interface
 - **Purpose**: Abstract interface for vector database operations
 - **Implementations**: 
-  - ChromaStore (primary)
-  - PooledChromaStore (with connection pooling)
+  - QdrantStore (primary)
+  - PooledQdrantStore (with connection pooling)
   - RetryableVectorStore (with retry logic)
   - CircuitBreakerVectorStore (with circuit breaker)
 
@@ -151,7 +151,7 @@ Query → Embedding Service → Vector Search
 
 ## Storage Architecture
 
-### Vector Database (ChromaDB)
+### Vector Database (Qdrant)
 - **Collections**: Organized by repository
 - **Metadata Schema**:
   ```json
@@ -240,9 +240,9 @@ Query → Embedding Service → Vector Search
 - **Purpose**: Reduce connection overhead
 - **Configuration**:
   ```bash
-  CHROMA_USE_POOLING=true
-  CHROMA_POOL_MAX_SIZE=10
-  CHROMA_POOL_MIN_SIZE=2
+  QDRANT_USE_POOLING=true
+  QDRANT_POOL_MAX_SIZE=10
+  QDRANT_POOL_MIN_SIZE=2
   ```
 
 ### Retry Mechanisms
@@ -270,7 +270,8 @@ services:
   mcp-memory:
     image: mcp-memory:latest
     environment:
-      - CHROMA_ENDPOINT=http://chroma:8000
+      - QDRANT_HOST=qdrant
+      - QDRANT_PORT=6334
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./data:/data
@@ -307,7 +308,7 @@ services:
 4. Monitor and adjust circuit breaker thresholds
 
 ### Development Workflow
-1. Test with local ChromaDB instance
+1. Test with local Qdrant instance
 2. Use environment-specific configurations
 3. Enable debug logging during development
 4. Regular backup of production data

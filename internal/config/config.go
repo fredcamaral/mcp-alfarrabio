@@ -12,7 +12,7 @@ import (
 // Config represents the application configuration
 type Config struct {
 	Server   ServerConfig   `json:"server"`
-	Chroma   ChromaConfig   `json:"chroma"`
+	Qdrant   QdrantConfig   `json:"qdrant"`
 	OpenAI   OpenAIConfig   `json:"openai"`
 	Storage  StorageConfig  `json:"storage"`
 	Chunking ChunkingConfig `json:"chunking"`
@@ -28,9 +28,13 @@ type ServerConfig struct {
 	WriteTimeout int    `json:"write_timeout_seconds"`
 }
 
-// ChromaConfig represents Chroma vector database configuration
-type ChromaConfig struct {
-	Endpoint       string       `json:"endpoint"`
+
+// QdrantConfig represents Qdrant vector database configuration
+type QdrantConfig struct {
+	Host           string       `json:"host"`
+	Port           int          `json:"port"`
+	APIKey         string       `json:"-"` // Never serialize API key
+	UseTLS         bool         `json:"use_tls"`
 	Collection     string       `json:"collection"`
 	Docker         DockerConfig `json:"docker"`
 	HealthCheck    bool         `json:"health_check"`
@@ -113,17 +117,19 @@ func DefaultConfig() *Config {
 			ReadTimeout:  30,
 			WriteTimeout: 30,
 		},
-		Chroma: ChromaConfig{
-			Endpoint:       "http://localhost:9000",
+		Qdrant: QdrantConfig{
+			Host:           "localhost",
+			Port:           6334,
+			UseTLS:         false,
 			Collection:     "claude_memory",
 			HealthCheck:    true,
 			RetryAttempts:  3,
 			TimeoutSeconds: 30,
 			Docker: DockerConfig{
 				Enabled:       true,
-				ContainerName: "claude-memory-chroma",
-				VolumePath:    "./data/chroma",
-				Image:         "ghcr.io/chroma-core/chroma:latest",
+				ContainerName: "claude-memory-qdrant",
+				VolumePath:    "./data/qdrant",
+				Image:         "qdrant/qdrant:latest",
 			},
 		},
 		OpenAI: OpenAIConfig{
@@ -134,7 +140,7 @@ func DefaultConfig() *Config {
 			RateLimitRPM:   60,
 		},
 		Storage: StorageConfig{
-			Provider:       "chroma",
+			Provider:       "qdrant",
 			RetentionDays:  90,
 			BackupEnabled:  false,
 			BackupInterval: 24,
@@ -193,7 +199,7 @@ func LoadConfig() (*Config, error) {
 // loadFromEnv loads configuration from environment variables
 func loadFromEnv(config *Config) {
 	loadServerConfig(config)
-	loadChromaConfig(config)
+	loadQdrantConfig(config)
 	loadStorageAndOtherConfig(config)
 	loadOpenAIConfig(config)
 	loadDecayConfig(config)
@@ -226,57 +232,88 @@ func loadServerConfig(config *Config) {
 	}
 }
 
-// loadChromaConfig loads Chroma configuration from environment
-func loadChromaConfig(config *Config) {
-	loadChromaBasicConfig(config)
-	loadChromaDockerConfig(config)
+
+// loadQdrantConfig loads Qdrant configuration from environment
+func loadQdrantConfig(config *Config) {
+	loadQdrantBasicConfig(config)
+	loadQdrantDockerConfig(config)
 }
 
-// loadChromaBasicConfig loads basic Chroma settings
-func loadChromaBasicConfig(config *Config) {
-	// Chroma configuration - check both prefixed and non-prefixed env vars
-	if endpoint := os.Getenv("MCP_MEMORY_CHROMA_ENDPOINT"); endpoint != "" {
-		config.Chroma.Endpoint = endpoint
-	} else if endpoint := os.Getenv("CHROMA_ENDPOINT"); endpoint != "" {
-		config.Chroma.Endpoint = endpoint
+// loadQdrantBasicConfig loads basic Qdrant settings
+func loadQdrantBasicConfig(config *Config) {
+	// Qdrant configuration - check both prefixed and non-prefixed env vars
+	if host := os.Getenv("MCP_MEMORY_QDRANT_HOST"); host != "" {
+		config.Qdrant.Host = host
+	} else if host := os.Getenv("QDRANT_HOST"); host != "" {
+		config.Qdrant.Host = host
 	}
-	if collection := os.Getenv("MCP_MEMORY_CHROMA_COLLECTION"); collection != "" {
-		config.Chroma.Collection = collection
-	} else if collection := os.Getenv("CHROMA_COLLECTION"); collection != "" {
-		config.Chroma.Collection = collection
+	
+	if port := os.Getenv("MCP_MEMORY_QDRANT_PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			config.Qdrant.Port = p
+		}
+	} else if port := os.Getenv("QDRANT_PORT"); port != "" {
+		if p, err := strconv.Atoi(port); err == nil {
+			config.Qdrant.Port = p
+		}
 	}
-	if healthCheck := os.Getenv("MCP_MEMORY_CHROMA_HEALTH_CHECK"); healthCheck != "" {
+	
+	if apiKey := os.Getenv("MCP_MEMORY_QDRANT_API_KEY"); apiKey != "" {
+		config.Qdrant.APIKey = apiKey
+	} else if apiKey := os.Getenv("QDRANT_API_KEY"); apiKey != "" {
+		config.Qdrant.APIKey = apiKey
+	}
+	
+	if useTLS := os.Getenv("MCP_MEMORY_QDRANT_USE_TLS"); useTLS != "" {
+		if tls, err := strconv.ParseBool(useTLS); err == nil {
+			config.Qdrant.UseTLS = tls
+		}
+	} else if useTLS := os.Getenv("QDRANT_USE_TLS"); useTLS != "" {
+		if tls, err := strconv.ParseBool(useTLS); err == nil {
+			config.Qdrant.UseTLS = tls
+		}
+	}
+	
+	if collection := os.Getenv("MCP_MEMORY_QDRANT_COLLECTION"); collection != "" {
+		config.Qdrant.Collection = collection
+	} else if collection := os.Getenv("QDRANT_COLLECTION"); collection != "" {
+		config.Qdrant.Collection = collection
+	}
+	
+	if healthCheck := os.Getenv("MCP_MEMORY_QDRANT_HEALTH_CHECK"); healthCheck != "" {
 		if hc, err := strconv.ParseBool(healthCheck); err == nil {
-			config.Chroma.HealthCheck = hc
+			config.Qdrant.HealthCheck = hc
 		}
 	}
-	if retryAttempts := os.Getenv("MCP_MEMORY_CHROMA_RETRY_ATTEMPTS"); retryAttempts != "" {
+	
+	if retryAttempts := os.Getenv("MCP_MEMORY_QDRANT_RETRY_ATTEMPTS"); retryAttempts != "" {
 		if ra, err := strconv.Atoi(retryAttempts); err == nil {
-			config.Chroma.RetryAttempts = ra
+			config.Qdrant.RetryAttempts = ra
 		}
 	}
-	if timeoutSeconds := os.Getenv("MCP_MEMORY_CHROMA_TIMEOUT_SECONDS"); timeoutSeconds != "" {
+	
+	if timeoutSeconds := os.Getenv("MCP_MEMORY_QDRANT_TIMEOUT_SECONDS"); timeoutSeconds != "" {
 		if ts, err := strconv.Atoi(timeoutSeconds); err == nil {
-			config.Chroma.TimeoutSeconds = ts
+			config.Qdrant.TimeoutSeconds = ts
 		}
 	}
 }
 
-// loadChromaDockerConfig loads Docker-related Chroma settings
-func loadChromaDockerConfig(config *Config) {
-	if dockerEnabled := os.Getenv("MCP_MEMORY_CHROMA_DOCKER_ENABLED"); dockerEnabled != "" {
+// loadQdrantDockerConfig loads Docker-related Qdrant settings
+func loadQdrantDockerConfig(config *Config) {
+	if dockerEnabled := os.Getenv("MCP_MEMORY_QDRANT_DOCKER_ENABLED"); dockerEnabled != "" {
 		if de, err := strconv.ParseBool(dockerEnabled); err == nil {
-			config.Chroma.Docker.Enabled = de
+			config.Qdrant.Docker.Enabled = de
 		}
 	}
-	if containerName := os.Getenv("CHROMA_CONTAINER_NAME"); containerName != "" {
-		config.Chroma.Docker.ContainerName = containerName
+	if containerName := os.Getenv("QDRANT_CONTAINER_NAME"); containerName != "" {
+		config.Qdrant.Docker.ContainerName = containerName
 	}
-	if volumePath := os.Getenv("CHROMA_VOLUME_PATH"); volumePath != "" {
-		config.Chroma.Docker.VolumePath = volumePath
+	if volumePath := os.Getenv("QDRANT_VOLUME_PATH"); volumePath != "" {
+		config.Qdrant.Docker.VolumePath = volumePath
 	}
-	if image := os.Getenv("MCP_MEMORY_CHROMA_IMAGE"); image != "" {
-		config.Chroma.Docker.Image = image
+	if image := os.Getenv("MCP_MEMORY_QDRANT_IMAGE"); image != "" {
+		config.Qdrant.Docker.Image = image
 	}
 }
 
@@ -413,14 +450,17 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("server host cannot be empty")
 	}
 
-	// Validate Chroma config
-	if c.Chroma.Endpoint == "" {
-		return fmt.Errorf("chroma endpoint cannot be empty")
+	// Validate Qdrant config
+	if c.Qdrant.Host == "" {
+		return fmt.Errorf("qdrant host cannot be empty")
 	}
-	if c.Chroma.Collection == "" {
-		return fmt.Errorf("chroma collection cannot be empty")
+	if c.Qdrant.Port <= 0 {
+		return fmt.Errorf("qdrant port must be greater than 0")
 	}
-	if c.Chroma.Docker.Enabled && c.Chroma.Docker.ContainerName == "" {
+	if c.Qdrant.Collection == "" {
+		return fmt.Errorf("qdrant collection cannot be empty")
+	}
+	if c.Qdrant.Docker.Enabled && c.Qdrant.Docker.ContainerName == "" {
 		return fmt.Errorf("docker container name cannot be empty when docker is enabled")
 	}
 
@@ -453,7 +493,7 @@ func (c *Config) Validate() error {
 
 // GetDataDir returns the data directory path, creating it if necessary
 func (c *Config) GetDataDir() (string, error) {
-	dataDir := c.Chroma.Docker.VolumePath
+	dataDir := c.Qdrant.Docker.VolumePath
 	if dataDir == "" {
 		dataDir = "./data"
 	}

@@ -9,7 +9,7 @@ Welcome to the MCP Memory Server documentation! This directory contains all tech
 - [Development Setup](DEV-HOT-RELOAD.md) - Hot reload development environment setup
 - [Deployment Guide](DEPLOYMENT.md) - Production deployment instructions
 - [GraphQL API & Web UI](GRAPHQL_WEB_UI.md) - GraphQL server and web interface guide
-- [ChromaDB Persistence Fix](CHROMADB_PERSISTENCE_FIX.md) - ChromaDB configuration for data persistence
+- [Qdrant Configuration](QDRANT_CONFIG.md) - Qdrant vector database configuration
 
 ### 🛠️ Development
 - [Development Roadmap](ROADMAP.md) - Current priorities and future improvements

@@ -133,6 +133,73 @@ func (m *MockStore) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// New interface methods for updated VectorStore interface
+func (m *MockStore) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) {
+	chunks := make([]types.ConversationChunk, 0, len(m.chunks))
+	for _, chunk := range m.chunks {
+		chunks = append(chunks, *chunk)
+	}
+	return chunks, nil
+}
+
+func (m *MockStore) DeleteCollection(ctx context.Context, collection string) error {
+	m.chunks = make(map[string]*types.ConversationChunk)
+	return nil
+}
+
+func (m *MockStore) ListCollections(ctx context.Context) ([]string, error) {
+	return []string{"claude_memory"}, nil
+}
+
+func (m *MockStore) FindSimilar(ctx context.Context, content string, chunkType *types.ChunkType, limit int) ([]types.ConversationChunk, error) {
+	return nil, nil // Simplified mock
+}
+
+func (m *MockStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+	return m.Store(ctx, chunk)
+}
+
+func (m *MockStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*storage.BatchResult, error) {
+	result := &storage.BatchResult{
+		Success:      0,
+		Failed:       0,
+		Errors:       []string{},
+		ProcessedIDs: []string{},
+	}
+
+	for _, chunk := range chunks {
+		if err := m.Store(ctx, chunk); err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, err.Error())
+		} else {
+			result.Success++
+		}
+		result.ProcessedIDs = append(result.ProcessedIDs, chunk.ID)
+	}
+
+	return result, nil
+}
+
+func (m *MockStore) BatchDelete(ctx context.Context, ids []string) (*storage.BatchResult, error) {
+	result := &storage.BatchResult{
+		Success:      0,
+		Failed:       0,
+		Errors:       []string{},
+		ProcessedIDs: ids,
+	}
+
+	for _, id := range ids {
+		if err := m.Delete(ctx, id); err != nil {
+			result.Failed++
+			result.Errors = append(result.Errors, err.Error())
+		} else {
+			result.Success++
+		}
+	}
+
+	return result, nil
+}
+
 func TestMemoryAnalytics_RecordAccess(t *testing.T) {
 	store := NewMockStore()
 	analytics := NewMemoryAnalytics(store)
