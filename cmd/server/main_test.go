@@ -12,7 +12,7 @@ func TestMain(t *testing.T) {
 
 	// Set a valid environment to avoid config errors
 	_ = os.Setenv("OPENAI_API_KEY", "test-key")
-	_ = os.Setenv("CHROMA_ENDPOINT", "http://localhost:8000")
+	_ = os.Setenv("QDRANT_HOST", "localhost")
 
 	// This is a basic test to ensure the package compiles and imports work
 	// In a real scenario, you'd refactor main to be more testable

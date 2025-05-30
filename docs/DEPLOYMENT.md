@@ -201,9 +201,10 @@ logging:
   format: "text"
 
 storage:
-  type: "chroma"
-  chroma:
-    url: "http://localhost:9000"
+  type: "qdrant"
+  qdrant:
+    host: "localhost"
+    port: 6334
     collection_name: "claude_memory"
 
 security:
@@ -613,37 +614,35 @@ curl -X POST http://localhost:8080/api/maintenance/enable
 curl -X POST http://localhost:8080/api/maintenance/disable
 ```
 
-## 🗄️ ChromaDB Persistence
+## 🗄️ Qdrant Vector Database
 
-### Critical Configuration
+### Configuration
 
-To ensure ChromaDB data persists between container restarts:
+To configure Qdrant vector database:
 
 ```yaml
 # docker-compose.yml
 services:
-  chroma:
-    image: chromadb/chroma:latest
-    container_name: mcp-chroma
-    command: ["run", "--path", "/chroma/chroma", "--host", "0.0.0.0", "--port", "8000"]
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: mcp-qdrant
     ports:
-      - "9000:8000"  # Host:Container ports
+      - "6333:6333"  # REST API
+      - "6334:6334"  # gRPC API
     volumes:
-      - chroma_data:/chroma/chroma  # Named volume for persistence
+      - qdrant_data:/qdrant/storage  # Named volume for persistence
     
 volumes:
-  chroma_data:
+  qdrant_data:
     driver: local
-    name: mcp_memory_chroma_vector_db_NEVER_DELETE
+    name: mcp_memory_qdrant_vector_db
 ```
 
 **Important Notes:**
-- The `command` parameter with `--path` is **required** for persistence
-- Use a named volume, not a bind mount
-- Default host port is 9000 (maps to container port 8000)
-- Set `MCP_MEMORY_CHROMA_ENDPOINT=http://localhost:9000` for GraphQL server
-
-See [ChromaDB Persistence Fix](CHROMADB_PERSISTENCE_FIX.md) for troubleshooting.
+- Port 6334 is used for gRPC communication (default for our implementation)
+- Port 6333 is the REST API (optional)
+- Use a named volume for data persistence
+- Set `QDRANT_HOST=localhost` and `QDRANT_PORT=6334` in environment
 
 ## 🌐 GraphQL Server Deployment
 
@@ -659,16 +658,18 @@ See [ChromaDB Persistence Fix](CHROMADB_PERSISTENCE_FIX.md) for troubleshooting.
        ports:
          - "8082:8082"
        environment:
-         - MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
+         - QDRANT_HOST=qdrant
+         - QDRANT_PORT=6334
          - OPENAI_API_KEY=${OPENAI_API_KEY}
        depends_on:
-         - chroma
+         - qdrant
    ```
 
 2. **Standalone**:
    ```bash
-   # Set ChromaDB endpoint
-   export MCP_MEMORY_CHROMA_ENDPOINT=http://localhost:9000
+   # Set Qdrant connection
+   export QDRANT_HOST=localhost
+   export QDRANT_PORT=6334
    
    # Run server
    ./graphql

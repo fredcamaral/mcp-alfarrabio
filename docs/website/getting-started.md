@@ -5,7 +5,7 @@ This guide will help you install, configure, and start using MCP Memory with you
 ## Prerequisites
 
 - Go 1.21 or later
-- Docker and Docker Compose (for ChromaDB)
+- Docker and Docker Compose (for Qdrant)
 - An AI assistant that supports MCP (Claude Desktop, VS Code with Continue, etc.)
 
 ## Installation
@@ -40,14 +40,14 @@ make build
 ### 1. Start the Services
 
 ```bash
-# Start ChromaDB with persistence
-docker run -d -p 9000:8000 \
-  -v chroma_data:/chroma/chroma \
-  chromadb/chroma:latest \
-  run --path /chroma/chroma --host 0.0.0.0 --port 8000
+# Start Qdrant with persistence
+docker run -d -p 6333:6333 -p 6334:6334 \
+  -v qdrant_data:/qdrant/storage \
+  qdrant/qdrant:latest
 
 # Start GraphQL server and Web UI
-export MCP_MEMORY_CHROMA_ENDPOINT=http://localhost:9000
+export QDRANT_HOST=localhost
+export QDRANT_PORT=6334
 ./graphql
 
 # Or with Docker Compose (recommended)
@@ -127,9 +127,10 @@ server:
   port: 8080
 
 storage:
-  type: chroma
-  chroma:
-    url: http://localhost:8000
+  type: qdrant
+  qdrant:
+    host: localhost
+    port: 6334
     collection: mcp_memory
 
 embeddings:
@@ -148,8 +149,9 @@ security:
 You can override configuration with environment variables:
 
 ```bash
-export MCP_MEMORY_STORAGE_TYPE=chroma
-export MCP_MEMORY_CHROMA_URL=http://localhost:8000
+export MCP_MEMORY_STORAGE_TYPE=qdrant
+export QDRANT_HOST=localhost
+export QDRANT_PORT=6334
 export OPENAI_API_KEY=your-api-key
 ```
 
@@ -201,13 +203,13 @@ Get AI-powered suggestions based on your history:
 
 ### Common Issues
 
-**ChromaDB Connection Failed**
+**Qdrant Connection Failed**
 ```bash
-# Check if ChromaDB is running
-docker ps | grep chroma
+# Check if Qdrant is running
+docker ps | grep qdrant
 
-# Restart ChromaDB
-docker-compose restart chroma
+# Restart Qdrant
+docker-compose restart qdrant
 ```
 
 **OpenAI API Key Missing**
@@ -221,7 +223,7 @@ export OPENAI_API_KEY=your-api-key
 **Memory Search Returns No Results**
 - Ensure conversations have been stored
 - Check if embeddings are being generated correctly
-- Verify ChromaDB is accessible
+- Verify Qdrant is accessible
 
 ### Getting Help
 

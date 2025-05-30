@@ -1,23 +1,21 @@
 # Claude Vector Memory MCP Server
 
 services:
-  # Chroma Vector Database - Required for embeddings and vector search
-  chroma:
-    image: chromadb/chroma:latest
-    container_name: mcp-chroma
+  # Qdrant Vector Database - High-performance vector search engine
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: mcp-qdrant
     restart: unless-stopped
-    command: ["run", "--path", "/chroma/chroma", "--host", "0.0.0.0", "--port", "8000"]
     ports:
-      - "${CHROMA_HOST_PORT:-8000}:8000"
+      - "${QDRANT_HOST_PORT:-6333}:6333"  # HTTP API
+      - "${QDRANT_GRPC_PORT:-6334}:6334"  # gRPC API
     environment:
-      - CHROMA_SERVER_HOST=0.0.0.0
-      - CHROMA_SERVER_HTTP_PORT=${CHROMA_HTTP_PORT:-8000}
-      - PERSIST_DIRECTORY=${CHROMA_PERSIST_DIR:-/chroma/chroma}
-      - CHROMA_PERSIST_DIRECTORY=${CHROMA_PERSIST_DIR:-/chroma/chroma}
-      - CHROMA_DB_DIR=${CHROMA_PERSIST_DIR:-/chroma/chroma}
-      - IS_PERSISTENT=TRUE
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__STORAGE__STORAGE_PATH=/qdrant/storage
+      - QDRANT__CLUSTER__ENABLED=false
     volumes:
-      - chroma_data:/chroma/chroma
+      - qdrant_data:/qdrant/storage
     networks:
       - mcp_network
 
@@ -29,7 +27,7 @@ services:
     container_name: mcp-memory-server
     restart: unless-stopped
     depends_on:
-      - chroma
+      - qdrant
     ports:
       - "${MCP_HOST_PORT:-9080}:9080" # Main MCP API port
       - "${MCP_HEALTH_PORT:-9081}:8081" # Health check port
@@ -41,9 +39,11 @@ services:
       - MCP_MEMORY_HTTP_PORT=8080
       - MCP_MEMORY_HEALTH_PORT=8081
       - MCP_MEMORY_METRICS_PORT=8082
-      # Chroma vector database configuration
-      - MCP_MEMORY_CHROMA_ENDPOINT=http://chroma:8000
-      - MCP_MEMORY_CHROMA_COLLECTION=${CHROMA_COLLECTION:-claude_memory}
+      # Qdrant vector database configuration
+      - MCP_MEMORY_STORAGE_PROVIDER=qdrant
+      - MCP_MEMORY_QDRANT_HOST=qdrant
+      - MCP_MEMORY_QDRANT_PORT=6334
+      - MCP_MEMORY_QDRANT_COLLECTION=${QDRANT_COLLECTION:-claude_memory}
       - MCP_MEMORY_VECTOR_DIM=${MCP_MEMORY_EMBEDDING_DIMENSION:-1536}
       # SQLite storage (no PostgreSQL needed)
       - MCP_MEMORY_DB_TYPE=sqlite
@@ -100,10 +100,10 @@ networks:
 
 # Volumes - CRITICAL: These contain all your memory data. NEVER DELETE!
 volumes:
-  # CRITICAL: Chroma vector database - Contains all embeddings and search indices
-  chroma_data:
+  # CRITICAL: Qdrant vector database - Contains all embeddings and search indices
+  qdrant_data:
     driver: local
-    name: mcp_memory_chroma_vector_db_NEVER_DELETE
+    name: mcp_memory_qdrant_vector_db_NEVER_DELETE
 
   # CRITICAL: MCP server data - Contains SQLite database and app data
   mcp_data:

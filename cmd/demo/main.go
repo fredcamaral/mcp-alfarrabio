@@ -21,8 +21,9 @@ func main() {
 		log.Printf("Failed to load config: %v", err)
 		// Use default config for demo
 		cfg = &config.Config{
-			Chroma: config.ChromaConfig{
-				Endpoint:   "http://localhost:9000",
+			Qdrant: config.QdrantConfig{
+				Host:       "localhost",
+				Port:       6334,
 				Collection: "memory",
 			},
 			OpenAI: config.OpenAIConfig{
@@ -85,7 +86,7 @@ func main() {
 	fmt.Println("\n✅ Demo completed successfully!")
 	fmt.Println("\n💡 Next Steps:")
 	fmt.Println("- Set up OpenAI API key for full embedding functionality")
-	fmt.Println("- Configure Chroma vector database for production use")
+	fmt.Println("- Configure Qdrant vector database for production use")
 	fmt.Println("- Deploy using Docker Compose for full stack")
 	fmt.Println("- Integrate with actual Claude MCP protocol")
 

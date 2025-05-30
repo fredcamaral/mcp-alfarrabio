@@ -25,12 +25,13 @@ logging:
   structured: false
 
 storage:
-  type: "chroma"
-  chroma:
-    url: "http://mcp-chroma:8000"
-    api_key: "test-token"
+  type: "qdrant"
+  qdrant:
+    host: "mcp-qdrant"
+    port: 6334
+    api_key: ""
     collection_name: "claude_memory"
-    dimension: 1536
+    use_tls: false
 
 memory:
   conversation_history_limit: 100
