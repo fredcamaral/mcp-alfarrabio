@@ -277,7 +277,7 @@ Add to your Continue configuration:
 
 ### 🛠️ Available Memory Tools
 
-Once configured, your AI gets 23+ powerful memory tools:
+Once configured, your AI gets 41 powerful memory tools:
 
 - `memory_store_chunk` - Save important conversations
 - `memory_search` - Find similar past contexts  
