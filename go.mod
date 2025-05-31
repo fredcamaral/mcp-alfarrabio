@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.24.3
 
 require (
-	github.com/fredcamaral/gomcp-sdk v1.0.0
+	github.com/fredcamaral/gomcp-sdk v1.0.3
 	github.com/getkin/kin-openapi v0.132.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/mux v1.8.1

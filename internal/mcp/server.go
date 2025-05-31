@@ -18,6 +18,7 @@ import (
 	"mcp-memory/internal/intelligence"
 	"mcp-memory/internal/logging"
 	"mcp-memory/internal/relationships"
+	"regexp"
 	"mcp-memory/internal/threading"
 	"mcp-memory/pkg/types"
 	"os"
@@ -68,6 +69,9 @@ func (ms *MemoryServer) Start(ctx context.Context) error {
 	if err := ms.container.HealthCheck(ctx); err != nil {
 		log.Printf("Warning: Service health check failed: %v", err)
 	}
+
+	// Start automatic decay management for old chunks
+	go ms.runPeriodicDecay(ctx)
 
 	log.Printf("Claude Memory MCP Server started successfully")
 	return nil
@@ -562,6 +566,9 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 		logging.Error("memory_store_chunk failed: missing session_id parameter")
 		return nil, fmt.Errorf("session_id is required")
 	}
+	
+	// Validate and normalize session ID for proper isolation
+	sessionID = ms.validateAndNormalizeSessionID(sessionID)
 
 	logging.Info("Processing chunk storage", "content_length", len(content), "session_id", sessionID)
 
@@ -2264,7 +2271,7 @@ func getEnvFloat(key string, defaultValue float64) float64 {
 // buildMetadataFromParams extracts metadata from request parameters
 func (ms *MemoryServer) buildMetadataFromParams(params map[string]interface{}) types.ChunkMetadata {
 	metadata := types.ChunkMetadata{
-		Outcome:    types.OutcomeInProgress, // Default
+		Outcome:    types.OutcomeInProgress, // Default, will be auto-updated based on content
 		Difficulty: types.DifficultySimple,  // Default
 	}
 
@@ -3587,17 +3594,17 @@ func (ms *MemoryServer) handleAnalyzeCrossRepoPatterns(ctx context.Context, para
 	// Update repository contexts with recent data
 	for _, repo := range repositories {
 		// Get recent chunks for this repository to update context
-		query := types.NewMemoryQuery("")
-		query.Repository = &repo
-		query.Limit = 50
-		query.Recency = types.RecencyRecent
-
-		searchResults, err := ms.container.GetVectorStore().Search(ctx, *query, nil)
-		if err == nil && len(searchResults.Results) > 0 {
-			chunks := make([]types.ConversationChunk, 0, len(searchResults.Results))
-			for _, result := range searchResults.Results {
-				chunks = append(chunks, result.Chunk)
+		chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repo, 50, 0)
+		if err == nil && len(chunks) > 0 {
+			// Filter for recent chunks (last 7 days for RecencyRecent)
+			cutoff := time.Now().AddDate(0, 0, -7)
+			var recentChunks []types.ConversationChunk
+			for _, chunk := range chunks {
+				if chunk.Timestamp.After(cutoff) {
+					recentChunks = append(recentChunks, chunk)
+				}
 			}
+			chunks = recentChunks
 
 			// Update repository context
 			err = multiRepoEngine.UpdateRepositoryContext(ctx, repo, chunks)
@@ -3666,17 +3673,17 @@ func (ms *MemoryServer) handleFindSimilarRepositories(ctx context.Context, param
 	multiRepoEngine := ms.container.GetMultiRepoEngine()
 
 	// Update the target repository context with recent data
-	query := types.NewMemoryQuery("")
-	query.Repository = &repository
-	query.Limit = 50
-	query.Recency = types.RecencyRecent
-
-	searchResults, err := ms.container.GetVectorStore().Search(ctx, *query, nil)
-	if err == nil && len(searchResults.Results) > 0 {
-		chunks := make([]types.ConversationChunk, 0, len(searchResults.Results))
-		for _, result := range searchResults.Results {
-			chunks = append(chunks, result.Chunk)
+	chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 50, 0)
+	if err == nil && len(chunks) > 0 {
+		// Filter for recent chunks (last 7 days for RecencyRecent)
+		cutoff := time.Now().AddDate(0, 0, -7)
+		var recentChunks []types.ConversationChunk
+		for _, chunk := range chunks {
+			if chunk.Timestamp.After(cutoff) {
+				recentChunks = append(recentChunks, chunk)
+			}
 		}
+		chunks = recentChunks
 
 		// Update repository context
 		err = multiRepoEngine.UpdateRepositoryContext(ctx, repository, chunks)
@@ -3985,25 +3992,33 @@ func (ms *MemoryServer) handleMemoryHealthDashboard(ctx context.Context, params 
 	}
 
 	// Get all chunks for the repository within timeframe
-	query := types.NewMemoryQuery("")
-	if repository != "_global" {
-		query.Repository = &repository
-	}
-	query.Limit = 1000 // Large limit to get comprehensive data
-
-	searchResults, err := ms.container.GetVectorStore().Search(ctx, *query, nil)
-	if err != nil {
-		logging.Error("Failed to search chunks for health analysis", "repository", repository, "error", err)
-		return nil, fmt.Errorf("failed to get chunks: %w", err)
+	var chunks []types.ConversationChunk
+	var err error
+	
+	if repository == "_global" {
+		// For global analysis, get all chunks
+		chunks, err = ms.container.GetVectorStore().GetAllChunks(ctx)
+		if err != nil {
+			logging.Error("Failed to get all chunks for global health analysis", "error", err)
+			return nil, fmt.Errorf("failed to get chunks: %w", err)
+		}
+	} else {
+		// For specific repository, use ListByRepository
+		chunks, err = ms.container.GetVectorStore().ListByRepository(ctx, repository, 1000, 0)
+		if err != nil {
+			logging.Error("Failed to list chunks for repository health analysis", "repository", repository, "error", err)
+			return nil, fmt.Errorf("failed to get chunks: %w", err)
+		}
 	}
 
 	// Filter by timeframe
-	var chunks []types.ConversationChunk
-	for _, result := range searchResults.Results {
-		if since.IsZero() || result.Chunk.Timestamp.After(since) {
-			chunks = append(chunks, result.Chunk)
+	var filteredChunks []types.ConversationChunk
+	for _, chunk := range chunks {
+		if since.IsZero() || chunk.Timestamp.After(since) {
+			filteredChunks = append(filteredChunks, chunk)
 		}
 	}
+	chunks = filteredChunks
 
 	// Generate health analysis
 	healthReport := ms.generateHealthReport(chunks, timeframe, includeDetails, includeRecommendations)
@@ -4546,15 +4561,22 @@ func (ms *MemoryServer) handleMemoryDecayManagement(ctx context.Context, params 
 // handleDecayStatus returns the current status of the decay system
 func (ms *MemoryServer) handleDecayStatus(ctx context.Context, repository, sessionID string) (map[string]interface{}, error) {
 	// Get all chunks for analysis
-	query := types.MemoryQuery{
-		Repository: &repository,
-		Limit:      1000,
-		Recency:    types.RecencyAllTime,
-	}
-
-	results, err := ms.container.GetVectorStore().Search(ctx, query, nil)
+	// Get all chunks for repository using ListByRepository instead of Search with nil embeddings
+	allChunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 1000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve chunks for analysis: %w", err)
+	}
+	
+	// Convert to search results format for compatibility
+	results := &types.SearchResults{
+		Results: make([]types.SearchResult, len(allChunks)),
+		Total:   len(allChunks),
+	}
+	for i, chunk := range allChunks {
+		results.Results[i] = types.SearchResult{
+			Chunk: chunk,
+			Score: 1.0, // Default score since we're not doing vector search
+		}
 	}
 
 	chunks := make([]types.ConversationChunk, len(results.Results))
@@ -4613,15 +4635,22 @@ func (ms *MemoryServer) handleDecayStatus(ctx context.Context, repository, sessi
 // handleDecayPreview shows what would be processed without making changes
 func (ms *MemoryServer) handleDecayPreview(ctx context.Context, repository, sessionID string, intelligentMode bool) (map[string]interface{}, error) {
 	// Get all chunks for analysis
-	query := types.MemoryQuery{
-		Repository: &repository,
-		Limit:      1000,
-		Recency:    types.RecencyAllTime,
-	}
-
-	results, err := ms.container.GetVectorStore().Search(ctx, query, nil)
+	// Get all chunks for repository using ListByRepository instead of Search with nil embeddings
+	allChunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 1000, 0)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve chunks for preview: %w", err)
+	}
+	
+	// Convert to search results format for compatibility
+	results := &types.SearchResults{
+		Results: make([]types.SearchResult, len(allChunks)),
+		Total:   len(allChunks),
+	}
+	for i, chunk := range allChunks {
+		results.Results[i] = types.SearchResult{
+			Chunk: chunk,
+			Score: 1.0, // Default score since we're not doing vector search
+		}
 	}
 
 	chunks := make([]types.ConversationChunk, len(results.Results))
@@ -4932,4 +4961,98 @@ func (ms *MemoryServer) chunkExistsInThread(thread *threading.MemoryThread, chun
 		}
 	}
 	return false
+}
+
+// runPeriodicDecay runs automatic cleanup of old chunks periodically
+func (ms *MemoryServer) runPeriodicDecay(ctx context.Context) {
+	ticker := time.NewTicker(24 * time.Hour) // Run daily
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			logging.Info("Stopping periodic decay due to context cancellation")
+			return
+		case <-ticker.C:
+			logging.Info("Running automatic memory decay cleanup")
+			
+			// Clean up chunks older than retention period (90 days by default)
+			retentionDays := 90
+			deletedCount, err := ms.container.GetVectorStore().Cleanup(ctx, retentionDays)
+			if err != nil {
+				logging.Error("Failed to run automatic cleanup", "error", err)
+				continue
+			}
+			
+			if deletedCount > 0 {
+				logging.Info("Automatic cleanup completed", "deleted_chunks", deletedCount, "retention_days", retentionDays)
+				
+				// Store cleanup result as memory chunk for tracking
+				content := fmt.Sprintf("Automatic memory cleanup completed. Deleted %d old chunks (retention: %d days)", deletedCount, retentionDays)
+				ms.storeCleanupResult(ctx, content)
+			}
+		}
+	}
+}
+
+// storeCleanupResult stores the cleanup operation result as a memory chunk
+func (ms *MemoryServer) storeCleanupResult(ctx context.Context, content string) {
+	// Create metadata for cleanup result
+	metadata := types.ChunkMetadata{
+		Repository: "_global",
+		Outcome:    types.OutcomeSuccess,
+		Difficulty: types.DifficultySimple,
+		Tags:       []string{"cleanup", "maintenance", "automatic"},
+	}
+	
+	// Create and store cleanup chunk
+	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, "system-cleanup", content, metadata)
+	if err != nil {
+		logging.Error("Failed to create cleanup result chunk", "error", err)
+		return
+	}
+	
+	// Store the chunk
+	err = ms.container.GetVectorStore().Store(ctx, *chunk)
+	if err != nil {
+		logging.Error("Failed to store cleanup result chunk", "error", err)
+	} else {
+		logging.Debug("Stored cleanup result chunk", "chunk_id", chunk.ID)
+	}
+}
+
+// validateAndNormalizeSessionID ensures proper session isolation and prevents cross-contamination
+func (ms *MemoryServer) validateAndNormalizeSessionID(sessionID string) string {
+	// Remove any whitespace and normalize
+	sessionID = strings.TrimSpace(sessionID)
+	
+	// Validate session ID format (alphanumeric, hyphens, underscores only)
+	validSessionPattern := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	if !validSessionPattern.MatchString(sessionID) {
+		// Generate a safe session ID if invalid
+		safeID := regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(sessionID, "_")
+		if safeID == "" {
+			safeID = fmt.Sprintf("session_%d", time.Now().Unix())
+		}
+		logging.Warn("Invalid session ID format, normalized", "original", sessionID, "normalized", safeID)
+		return safeID
+	}
+	
+	// Ensure session ID is not too long (max 100 chars for database compatibility)
+	if len(sessionID) > 100 {
+		sessionID = sessionID[:100]
+		logging.Warn("Session ID truncated to 100 characters", "session_id", sessionID)
+	}
+	
+	// Add timestamp suffix if session seems too generic (helps with isolation)
+	genericSessions := []string{"session", "test", "demo", "example", "default"}
+	for _, generic := range genericSessions {
+		if strings.ToLower(sessionID) == generic {
+			sessionID = fmt.Sprintf("%s_%d", sessionID, time.Now().Unix())
+			logging.Info("Added timestamp to generic session ID", "session_id", sessionID)
+			break
+		}
+	}
+	
+	return sessionID
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"math"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/logging"
 	"mcp-memory/pkg/types"
@@ -424,11 +425,46 @@ func (qs *QdrantStore) GetStats(ctx context.Context) (*StoreStats, error) {
 		totalChunks = int64(pointCount)
 	}
 
+	// Calculate estimated storage size based on collection info and vectors
+	vectorsCount := info.GetVectorsCount()
+	segmentsCount := info.GetSegmentsCount()
+	indexedVectorsCount := info.GetIndexedVectorsCount()
+	
+	// Estimate storage size: 
+	// - Each vector is ~1536 dimensions * 4 bytes (float32) = ~6KB
+	// - Add metadata overhead (~2KB per chunk)
+	// - Add index overhead based on segments and indexed vectors
+	
+	// Safe conversion with overflow protection
+	var estimatedVectorSize int64
+	if vectorsCount > math.MaxInt64/(defaultVectorSize*4) {
+		estimatedVectorSize = math.MaxInt64
+	} else {
+		estimatedVectorSize = int64(vectorsCount) * defaultVectorSize * 4
+	}
+	
+	var estimatedIndexSize int64
+	if segmentsCount > math.MaxInt64/(1024*1024) {
+		estimatedIndexSize = math.MaxInt64
+	} else {
+		estimatedIndexSize = int64(segmentsCount) * 1024 * 1024
+	}
+	
+	var estimatedIndexOverhead int64
+	if indexedVectorsCount > math.MaxInt64/512 {
+		estimatedIndexOverhead = math.MaxInt64
+	} else {
+		estimatedIndexOverhead = int64(indexedVectorsCount) * 512
+	}
+	
+	estimatedMetadataSize := totalChunks * 2048 // ~2KB metadata per chunk
+	estimatedStorageSize := estimatedVectorSize + estimatedMetadataSize + estimatedIndexSize + estimatedIndexOverhead
+
 	stats := &StoreStats{
 		TotalChunks:  totalChunks,
 		ChunksByType: make(map[string]int64),
 		ChunksByRepo: make(map[string]int64),
-		StorageSize:  0, // Qdrant doesn't expose this directly
+		StorageSize:  estimatedStorageSize,
 	}
 
 	if stats.TotalChunks > 0 {
