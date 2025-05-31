@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MCP-Anvil | Where developer knowledge is forged</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg: #0a0a0a;
+            --surface: #141414;
+            --text: #e4e4e4;
+            --muted: #888;
+            --accent: #ff6b35;
+            --code-bg: #1a1a1a;
+            --success: #22c55e;
+            --error: #ef4444;
+        }
+
+        body {
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', monospace;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 1024px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        /* Header */
+        header {
+            padding: 32px 0;
+            border-bottom: 1px solid #222;
+        }
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-size: 24px;
+            font-weight: bold;
+            color: var(--accent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 32px;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--muted);
+            text-decoration: none;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--text);
+        }
+
+        /* Hero */
+        .hero {
+            padding: 120px 0;
+            text-align: center;
+        }
+
+        .hero h1 {
+            font-size: 56px;
+            margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 0%, #888 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            font-size: 20px;
+            color: var(--muted);
+            margin-bottom: 48px;
+        }
+
+        .terminal-demo {
+            background: var(--code-bg);
+            border-radius: 8px;
+            padding: 24px;
+            margin: 48px auto;
+            max-width: 800px;
+            text-align: left;
+            border: 1px solid #222;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .terminal-header {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .terminal-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .dot-red { background: #ff5f56; }
+        .dot-yellow { background: #ffbd2e; }
+        .dot-green { background: #27c93f; }
+
+        .terminal-content {
+            font-family: 'SF Mono', monospace;
+            font-size: 14px;
+        }
+
+        .prompt { color: var(--success); }
+        .command { color: var(--text); }
+        .output { color: var(--muted); }
+        .highlight { color: var(--accent); }
+
+        /* Problem/Solution */
+        .problem-section {
+            padding: 80px 0;
+            background: var(--surface);
+        }
+
+        .problem-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 64px;
+            align-items: center;
+        }
+
+        .problem-content h2 {
+            font-size: 36px;
+            margin-bottom: 24px;
+        }
+
+        .problem-content p {
+            color: var(--muted);
+            margin-bottom: 16px;
+        }
+
+        .code-block {
+            background: var(--code-bg);
+            padding: 20px;
+            border-radius: 6px;
+            border: 1px solid #222;
+            font-size: 14px;
+        }
+
+        .comment { color: #666; }
+        .string { color: #98c379; }
+        .keyword { color: #c678dd; }
+
+        /* Features */
+        .features {
+            padding: 80px 0;
+        }
+
+        .features h2 {
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 64px;
+        }
+
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 48px;
+        }
+
+        .feature {
+            text-align: center;
+        }
+
+        .feature-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+            opacity: 0.8;
+        }
+
+        .feature h3 {
+            font-size: 20px;
+            margin-bottom: 12px;
+            color: var(--text);
+        }
+
+        .feature p {
+            color: var(--muted);
+            font-size: 14px;
+        }
+
+        /* Comparison */
+        .comparison {
+            padding: 80px 0;
+            background: var(--surface);
+        }
+
+        .comparison-table {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .comparison h2 {
+            text-align: center;
+            font-size: 36px;
+            margin-bottom: 48px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        th, td {
+            padding: 16px;
+            text-align: left;
+            border-bottom: 1px solid #222;
+        }
+
+        th {
+            color: var(--muted);
+            font-weight: normal;
+        }
+
+        .check { color: var(--success); }
+        .cross { color: var(--error); }
+
+        /* CTA */
+        .cta-section {
+            padding: 120px 0;
+            text-align: center;
+        }
+
+        .cta-section h2 {
+            font-size: 36px;
+            margin-bottom: 24px;
+        }
+
+        .cta-section p {
+            color: var(--muted);
+            margin-bottom: 48px;
+            font-size: 18px;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 24px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 16px 32px;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #ff5525;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text);
+            border: 1px solid #333;
+        }
+
+        .btn-secondary:hover {
+            border-color: #666;
+            background: #111;
+        }
+
+        /* Footer */
+        footer {
+            padding: 48px 0;
+            text-align: center;
+            color: var(--muted);
+            border-top: 1px solid #222;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 { font-size: 36px; }
+            .problem-grid, .feature-grid { grid-template-columns: 1fr; }
+            .nav-links { display: none; }
+            .terminal-demo { padding: 16px; }
+        }
+
+        /* Animations */
+        .type-effect {
+            opacity: 0;
+            animation: fadeIn 0.5s ease-out forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; }
+        }
+
+        .blink {
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            0%, 50% { opacity: 1; }
+            51%, 100% { opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <nav class="container">
+            <div class="logo">🔨 mcp-anvil</div>
+            <ul class="nav-links">
+                <li><a href="#features">Features</a></li>
+                <li><a href="https://github.com/fredcamaral/mcp-memory" target="_blank">GitHub</a></li>
+                <li><a href="#docs">Docs</a></li>
+            </ul>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div class="container">
+            <h1>Your AI forgets everything.<br>Every. Single. Session.</h1>
+            <p class="tagline">MCP-Anvil: Local-first persistent memory for AI development</p>
+            
+            <div class="terminal-demo">
+                <div class="terminal-header">
+                    <span class="terminal-dot dot-red"></span>
+                    <span class="terminal-dot dot-yellow"></span>
+                    <span class="terminal-dot dot-green"></span>
+                </div>
+                <div class="terminal-content">
+                    <div class="type-effect" style="animation-delay: 0.5s">
+                        <span class="prompt">$</span> <span class="command">docker-compose up -d</span>
+                    </div>
+                    <div class="type-effect" style="animation-delay: 1s">
+                        <span class="output">✓ Starting mcp-anvil...</span>
+                    </div>
+                    <div class="type-effect" style="animation-delay: 1.5s">
+                        <span class="output">✓ Qdrant vector database ready</span>
+                    </div>
+                    <div class="type-effect" style="animation-delay: 2s">
+                        <span class="output">✓ Memory forge operational</span>
+                    </div>
+                    <div class="type-effect" style="animation-delay: 2.5s">
+                        <span class="prompt">$</span> <span class="command">// Your context now persists across months<span class="blink">_</span></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <a href="https://github.com/fredcamaral/mcp-memory" class="btn btn-primary">
+                    Get Started →
+                </a>
+                <a href="#demo" class="btn btn-secondary">
+                    See it in Action
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <section class="problem-section">
+        <div class="container">
+            <div class="problem-grid">
+                <div class="problem-content">
+                    <h2>The Context Death Problem</h2>
+                    <p>You spend 20 minutes explaining your architecture to Claude.</p>
+                    <p>You debug a complex issue together.</p>
+                    <p>You make critical decisions.</p>
+                    <p style="color: var(--error); font-weight: bold; margin-top: 24px;">Then you close the tab.</p>
+                    <p style="margin-top: 24px;">Tomorrow? It's like you never met.</p>
+                </div>
+                <div class="code-block">
+                    <div><span class="comment">// Without MCP-Anvil</span></div>
+                    <div><span class="keyword">const</span> claude = <span class="keyword">new</span> Claude();</div>
+                    <div><span class="comment">// "Let me explain our entire codebase..."</span></div>
+                    <div><span class="comment">// "We use CQRS because..."</span></div>
+                    <div><span class="comment">// "The bug was in the transaction service..."</span></div>
+                    <div>&nbsp;</div>
+                    <div><span class="comment">// *closes tab*</span></div>
+                    <div><span class="comment">// *opens next day*</span></div>
+                    <div>&nbsp;</div>
+                    <div>claude.ask(<span class="string">"Why did we use CQRS?"</span>);</div>
+                    <div><span class="comment">// "I don't have context about your decisions"</span></div>
+                    <div style="color: var(--error);">// 🤬</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="features">
+        <div class="container">
+            <h2>Built Different. Built Right.</h2>
+            <div class="feature-grid">
+                <div class="feature">
+                    <div class="feature-icon">🏠</div>
+                    <h3>100% Local</h3>
+                    <p>Your architectural decisions aren't our business. Docker-based, runs on YOUR machine.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🧠</div>
+                    <h3>Real Intelligence</h3>
+                    <p>Links problems to solutions. Tracks decision rationale. Not just key-value storage.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Semantic Search</h3>
+                    <p>Qdrant-powered vector search. Finds relevant context even when you can't remember exact terms.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔍</div>
+                    <h3>Pattern Recognition</h3>
+                    <p>Surfaces similar problems you've solved before. Your own knowledge, amplified.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">📊</div>
+                    <h3>Confidence Scoring</h3>
+                    <p>Distinguishes facts from inferences. Know when to trust, when to verify.</p>
+                </div>
+                <div class="feature">
+                    <div class="feature-icon">🔨</div>
+                    <h3>Built to Last</h3>
+                    <p>Architectural decisions from months ago, instantly accessible. Knowledge that compounds.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section class="comparison">
+        <div class="container">
+            <div class="comparison-table">
+                <h2>Not All Memory is Equal</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th></th>
+                            <th>MCP-Anvil</th>
+                            <th>SaaS Memory</th>
+                            <th>Basic MCP Servers</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>Data Ownership</td>
+                            <td><span class="check">✓</span> 100% Local</td>
+                            <td><span class="cross">✗</span> Cloud Stored</td>
+                            <td><span class="check">✓</span> Local</td>
+                        </tr>
+                        <tr>
+                            <td>Semantic Search</td>
+                            <td><span class="check">✓</span> Qdrant Vectors</td>
+                            <td><span class="check">✓</span> Usually</td>
+                            <td><span class="cross">✗</span> Key-Value Only</td>
+                        </tr>
+                        <tr>
+                            <td>Relationship Understanding</td>
+                            <td><span class="check">✓</span> Knowledge Graph</td>
+                            <td><span class="cross">✗</span> Flat Storage</td>
+                            <td><span class="cross">✗</span> No Context</td>
+                        </tr>
+                        <tr>
+                            <td>Dev Workflow Aware</td>
+                            <td><span class="check">✓</span> Problem→Solution</td>
+                            <td><span class="cross">✗</span> Generic</td>
+                            <td><span class="cross">✗</span> Generic</td>
+                        </tr>
+                        <tr>
+                            <td>Production Ready</td>
+                            <td><span class="check">✓</span> Docker-based</td>
+                            <td><span class="check">✓</span> Managed</td>
+                            <td><span class="cross">✗</span> Experimental</td>
+                        </tr>
+                        <tr>
+                            <td>Your IP Safe</td>
+                            <td><span class="check">✓</span> Always</td>
+                            <td><span class="cross">✗</span> Terms Apply</td>
+                            <td><span class="check">✓</span> Yes</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <section class="cta-section">
+        <div class="container">
+            <h2>Ready to Forge Persistent Memory?</h2>
+            <p>Join developers who refuse to repeat themselves to AI.</p>
+            
+            <div class="terminal-demo" style="max-width: 600px;">
+                <div class="terminal-header">
+                    <span class="terminal-dot dot-red"></span>
+                    <span class="terminal-dot dot-yellow"></span>
+                    <span class="terminal-dot dot-green"></span>
+                </div>
+                <div class="terminal-content">
+                    <div><span class="prompt">$</span> <span class="command">git clone https://github.com/fredcamaral/mcp-memory</span></div>
+                    <div><span class="prompt">$</span> <span class="command">cd mcp-memory && docker-compose up -d</span></div>
+                    <div><span class="prompt">$</span> <span class="command">// Add to your MCP config</span></div>
+                    <div><span class="prompt">$</span> <span class="command">// Start forging<span class="blink">_</span></span></div>
+                </div>
+            </div>
+
+            <div class="button-group">
+                <a href="https://github.com/fredcamaral/mcp-memory" class="btn btn-primary">
+                    View on GitHub
+                </a>
+                <a href="https://docs.mcp-anvil.dev" class="btn btn-secondary">
+                    Read the Docs
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <footer>
+        <div class="container">
+            <p>Built by developers, for developers who are tired of context death.</p>
+            <p style="margin-top: 8px; font-size: 12px;">
+                MCP-Anvil · MIT License · Your memories, your machine
+            </p>
+        </div>
+    </footer>
+
+    <script>
+        // Smooth scrolling for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
+        });
+
+        // Add subtle parallax to hero
+        window.addEventListener('scroll', () => {
+            const scrolled = window.pageYOffset;
+            const hero = document.querySelector('.hero');
+            hero.style.transform = `translateY(${scrolled * 0.5}px)`;
+        });
+    </script>
+</body>
+</html>

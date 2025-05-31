@@ -319,3 +319,109 @@ func (s *CircuitBreakerVectorStore) BatchDelete(ctx context.Context, ids []strin
 
 	return result, err
 }
+
+// Relationship management methods
+
+// StoreRelationship stores a relationship with circuit breaker protection
+func (s *CircuitBreakerVectorStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
+	var relationship *types.MemoryRelationship
+	
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			relationship, err = s.store.StoreRelationship(ctx, sourceID, targetID, relationType, confidence, source)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			return fmt.Errorf("relationship store unavailable due to circuit breaker: %w", cbErr)
+		},
+	)
+	
+	return relationship, err
+}
+
+// GetRelationships gets relationships with circuit breaker protection
+func (s *CircuitBreakerVectorStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+	var relationships []types.RelationshipResult
+	
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			relationships, err = s.store.GetRelationships(ctx, query)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			// Return empty result on circuit breaker failure
+			relationships = []types.RelationshipResult{}
+			return nil
+		},
+	)
+	
+	return relationships, err
+}
+
+// TraverseGraph traverses graph with circuit breaker protection
+func (s *CircuitBreakerVectorStore) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) {
+	var result *types.GraphTraversalResult
+	
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			result, err = s.store.TraverseGraph(ctx, startChunkID, maxDepth, relationTypes)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			// Return empty result on circuit breaker failure
+			result = &types.GraphTraversalResult{
+				Paths: []types.GraphPath{},
+				Nodes: []types.GraphNode{},
+				Edges: []types.GraphEdge{},
+			}
+			return nil
+		},
+	)
+	
+	return result, err
+}
+
+// UpdateRelationship updates a relationship with circuit breaker protection
+func (s *CircuitBreakerVectorStore) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error {
+	return s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			return s.store.UpdateRelationship(ctx, relationshipID, confidence, factors)
+		},
+		func(ctx context.Context, cbErr error) error {
+			return fmt.Errorf("relationship update unavailable due to circuit breaker: %w", cbErr)
+		},
+	)
+}
+
+// DeleteRelationship deletes a relationship with circuit breaker protection
+func (s *CircuitBreakerVectorStore) DeleteRelationship(ctx context.Context, relationshipID string) error {
+	return s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			return s.store.DeleteRelationship(ctx, relationshipID)
+		},
+		func(ctx context.Context, cbErr error) error {
+			return fmt.Errorf("relationship delete unavailable due to circuit breaker: %w", cbErr)
+		},
+	)
+}
+
+// GetRelationshipByID gets a relationship by ID with circuit breaker protection
+func (s *CircuitBreakerVectorStore) GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error) {
+	var relationship *types.MemoryRelationship
+	
+	err := s.cb.ExecuteWithFallback(ctx,
+		func(ctx context.Context) error {
+			var err error
+			relationship, err = s.store.GetRelationshipByID(ctx, relationshipID)
+			return err
+		},
+		func(ctx context.Context, cbErr error) error {
+			return fmt.Errorf("relationship get unavailable due to circuit breaker: %w", cbErr)
+		},
+	)
+	
+	return relationship, err
+}

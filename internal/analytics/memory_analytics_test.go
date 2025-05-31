@@ -200,6 +200,31 @@ func (m *MockStore) BatchDelete(ctx context.Context, ids []string) (*storage.Bat
 	return result, nil
 }
 
+// Relationship management methods (required by VectorStore interface)
+func (m *MockStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
+	return nil, nil
+}
+
+func (m *MockStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+	return nil, nil
+}
+
+func (m *MockStore) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) {
+	return nil, nil
+}
+
+func (m *MockStore) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error {
+	return nil
+}
+
+func (m *MockStore) DeleteRelationship(ctx context.Context, relationshipID string) error {
+	return nil
+}
+
+func (m *MockStore) GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error) {
+	return nil, nil
+}
+
 func TestMemoryAnalytics_RecordAccess(t *testing.T) {
 	store := NewMockStore()
 	analytics := NewMemoryAnalytics(store)

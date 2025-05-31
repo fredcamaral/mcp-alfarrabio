@@ -282,9 +282,10 @@ func (cs *ChunkingService) enrichMetadata(metadata types.ChunkMetadata, content 
 		metadata.Difficulty = cs.assessDifficulty(content)
 	}
 
-	// Set outcome based on content analysis
-	if metadata.Outcome == "" {
-		metadata.Outcome = cs.assessOutcome(content)
+	// Set outcome based on content analysis (always assess to override default OutcomeInProgress)
+	detectedOutcome := cs.assessOutcome(content)
+	if detectedOutcome != types.OutcomeInProgress || metadata.Outcome == "" {
+		metadata.Outcome = detectedOutcome
 	}
 
 	// Smart detection: Add specialized tags for high-impact content
@@ -394,26 +395,69 @@ func (cs *ChunkingService) assessDifficulty(content string) types.Difficulty {
 func (cs *ChunkingService) assessOutcome(content string) types.Outcome {
 	content = strings.ToLower(content)
 
-	successIndicators := []string{"completed", "fixed", "solved", "working", "success", "done"}
-	failureIndicators := []string{"failed", "error", "broken", "not working", "issue"}
-	progressIndicators := []string{"in progress", "working on", "implementing", "developing"}
+	// Strong success indicators (weighted higher)
+	strongSuccessIndicators := []string{
+		"completed successfully", "fixed the issue", "problem solved", "working now", 
+		"tests pass", "build successful", "merged", "deployed", "resolved",
+	}
+	
+	// Success indicators 
+	successIndicators := []string{
+		"completed", "fixed", "solved", "working", "success", "done", "implemented",
+		"added", "updated", "created", "built", "tested", "verified", "finished",
+	}
+	
+	// Failure indicators
+	failureIndicators := []string{
+		"failed", "error", "broken", "not working", "issue", "problem", "bug",
+		"crashed", "timeout", "exception", "cannot", "unable", "stuck",
+	}
+	
+	// Progress indicators
+	progressIndicators := []string{
+		"in progress", "working on", "implementing", "developing", "testing",
+		"investigating", "debugging", "trying", "attempting", "starting",
+	}
 
-	for _, indicator := range successIndicators {
+	// Check for strong success first
+	for _, indicator := range strongSuccessIndicators {
 		if strings.Contains(content, indicator) {
 			return types.OutcomeSuccess
 		}
 	}
 
+	// Count indicators to make better decisions
+	successCount := 0
+	failureCount := 0
+	progressCount := 0
+
+	for _, indicator := range successIndicators {
+		if strings.Contains(content, indicator) {
+			successCount++
+		}
+	}
+
 	for _, indicator := range failureIndicators {
 		if strings.Contains(content, indicator) {
-			return types.OutcomeFailed
+			failureCount++
 		}
 	}
 
 	for _, indicator := range progressIndicators {
 		if strings.Contains(content, indicator) {
-			return types.OutcomeInProgress
+			progressCount++
 		}
+	}
+
+	// Decision logic based on counts
+	if successCount > failureCount && successCount > progressCount {
+		return types.OutcomeSuccess
+	}
+	if failureCount > 0 && failureCount > progressCount {
+		return types.OutcomeFailed
+	}
+	if progressCount > 0 {
+		return types.OutcomeInProgress
 	}
 
 	return types.OutcomeInProgress // Default assumption
@@ -453,13 +497,15 @@ func (cs *ChunkingService) prepareContentForEmbedding(chunk *types.ConversationC
 	// Include chunk type for context
 	parts = append(parts, fmt.Sprintf("Type: %s", chunk.Type))
 
-	// Include summary if available
+	// Include summary if available (cleaned)
 	if chunk.Summary != "" {
-		parts = append(parts, fmt.Sprintf("Summary: %s", chunk.Summary))
+		cleanSummary := cs.cleanContentForEmbedding(chunk.Summary)
+		parts = append(parts, fmt.Sprintf("Summary: %s", cleanSummary))
 	}
 
-	// Include main content
-	parts = append(parts, fmt.Sprintf("Content: %s", chunk.Content))
+	// Include main content (cleaned)
+	cleanContent := cs.cleanContentForEmbedding(chunk.Content)
+	parts = append(parts, fmt.Sprintf("Content: %s", cleanContent))
 
 	// Include relevant metadata
 	if chunk.Metadata.Repository != "" {
@@ -467,7 +513,12 @@ func (cs *ChunkingService) prepareContentForEmbedding(chunk *types.ConversationC
 	}
 
 	if len(chunk.Metadata.Tags) > 0 {
-		parts = append(parts, fmt.Sprintf("Tags: %s", strings.Join(chunk.Metadata.Tags, ", ")))
+		// Clean tags too
+		cleanTags := make([]string, len(chunk.Metadata.Tags))
+		for i, tag := range chunk.Metadata.Tags {
+			cleanTags[i] = cs.cleanContentForEmbedding(tag)
+		}
+		parts = append(parts, fmt.Sprintf("Tags: %s", strings.Join(cleanTags, ", ")))
 	}
 
 	combined := strings.Join(parts, " ")
@@ -479,6 +530,53 @@ func (cs *ChunkingService) prepareContentForEmbedding(chunk *types.ConversationC
 	}
 
 	return combined
+}
+
+// cleanContentForEmbedding removes formatting and emojis that pollute vector similarity
+func (cs *ChunkingService) cleanContentForEmbedding(content string) string {
+	// Remove common emojis and symbols that pollute semantic search
+	emojiPattern := `[🚀🔍🔒🔧💡⚡✅❌🎯📊📈📉🛠️🔄🌟⭐💻📝🗂️🎉🔥💪🎨🚨⚠️✨🔎🆕🔵🟢🔴🟡]`
+	re := regexp.MustCompile(emojiPattern)
+	cleaned := re.ReplaceAllString(content, "")
+	
+	// Remove excessive whitespace and normalize
+	cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
+	cleaned = strings.TrimSpace(cleaned)
+	
+	// Remove markdown formatting that doesn't add semantic value
+	// Remove bold/italic markers
+	cleaned = regexp.MustCompile(`\*\*([^*]+)\*\*`).ReplaceAllString(cleaned, "$1")
+	cleaned = regexp.MustCompile(`\*([^*]+)\*`).ReplaceAllString(cleaned, "$1")
+	cleaned = regexp.MustCompile(`_([^_]+)_`).ReplaceAllString(cleaned, "$1")
+	
+	// Remove code blocks but keep inline code content
+	cleaned = regexp.MustCompile("```[^`]*```").ReplaceAllString(cleaned, "code_block")
+	cleaned = regexp.MustCompile("`([^`]+)`").ReplaceAllString(cleaned, "$1")
+	
+	// Remove URLs but keep domain info for context
+	cleaned = regexp.MustCompile(`https?://([^/\s]+)[^\s]*`).ReplaceAllString(cleaned, "website_$1")
+	
+	// Remove excessive punctuation
+	cleaned = regexp.MustCompile(`[!]{2,}`).ReplaceAllString(cleaned, "!")
+	cleaned = regexp.MustCompile(`[?]{2,}`).ReplaceAllString(cleaned, "?")
+	cleaned = regexp.MustCompile(`[-]{3,}`).ReplaceAllString(cleaned, "")
+	
+	// Normalize common abbreviations for better semantic matching
+	replacements := map[string]string{
+		"w/":     "with",
+		"&":      "and", 
+		"@":      "at",
+		"#":      "number",
+		"e.g.":   "for example",
+		"i.e.":   "that is",
+		"etc.":   "and so on",
+	}
+	
+	for old, new := range replacements {
+		cleaned = strings.ReplaceAll(cleaned, old, new)
+	}
+	
+	return cleaned
 }
 
 // hasContextSwitch detects if there has been a significant context switch
