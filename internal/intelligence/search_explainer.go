@@ -332,11 +332,12 @@ func (se *SearchExplainer) calculateRecencyBoost(timestamp time.Time) float64 {
 	daysSince := time.Since(timestamp).Hours() / 24
 	
 	// Boost for recent memories
-	if daysSince < 1 {
+	switch {
+	case daysSince < 1:
 		return 0.3 // Strong boost for very recent
-	} else if daysSince < 7 {
+	case daysSince < 7:
 		return 0.2 // Good boost for recent
-	} else if daysSince < 30 {
+	case daysSince < 30:
 		return 0.1 // Small boost for somewhat recent
 	}
 	

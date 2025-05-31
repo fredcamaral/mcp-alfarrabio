@@ -684,13 +684,14 @@ func (fm *FreshnessManager) generateFreshnessSummary(results []ChunkFreshnessRes
 	
 	if totalChunks > 0 {
 		freshRatio := float64(totalFresh) / float64(totalChunks)
-		if freshRatio > 0.8 {
+		switch {
+		case freshRatio > 0.8:
 			summary.OverallHealth = "excellent"
-		} else if freshRatio > 0.6 {
+		case freshRatio > 0.6:
 			summary.OverallHealth = "good"
-		} else if freshRatio > 0.4 {
+		case freshRatio > 0.4:
 			summary.OverallHealth = "poor"
-		} else {
+		default:
 			summary.OverallHealth = "critical"
 		}
 	}

@@ -203,8 +203,7 @@ func (tm *TemplateManager) CreateChunkFromTemplate(templateID, sessionID string,
 	content := tm.buildContentFromTemplate(template, fields)
 	
 	// Apply auto tags
-	allTags := append(metadata.Tags, template.AutoTags...)
-	metadata.Tags = allTags
+	metadata.Tags = append(metadata.Tags, template.AutoTags...)
 	
 	// Apply default metadata
 	if template.DefaultMetadata != nil {

@@ -311,7 +311,7 @@ func TestConflictResolver_BuildConflictContext(t *testing.T) {
 	}
 
 	// Check stakeholder impact for architectural conflicts
-	if impact, exists := context.StakeholderImpact["architects"]; !exists || impact != "high" {
+	if impact, exists := context.StakeholderImpact["architects"]; !exists || impact != string(SeverityHigh) {
 		t.Error("Expected high impact for architects on architectural conflicts")
 	}
 }

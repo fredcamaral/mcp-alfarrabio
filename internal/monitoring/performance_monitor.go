@@ -1054,11 +1054,12 @@ func (pm *PerformanceMonitor) updateRealTimeMetric(name string, value float64) {
 	metric.MovingAverage = alpha*value + (1-alpha)*metric.MovingAverage
 	
 	// Determine trend
-	if metric.ChangeRate > 0.05 {
+	switch {
+	case metric.ChangeRate > 0.05:
 		metric.Trend = "increasing"
-	} else if metric.ChangeRate < -0.05 {
+	case metric.ChangeRate < -0.05:
 		metric.Trend = "decreasing"
-	} else {
+	default:
 		metric.Trend = "stable"
 	}
 	
@@ -1250,11 +1251,12 @@ func (pm *PerformanceMonitor) updateRealTimeAnalysis() {
 	pm.realtimeMutex.RLock()
 	for _, metric := range pm.realTimeMetrics {
 		// Update confidence based on sample size
-		if metric.UpdateCount > 100 {
+		switch {
+		case metric.UpdateCount > 100:
 			metric.Confidence = 0.95
-		} else if metric.UpdateCount > 10 {
+		case metric.UpdateCount > 10:
 			metric.Confidence = 0.8
-		} else {
+		default:
 			metric.Confidence = 0.5
 		}
 	}
@@ -1370,11 +1372,12 @@ func (pm *PerformanceMonitor) updateHealthStatus() {
 	}
 	
 	// Update health status
-	if healthScore >= 0.8 {
+	switch {
+	case healthScore >= 0.8:
 		pm.healthStatus = HealthStatusHealthy
-	} else if healthScore >= 0.5 {
+	case healthScore >= 0.5:
 		pm.healthStatus = HealthStatusDegraded
-	} else {
+	default:
 		pm.healthStatus = HealthStatusUnhealthy
 	}
 	

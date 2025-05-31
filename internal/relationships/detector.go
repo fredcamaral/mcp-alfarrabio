@@ -246,7 +246,7 @@ func (rd *RelationshipDetector) detectCausalRelationships(chunk *types.Conversat
 				confidence := pattern.confidence
 				
 				if baseConfidence, exists := config.RelationshipConfidence[pattern.relation]; exists {
-					confidence = confidence * baseConfidence
+					confidence *= baseConfidence
 				}
 
 				if confidence >= config.MinConfidence {
@@ -299,7 +299,7 @@ func (rd *RelationshipDetector) detectReferenceRelationships(chunk *types.Conver
 		}
 
 		if baseConfidence, exists := config.RelationshipConfidence[types.RelationReferences]; exists {
-			referenceScore = referenceScore * baseConfidence
+			referenceScore *= baseConfidence
 		}
 
 		if referenceScore >= config.MinConfidence {
@@ -338,7 +338,7 @@ func (rd *RelationshipDetector) detectProblemSolutionRelationships(chunk *types.
 				confidence := (contentSim * 0.7) + (timeScore * 0.3)
 				
 				if baseConfidence, exists := config.RelationshipConfidence[types.RelationSolvedBy]; exists {
-					confidence = confidence * baseConfidence
+					confidence *= baseConfidence
 				}
 
 				if confidence >= config.MinConfidence {

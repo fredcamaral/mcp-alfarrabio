@@ -565,31 +565,31 @@ func extractStakeholderImpact(conflict Conflict) map[string]string {
 	// Determine impact based on conflict type
 	switch conflict.Type {
 	case ConflictTypeArchitectural:
-		impact["architects"] = "high"
-		impact["developers"] = "medium"
-		impact["operations"] = "medium"
+		impact["architects"] = string(SeverityHigh)
+		impact["developers"] = string(SeverityMedium)
+		impact["operations"] = string(SeverityMedium)
 	case ConflictTypeTechnical:
-		impact["developers"] = "high"
-		impact["qa"] = "medium"
-		impact["operations"] = "low"
+		impact["developers"] = string(SeverityHigh)
+		impact["qa"] = string(SeverityMedium)
+		impact["operations"] = string(SeverityLow)
 	case ConflictTypeDecision:
-		impact["leadership"] = "high"
-		impact["product"] = "medium"
-		impact["engineering"] = "medium"
+		impact["leadership"] = string(SeverityHigh)
+		impact["product"] = string(SeverityMedium)
+		impact["engineering"] = string(SeverityMedium)
 	case ConflictTypeTemporal:
-		impact["team"] = "medium"
-		impact["stakeholders"] = "low"
+		impact["team"] = string(SeverityMedium)
+		impact["stakeholders"] = string(SeverityLow)
 	case ConflictTypeMethodology:
-		impact["team"] = "high"
-		impact["process"] = "high"
+		impact["team"] = string(SeverityHigh)
+		impact["process"] = string(SeverityHigh)
 	case ConflictTypeOutcome:
-		impact["leadership"] = "high"
-		impact["stakeholders"] = "medium"
+		impact["leadership"] = string(SeverityHigh)
+		impact["stakeholders"] = string(SeverityMedium)
 	case ConflictTypePattern:
-		impact["team"] = "medium"
-		impact["analysts"] = "high"
+		impact["team"] = string(SeverityMedium)
+		impact["analysts"] = string(SeverityHigh)
 	default:
-		impact["team"] = "medium"
+		impact["team"] = string(SeverityMedium)
 	}
 	
 	return impact

@@ -235,7 +235,7 @@ func (qo *QueryOptimizer) generateOptimizedPlan(ctx context.Context, query strin
 
 // generateExecutionSteps creates optimized execution steps for the query
 func (qo *QueryOptimizer) generateExecutionSteps(query string, queryType QueryType, execCtx QueryExecutionContext) []QueryStep {
-	steps := []QueryStep{}
+	var steps []QueryStep
 	
 	switch queryType {
 	case QueryTypeVector:
@@ -448,7 +448,9 @@ func (qo *QueryOptimizer) generateHybridSearchSteps(query string, execCtx QueryE
 		CanCache:  false,
 	}
 	
-	steps := append(vectorSteps, textSteps...)
+	steps := make([]QueryStep, 0, len(vectorSteps)+len(textSteps)+1)
+	steps = append(steps, vectorSteps...)
+	steps = append(steps, textSteps...)
 	steps = append(steps, fusionStep)
 	
 	return steps
