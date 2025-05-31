@@ -63,6 +63,14 @@ type VectorStore interface {
 	// Batch operations
 	BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error)
 	BatchDelete(ctx context.Context, ids []string) (*BatchResult, error)
+	
+	// Relationship management
+	StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error)
+	GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error)
+	TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error)
+	UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error
+	DeleteRelationship(ctx context.Context, relationshipID string) error
+	GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error)
 }
 
 // StoreStats represents statistics about the vector store

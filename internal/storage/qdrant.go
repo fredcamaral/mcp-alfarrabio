@@ -24,10 +24,11 @@ const (
 
 // QdrantStore implements VectorStore interface for Qdrant vector database
 type QdrantStore struct {
-	client         *qdrant.Client
-	config         *config.QdrantConfig
-	metrics        *StorageMetrics
-	collectionName string
+	client              *qdrant.Client
+	config              *config.QdrantConfig
+	metrics             *StorageMetrics
+	collectionName      string
+	relationshipStore   *RelationshipStore
 }
 
 // NewQdrantStore creates a new Qdrant vector store
@@ -66,6 +67,12 @@ func (qs *QdrantStore) Initialize(ctx context.Context) error {
 		return fmt.Errorf("failed to create Qdrant client: %w", err)
 	}
 	qs.client = client
+
+	// Initialize relationship store
+	qs.relationshipStore = NewRelationshipStore(client)
+	if err := qs.relationshipStore.Initialize(ctx); err != nil {
+		return fmt.Errorf("failed to initialize relationship store: %w", err)
+	}
 
 	// Check if collection exists
 	collections, err := qs.client.ListCollections(ctx)
@@ -1111,4 +1118,36 @@ func (qs *QdrantStore) BatchDelete(ctx context.Context, ids []string) (*BatchRes
 	)
 
 	return result, nil
+}
+
+// Relationship management methods
+
+// StoreRelationship creates and stores a new memory relationship
+func (qs *QdrantStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
+	return qs.relationshipStore.StoreRelationship(ctx, sourceID, targetID, relationType, confidence, source)
+}
+
+// GetRelationships finds relationships for a chunk
+func (qs *QdrantStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+	return qs.relationshipStore.GetRelationships(ctx, query)
+}
+
+// TraverseGraph traverses the knowledge graph starting from a chunk
+func (qs *QdrantStore) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) {
+	return qs.relationshipStore.TraverseGraph(ctx, startChunkID, maxDepth, relationTypes)
+}
+
+// UpdateRelationship updates an existing relationship's confidence
+func (qs *QdrantStore) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error {
+	return qs.relationshipStore.UpdateRelationship(ctx, relationshipID, confidence, factors)
+}
+
+// DeleteRelationship removes a relationship
+func (qs *QdrantStore) DeleteRelationship(ctx context.Context, relationshipID string) error {
+	return qs.relationshipStore.Delete(ctx, relationshipID)
+}
+
+// GetRelationshipByID retrieves a specific relationship
+func (qs *QdrantStore) GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error) {
+	return qs.relationshipStore.GetByID(ctx, relationshipID)
 }

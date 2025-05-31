@@ -391,3 +391,93 @@ func (r *RetryableVectorStore) BatchDelete(ctx context.Context, ids []string) (*
 	}
 	return result, nil
 }
+
+// Relationship management methods
+
+// StoreRelationship stores a relationship with retries
+func (r *RetryableVectorStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
+	var relationship *types.MemoryRelationship
+
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		relationship, err = r.store.StoreRelationship(ctx, sourceID, targetID, relationType, confidence, source)
+		return err
+	})
+
+	if result.Err != nil {
+		return nil, fmt.Errorf("failed to store relationship after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return relationship, nil
+}
+
+// GetRelationships gets relationships with retries
+func (r *RetryableVectorStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+	var relationships []types.RelationshipResult
+
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		relationships, err = r.store.GetRelationships(ctx, query)
+		return err
+	})
+
+	if result.Err != nil {
+		return nil, fmt.Errorf("failed to get relationships after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return relationships, nil
+}
+
+// TraverseGraph traverses graph with retries
+func (r *RetryableVectorStore) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) {
+	var traversalResult *types.GraphTraversalResult
+
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		traversalResult, err = r.store.TraverseGraph(ctx, startChunkID, maxDepth, relationTypes)
+		return err
+	})
+
+	if result.Err != nil {
+		return nil, fmt.Errorf("failed to traverse graph after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return traversalResult, nil
+}
+
+// UpdateRelationship updates a relationship with retries
+func (r *RetryableVectorStore) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error {
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		return r.store.UpdateRelationship(ctx, relationshipID, confidence, factors)
+	})
+
+	if result.Err != nil {
+		return fmt.Errorf("failed to update relationship after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return nil
+}
+
+// DeleteRelationship deletes a relationship with retries
+func (r *RetryableVectorStore) DeleteRelationship(ctx context.Context, relationshipID string) error {
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		return r.store.DeleteRelationship(ctx, relationshipID)
+	})
+
+	if result.Err != nil {
+		return fmt.Errorf("failed to delete relationship after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return nil
+}
+
+// GetRelationshipByID gets a relationship by ID with retries
+func (r *RetryableVectorStore) GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error) {
+	var relationship *types.MemoryRelationship
+
+	result := r.retrier.Do(ctx, func(ctx context.Context) error {
+		var err error
+		relationship, err = r.store.GetRelationshipByID(ctx, relationshipID)
+		return err
+	})
+
+	if result.Err != nil {
+		return nil, fmt.Errorf("failed to get relationship by ID after %d attempts: %w", result.Attempts, result.Err)
+	}
+	return relationship, nil
+}

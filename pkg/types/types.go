@@ -139,6 +139,10 @@ type ChunkMetadata struct {
 	Difficulty       Difficulty             `json:"difficulty"`
 	TimeSpent        *int                   `json:"time_spent,omitempty"` // minutes
 	ExtendedMetadata map[string]interface{} `json:"extended_metadata,omitempty"`
+	
+	// Enhanced confidence and quality metrics
+	Confidence       *ConfidenceMetrics     `json:"confidence,omitempty"`
+	Quality          *QualityMetrics        `json:"quality,omitempty"`
 }
 
 // Validate checks if the metadata is valid
@@ -300,6 +304,57 @@ type TodoItem struct {
 	ID      string `json:"id"`
 	Status  string `json:"status"`
 	Content string `json:"content"`
+}
+
+// ConfidenceFactors represents factors that influenced confidence calculation
+type ConfidenceFactors struct {
+	UserCertainty       *float64 `json:"user_certainty,omitempty"`       // 0.0-1.0
+	ConsistencyScore    *float64 `json:"consistency_score,omitempty"`    // 0.0-1.0  
+	CorroborationCount  *int     `json:"corroboration_count,omitempty"`  // Number of supporting memories
+	SemanticSimilarity  *float64 `json:"semantic_similarity,omitempty"`  // 0.0-1.0
+	TemporalProximity   *float64 `json:"temporal_proximity,omitempty"`   // 0.0-1.0
+	ContextualRelevance *float64 `json:"contextual_relevance,omitempty"` // 0.0-1.0
+}
+
+// ConfidenceMetrics represents confidence information for a memory chunk
+type ConfidenceMetrics struct {
+	Score            float64           `json:"score"`             // 0.0 to 1.0
+	Source           string            `json:"source"`            // explicit, inferred, derived, auto
+	Factors          ConfidenceFactors `json:"factors,omitempty"`
+	LastUpdated      *time.Time        `json:"last_updated,omitempty"`
+	ValidationCount  int               `json:"validation_count"`
+}
+
+// QualityMetrics represents quality metrics for a memory chunk  
+type QualityMetrics struct {
+	Completeness    float64   `json:"completeness"`     // How complete is this memory (0.0-1.0)
+	Clarity         float64   `json:"clarity"`          // How clear/unambiguous (0.0-1.0)
+	RelevanceDecay  float64   `json:"relevance_decay"`  // How much relevance has decayed (0.0-1.0)
+	FreshnessScore  float64   `json:"freshness_score"`  // How fresh/current (0.0-1.0)
+	UsageScore      float64   `json:"usage_score"`      // Based on access patterns (0.0-1.0)
+	OverallQuality  float64   `json:"overall_quality"`  // Weighted combination (0.0-1.0)
+	LastCalculated  *time.Time `json:"last_calculated,omitempty"`
+}
+
+// CalculateOverallQuality calculates the overall quality score
+func (qm *QualityMetrics) CalculateOverallQuality() {
+	// Weighted average of quality factors
+	weights := map[string]float64{
+		"completeness":    0.25,
+		"clarity":         0.25,
+		"relevance_decay": 0.20, // Inverted: lower decay = higher quality
+		"freshness_score": 0.15,
+		"usage_score":     0.15,
+	}
+
+	qm.OverallQuality = (weights["completeness"]*qm.Completeness +
+		weights["clarity"]*qm.Clarity +
+		weights["relevance_decay"]*(1.0-qm.RelevanceDecay) + // Invert decay
+		weights["freshness_score"]*qm.FreshnessScore +
+		weights["usage_score"]*qm.UsageScore)
+		
+	now := time.Now().UTC()
+	qm.LastCalculated = &now
 }
 
 // ChunkingContext represents context for chunking decisions

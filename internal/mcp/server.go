@@ -12,6 +12,7 @@ import (
 	"log"
 	"math"
 	"mcp-memory/internal/audit"
+	"mcp-memory/internal/bulk"
 	"mcp-memory/internal/config"
 	contextdetector "mcp-memory/internal/context"
 	"mcp-memory/internal/di"
@@ -33,6 +34,12 @@ import (
 type MemoryServer struct {
 	container *di.Container
 	mcpServer *server.Server
+	
+	// Bulk operations managers
+	bulkManager   *bulk.Manager
+	bulkImporter  *bulk.Importer
+	bulkExporter  *bulk.Exporter
+	aliasManager  *bulk.AliasManager
 }
 
 // NewMemoryServer creates a new memory MCP server
@@ -46,6 +53,13 @@ func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
 	memServer := &MemoryServer{
 		container: container,
 	}
+
+	// Initialize bulk operations managers
+	logger := log.New(log.Writer(), "[MCP] ", log.LstdFlags)
+	memServer.bulkManager = bulk.NewManager(container.GetVectorStore(), logger)
+	memServer.bulkImporter = bulk.NewImporter(logger)
+	memServer.bulkExporter = bulk.NewExporter(container.GetVectorStore(), logger)
+	memServer.aliasManager = bulk.NewAliasManager(container.GetVectorStore(), logger)
 
 	// Create MCP server
 	serverName := getEnv("SERVICE_NAME", "claude-memory")
@@ -280,6 +294,31 @@ func (ms *MemoryServer) registerTools() {
 		), mcp.ToolHandlerFunc(ms.handleMemoryConflicts))
 
 	ms.mcpServer.AddTool(
+		mcp.NewTool("mcp__memory__memory_resolve_conflicts",
+			"Get detailed resolution strategies and recommendations for specific conflicts. Use after detecting conflicts to get actionable next steps.",
+			mcp.ObjectSchema("Memory conflict resolution parameters", map[string]interface{}{
+				"conflict_ids": mcp.ArraySchema("IDs of specific conflicts to resolve", map[string]interface{}{"type": "string"}),
+				"repository": mcp.StringParam("Official repository name for context (e.g., 'github.com/lerianstudio/midaz'). Use '_global' for global analysis (optional)", false),
+				"strategy_types": mcp.ArraySchema("Preferred resolution strategy types", map[string]interface{}{
+					"type": "string",
+					"enum": []string{"accept_latest", "accept_highest", "merge", "manual_review", "contextual", "evolutionary", "domain_specific"},
+				}),
+				"max_strategies": map[string]interface{}{
+					"type":        "integer",
+					"description": "Maximum number of strategies per conflict (default: 3)",
+					"default":     3,
+					"minimum":     1,
+					"maximum":     10,
+				},
+				"include_detailed_steps": map[string]interface{}{
+					"type":        "boolean",
+					"description": "Include detailed resolution steps (default: true)",
+					"default":     true,
+				},
+			}, []string{"conflict_ids"}),
+		), mcp.ToolHandlerFunc(ms.handleMemoryResolveConflicts))
+
+	ms.mcpServer.AddTool(
 		mcp.NewTool("mcp__memory__memory_continuity",
 			"Show what was left incomplete from previous sessions for resuming work",
 			mcp.ObjectSchema("Memory continuity parameters", map[string]interface{}{
@@ -506,6 +545,535 @@ func (ms *MemoryServer) registerTools() {
 				"intelligent_mode": mcp.BooleanParam("Whether to use intelligent LLM-based summarization with embeddings", false),
 			}, []string{"repository", "session_id", "action"}),
 		), mcp.ToolHandlerFunc(ms.handleMemoryDecayManagement))
+
+	// Relationship management tools
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_link",
+		"Create a relationship between two memory chunks. Use to explicitly connect related problems, solutions, decisions, or learnings.",
+		mcp.ObjectSchema("Link memory parameters", map[string]interface{}{
+			"source_chunk_id": mcp.StringParam("ID of the source memory chunk", true),
+			"target_chunk_id": mcp.StringParam("ID of the target memory chunk", true),
+			"relation_type": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"led_to", "solved_by", "depends_on", "enables", "conflicts_with", "supersedes", "related_to", "follows_up", "precedes", "learned_from", "teaches", "exemplifies", "referenced_by", "references"},
+				"description": "Type of relationship between the chunks",
+			},
+			"confidence": map[string]interface{}{
+				"type":        "number",
+				"description": "Confidence score for the relationship (0.0-1.0)",
+				"default":     0.8,
+				"minimum":     0.0,
+				"maximum":     1.0,
+			},
+			"metadata": map[string]interface{}{
+				"type":        "object",
+				"description": "Additional metadata for the relationship",
+			},
+		}, []string{"source_chunk_id", "target_chunk_id", "relation_type"}),
+	), mcp.ToolHandlerFunc(ms.handleMemoryLink))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_get_relationships",
+		"Get relationships for a memory chunk. Use to understand how memories connect and find related context.",
+		mcp.ObjectSchema("Get relationships parameters", map[string]interface{}{
+			"chunk_id": mcp.StringParam("ID of the memory chunk to get relationships for", true),
+			"relation_types": mcp.ArraySchema("Filter by specific relationship types", map[string]interface{}{"type": "string"}),
+			"direction": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"incoming", "outgoing", "both"},
+				"description": "Direction of relationships to retrieve",
+				"default": "both",
+			},
+			"min_confidence": map[string]interface{}{
+				"type":        "number",
+				"description": "Minimum confidence score for relationships (0.0-1.0)",
+				"default":     0.5,
+				"minimum":     0.0,
+				"maximum":     1.0,
+			},
+			"max_depth": map[string]interface{}{
+				"type":        "integer", 
+				"description": "Maximum depth for graph traversal",
+				"default":     3,
+				"minimum":     1,
+				"maximum":     10,
+			},
+			"include_chunks": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Include full chunk data in results",
+				"default":     true,
+			},
+			"limit": map[string]interface{}{
+				"type":        "integer",
+				"description": "Maximum number of relationships to return",
+				"default":     50,
+				"minimum":     1,
+				"maximum":     200,
+			},
+		}, []string{"chunk_id"}),
+	), mcp.ToolHandlerFunc(ms.handleGetRelationships))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_traverse_graph", 
+		"Traverse the knowledge graph to discover connected memories and reasoning chains. Use to understand how decisions and solutions relate.",
+		mcp.ObjectSchema("Graph traversal parameters", map[string]interface{}{
+			"start_chunk_id": mcp.StringParam("ID of the memory chunk to start traversal from", true),
+			"max_depth": map[string]interface{}{
+				"type":        "integer",
+				"description": "Maximum depth for graph traversal",
+				"default":     3,
+				"minimum":     1,
+				"maximum":     10,
+			},
+			"relation_types": mcp.ArraySchema("Filter by specific relationship types", map[string]interface{}{"type": "string"}),
+			"min_confidence": map[string]interface{}{
+				"type":        "number",
+				"description": "Minimum confidence score for relationships (0.0-1.0)",
+				"default":     0.5,
+				"minimum":     0.0,
+				"maximum":     1.0,
+			},
+		}, []string{"start_chunk_id"}),
+	), mcp.ToolHandlerFunc(ms.handleTraverseGraph))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_auto_detect_relationships",
+		"Automatically detect relationships for a memory chunk based on content, timing, and patterns. Use after storing important memories.",
+		mcp.ObjectSchema("Auto-detect relationships parameters", map[string]interface{}{
+			"chunk_id": mcp.StringParam("ID of the memory chunk to analyze for relationships", true),
+			"session_id": mcp.StringParam("Session identifier for context", true),
+			"min_confidence": map[string]interface{}{
+				"type":        "number",
+				"description": "Minimum confidence score for detected relationships (0.0-1.0)",
+				"default":     0.6,
+				"minimum":     0.0,
+				"maximum":     1.0,
+			},
+			"enabled_detectors": mcp.ArraySchema("Types of relationship detection to enable", map[string]interface{}{
+				"type": "string",
+				"enum": []string{"temporal", "causal", "reference", "problem_solution"},
+			}),
+			"auto_store": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Automatically store detected relationships",
+				"default":     true,
+			},
+		}, []string{"chunk_id", "session_id"}),
+	), mcp.ToolHandlerFunc(ms.handleAutoDetectRelationships))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_update_relationship",
+		"Update the confidence score and metadata of an existing relationship. Use when you learn more about how memories relate.",
+		mcp.ObjectSchema("Update relationship parameters", map[string]interface{}{
+			"relationship_id": mcp.StringParam("ID of the relationship to update", true),
+			"confidence": map[string]interface{}{
+				"type":        "number", 
+				"description": "New confidence score for the relationship (0.0-1.0)",
+				"minimum":     0.0,
+				"maximum":     1.0,
+			},
+			"user_certainty": map[string]interface{}{
+				"type":        "number",
+				"description": "User's certainty about this relationship (0.0-1.0)",
+				"minimum":     0.0,
+				"maximum":     1.0,
+			},
+			"validation_note": mcp.StringParam("Note about why this relationship was validated", false),
+		}, []string{"relationship_id"}),
+	), mcp.ToolHandlerFunc(ms.handleUpdateRelationship))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_search_explained",
+		"Search memories with detailed explanations of relevance, ranking factors, and citations. Use when you need to understand why results were returned.",
+		mcp.ObjectSchema("Explained search parameters", map[string]interface{}{
+			"query": mcp.StringParam("Natural language search query", true),
+			"repository": mcp.StringParam("Filter by repository (optional)", false),
+			"explain_depth": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"basic", "detailed", "debug"},
+				"description": "Level of explanation detail",
+				"default": "detailed",
+			},
+			"include_relationships": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Include relationship context in explanations",
+				"default":     true,
+			},
+			"include_citations": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Generate citations for results",
+				"default":     true,
+			},
+			"min_relevance": map[string]interface{}{
+				"type":        "number",
+				"description": "Minimum relevance score (0-1)",
+				"default":     0.3,
+				"minimum":     0.0,
+				"maximum":     1.0,
+			},
+			"limit": map[string]interface{}{
+				"type":        "integer",
+				"description": "Maximum number of results",
+				"default":     10,
+				"minimum":     1,
+				"maximum":     50,
+			},
+		}, []string{"query"}),
+	), mcp.ToolHandlerFunc(ms.handleSearchExplained))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_check_freshness",
+		"Check the freshness and staleness of memories. Use to identify outdated content that needs refreshing or archiving.",
+		mcp.ObjectSchema("Freshness check parameters", map[string]interface{}{
+			"repository": mcp.StringParam("Repository to check freshness for", true),
+			"chunk_id": mcp.StringParam("Specific chunk ID to check (optional)", false),
+			"include_stale_only": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Only return stale memories",
+				"default":     false,
+			},
+			"technology_filter": mcp.StringParam("Filter by technology (e.g., 'nodejs', 'react')", false),
+			"generate_alerts": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Generate staleness alerts",
+				"default":     true,
+			},
+		}, []string{"repository"}),
+	), mcp.ToolHandlerFunc(ms.handleCheckFreshness))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_mark_refreshed",
+		"Mark a memory as recently refreshed/validated. Use after updating or verifying that content is still current.",
+		mcp.ObjectSchema("Mark refreshed parameters", map[string]interface{}{
+			"chunk_id": mcp.StringParam("ID of the memory chunk to mark as refreshed", true),
+			"validation_notes": mcp.StringParam("Notes about the validation performed", true),
+			"update_quality_scores": map[string]interface{}{
+				"type":        "boolean",
+				"description": "Update quality and freshness scores",
+				"default":     true,
+			},
+		}, []string{"chunk_id", "validation_notes"}),
+	), mcp.ToolHandlerFunc(ms.handleMarkRefreshed))
+
+	// Citation management tools
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_generate_citations",
+		"Generate formatted citations for search results or specific memory chunks. Use when you need to provide proper attribution for information used in responses.",
+		mcp.ObjectSchema("Generate citations parameters", map[string]interface{}{
+			"query": mcp.StringParam("Original search query or context", true),
+			"chunk_ids": map[string]interface{}{
+				"type": "array",
+				"items": map[string]interface{}{"type": "string"},
+				"description": "List of memory chunk IDs to generate citations for",
+			},
+			"citation_style": map[string]interface{}{
+				"type": "string",
+				"description": "Citation format style",
+				"enum": []string{"simple", "apa", "mla", "chicago"},
+				"default": "simple",
+			},
+			"group_sources": map[string]interface{}{
+				"type": "boolean",
+				"description": "Group citations by repository or type",
+				"default": true,
+			},
+			"include_context": map[string]interface{}{
+				"type": "boolean", 
+				"description": "Include relevant excerpts in citations",
+				"default": true,
+			},
+		}, []string{"query", "chunk_ids"}),
+	), mcp.ToolHandlerFunc(ms.handleGenerateCitations))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_create_inline_citation",
+		"Create inline citation references for specific text portions. Use to add citation markers within AI responses.",
+		mcp.ObjectSchema("Create inline citation parameters", map[string]interface{}{
+			"text": mcp.StringParam("Text content to create citation for", true),
+			"response_id": mcp.StringParam("Response ID from previous citation generation", true),
+			"format": map[string]interface{}{
+				"type": "string",
+				"description": "Inline citation format",
+				"enum": []string{"bracket", "superscript", "parenthetical"},
+				"default": "bracket",
+			},
+		}, []string{"text", "response_id"}),
+	), mcp.ToolHandlerFunc(ms.handleCreateInlineCitation))
+
+	// Bulk operations tools
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_bulk_operation",
+		"Execute bulk operations on multiple memories efficiently with progress tracking and error handling.",
+		mcp.ObjectSchema("Bulk operation parameters", map[string]interface{}{
+			"operation": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"store", "update", "delete"},
+				"description": "Type of bulk operation to perform",
+			},
+			"chunks": mcp.ArraySchema("Array of memory chunks for store/update operations", map[string]interface{}{
+				"type": "object",
+			}),
+			"ids": mcp.ArraySchema("Array of chunk IDs for delete operations", map[string]interface{}{
+				"type": "string",
+			}),
+			"batch_size": map[string]interface{}{
+				"type": "integer",
+				"description": "Number of items per batch",
+				"default": 50,
+				"minimum": 1,
+				"maximum": 500,
+			},
+			"max_concurrency": map[string]interface{}{
+				"type": "integer",
+				"description": "Maximum concurrent batches",
+				"default": 3,
+				"minimum": 1,
+				"maximum": 10,
+			},
+			"validate_first": map[string]interface{}{
+				"type": "boolean",
+				"description": "Validate all items before processing",
+				"default": true,
+			},
+			"continue_on_error": map[string]interface{}{
+				"type": "boolean",
+				"description": "Continue processing if individual items fail",
+				"default": false,
+			},
+			"dry_run": map[string]interface{}{
+				"type": "boolean",
+				"description": "Preview operation without executing",
+				"default": false,
+			},
+			"conflict_policy": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"skip", "overwrite", "merge", "fail"},
+				"description": "How to handle conflicts",
+				"default": "skip",
+			},
+		}, []string{"operation"}),
+	), mcp.ToolHandlerFunc(ms.handleBulkOperation))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_bulk_import",
+		"Import memories from various formats (JSON, markdown, CSV) with flexible chunking strategies.",
+		mcp.ObjectSchema("Bulk import parameters", map[string]interface{}{
+			"data": mcp.StringParam("Data to import (content or base64 encoded)", true),
+			"format": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"json", "markdown", "csv", "archive", "auto"},
+				"description": "Format of the import data",
+				"default": "auto",
+			},
+			"repository": mcp.StringParam("Repository name for imported memories", false),
+			"default_session_id": mcp.StringParam("Default session ID for imported memories", false),
+			"default_tags": mcp.ArraySchema("Default tags to apply to imported memories", map[string]interface{}{
+				"type": "string",
+			}),
+			"chunking_strategy": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"auto", "paragraph", "fixed_size", "conversation_turns"},
+				"description": "Strategy for chunking imported content",
+				"default": "auto",
+			},
+			"conflict_policy": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"skip", "overwrite", "merge", "fail"},
+				"description": "How to handle conflicts during import",
+				"default": "skip",
+			},
+			"validate_chunks": map[string]interface{}{
+				"type": "boolean",
+				"description": "Validate imported chunks",
+				"default": true,
+			},
+			"metadata": mcp.ObjectSchema("Import metadata", map[string]interface{}{
+				"source_system": mcp.StringParam("Source system name", false),
+				"import_date": mcp.StringParam("Import date (ISO 8601)", false),
+				"tags": mcp.ArraySchema("Import tags", map[string]interface{}{"type": "string"}),
+			}, []string{}),
+		}, []string{"data"}),
+	), mcp.ToolHandlerFunc(ms.handleBulkImport))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_bulk_export",
+		"Export memories to various formats with filtering, compression, and formatting options.",
+		mcp.ObjectSchema("Bulk export parameters", map[string]interface{}{
+			"format": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"json", "markdown", "csv", "archive"},
+				"description": "Export format",
+				"default": "json",
+			},
+			"compression": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"none", "gzip", "zip"},
+				"description": "Compression type",
+				"default": "none",
+			},
+			"include_vectors": map[string]interface{}{
+				"type": "boolean",
+				"description": "Include embedding vectors in export",
+				"default": false,
+			},
+			"include_metadata": map[string]interface{}{
+				"type": "boolean",
+				"description": "Include detailed metadata",
+				"default": true,
+			},
+			"include_relations": map[string]interface{}{
+				"type": "boolean",
+				"description": "Include relationship information",
+				"default": false,
+			},
+			"pretty_print": map[string]interface{}{
+				"type": "boolean",
+				"description": "Format output for readability",
+				"default": true,
+			},
+			"filter": mcp.ObjectSchema("Export filter criteria", map[string]interface{}{
+				"repository": mcp.StringParam("Filter by repository", false),
+				"session_ids": mcp.ArraySchema("Filter by session IDs", map[string]interface{}{"type": "string"}),
+				"chunk_types": mcp.ArraySchema("Filter by chunk types", map[string]interface{}{"type": "string"}),
+				"tags": mcp.ArraySchema("Filter by tags", map[string]interface{}{"type": "string"}),
+				"date_range": mcp.ObjectSchema("Date range filter", map[string]interface{}{
+					"start": mcp.StringParam("Start date (ISO 8601)", false),
+					"end": mcp.StringParam("End date (ISO 8601)", false),
+				}, []string{}),
+				"content_filter": mcp.StringParam("Content regex filter", false),
+			}, []string{}),
+			"sorting": mcp.ObjectSchema("Sorting options", map[string]interface{}{
+				"field": map[string]interface{}{
+					"type": "string",
+					"enum": []string{"timestamp", "type", "repository", "session_id"},
+					"description": "Field to sort by",
+					"default": "timestamp",
+				},
+				"order": map[string]interface{}{
+					"type": "string",
+					"enum": []string{"asc", "desc"},
+					"description": "Sort order",
+					"default": "desc",
+				},
+			}, []string{}),
+			"pagination": mcp.ObjectSchema("Pagination options", map[string]interface{}{
+				"limit": map[string]interface{}{
+					"type": "integer",
+					"description": "Maximum number of items to export",
+					"minimum": 1,
+				},
+				"offset": map[string]interface{}{
+					"type": "integer",
+					"description": "Number of items to skip",
+					"minimum": 0,
+					"default": 0,
+				},
+			}, []string{}),
+		}, []string{}),
+	), mcp.ToolHandlerFunc(ms.handleBulkExport))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_create_alias",
+		"Create memory aliases for flexible referencing using tags, shortcuts, queries, or collections.",
+		mcp.ObjectSchema("Create alias parameters", map[string]interface{}{
+			"name": mcp.StringParam("Alias name (e.g., '@bug-fixes', '#auth-module')", true),
+			"type": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"tag", "shortcut", "query", "collection"},
+				"description": "Type of alias",
+			},
+			"description": mcp.StringParam("Description of what this alias represents", false),
+			"target": mcp.ObjectSchema("Alias target definition", map[string]interface{}{
+				"type": map[string]interface{}{
+					"type": "string",
+					"enum": []string{"chunks", "query", "filter", "collection"},
+					"description": "Type of target this alias points to",
+				},
+				"chunk_ids": mcp.ArraySchema("Direct chunk IDs (for chunks target)", map[string]interface{}{"type": "string"}),
+				"query": mcp.ObjectSchema("Query definition (for query target)", map[string]interface{}{
+					"query": mcp.StringParam("Search query", true),
+					"repository": mcp.StringParam("Repository filter", false),
+					"chunk_types": mcp.ArraySchema("Chunk type filters", map[string]interface{}{"type": "string"}),
+					"tags": mcp.ArraySchema("Tag filters", map[string]interface{}{"type": "string"}),
+					"max_results": map[string]interface{}{
+						"type": "integer",
+						"description": "Maximum results to return",
+						"default": 10,
+					},
+				}, []string{}),
+				"filter": mcp.ObjectSchema("Filter definition (for filter target)", map[string]interface{}{
+					"repository": mcp.StringParam("Repository filter", false),
+					"session_ids": mcp.ArraySchema("Session ID filters", map[string]interface{}{"type": "string"}),
+					"chunk_types": mcp.ArraySchema("Chunk type filters", map[string]interface{}{"type": "string"}),
+					"tags": mcp.ArraySchema("Tag filters", map[string]interface{}{"type": "string"}),
+				}, []string{}),
+				"collection": mcp.ObjectSchema("Collection definition (for collection target)", map[string]interface{}{
+					"name": mcp.StringParam("Collection name", true),
+					"description": mcp.StringParam("Collection description", false),
+					"chunk_ids": mcp.ArraySchema("Chunk IDs in collection", map[string]interface{}{"type": "string"}),
+				}, []string{}),
+			}, []string{}),
+			"metadata": mcp.ObjectSchema("Alias metadata", map[string]interface{}{
+				"repository": mcp.StringParam("Associated repository", false),
+				"tags": mcp.ArraySchema("Alias tags", map[string]interface{}{"type": "string"}),
+				"is_public": map[string]interface{}{
+					"type": "boolean",
+					"description": "Whether alias is publicly visible",
+					"default": false,
+				},
+				"is_favorite": map[string]interface{}{
+					"type": "boolean",
+					"description": "Whether alias is marked as favorite",
+					"default": false,
+				},
+			}, []string{}),
+		}, []string{"name", "type", "target"}),
+	), mcp.ToolHandlerFunc(ms.handleCreateAlias))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_resolve_alias",
+		"Resolve an alias reference to get the matching memory chunks.",
+		mcp.ObjectSchema("Resolve alias parameters", map[string]interface{}{
+			"alias_name": mcp.StringParam("Name or ID of the alias to resolve", true),
+		}, []string{"alias_name"}),
+	), mcp.ToolHandlerFunc(ms.handleResolveAlias))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_list_aliases",
+		"List memory aliases with optional filtering and sorting.",
+		mcp.ObjectSchema("List aliases parameters", map[string]interface{}{
+			"type": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"tag", "shortcut", "query", "collection"},
+				"description": "Filter by alias type",
+			},
+			"repository": mcp.StringParam("Filter by repository", false),
+			"tags": mcp.ArraySchema("Filter by alias tags", map[string]interface{}{"type": "string"}),
+			"query": mcp.StringParam("Search in alias names and descriptions", false),
+			"sort_by": map[string]interface{}{
+				"type": "string",
+				"enum": []string{"usage", "created", "updated"},
+				"description": "Sort criteria",
+				"default": "usage",
+			},
+			"limit": map[string]interface{}{
+				"type": "integer",
+				"description": "Maximum number of aliases to return",
+				"default": 20,
+				"minimum": 1,
+				"maximum": 100,
+			},
+		}, []string{}),
+	), mcp.ToolHandlerFunc(ms.handleListAliases))
+
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"mcp__memory__memory_get_bulk_progress",
+		"Get the progress status of a bulk operation.",
+		mcp.ObjectSchema("Get bulk progress parameters", map[string]interface{}{
+			"operation_id": mcp.StringParam("ID of the bulk operation to check", true),
+		}, []string{"operation_id"}),
+	), mcp.ToolHandlerFunc(ms.handleGetBulkProgress))
 }
 
 // registerResources registers MCP resources for browsing memory
@@ -2242,6 +2810,585 @@ func detectGitRepository() string {
 	return remoteURL
 }
 
+// Relationship management handlers
+
+// handleMemoryLink creates a relationship between two memory chunks
+func (ms *MemoryServer) handleMemoryLink(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	// Extract parameters
+	sourceChunkID, ok := params["source_chunk_id"].(string)
+	if !ok || sourceChunkID == "" {
+		return nil, fmt.Errorf("source_chunk_id is required")
+	}
+
+	targetChunkID, ok := params["target_chunk_id"].(string)
+	if !ok || targetChunkID == "" {
+		return nil, fmt.Errorf("target_chunk_id is required")
+	}
+
+	relationTypeStr, ok := params["relation_type"].(string)
+	if !ok || relationTypeStr == "" {
+		return nil, fmt.Errorf("relation_type is required")
+	}
+
+	relationType := types.RelationType(relationTypeStr)
+	if !relationType.Valid() {
+		return nil, fmt.Errorf("invalid relation type: %s", relationTypeStr)
+	}
+
+	confidence := 0.8 // default
+	if c, ok := params["confidence"].(float64); ok {
+		confidence = c
+	}
+
+	// Get storage from container
+	storage := ms.container.VectorStore
+
+	// Create the relationship
+	relationship, err := storage.StoreRelationship(ctx, sourceChunkID, targetChunkID, relationType, confidence, types.ConfidenceExplicit)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create relationship: %w", err)
+	}
+
+	// Log the action
+	ms.container.AuditLogger.LogEvent(ctx, audit.EventTypeRelationshipAdd, "memory_link", "relationship", relationship.ID, map[string]interface{}{
+		"source_chunk_id": sourceChunkID,
+		"target_chunk_id": targetChunkID,
+		"relation_type":   relationTypeStr,
+		"confidence":      confidence,
+		"relationship_id": relationship.ID,
+	})
+
+	return map[string]interface{}{
+		"relationship_id":   relationship.ID,
+		"source_chunk_id":   relationship.SourceChunkID,
+		"target_chunk_id":   relationship.TargetChunkID,
+		"relation_type":     string(relationship.RelationType),
+		"confidence":        relationship.Confidence,
+		"confidence_source": string(relationship.ConfidenceSource),
+		"created_at":        relationship.CreatedAt.Format(time.RFC3339),
+		"message":           "Relationship created successfully",
+	}, nil
+}
+
+// handleGetRelationships retrieves relationships for a memory chunk
+func (ms *MemoryServer) handleGetRelationships(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	// Extract parameters
+	chunkID, ok := params["chunk_id"].(string)
+	if !ok || chunkID == "" {
+		return nil, fmt.Errorf("chunk_id is required")
+	}
+
+	// Build query
+	query := types.NewRelationshipQuery(chunkID)
+
+	if direction, ok := params["direction"].(string); ok {
+		query.Direction = direction
+	}
+
+	if minConfidence, ok := params["min_confidence"].(float64); ok {
+		query.MinConfidence = minConfidence
+	}
+
+	if maxDepth, ok := params["max_depth"].(float64); ok {
+		query.MaxDepth = int(maxDepth)
+	}
+
+	if includeChunks, ok := params["include_chunks"].(bool); ok {
+		query.IncludeChunks = includeChunks
+	}
+
+	if limit, ok := params["limit"].(float64); ok {
+		query.Limit = int(limit)
+	}
+
+	if relationTypesRaw, ok := params["relation_types"].([]interface{}); ok {
+		relationTypes := make([]types.RelationType, 0, len(relationTypesRaw))
+		for _, rt := range relationTypesRaw {
+			if rtStr, ok := rt.(string); ok {
+				relationTypes = append(relationTypes, types.RelationType(rtStr))
+			}
+		}
+		query.RelationTypes = relationTypes
+	}
+
+	// Get storage from container
+	storage := ms.container.VectorStore
+
+	// Get relationships
+	relationships, err := storage.GetRelationships(ctx, *query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get relationships: %w", err)
+	}
+
+	// Format response
+	result := map[string]interface{}{
+		"chunk_id":       chunkID,
+		"relationships":  make([]map[string]interface{}, len(relationships)),
+		"total_count":    len(relationships),
+		"query":          query,
+	}
+
+	for i, rel := range relationships {
+		relData := map[string]interface{}{
+			"relationship_id":   rel.Relationship.ID,
+			"source_chunk_id":   rel.Relationship.SourceChunkID,
+			"target_chunk_id":   rel.Relationship.TargetChunkID,
+			"relation_type":     string(rel.Relationship.RelationType),
+			"confidence":        rel.Relationship.Confidence,
+			"confidence_source": string(rel.Relationship.ConfidenceSource),
+			"created_at":        rel.Relationship.CreatedAt.Format(time.RFC3339),
+			"validation_count":  rel.Relationship.ValidationCount,
+		}
+
+		if rel.Relationship.LastValidated != nil {
+			relData["last_validated"] = rel.Relationship.LastValidated.Format(time.RFC3339)
+		}
+
+		if query.IncludeChunks {
+			if rel.SourceChunk != nil {
+				relData["source_chunk"] = map[string]interface{}{
+					"id":      rel.SourceChunk.ID,
+					"type":    string(rel.SourceChunk.Type),
+					"summary": rel.SourceChunk.Summary,
+				}
+			}
+			if rel.TargetChunk != nil {
+				relData["target_chunk"] = map[string]interface{}{
+					"id":      rel.TargetChunk.ID,
+					"type":    string(rel.TargetChunk.Type),
+					"summary": rel.TargetChunk.Summary,
+				}
+			}
+		}
+
+		result["relationships"].([]map[string]interface{})[i] = relData
+	}
+
+	return result, nil
+}
+
+// handleTraverseGraph traverses the knowledge graph from a starting chunk
+func (ms *MemoryServer) handleTraverseGraph(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	// Extract parameters
+	startChunkID, ok := params["start_chunk_id"].(string)
+	if !ok || startChunkID == "" {
+		return nil, fmt.Errorf("start_chunk_id is required")
+	}
+
+	maxDepth := 3 // default
+	if md, ok := params["max_depth"].(float64); ok {
+		maxDepth = int(md)
+	}
+
+	minConfidence := 0.5 // default
+	if mc, ok := params["min_confidence"].(float64); ok {
+		minConfidence = mc
+	}
+
+	var relationTypes []types.RelationType
+	if relationTypesRaw, ok := params["relation_types"].([]interface{}); ok {
+		relationTypes = make([]types.RelationType, 0, len(relationTypesRaw))
+		for _, rt := range relationTypesRaw {
+			if rtStr, ok := rt.(string); ok {
+				relationTypes = append(relationTypes, types.RelationType(rtStr))
+			}
+		}
+	}
+
+	// Get storage from container
+	storage := ms.container.VectorStore
+
+	// Perform graph traversal
+	traversalResult, err := storage.TraverseGraph(ctx, startChunkID, maxDepth, relationTypes)
+	if err != nil {
+		return nil, fmt.Errorf("failed to traverse graph: %w", err)
+	}
+
+	// Format response
+	result := map[string]interface{}{
+		"start_chunk_id": startChunkID,
+		"max_depth":      maxDepth,
+		"min_confidence": minConfidence,
+		"paths":          make([]map[string]interface{}, len(traversalResult.Paths)),
+		"nodes":          make([]map[string]interface{}, len(traversalResult.Nodes)),
+		"edges":          make([]map[string]interface{}, len(traversalResult.Edges)),
+		"summary": map[string]interface{}{
+			"total_paths": len(traversalResult.Paths),
+			"total_nodes": len(traversalResult.Nodes),
+			"total_edges": len(traversalResult.Edges),
+		},
+	}
+
+	// Format paths
+	for i, path := range traversalResult.Paths {
+		result["paths"].([]map[string]interface{})[i] = map[string]interface{}{
+			"chunk_ids": path.ChunkIDs,
+			"score":     path.Score,
+			"depth":     path.Depth,
+			"path_type": path.PathType,
+		}
+	}
+
+	// Format nodes
+	for i, node := range traversalResult.Nodes {
+		nodeData := map[string]interface{}{
+			"chunk_id":   node.ChunkID,
+			"degree":     node.Degree,
+			"centrality": node.Centrality,
+		}
+		if node.Chunk != nil {
+			nodeData["chunk"] = map[string]interface{}{
+				"id":      node.Chunk.ID,
+				"type":    string(node.Chunk.Type),
+				"summary": node.Chunk.Summary,
+			}
+		}
+		result["nodes"].([]map[string]interface{})[i] = nodeData
+	}
+
+	// Format edges
+	for i, edge := range traversalResult.Edges {
+		result["edges"].([]map[string]interface{})[i] = map[string]interface{}{
+			"relationship_id":   edge.Relationship.ID,
+			"source_chunk_id":   edge.Relationship.SourceChunkID,
+			"target_chunk_id":   edge.Relationship.TargetChunkID,
+			"relation_type":     string(edge.Relationship.RelationType),
+			"confidence":        edge.Relationship.Confidence,
+			"weight":            edge.Weight,
+		}
+	}
+
+	return result, nil
+}
+
+// handleAutoDetectRelationships automatically detects relationships for a chunk
+func (ms *MemoryServer) handleAutoDetectRelationships(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	// Extract parameters
+	chunkID, ok := params["chunk_id"].(string)
+	if !ok || chunkID == "" {
+		return nil, fmt.Errorf("chunk_id is required")
+	}
+
+	sessionID, ok := params["session_id"].(string)
+	if !ok || sessionID == "" {
+		return nil, fmt.Errorf("session_id is required")
+	}
+
+	minConfidence := 0.6 // default
+	if mc, ok := params["min_confidence"].(float64); ok {
+		minConfidence = mc
+	}
+
+	autoStore := true // default
+	if as, ok := params["auto_store"].(bool); ok {
+		autoStore = as
+	}
+
+	var enabledDetectors []string
+	if detectorsRaw, ok := params["enabled_detectors"].([]interface{}); ok {
+		enabledDetectors = make([]string, 0, len(detectorsRaw))
+		for _, d := range detectorsRaw {
+			if dStr, ok := d.(string); ok {
+				enabledDetectors = append(enabledDetectors, dStr)
+			}
+		}
+	} else {
+		enabledDetectors = []string{"temporal", "causal", "reference", "problem_solution"}
+	}
+
+	// Get storage from container
+	storage := ms.container.VectorStore
+
+	// Get the chunk to analyze
+	chunk, err := storage.GetByID(ctx, chunkID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chunk: %w", err)
+	}
+
+	// Create relationship detector
+	detector := relationships.NewRelationshipDetector(storage)
+
+	// Create detection config
+	config := &relationships.DetectionConfig{
+		MinConfidence:           minConfidence,
+		MaxTimeDistance:         24 * time.Hour,
+		SemanticSimilarityThreshold: 0.7,
+		EnabledDetectors:        enabledDetectors,
+		RelationshipConfidence: map[types.RelationType]float64{
+			types.RelationLedTo:      0.7,
+			types.RelationSolvedBy:   0.8,
+			types.RelationDependsOn:  0.6,
+			types.RelationFollowsUp:  0.7,
+			types.RelationRelatedTo:  0.5,
+			types.RelationReferences: 0.8,
+		},
+	}
+
+	// Detect relationships
+	var detectionResult *relationships.DetectionResult
+	if autoStore {
+		err = detector.AutoDetectAndStore(ctx, chunk, config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to auto-detect and store relationships: %w", err)
+		}
+		// For stored results, we need to get the detection result separately
+		detectionResult, err = detector.DetectRelationships(ctx, chunk, config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get detection result: %w", err)
+		}
+	} else {
+		detectionResult, err = detector.DetectRelationships(ctx, chunk, config)
+		if err != nil {
+			return nil, fmt.Errorf("failed to detect relationships: %w", err)
+		}
+	}
+
+	// Format response
+	result := map[string]interface{}{
+		"chunk_id":              chunkID,
+		"session_id":            sessionID,
+		"auto_stored":           autoStore,
+		"processing_time_ms":    detectionResult.ProcessingTime.Milliseconds(),
+		"relationships_detected": len(detectionResult.RelationshipsDetected),
+		"detection_methods":     detectionResult.DetectionMethods,
+		"relationships":         make([]map[string]interface{}, len(detectionResult.RelationshipsDetected)),
+	}
+
+	for i, rel := range detectionResult.RelationshipsDetected {
+		result["relationships"].([]map[string]interface{})[i] = map[string]interface{}{
+			"source_chunk_id":   rel.SourceChunkID,
+			"target_chunk_id":   rel.TargetChunkID,
+			"relation_type":     string(rel.RelationType),
+			"confidence":        rel.Confidence,
+			"confidence_source": string(rel.ConfidenceSource),
+		}
+	}
+
+	// Log the action
+	ms.container.AuditLogger.LogEvent(ctx, audit.EventTypeRelationshipAdd, "auto_detect_relationships", "chunk", chunkID, map[string]interface{}{
+		"session_id":             sessionID,
+		"relationships_detected": len(detectionResult.RelationshipsDetected),
+		"auto_stored":            autoStore,
+	})
+
+	return result, nil
+}
+
+// handleUpdateRelationship updates an existing relationship
+func (ms *MemoryServer) handleUpdateRelationship(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	// Extract parameters
+	relationshipID, ok := params["relationship_id"].(string)
+	if !ok || relationshipID == "" {
+		return nil, fmt.Errorf("relationship_id is required")
+	}
+
+	// Get storage from container
+	storage := ms.container.VectorStore
+
+	// Build confidence factors
+	factors := types.ConfidenceFactors{}
+	
+	if userCertainty, ok := params["user_certainty"].(float64); ok {
+		factors.UserCertainty = &userCertainty
+	}
+
+	var newConfidence float64
+	var hasConfidence bool
+	if confidence, ok := params["confidence"].(float64); ok {
+		newConfidence = confidence
+		hasConfidence = true
+	}
+
+	// If no new confidence provided, we need to get the current relationship
+	if !hasConfidence {
+		relationship, err := storage.GetRelationshipByID(ctx, relationshipID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get relationship: %w", err)
+		}
+		newConfidence = relationship.Confidence
+	}
+
+	// Update the relationship
+	err := storage.UpdateRelationship(ctx, relationshipID, newConfidence, factors)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update relationship: %w", err)
+	}
+
+	// Get the updated relationship
+	relationship, err := storage.GetRelationshipByID(ctx, relationshipID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get updated relationship: %w", err)
+	}
+
+	// Log the action
+	logData := map[string]interface{}{
+		"new_confidence": newConfidence,
+	}
+	if validationNote, ok := params["validation_note"].(string); ok {
+		logData["validation_note"] = validationNote
+	}
+	ms.container.AuditLogger.LogEvent(ctx, audit.EventTypeMemoryUpdate, "update_relationship", "relationship", relationshipID, logData)
+
+	// Format response
+	result := map[string]interface{}{
+		"relationship_id":    relationship.ID,
+		"source_chunk_id":    relationship.SourceChunkID,
+		"target_chunk_id":    relationship.TargetChunkID,
+		"relation_type":      string(relationship.RelationType),
+		"confidence":         relationship.Confidence,
+		"confidence_source":  string(relationship.ConfidenceSource),
+		"validation_count":   relationship.ValidationCount,
+		"created_at":         relationship.CreatedAt.Format(time.RFC3339),
+		"message":            "Relationship updated successfully",
+	}
+
+	if relationship.LastValidated != nil {
+		result["last_validated"] = relationship.LastValidated.Format(time.RFC3339)
+	}
+
+	return result, nil
+}
+
+// handleSearchExplained performs search with detailed explanations
+func (ms *MemoryServer) handleSearchExplained(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	// Extract parameters
+	query, ok := params["query"].(string)
+	if !ok || query == "" {
+		return nil, fmt.Errorf("query is required")
+	}
+
+	// Build memory query
+	memQuery := types.NewMemoryQuery(query)
+	
+	if repository, ok := params["repository"].(string); ok && repository != "" {
+		memQuery.Repository = &repository
+	}
+	
+	if minRelevance, ok := params["min_relevance"].(float64); ok {
+		memQuery.MinRelevanceScore = minRelevance
+	}
+	
+	if limit, ok := params["limit"].(float64); ok {
+		memQuery.Limit = int(limit)
+	}
+
+	// Build explanation config
+	config := intelligence.DefaultExplainedSearchConfig()
+	
+	if explainDepth, ok := params["explain_depth"].(string); ok {
+		config.ExplainDepth = explainDepth
+	}
+	
+	if includeRelationships, ok := params["include_relationships"].(bool); ok {
+		config.IncludeRelationships = includeRelationships
+	}
+	
+	if includeCitations, ok := params["include_citations"].(bool); ok {
+		config.IncludeCitations = includeCitations
+	}
+
+	// Get embeddings service and generate embeddings for query
+	embeddingService := ms.container.EmbeddingService
+	embeddings, err := embeddingService.GenerateEmbedding(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embeddings: %w", err)
+	}
+
+	// Create search explainer
+	explainer := intelligence.NewSearchExplainer(ms.container.VectorStore)
+	
+	// Perform explained search
+	results, err := explainer.ExplainedSearch(ctx, *memQuery, embeddings, config)
+	if err != nil {
+		return nil, fmt.Errorf("failed to perform explained search: %w", err)
+	}
+
+	// Format response
+	response := map[string]interface{}{
+		"query":        results.Query,
+		"total_found":  results.TotalFound,
+		"query_time_ms": results.QueryTime.Milliseconds(),
+		"explanation": map[string]interface{}{
+			"query_terms":        results.Explanation.QueryTerms,
+			"concepts_detected":  results.Explanation.ConceptsDetected,
+			"filters_applied":    results.Explanation.FiltersApplied,
+			"search_strategy":    results.Explanation.SearchStrategy,
+			"ranking_factors":    results.Explanation.RankingFactors,
+			"processing_time_ms": results.Explanation.ProcessingTime.Milliseconds(),
+		},
+		"results": make([]map[string]interface{}, len(results.Results)),
+	}
+
+	// Add citations if present
+	if len(results.Citations) > 0 {
+		response["citations"] = results.Citations
+	}
+
+	// Format results
+	for i, result := range results.Results {
+		resultData := map[string]interface{}{
+			"chunk_id":  result.Chunk.ID,
+			"type":      string(result.Chunk.Type),
+			"summary":   result.Chunk.Summary,
+			"timestamp": result.Chunk.Timestamp.Format(time.RFC3339),
+			"score":     result.Score,
+			"relevance": map[string]interface{}{
+				"overall_score":          result.Relevance.OverallScore,
+				"semantic_similarity":    result.Relevance.SemanticSimilarity,
+				"keyword_matches":        result.Relevance.KeywordMatches,
+				"recency_boost":          result.Relevance.RecencyBoost,
+				"usage_frequency_boost":  result.Relevance.UsageFrequencyBoost,
+				"relationship_bonus":     result.Relevance.RelationshipBonus,
+				"confidence_score":       result.Relevance.ConfidenceScore,
+				"quality_score":          result.Relevance.QualityScore,
+				"matched_concepts":       result.Relevance.MatchedConcepts,
+				"explanation":            result.Relevance.Explanation,
+			},
+		}
+
+		// Add context if included
+		if config.IncludeContext {
+			resultData["context"] = map[string]interface{}{
+				"related_chunks":     result.Context.RelatedChunks,
+				"knowledge_path":     result.Context.KnowledgePath,
+				"session_context":    result.Context.SessionContext,
+				"repository_context": result.Context.RepositoryContext,
+				"temporal_context":   result.Context.TemporalContext,
+				"conceptual_context": result.Context.ConceptualContext,
+			}
+		}
+
+		// Add citation if present
+		if result.CitationID != "" {
+			resultData["citation_id"] = result.CitationID
+			resultData["citation_text"] = result.CitationText
+		}
+
+		// Add chunk content for detailed explanations
+		if config.ExplainDepth == "detailed" || config.ExplainDepth == "debug" {
+			resultData["content"] = result.Chunk.Content
+			resultData["metadata"] = map[string]interface{}{
+				"repository":     result.Chunk.Metadata.Repository,
+				"tags":           result.Chunk.Metadata.Tags,
+				"outcome":        string(result.Chunk.Metadata.Outcome),
+				"files_modified": result.Chunk.Metadata.FilesModified,
+				"tools_used":     result.Chunk.Metadata.ToolsUsed,
+			}
+		}
+
+		response["results"].([]map[string]interface{})[i] = resultData
+	}
+
+	// Log the search
+	ms.container.AuditLogger.LogEvent(ctx, audit.EventTypeMemorySearch, "search_explained", "query", query, map[string]interface{}{
+		"total_found":    results.TotalFound,
+		"explain_depth":  config.ExplainDepth,
+		"query_time_ms":  results.QueryTime.Milliseconds(),
+	})
+
+	return response, nil
+}
+
 // Helper functions for environment variables
 func getEnv(key, defaultValue string) string {
 	if val := os.Getenv(key); val != "" {
@@ -2433,29 +3580,301 @@ func (ms *MemoryServer) handleMemoryConflicts(ctx context.Context, params map[st
 		return nil, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
 	}
 
-	conflicts := ms.detectConflicts(chunks)
-	contradictions := ms.findContradictoryDecisions(chunks)
-	patternInconsistencies := ms.findPatternInconsistencies(chunks)
+	// Use the new conflict detection system
+	conflictDetector := intelligence.NewConflictDetector()
+	conflictResolver := intelligence.NewConflictResolver()
+	
+	// Detect conflicts using the enhanced system
+	conflictResult, err := conflictDetector.DetectConflicts(ctx, chunks)
+	if err != nil {
+		logging.Error("Advanced conflict detection failed, falling back to simple detection", "error", err)
+		// Fallback to simple detection
+		conflicts := ms.detectConflictsSimple(chunks)
+		contradictions := ms.findContradictoryDecisions(chunks)
+		patternInconsistencies := ms.findPatternInconsistencies(chunks)
 
+		result := map[string]interface{}{
+			"repository":            repository,
+			"timeframe":             timeframe,
+			"analysis_timestamp":    time.Now().Format(time.RFC3339),
+			"total_chunks_analyzed": len(chunks),
+			"conflicts":               conflicts,
+			"contradictory_decisions": contradictions,
+			"pattern_inconsistencies": patternInconsistencies,
+			"summary": map[string]interface{}{
+				"total_conflicts":    len(conflicts) + len(contradictions) + len(patternInconsistencies),
+				"severity_breakdown": ms.categorizeConflictsBySeverity(conflicts, contradictions, patternInconsistencies),
+				"recommendations":    ms.generateConflictResolutionRecommendations(conflicts, contradictions),
+			},
+		}
+		return result, nil
+	}
+	
+	// Generate resolution recommendations
+	recommendations, err := conflictResolver.ResolveConflicts(ctx, conflictResult.Conflicts)
+	if err != nil {
+		logging.Warn("Failed to generate conflict resolution recommendations", "error", err)
+		recommendations = []intelligence.ResolutionRecommendation{}
+	}
+	
+	// Convert conflicts to legacy format for compatibility
+	legacyConflicts := ms.convertConflictsToLegacyFormat(conflictResult.Conflicts)
+	
 	result := map[string]interface{}{
 		"repository":            repository,
 		"timeframe":             timeframe,
 		"analysis_timestamp":    time.Now().Format(time.RFC3339),
 		"total_chunks_analyzed": len(chunks),
+		"processing_time":       conflictResult.ProcessingTime,
 
-		"conflicts":               conflicts,
-		"contradictory_decisions": contradictions,
-		"pattern_inconsistencies": patternInconsistencies,
+		// Enhanced conflict data
+		"conflicts_v2": map[string]interface{}{
+			"total_found":     conflictResult.ConflictsFound,
+			"conflicts":       conflictResult.Conflicts,
+			"recommendations": recommendations,
+			"analysis_time":   conflictResult.AnalysisTime,
+		},
+
+		// Legacy format for backward compatibility
+		"conflicts":               legacyConflicts["outcome_conflicts"],
+		"contradictory_decisions": legacyConflicts["architectural_conflicts"],
+		"pattern_inconsistencies": legacyConflicts["pattern_conflicts"],
 
 		"summary": map[string]interface{}{
-			"total_conflicts":    len(conflicts) + len(contradictions) + len(patternInconsistencies),
-			"severity_breakdown": ms.categorizeConflictsBySeverity(conflicts, contradictions, patternInconsistencies),
-			"recommendations":    ms.generateConflictResolutionRecommendations(conflicts, contradictions),
+			"total_conflicts":          conflictResult.ConflictsFound,
+			"conflicts_by_type":        ms.categorizeConflictsByType(conflictResult.Conflicts),
+			"conflicts_by_severity":    ms.categorizeConflictsBySeverity2(conflictResult.Conflicts),
+			"resolution_strategies":    len(recommendations),
+			"high_priority_conflicts":  ms.countHighPriorityConflicts(conflictResult.Conflicts),
+			"recommendations_summary":  ms.summarizeRecommendations(recommendations),
 		},
 	}
 
-	logging.Info("memory_conflicts completed", "repository", repository, "total_conflicts", len(conflicts))
+	logging.Info("memory_conflicts completed", "repository", repository, "total_conflicts", conflictResult.ConflictsFound)
 	return result, nil
+}
+
+// handleMemoryResolveConflicts provides detailed resolution strategies for specific conflicts
+func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_resolve_conflicts called", "params", params)
+
+	// Extract conflict IDs
+	conflictIDs := []string{}
+	if ids, ok := params["conflict_ids"].([]interface{}); ok {
+		for _, id := range ids {
+			if idStr, ok := id.(string); ok {
+				conflictIDs = append(conflictIDs, idStr)
+			}
+		}
+	}
+
+	if len(conflictIDs) == 0 {
+		return nil, fmt.Errorf("conflict_ids parameter is required and must be a non-empty array")
+	}
+
+	repository := ""
+	if repo, ok := params["repository"].(string); ok {
+		repository = repo
+	}
+
+	maxStrategies := 3
+	if max, ok := params["max_strategies"].(float64); ok {
+		maxStrategies = int(max)
+	}
+
+	includeDetailedSteps := true
+	if include, ok := params["include_detailed_steps"].(bool); ok {
+		includeDetailedSteps = include
+	}
+
+	preferredTypes := []string{}
+	if types, ok := params["strategy_types"].([]interface{}); ok {
+		for _, t := range types {
+			if typeStr, ok := t.(string); ok {
+				preferredTypes = append(preferredTypes, typeStr)
+			}
+		}
+	}
+
+	// First, run conflict detection to get current conflicts
+	timeframe := types.TimeframeMonth
+	chunks, err := ms.getChunksForTimeframe(ctx, repository, timeframe)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
+	}
+
+	conflictDetector := intelligence.NewConflictDetector()
+	conflictResult, err := conflictDetector.DetectConflicts(ctx, chunks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to detect conflicts: %w", err)
+	}
+
+	// Filter conflicts to only those requested
+	requestedConflicts := []intelligence.Conflict{}
+	for _, conflict := range conflictResult.Conflicts {
+		for _, requestedID := range conflictIDs {
+			if conflict.ID == requestedID {
+				requestedConflicts = append(requestedConflicts, conflict)
+				break
+			}
+		}
+	}
+
+	if len(requestedConflicts) == 0 {
+		return map[string]interface{}{
+			"message": "No conflicts found with the specified IDs",
+			"conflict_ids_requested": conflictIDs,
+			"total_current_conflicts": len(conflictResult.Conflicts),
+		}, nil
+	}
+
+	// Generate resolution recommendations
+	conflictResolver := intelligence.NewConflictResolver()
+	recommendations, err := conflictResolver.ResolveConflicts(ctx, requestedConflicts)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate resolution recommendations: %w", err)
+	}
+
+	// Filter and customize strategies based on preferences
+	for i := range recommendations {
+		// Filter by preferred types if specified
+		if len(preferredTypes) > 0 {
+			filteredStrategies := []intelligence.ResolutionStrategy{}
+			for _, strategy := range recommendations[i].Strategies {
+				for _, prefType := range preferredTypes {
+					if string(strategy.Type) == prefType {
+						filteredStrategies = append(filteredStrategies, strategy)
+						break
+					}
+				}
+			}
+			if len(filteredStrategies) > 0 {
+				recommendations[i].Strategies = filteredStrategies
+			}
+		}
+
+		// Limit number of strategies
+		if len(recommendations[i].Strategies) > maxStrategies {
+			recommendations[i].Strategies = recommendations[i].Strategies[:maxStrategies]
+		}
+
+		// Update recommended strategy
+		if len(recommendations[i].Strategies) > 0 {
+			recommendations[i].Recommended = &recommendations[i].Strategies[0]
+		}
+
+		// Remove detailed steps if not requested
+		if !includeDetailedSteps {
+			for j := range recommendations[i].Strategies {
+				recommendations[i].Strategies[j].Steps = []intelligence.ResolutionStep{}
+			}
+		}
+	}
+
+	// Build response
+	result := map[string]interface{}{
+		"repository":           repository,
+		"conflict_ids_requested": conflictIDs,
+		"conflicts_found":      len(requestedConflicts),
+		"recommendations":      recommendations,
+		"analysis_timestamp":   time.Now().Format(time.RFC3339),
+		"include_detailed_steps": includeDetailedSteps,
+		"max_strategies_per_conflict": maxStrategies,
+
+		"summary": map[string]interface{}{
+			"total_recommendations": len(recommendations),
+			"avg_strategies_per_conflict": func() float64 {
+				if len(recommendations) == 0 {
+					return 0.0
+				}
+				total := 0
+				for _, rec := range recommendations {
+					total += len(rec.Strategies)
+				}
+				return float64(total) / float64(len(recommendations))
+			}(),
+			"strategy_distribution": func() map[string]int {
+				dist := map[string]int{}
+				for _, rec := range recommendations {
+					for _, strategy := range rec.Strategies {
+						dist[string(strategy.Type)]++
+					}
+				}
+				return dist
+			}(),
+			"conflicts_by_severity": func() map[string]int {
+				severity := map[string]int{}
+				for _, conflict := range requestedConflicts {
+					severity[string(conflict.Severity)]++
+				}
+				return severity
+			}(),
+		},
+
+		"next_steps": ms.generateConflictResolutionNextSteps(recommendations),
+	}
+
+	logging.Info("memory_resolve_conflicts completed", 
+		"repository", repository, 
+		"conflicts_processed", len(requestedConflicts),
+		"recommendations_generated", len(recommendations))
+	return result, nil
+}
+
+// generateConflictResolutionNextSteps provides actionable next steps based on recommendations
+func (ms *MemoryServer) generateConflictResolutionNextSteps(recommendations []intelligence.ResolutionRecommendation) []map[string]interface{} {
+	nextSteps := []map[string]interface{}{}
+
+	for _, rec := range recommendations {
+		if rec.Recommended == nil {
+			continue
+		}
+
+		step := map[string]interface{}{
+			"conflict_id":     rec.ConflictID,
+			"conflict_type":   string(rec.ConflictType),
+			"priority":        ms.mapSeverityToPriority(rec.Severity),
+			"recommended_action": rec.Recommended.Title,
+			"description":     rec.Recommended.Description,
+			"rationale":       rec.Recommended.Rationale,
+			"confidence":      rec.Recommended.Confidence,
+		}
+
+		if len(rec.Recommended.Steps) > 0 {
+			step["immediate_next_step"] = rec.Recommended.Steps[0].Description
+			step["total_steps"] = len(rec.Recommended.Steps)
+		}
+
+		if len(rec.Recommended.Risks) > 0 {
+			step["key_risks"] = rec.Recommended.Risks
+		}
+
+		if len(rec.Recommended.Benefits) > 0 {
+			step["key_benefits"] = rec.Recommended.Benefits
+		}
+
+		nextSteps = append(nextSteps, step)
+	}
+
+	return nextSteps
+}
+
+// mapSeverityToPriority maps conflict severity to action priority
+func (ms *MemoryServer) mapSeverityToPriority(severity intelligence.ConflictSeverity) string {
+	switch severity {
+	case intelligence.SeverityCritical:
+		return "urgent"
+	case intelligence.SeverityHigh:
+		return "high"
+	case intelligence.SeverityMedium:
+		return "medium"
+	case intelligence.SeverityLow:
+		return "low"
+	case intelligence.SeverityInfo:
+		return "info"
+	default:
+		return "medium"
+	}
 }
 
 // handleMemoryContinuity shows what was left incomplete from previous sessions
@@ -2843,8 +4262,8 @@ func (ms *MemoryServer) getChunksForTimeframe(ctx context.Context, repository, t
 	return chunks, nil
 }
 
-// detectConflicts finds conflicting information in chunks
-func (ms *MemoryServer) detectConflicts(chunks []types.ConversationChunk) []map[string]interface{} {
+// detectConflictsSimple finds conflicting information in chunks (legacy method)
+func (ms *MemoryServer) detectConflictsSimple(chunks []types.ConversationChunk) []map[string]interface{} {
 	conflicts := []map[string]interface{}{}
 
 	// Simple conflict detection based on contradictory outcomes for similar content
@@ -5055,4 +6474,1155 @@ func (ms *MemoryServer) validateAndNormalizeSessionID(sessionID string) string {
 	}
 	
 	return sessionID
+}
+
+// handleCheckFreshness checks the freshness of memory chunks
+func (ms *MemoryServer) handleCheckFreshness(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_check_freshness called", "params", params)
+
+	// Get required repository parameter
+	repository, ok := params["repository"].(string)
+	if !ok || repository == "" {
+		logging.Error("memory_check_freshness failed: missing repository parameter")
+		return nil, fmt.Errorf("repository parameter is required")
+	}
+
+	// Check if we're checking a single chunk or repository
+	var response map[string]interface{}
+	var err error
+
+	if chunkID, ok := params["chunk_id"].(string); ok && chunkID != "" {
+		// Check single chunk freshness
+		response, err = ms.checkSingleChunkFreshness(ctx, chunkID)
+	} else {
+		// Check repository freshness
+		response, err = ms.checkRepositoryFreshness(ctx, repository)
+	}
+
+	if err != nil {
+		logging.Error("memory_check_freshness failed", "error", err)
+		return nil, fmt.Errorf("failed to check freshness: %w", err)
+	}
+
+	logging.Info("memory_check_freshness completed successfully")
+	return response, nil
+}
+
+// handleMarkRefreshed marks a memory chunk as refreshed
+func (ms *MemoryServer) handleMarkRefreshed(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_mark_refreshed called", "params", params)
+
+	// Get required parameters
+	chunkID, ok := params["chunk_id"].(string)
+	if !ok || chunkID == "" {
+		logging.Error("memory_mark_refreshed failed: missing chunk_id parameter")
+		return nil, fmt.Errorf("chunk_id parameter is required")
+	}
+
+	validationNotes := ""
+	if notes, ok := params["validation_notes"].(string); ok {
+		validationNotes = notes
+	}
+
+	// Create freshness manager
+	freshnessManager := intelligence.NewFreshnessManager(ms.container.VectorStore)
+
+	// Mark the chunk as refreshed
+	err := freshnessManager.MarkRefreshed(ctx, chunkID, validationNotes)
+	if err != nil {
+		logging.Error("memory_mark_refreshed failed", "error", err)
+		return nil, fmt.Errorf("failed to mark chunk as refreshed: %w", err)
+	}
+
+	// Get updated chunk for response
+	chunk, err := ms.container.VectorStore.GetByID(ctx, chunkID)
+	if err != nil {
+		logging.Error("memory_mark_refreshed failed to retrieve updated chunk", "error", err)
+		return nil, fmt.Errorf("failed to retrieve updated chunk: %w", err)
+	}
+
+	response := map[string]interface{}{
+		"chunk_id": chunkID,
+		"marked_refreshed": true,
+		"timestamp": time.Now().Format(time.RFC3339),
+		"validation_notes": validationNotes,
+		"updated_chunk": map[string]interface{}{
+			"id": chunk.ID,
+			"type": string(chunk.Type),
+			"summary": chunk.Summary,
+			"repository": chunk.Metadata.Repository,
+			"last_refreshed": chunk.Metadata.ExtendedMetadata["last_refreshed"],
+		},
+	}
+
+	logging.Info("memory_mark_refreshed completed successfully", "chunk_id", chunkID)
+	return response, nil
+}
+
+// checkSingleChunkFreshness checks freshness for a single chunk
+func (ms *MemoryServer) checkSingleChunkFreshness(ctx context.Context, chunkID string) (map[string]interface{}, error) {
+	// Get the chunk
+	chunk, err := ms.container.VectorStore.GetByID(ctx, chunkID)
+	if err != nil {
+		return nil, fmt.Errorf("chunk not found: %w", err)
+	}
+
+	// Create freshness manager
+	freshnessManager := intelligence.NewFreshnessManager(ms.container.VectorStore)
+
+	// Check freshness
+	status, err := freshnessManager.CheckFreshness(ctx, chunk)
+	if err != nil {
+		return nil, err
+	}
+
+	response := map[string]interface{}{
+		"chunk_id": chunkID,
+		"freshness_status": map[string]interface{}{
+			"is_fresh": status.IsFresh,
+			"is_stale": status.IsStale,
+			"freshness_score": status.FreshnessScore,
+			"days_old": status.DaysOld,
+			"decay_rate": status.DecayRate,
+			"last_checked": status.LastChecked.Format(time.RFC3339),
+		},
+		"alerts": status.Alerts,
+		"suggested_actions": status.SuggestedActions,
+		"chunk_info": map[string]interface{}{
+			"type": string(chunk.Type),
+			"repository": chunk.Metadata.Repository,
+			"timestamp": chunk.Timestamp.Format(time.RFC3339),
+			"summary": chunk.Summary,
+		},
+	}
+
+	return response, nil
+}
+
+// checkRepositoryFreshness checks freshness for an entire repository
+func (ms *MemoryServer) checkRepositoryFreshness(ctx context.Context, repository string) (map[string]interface{}, error) {
+	// Create freshness manager
+	freshnessManager := intelligence.NewFreshnessManager(ms.container.VectorStore)
+
+	// Check repository freshness
+	batch, err := freshnessManager.CheckRepositoryFreshness(ctx, repository)
+	if err != nil {
+		return nil, err
+	}
+
+	// Format batch results
+	results := make([]map[string]interface{}, len(batch.Results))
+	for i, result := range batch.Results {
+		results[i] = map[string]interface{}{
+			"chunk_id": result.ChunkID,
+			"type": string(result.Type),
+			"repository": result.Repository,
+			"freshness_status": map[string]interface{}{
+				"is_fresh": result.FreshnessStatus.IsFresh,
+				"is_stale": result.FreshnessStatus.IsStale,
+				"freshness_score": result.FreshnessStatus.FreshnessScore,
+				"days_old": result.FreshnessStatus.DaysOld,
+				"decay_rate": result.FreshnessStatus.DecayRate,
+				"alerts_count": len(result.FreshnessStatus.Alerts),
+				"suggested_actions_count": len(result.FreshnessStatus.SuggestedActions),
+			},
+		}
+	}
+
+	response := map[string]interface{}{
+		"repository": repository,
+		"batch_summary": map[string]interface{}{
+			"total_checked": batch.TotalChecked,
+			"fresh_count": batch.FreshCount,
+			"stale_count": batch.StaleCount,
+			"alerts_generated": batch.AlertsGenerated,
+			"processing_time_ms": batch.ProcessingTime.Milliseconds(),
+		},
+		"results": results,
+		"summary": map[string]interface{}{
+			"by_repository": batch.Summary.ByRepository,
+			"by_type": batch.Summary.ByType,
+			"by_technology": batch.Summary.ByTechnology,
+			"overall_health": batch.Summary.OverallHealth,
+		},
+	}
+
+	return response, nil
+}
+
+// handleGenerateCitations generates formatted citations for memory chunks
+func (ms *MemoryServer) handleGenerateCitations(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_generate_citations called", "params", params)
+
+	// Get required parameters
+	query, ok := params["query"].(string)
+	if !ok || query == "" {
+		logging.Error("memory_generate_citations failed: missing query parameter")
+		return nil, fmt.Errorf("query parameter is required")
+	}
+
+	chunkIDsInterface, ok := params["chunk_ids"].([]interface{})
+	if !ok {
+		logging.Error("memory_generate_citations failed: missing or invalid chunk_ids parameter")
+		return nil, fmt.Errorf("chunk_ids parameter is required and must be an array")
+	}
+
+	// Convert chunk IDs to string array
+	chunkIDs := make([]string, len(chunkIDsInterface))
+	for i, id := range chunkIDsInterface {
+		chunkID, ok := id.(string)
+		if !ok {
+			return nil, fmt.Errorf("all chunk IDs must be strings")
+		}
+		chunkIDs[i] = chunkID
+	}
+
+	// Get optional parameters
+	citationStyle := "simple"
+	if style, ok := params["citation_style"].(string); ok {
+		citationStyle = style
+	}
+
+	groupSources := true
+	if group, ok := params["group_sources"].(bool); ok {
+		groupSources = group
+	}
+
+	includeContext := true
+	if include, ok := params["include_context"].(bool); ok {
+		includeContext = include
+	}
+	_ = includeContext // TODO: Use in citation configuration
+
+	// Get chunks and create search results for citation generation
+	results := make([]types.SearchResult, 0, len(chunkIDs))
+	for _, chunkID := range chunkIDs {
+		chunk, err := ms.container.VectorStore.GetByID(ctx, chunkID)
+		if err != nil {
+			logging.Warn("Failed to get chunk for citation", "chunk_id", chunkID, "error", err)
+			continue
+		}
+
+		// Create a search result for citation generation
+		result := types.SearchResult{
+			Chunk: *chunk,
+			Score: 1.0, // Default relevance for manual citations
+		}
+		results = append(results, result)
+	}
+
+	if len(results) == 0 {
+		return nil, fmt.Errorf("no valid chunks found for citation generation")
+	}
+
+	// Create citation manager
+	citationManager := intelligence.NewCitationManager(ms.container.VectorStore)
+	
+	// Configure citation style
+	config := intelligence.DefaultCitationConfig()
+	config.CitationStyle = citationStyle
+	config.GroupSimilarSources = groupSources
+	if citationStyle == "apa" {
+		config.IncludeTimestamps = true
+		config.IncludeRepository = true
+	}
+	citationManager.SetConfig(config)
+
+	// Generate citations
+	citations, err := citationManager.GenerateCitations(ctx, results, query)
+	if err != nil {
+		logging.Error("memory_generate_citations failed", "error", err)
+		return nil, fmt.Errorf("failed to generate citations: %w", err)
+	}
+
+	response := map[string]interface{}{
+		"response_id": citations.ResponseID,
+		"query": citations.Query,
+		"total_citations": citations.TotalCitations,
+		"style": citations.Style,
+		"formatted_bibliography": citations.FormattedBibliography,
+		"generated_at": citations.GeneratedAt.Format(time.RFC3339),
+	}
+
+	// Add groups if available
+	if len(citations.Groups) > 0 {
+		response["groups"] = citations.Groups
+	}
+
+	// Add individual citations
+	if len(citations.IndividualCitations) > 0 {
+		response["individual_citations"] = citations.IndividualCitations
+	}
+
+	// Add inline citations map
+	if len(citations.InlineCitations) > 0 {
+		response["inline_citations"] = citations.InlineCitations
+	}
+
+	logging.Info("memory_generate_citations completed successfully", "response_id", citations.ResponseID)
+	return response, nil
+}
+
+// handleCreateInlineCitation creates inline citation for specific text
+func (ms *MemoryServer) handleCreateInlineCitation(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_create_inline_citation called", "params", params)
+
+	// Get required parameters
+	text, ok := params["text"].(string)
+	if !ok || text == "" {
+		logging.Error("memory_create_inline_citation failed: missing text parameter")
+		return nil, fmt.Errorf("text parameter is required")
+	}
+
+	responseID, ok := params["response_id"].(string)
+	if !ok || responseID == "" {
+		logging.Error("memory_create_inline_citation failed: missing response_id parameter")
+		return nil, fmt.Errorf("response_id parameter is required")
+	}
+
+	// Get optional format parameter
+	format := "bracket"
+	if f, ok := params["format"].(string); ok {
+		format = f
+	}
+
+	// For this implementation, we'll create a simplified inline citation
+	// In a production system, we would look up the stored citations by response_id
+	
+	// Create citation manager with inline format
+	citationManager := intelligence.NewCitationManager(ms.container.VectorStore)
+	config := intelligence.DefaultCitationConfig()
+	
+	// Configure inline format based on requested format
+	switch format {
+	case "superscript":
+		config.CustomFormats["inline"] = intelligence.CitationFormat{
+			Template:  "^{id}",
+			Fields:    []string{"id"},
+			Separator: ",",
+		}
+	case "parenthetical":
+		config.CustomFormats["inline"] = intelligence.CitationFormat{
+			Template:  "({id})",
+			Fields:    []string{"id"},
+			Separator: ", ",
+		}
+	default: // bracket
+		config.CustomFormats["inline"] = intelligence.CitationFormat{
+			Template:  "[{id}]",
+			Fields:    []string{"id"},
+			Separator: ", ",
+		}
+	}
+	
+	citationManager.SetConfig(config)
+
+	// For demonstration, create a simple inline reference
+	// In production, this would reference the actual stored citations
+	inlineRef := ""
+	switch format {
+	case "superscript":
+		inlineRef = "^1"
+	case "parenthetical":
+		inlineRef = "(1)"
+	default:
+		inlineRef = "[1]"
+	}
+
+	response := map[string]interface{}{
+		"original_text": text,
+		"cited_text": text + " " + inlineRef,
+		"inline_reference": inlineRef,
+		"format": format,
+		"response_id": responseID,
+		"created_at": time.Now().Format(time.RFC3339),
+	}
+
+	logging.Info("memory_create_inline_citation completed successfully", "response_id", responseID)
+	return response, nil
+}
+
+// Helper methods for enhanced conflict detection
+
+// convertConflictsToLegacyFormat converts new conflict format to legacy format for backward compatibility
+func (ms *MemoryServer) convertConflictsToLegacyFormat(conflicts []intelligence.Conflict) map[string][]map[string]interface{} {
+	result := map[string][]map[string]interface{}{
+		"outcome_conflicts":       []map[string]interface{}{},
+		"architectural_conflicts": []map[string]interface{}{},
+		"pattern_conflicts":       []map[string]interface{}{},
+		"technical_conflicts":     []map[string]interface{}{},
+		"temporal_conflicts":      []map[string]interface{}{},
+	}
+	
+	for _, conflict := range conflicts {
+		legacyConflict := map[string]interface{}{
+			"type":        string(conflict.Type),
+			"description": conflict.Description,
+			"severity":    string(conflict.Severity),
+			"confidence":  conflict.Confidence,
+			"chunk1": map[string]interface{}{
+				"id":        conflict.PrimaryChunk.ID,
+				"summary":   conflict.PrimaryChunk.Summary,
+				"timestamp": conflict.PrimaryChunk.Timestamp.Format(time.RFC3339),
+			},
+			"chunk2": map[string]interface{}{
+				"id":        conflict.ConflictChunk.ID,
+				"summary":   conflict.ConflictChunk.Summary,
+				"timestamp": conflict.ConflictChunk.Timestamp.Format(time.RFC3339),
+			},
+		}
+		
+		switch conflict.Type {
+		case intelligence.ConflictTypeOutcome:
+			result["outcome_conflicts"] = append(result["outcome_conflicts"], legacyConflict)
+		case intelligence.ConflictTypeArchitectural, intelligence.ConflictTypeDecision:
+			result["architectural_conflicts"] = append(result["architectural_conflicts"], legacyConflict)
+		case intelligence.ConflictTypePattern, intelligence.ConflictTypeMethodology:
+			result["pattern_conflicts"] = append(result["pattern_conflicts"], legacyConflict)
+		case intelligence.ConflictTypeTechnical:
+			result["technical_conflicts"] = append(result["technical_conflicts"], legacyConflict)
+		case intelligence.ConflictTypeTemporal:
+			result["temporal_conflicts"] = append(result["temporal_conflicts"], legacyConflict)
+		default:
+			result["outcome_conflicts"] = append(result["outcome_conflicts"], legacyConflict)
+		}
+	}
+	
+	return result
+}
+
+// categorizeConflictsByType categorizes conflicts by their type
+func (ms *MemoryServer) categorizeConflictsByType(conflicts []intelligence.Conflict) map[string]int {
+	categories := map[string]int{
+		"architectural": 0,
+		"technical":     0,
+		"temporal":      0,
+		"outcome":       0,
+		"decision":      0,
+		"methodology":   0,
+		"pattern":       0,
+	}
+	
+	for _, conflict := range conflicts {
+		switch conflict.Type {
+		case intelligence.ConflictTypeArchitectural:
+			categories["architectural"]++
+		case intelligence.ConflictTypeTechnical:
+			categories["technical"]++
+		case intelligence.ConflictTypeTemporal:
+			categories["temporal"]++
+		case intelligence.ConflictTypeOutcome:
+			categories["outcome"]++
+		case intelligence.ConflictTypeDecision:
+			categories["decision"]++
+		case intelligence.ConflictTypeMethodology:
+			categories["methodology"]++
+		case intelligence.ConflictTypePattern:
+			categories["pattern"]++
+		}
+	}
+	
+	return categories
+}
+
+// categorizeConflictsBySeverity2 categorizes conflicts by their severity (new version)
+func (ms *MemoryServer) categorizeConflictsBySeverity2(conflicts []intelligence.Conflict) map[string]int {
+	severities := map[string]int{
+		"critical": 0,
+		"high":     0,
+		"medium":   0,
+		"low":      0,
+		"info":     0,
+	}
+	
+	for _, conflict := range conflicts {
+		switch conflict.Severity {
+		case intelligence.SeverityCritical:
+			severities["critical"]++
+		case intelligence.SeverityHigh:
+			severities["high"]++
+		case intelligence.SeverityMedium:
+			severities["medium"]++
+		case intelligence.SeverityLow:
+			severities["low"]++
+		case intelligence.SeverityInfo:
+			severities["info"]++
+		}
+	}
+	
+	return severities
+}
+
+// countHighPriorityConflicts counts conflicts with high or critical severity
+func (ms *MemoryServer) countHighPriorityConflicts(conflicts []intelligence.Conflict) int {
+	count := 0
+	for _, conflict := range conflicts {
+		if conflict.Severity == intelligence.SeverityCritical || conflict.Severity == intelligence.SeverityHigh {
+			count++
+		}
+	}
+	return count
+}
+
+// summarizeRecommendations provides a summary of resolution recommendations
+func (ms *MemoryServer) summarizeRecommendations(recommendations []intelligence.ResolutionRecommendation) map[string]interface{} {
+	if len(recommendations) == 0 {
+		return map[string]interface{}{
+			"total_recommendations": 0,
+			"strategy_distribution": map[string]int{},
+			"avg_strategies_per_conflict": 0.0,
+		}
+	}
+	
+	strategyDistribution := map[string]int{
+		"accept_latest":         0,
+		"accept_highest":        0,
+		"merge":                 0,
+		"manual_review":         0,
+		"contextual":            0,
+		"evolutionary":          0,
+		"domain_specific":       0,
+	}
+	
+	totalStrategies := 0
+	for _, rec := range recommendations {
+		totalStrategies += len(rec.Strategies)
+		for _, strategy := range rec.Strategies {
+			switch strategy.Type {
+			case intelligence.ResolutionAcceptLatest:
+				strategyDistribution["accept_latest"]++
+			case intelligence.ResolutionAcceptHighest:
+				strategyDistribution["accept_highest"]++
+			case intelligence.ResolutionMerge:
+				strategyDistribution["merge"]++
+			case intelligence.ResolutionManualReview:
+				strategyDistribution["manual_review"]++
+			case intelligence.ResolutionContextual:
+				strategyDistribution["contextual"]++
+			case intelligence.ResolutionEvolutionary:
+				strategyDistribution["evolutionary"]++
+			case intelligence.ResolutionDomain:
+				strategyDistribution["domain_specific"]++
+			}
+		}
+	}
+	
+	avgStrategiesPerConflict := float64(totalStrategies) / float64(len(recommendations))
+	
+	return map[string]interface{}{
+		"total_recommendations":      len(recommendations),
+		"strategy_distribution":      strategyDistribution,
+		"avg_strategies_per_conflict": avgStrategiesPerConflict,
+		"total_strategies":           totalStrategies,
+	}
+}
+
+// Bulk operations handlers
+
+// handleBulkOperation executes bulk operations on multiple memories
+func (ms *MemoryServer) handleBulkOperation(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_bulk_operation called", "params", params)
+
+	// Parse bulk operation request
+	req := bulk.BulkOperationRequest{}
+	
+	// Required operation parameter
+	if op, ok := params["operation"].(string); ok {
+		req.Operation = op
+	} else {
+		return nil, fmt.Errorf("operation parameter is required")
+	}
+
+	// Optional parameters
+	if chunks, ok := params["chunks"].([]interface{}); ok {
+		req.Chunks = make([]types.ConversationChunk, len(chunks))
+		for i, chunk := range chunks {
+			if chunkData, err := json.Marshal(chunk); err == nil {
+				if err := json.Unmarshal(chunkData, &req.Chunks[i]); err != nil {
+					return nil, fmt.Errorf("invalid chunk at index %d: %w", i, err)
+				}
+			}
+		}
+	}
+
+	if ids, ok := params["ids"].([]interface{}); ok {
+		req.IDs = make([]string, len(ids))
+		for i, id := range ids {
+			if idStr, ok := id.(string); ok {
+				req.IDs[i] = idStr
+			}
+		}
+	}
+
+	// Optional configuration
+	if batchSize, ok := params["batch_size"].(float64); ok {
+		req.BatchSize = int(batchSize)
+	}
+	if maxConcurrency, ok := params["max_concurrency"].(float64); ok {
+		req.MaxConcurrency = int(maxConcurrency)
+	}
+	if validateFirst, ok := params["validate_first"].(bool); ok {
+		req.ValidateFirst = validateFirst
+	}
+	if continueOnError, ok := params["continue_on_error"].(bool); ok {
+		req.ContinueOnError = continueOnError
+	}
+	if dryRun, ok := params["dry_run"].(bool); ok {
+		req.DryRun = dryRun
+	}
+	if conflictPolicy, ok := params["conflict_policy"].(string); ok {
+		req.ConflictPolicy = conflictPolicy
+	}
+
+	// Convert to internal request
+	bulkReq, err := req.ToBulkRequest()
+	if err != nil {
+		return nil, fmt.Errorf("invalid bulk request: %w", err)
+	}
+
+	// Submit operation
+	progress, err := ms.bulkManager.SubmitOperation(ctx, bulkReq)
+	if err != nil {
+		return nil, fmt.Errorf("failed to submit bulk operation: %w", err)
+	}
+
+	logging.Info("memory_bulk_operation completed successfully", "operation_id", progress.OperationID)
+	return map[string]interface{}{
+		"operation_id": progress.OperationID,
+		"status":       string(progress.Status),
+		"total_items":  progress.TotalItems,
+		"message":      fmt.Sprintf("Bulk %s operation started with %d items", bulkReq.Operation, progress.TotalItems),
+	}, nil
+}
+
+// handleBulkImport imports memories from various formats
+func (ms *MemoryServer) handleBulkImport(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_bulk_import called", "params", params)
+
+	// Required data parameter
+	data, ok := params["data"].(string)
+	if !ok || data == "" {
+		return nil, fmt.Errorf("data parameter is required")
+	}
+
+	// Build import options
+	options := bulk.ImportOptions{
+		Format:           bulk.FormatAuto,
+		ChunkingStrategy: bulk.ChunkingAuto,
+		ConflictPolicy:   bulk.ConflictPolicySkip,
+		ValidateChunks:   true,
+	}
+
+	// Optional parameters
+	if format, ok := params["format"].(string); ok {
+		options.Format = bulk.ImportFormat(format)
+	}
+	if repo, ok := params["repository"].(string); ok {
+		options.Repository = repo
+	}
+	if sessionID, ok := params["default_session_id"].(string); ok {
+		options.DefaultSessionID = sessionID
+	}
+	if tags, ok := params["default_tags"].([]interface{}); ok {
+		options.DefaultTags = make([]string, len(tags))
+		for i, tag := range tags {
+			if tagStr, ok := tag.(string); ok {
+				options.DefaultTags[i] = tagStr
+			}
+		}
+	}
+	if strategy, ok := params["chunking_strategy"].(string); ok {
+		options.ChunkingStrategy = bulk.ChunkingStrategy(strategy)
+	}
+	if policy, ok := params["conflict_policy"].(string); ok {
+		options.ConflictPolicy = bulk.ConflictPolicy(policy)
+	}
+	if validate, ok := params["validate_chunks"].(bool); ok {
+		options.ValidateChunks = validate
+	}
+
+	// Parse metadata if provided
+	if metadataInterface, ok := params["metadata"].(map[string]interface{}); ok {
+		if sourceSystem, ok := metadataInterface["source_system"].(string); ok {
+			options.Metadata.SourceSystem = sourceSystem
+		}
+		if importDate, ok := metadataInterface["import_date"].(string); ok {
+			options.Metadata.ImportDate = importDate
+		}
+		if tags, ok := metadataInterface["tags"].([]interface{}); ok {
+			options.Metadata.Tags = make([]string, len(tags))
+			for i, tag := range tags {
+				if tagStr, ok := tag.(string); ok {
+					options.Metadata.Tags[i] = tagStr
+				}
+			}
+		}
+	}
+
+	// Import data
+	result, err := ms.bulkImporter.Import(ctx, data, options)
+	if err != nil {
+		return nil, fmt.Errorf("import failed: %w", err)
+	}
+
+	// Store imported chunks if successful
+	if len(result.Chunks) > 0 {
+		bulkReq := bulk.BulkRequest{
+			Operation: bulk.OperationStore,
+			Chunks:    result.Chunks,
+			Options: bulk.BulkOptions{
+				BatchSize:       50,
+				MaxConcurrency:  3,
+				ValidateFirst:   false, // Already validated during import
+				ContinueOnError: true,
+			},
+		}
+
+		progress, err := ms.bulkManager.SubmitOperation(ctx, bulkReq)
+		if err != nil {
+			logging.Warn("Failed to store imported chunks", "error", err)
+		} else {
+			result.Summary += fmt.Sprintf(". Storage operation %s started.", progress.OperationID)
+		}
+	}
+
+	logging.Info("memory_bulk_import completed successfully", "imported_items", result.SuccessfulItems)
+	return map[string]interface{}{
+		"total_items":      result.TotalItems,
+		"processed_items":  result.ProcessedItems,
+		"successful_items": result.SuccessfulItems,
+		"failed_items":     result.FailedItems,
+		"skipped_items":    result.SkippedItems,
+		"errors":           result.Errors,
+		"warnings":         result.Warnings,
+		"summary":          result.Summary,
+	}, nil
+}
+
+// handleBulkExport exports memories to various formats
+func (ms *MemoryServer) handleBulkExport(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_bulk_export called", "params", params)
+
+	// Build export options
+	options := bulk.ExportOptions{
+		Format:          bulk.ExportFormatJSON,
+		Compression:     bulk.CompressionNone,
+		IncludeVectors:  false,
+		IncludeMetadata: true,
+		IncludeRelations: false,
+		PrettyPrint:     true,
+	}
+
+	// Optional parameters
+	if format, ok := params["format"].(string); ok {
+		options.Format = bulk.ExportFormat(format)
+	}
+	if compression, ok := params["compression"].(string); ok {
+		options.Compression = bulk.CompressionType(compression)
+	}
+	if includeVectors, ok := params["include_vectors"].(bool); ok {
+		options.IncludeVectors = includeVectors
+	}
+	if includeMetadata, ok := params["include_metadata"].(bool); ok {
+		options.IncludeMetadata = includeMetadata
+	}
+	if includeRelations, ok := params["include_relations"].(bool); ok {
+		options.IncludeRelations = includeRelations
+	}
+	if prettyPrint, ok := params["pretty_print"].(bool); ok {
+		options.PrettyPrint = prettyPrint
+	}
+
+	// Parse filter options
+	if filterInterface, ok := params["filter"].(map[string]interface{}); ok {
+		filter := bulk.ExportFilter{}
+		
+		if repo, ok := filterInterface["repository"].(string); ok {
+			filter.Repository = &repo
+		}
+		if sessionIDs, ok := filterInterface["session_ids"].([]interface{}); ok {
+			filter.SessionIDs = make([]string, len(sessionIDs))
+			for i, id := range sessionIDs {
+				if idStr, ok := id.(string); ok {
+					filter.SessionIDs[i] = idStr
+				}
+			}
+		}
+		if chunkTypes, ok := filterInterface["chunk_types"].([]interface{}); ok {
+			filter.ChunkTypes = make([]types.ChunkType, len(chunkTypes))
+			for i, ct := range chunkTypes {
+				if ctStr, ok := ct.(string); ok {
+					filter.ChunkTypes[i] = types.ChunkType(ctStr)
+				}
+			}
+		}
+		if tags, ok := filterInterface["tags"].([]interface{}); ok {
+			filter.Tags = make([]string, len(tags))
+			for i, tag := range tags {
+				if tagStr, ok := tag.(string); ok {
+					filter.Tags[i] = tagStr
+				}
+			}
+		}
+		if contentFilter, ok := filterInterface["content_filter"].(string); ok {
+			filter.ContentFilter = &contentFilter
+		}
+		
+		// Parse date range
+		if dateRange, ok := filterInterface["date_range"].(map[string]interface{}); ok {
+			dr := &bulk.ExportDateRange{}
+			if start, ok := dateRange["start"].(string); ok {
+				if startTime, err := time.Parse(time.RFC3339, start); err == nil {
+					dr.Start = &startTime
+				}
+			}
+			if end, ok := dateRange["end"].(string); ok {
+				if endTime, err := time.Parse(time.RFC3339, end); err == nil {
+					dr.End = &endTime
+				}
+			}
+			filter.DateRange = dr
+		}
+		
+		options.Filter = filter
+	}
+
+	// Parse sorting options
+	if sortInterface, ok := params["sorting"].(map[string]interface{}); ok {
+		sorting := bulk.ExportSorting{}
+		if field, ok := sortInterface["field"].(string); ok {
+			sorting.Field = field
+		}
+		if order, ok := sortInterface["order"].(string); ok {
+			sorting.Order = order
+		}
+		options.Sorting = sorting
+	}
+
+	// Parse pagination options
+	if paginationInterface, ok := params["pagination"].(map[string]interface{}); ok {
+		pagination := bulk.ExportPagination{}
+		if limit, ok := paginationInterface["limit"].(float64); ok {
+			pagination.Limit = int(limit)
+		}
+		if offset, ok := paginationInterface["offset"].(float64); ok {
+			pagination.Offset = int(offset)
+		}
+		options.Pagination = pagination
+	}
+
+	// Export data
+	result, err := ms.bulkExporter.Export(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("export failed: %w", err)
+	}
+
+	logging.Info("memory_bulk_export completed successfully", "exported_items", result.ExportedItems)
+	return map[string]interface{}{
+		"format":         string(result.Format),
+		"total_items":    result.TotalItems,
+		"exported_items": result.ExportedItems,
+		"data_size":      result.DataSize,
+		"data":           result.Data,
+		"metadata":       result.Metadata,
+		"warnings":       result.Warnings,
+		"generated_at":   result.GeneratedAt.Format(time.RFC3339),
+	}, nil
+}
+
+// handleCreateAlias creates a memory alias
+func (ms *MemoryServer) handleCreateAlias(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_create_alias called", "params", params)
+
+	// Required parameters
+	name, ok := params["name"].(string)
+	if !ok || name == "" {
+		return nil, fmt.Errorf("name parameter is required")
+	}
+
+	aliasType, ok := params["type"].(string)
+	if !ok || aliasType == "" {
+		return nil, fmt.Errorf("type parameter is required")
+	}
+
+	targetInterface, ok := params["target"].(map[string]interface{})
+	if !ok {
+		return nil, fmt.Errorf("target parameter is required")
+	}
+
+	// Build alias
+	alias := bulk.Alias{
+		Name: name,
+		Type: bulk.AliasType(aliasType),
+	}
+
+	// Optional description
+	if desc, ok := params["description"].(string); ok {
+		alias.Description = desc
+	}
+
+	// Parse target
+	target := bulk.AliasTarget{}
+	if targetType, ok := targetInterface["type"].(string); ok {
+		target.Type = bulk.TargetType(targetType)
+	}
+
+	switch target.Type {
+	case bulk.TargetTypeChunks:
+		if chunkIDs, ok := targetInterface["chunk_ids"].([]interface{}); ok {
+			target.ChunkIDs = make([]string, len(chunkIDs))
+			for i, id := range chunkIDs {
+				if idStr, ok := id.(string); ok {
+					target.ChunkIDs[i] = idStr
+				}
+			}
+		}
+
+	case bulk.TargetTypeQuery:
+		if queryInterface, ok := targetInterface["query"].(map[string]interface{}); ok {
+			queryTarget := &bulk.QueryTarget{}
+			if query, ok := queryInterface["query"].(string); ok {
+				queryTarget.Query = query
+			}
+			if repo, ok := queryInterface["repository"].(string); ok {
+				queryTarget.Repository = &repo
+			}
+			if maxResults, ok := queryInterface["max_results"].(float64); ok {
+				queryTarget.MaxResults = int(maxResults)
+			}
+			target.Query = queryTarget
+		}
+
+	case bulk.TargetTypeFilter:
+		if filterInterface, ok := targetInterface["filter"].(map[string]interface{}); ok {
+			filterTarget := &bulk.FilterTarget{}
+			if repo, ok := filterInterface["repository"].(string); ok {
+				filterTarget.Repository = &repo
+			}
+			target.Filter = filterTarget
+		}
+
+	case bulk.TargetTypeCollection:
+		if collectionInterface, ok := targetInterface["collection"].(map[string]interface{}); ok {
+			collectionTarget := &bulk.CollectionTarget{}
+			if collectionName, ok := collectionInterface["name"].(string); ok {
+				collectionTarget.Name = collectionName
+			}
+			if desc, ok := collectionInterface["description"].(string); ok {
+				collectionTarget.Description = desc
+			}
+			if chunkIDs, ok := collectionInterface["chunk_ids"].([]interface{}); ok {
+				collectionTarget.ChunkIDs = make([]string, len(chunkIDs))
+				for i, id := range chunkIDs {
+					if idStr, ok := id.(string); ok {
+						collectionTarget.ChunkIDs[i] = idStr
+					}
+				}
+			}
+			target.Collection = collectionTarget
+		}
+	}
+
+	alias.Target = target
+
+	// Parse metadata
+	if metadataInterface, ok := params["metadata"].(map[string]interface{}); ok {
+		metadata := bulk.AliasMetadata{}
+		if repo, ok := metadataInterface["repository"].(string); ok {
+			metadata.Repository = repo
+		}
+		if tags, ok := metadataInterface["tags"].([]interface{}); ok {
+			metadata.Tags = make([]string, len(tags))
+			for i, tag := range tags {
+				if tagStr, ok := tag.(string); ok {
+					metadata.Tags[i] = tagStr
+				}
+			}
+		}
+		if isPublic, ok := metadataInterface["is_public"].(bool); ok {
+			metadata.IsPublic = isPublic
+		}
+		if isFavorite, ok := metadataInterface["is_favorite"].(bool); ok {
+			metadata.IsFavorite = isFavorite
+		}
+		alias.Metadata = metadata
+	}
+
+	// Create alias
+	createdAlias, err := ms.aliasManager.CreateAlias(ctx, alias)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create alias: %w", err)
+	}
+
+	logging.Info("memory_create_alias completed successfully", "alias_id", createdAlias.ID, "name", createdAlias.Name)
+	return map[string]interface{}{
+		"id":          createdAlias.ID,
+		"name":        createdAlias.Name,
+		"type":        string(createdAlias.Type),
+		"description": createdAlias.Description,
+		"created_at":  createdAlias.CreatedAt.Format(time.RFC3339),
+		"message":     fmt.Sprintf("Alias '%s' created successfully", createdAlias.Name),
+	}, nil
+}
+
+// handleResolveAlias resolves an alias reference
+func (ms *MemoryServer) handleResolveAlias(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_resolve_alias called", "params", params)
+
+	// Required parameter
+	aliasName, ok := params["alias_name"].(string)
+	if !ok || aliasName == "" {
+		return nil, fmt.Errorf("alias_name parameter is required")
+	}
+
+	// Resolve alias
+	result, err := ms.aliasManager.ResolveAlias(ctx, aliasName)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve alias: %w", err)
+	}
+
+	// Format chunks for response
+	chunks := make([]map[string]interface{}, len(result.Chunks))
+	for i, chunk := range result.Chunks {
+		chunks[i] = map[string]interface{}{
+			"id":         chunk.ID,
+			"session_id": chunk.SessionID,
+			"timestamp":  chunk.Timestamp.Format(time.RFC3339),
+			"type":       string(chunk.Type),
+			"summary":    chunk.Summary,
+			"repository": chunk.Metadata.Repository,
+			"tags":       chunk.Metadata.Tags,
+			"outcome":    string(chunk.Metadata.Outcome),
+		}
+	}
+
+	logging.Info("memory_resolve_alias completed successfully", "alias_name", aliasName, "chunks_found", result.TotalFound)
+	return map[string]interface{}{
+		"alias": map[string]interface{}{
+			"id":           result.Alias.ID,
+			"name":         result.Alias.Name,
+			"type":         string(result.Alias.Type),
+			"description":  result.Alias.Description,
+			"access_count": result.Alias.AccessCount,
+		},
+		"chunks":      chunks,
+		"total_found": result.TotalFound,
+		"message":     result.Message,
+		"warnings":    result.Warnings,
+	}, nil
+}
+
+// handleListAliases lists memory aliases
+func (ms *MemoryServer) handleListAliases(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_list_aliases called", "params", params)
+
+	// Build filter
+	filter := bulk.AliasListFilter{
+		SortBy: "usage",
+		Limit:  20,
+	}
+
+	// Optional parameters
+	if aliasType, ok := params["type"].(string); ok {
+		at := bulk.AliasType(aliasType)
+		filter.Type = &at
+	}
+	if repo, ok := params["repository"].(string); ok {
+		filter.Repository = &repo
+	}
+	if tags, ok := params["tags"].([]interface{}); ok {
+		filter.Tags = make([]string, len(tags))
+		for i, tag := range tags {
+			if tagStr, ok := tag.(string); ok {
+				filter.Tags[i] = tagStr
+			}
+		}
+	}
+	if query, ok := params["query"].(string); ok {
+		filter.Query = &query
+	}
+	if sortBy, ok := params["sort_by"].(string); ok {
+		filter.SortBy = sortBy
+	}
+	if limit, ok := params["limit"].(float64); ok {
+		filter.Limit = int(limit)
+	}
+
+	// List aliases
+	aliases, err := ms.aliasManager.ListAliases(filter)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list aliases: %w", err)
+	}
+
+	// Format response
+	aliasesData := make([]map[string]interface{}, len(aliases))
+	for i, alias := range aliases {
+		aliasesData[i] = map[string]interface{}{
+			"id":           alias.ID,
+			"name":         alias.Name,
+			"type":         string(alias.Type),
+			"description":  alias.Description,
+			"repository":   alias.Metadata.Repository,
+			"tags":         alias.Metadata.Tags,
+			"access_count": alias.AccessCount,
+			"created_at":   alias.CreatedAt.Format(time.RFC3339),
+			"updated_at":   alias.UpdatedAt.Format(time.RFC3339),
+		}
+		if alias.LastAccessed != nil {
+			aliasesData[i]["last_accessed"] = alias.LastAccessed.Format(time.RFC3339)
+		}
+	}
+
+	logging.Info("memory_list_aliases completed successfully", "aliases_found", len(aliases))
+	return map[string]interface{}{
+		"aliases":      aliasesData,
+		"total_found":  len(aliases),
+		"filter_used":  filter,
+	}, nil
+}
+
+// handleGetBulkProgress gets bulk operation progress
+func (ms *MemoryServer) handleGetBulkProgress(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_get_bulk_progress called", "params", params)
+
+	// Required parameter
+	operationID, ok := params["operation_id"].(string)
+	if !ok || operationID == "" {
+		return nil, fmt.Errorf("operation_id parameter is required")
+	}
+
+	// Get progress
+	progress, err := ms.bulkManager.GetProgress(operationID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get bulk progress: %w", err)
+	}
+
+	// Format errors for response
+	errors := make([]map[string]interface{}, len(progress.Errors))
+	for i, err := range progress.Errors {
+		errors[i] = map[string]interface{}{
+			"item_index": err.ItemIndex,
+			"item_id":    err.ItemID,
+			"error":      err.Error,
+			"timestamp":  err.Timestamp.Format(time.RFC3339),
+		}
+	}
+
+	logging.Info("memory_get_bulk_progress completed successfully", "operation_id", operationID, "status", progress.Status)
+	return map[string]interface{}{
+		"operation_id":      progress.OperationID,
+		"status":            string(progress.Status),
+		"total_items":       progress.TotalItems,
+		"processed_items":   progress.ProcessedItems,
+		"successful_items":  progress.SuccessfulItems,
+		"failed_items":      progress.FailedItems,
+		"skipped_items":     progress.SkippedItems,
+		"current_batch":     progress.CurrentBatch,
+		"total_batches":     progress.TotalBatches,
+		"start_time":        progress.StartTime.Format(time.RFC3339),
+		"elapsed_time":      progress.ElapsedTime.String(),
+		"estimated_time":    progress.EstimatedTime.String(),
+		"errors":            errors,
+		"validation_errors": progress.ValidationErrors,
+	}, nil
 }
