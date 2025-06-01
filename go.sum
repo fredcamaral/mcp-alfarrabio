@@ -1,7 +1,7 @@
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
-github.com/fredcamaral/gomcp-sdk v1.0.3 h1:2AKWID+IItqYn+5+lWDVY2ZjSPkNNa6NstQOqG7qzoI=
-github.com/fredcamaral/gomcp-sdk v1.0.3/go.mod h1:1/ESyaQyxuaRIPwM4o9dQrGByMJ291lH+PumIBYu5BA=
+github.com/fredcamaral/gomcp-sdk v1.1.0 h1:WP4uKu0903r53y16PcOKcrEI5wjAsRIL/oSGtUJxEJM=
+github.com/fredcamaral/gomcp-sdk v1.1.0/go.mod h1:1/ESyaQyxuaRIPwM4o9dQrGByMJ291lH+PumIBYu5BA=
 github.com/getkin/kin-openapi v0.132.0 h1:3ISeLMsQzcb5v26yeJrBcdTCEQTag36ZjaGk7MIRUwk=
 github.com/getkin/kin-openapi v0.132.0/go.mod h1:3OlG51PCYNsPByuiMB0t4fjnNlIDnaEDsjiKUV8nL58=
 github.com/go-logr/logr v1.4.2 h1:6pFjapn8bFcIbiKo3XT4j/BhANplGihG6tvd+8rYgrY=
