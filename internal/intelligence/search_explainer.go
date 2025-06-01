@@ -2,6 +2,7 @@ package intelligence
 
 import (
 	"context"
+	"fmt"
 	"mcp-memory/pkg/types"
 	"sort"
 	"strings"
@@ -22,36 +23,36 @@ func NewSearchExplainer(storage StorageInterface) *SearchExplainer {
 
 // ExplainedSearchResult represents a search result with detailed explanation
 type ExplainedSearchResult struct {
-	Chunk         types.ConversationChunk `json:"chunk"`
-	Score         float64                 `json:"score"`
-	Relevance     RelevanceExplanation    `json:"relevance"`
-	Context       ContextExplanation      `json:"context"`
-	CitationID    string                  `json:"citation_id,omitempty"`
-	CitationText  string                  `json:"citation_text,omitempty"`
+	Chunk        types.ConversationChunk `json:"chunk"`
+	Score        float64                 `json:"score"`
+	Relevance    RelevanceExplanation    `json:"relevance"`
+	Context      ContextExplanation      `json:"context"`
+	CitationID   string                  `json:"citation_id,omitempty"`
+	CitationText string                  `json:"citation_text,omitempty"`
 }
 
 // RelevanceExplanation explains why a result is relevant
 type RelevanceExplanation struct {
-	OverallScore         float64             `json:"overall_score"`
-	SemanticSimilarity   float64             `json:"semantic_similarity"`
-	KeywordMatches       []string            `json:"keyword_matches"`
-	RecencyBoost         float64             `json:"recency_boost"`
-	UsageFrequencyBoost  float64             `json:"usage_frequency_boost"`
-	RelationshipBonus    float64             `json:"relationship_bonus"`
-	ConfidenceScore      float64             `json:"confidence_score"`
-	QualityScore         float64             `json:"quality_score"`
-	MatchedConcepts      []string            `json:"matched_concepts"`
-	Explanation          string              `json:"explanation"`
+	OverallScore        float64  `json:"overall_score"`
+	SemanticSimilarity  float64  `json:"semantic_similarity"`
+	KeywordMatches      []string `json:"keyword_matches"`
+	RecencyBoost        float64  `json:"recency_boost"`
+	UsageFrequencyBoost float64  `json:"usage_frequency_boost"`
+	RelationshipBonus   float64  `json:"relationship_bonus"`
+	ConfidenceScore     float64  `json:"confidence_score"`
+	QualityScore        float64  `json:"quality_score"`
+	MatchedConcepts     []string `json:"matched_concepts"`
+	Explanation         string   `json:"explanation"`
 }
 
 // ContextExplanation provides context about how this result relates to others
 type ContextExplanation struct {
-	RelatedChunks    []string              `json:"related_chunks"`     // IDs of related memories
-	KnowledgePath    []string              `json:"knowledge_path"`     // How we got to this result
-	SessionContext   []string              `json:"session_context"`    // Other chunks from same session
-	RepositoryContext []string             `json:"repository_context"` // Other chunks from same repo
-	TemporalContext  []TemporalContext     `json:"temporal_context"`   // Nearby in time
-	ConceptualContext []ConceptualContext  `json:"conceptual_context"` // Similar concepts
+	RelatedChunks     []string            `json:"related_chunks"`     // IDs of related memories
+	KnowledgePath     []string            `json:"knowledge_path"`     // How we got to this result
+	SessionContext    []string            `json:"session_context"`    // Other chunks from same session
+	RepositoryContext []string            `json:"repository_context"` // Other chunks from same repo
+	TemporalContext   []TemporalContext   `json:"temporal_context"`   // Nearby in time
+	ConceptualContext []ConceptualContext `json:"conceptual_context"` // Similar concepts
 }
 
 // TemporalContext represents temporal relationship context
@@ -71,12 +72,12 @@ type ConceptualContext struct {
 
 // ExplainedSearchConfig configures the explanation depth
 type ExplainedSearchConfig struct {
-	ExplainDepth          string  `json:"explain_depth"`           // "basic", "detailed", "debug"
-	IncludeRelationships  bool    `json:"include_relationships"`
-	IncludeCitations      bool    `json:"include_citations"`
-	IncludeContext        bool    `json:"include_context"`
-	MinExplanationScore   float64 `json:"min_explanation_score"`
-	MaxContextItems       int     `json:"max_context_items"`
+	ExplainDepth         string  `json:"explain_depth"` // "basic", "detailed", "debug"
+	IncludeRelationships bool    `json:"include_relationships"`
+	IncludeCitations     bool    `json:"include_citations"`
+	IncludeContext       bool    `json:"include_context"`
+	MinExplanationScore  float64 `json:"min_explanation_score"`
+	MaxContextItems      int     `json:"max_context_items"`
 }
 
 // DefaultExplainedSearchConfig returns default configuration
@@ -93,28 +94,28 @@ func DefaultExplainedSearchConfig() *ExplainedSearchConfig {
 
 // ExplainedSearchResults contains explained search results
 type ExplainedSearchResults struct {
-	Results    []ExplainedSearchResult `json:"results"`
-	Query      string                  `json:"query"`
-	TotalFound int                     `json:"total_found"`
-	QueryTime  time.Duration           `json:"query_time"`
-	Explanation SearchQueryExplanation `json:"explanation"`
-	Citations  map[string]string       `json:"citations,omitempty"` // citation_id -> full text
+	Results     []ExplainedSearchResult `json:"results"`
+	Query       string                  `json:"query"`
+	TotalFound  int                     `json:"total_found"`
+	QueryTime   time.Duration           `json:"query_time"`
+	Explanation SearchQueryExplanation  `json:"explanation"`
+	Citations   map[string]string       `json:"citations,omitempty"` // citation_id -> full text
 }
 
 // SearchQueryExplanation explains the search process
 type SearchQueryExplanation struct {
-	QueryTerms        []string  `json:"query_terms"`
-	ConceptsDetected  []string  `json:"concepts_detected"`
-	FiltersApplied    []string  `json:"filters_applied"`
-	SearchStrategy    string    `json:"search_strategy"`
-	RankingFactors    []string  `json:"ranking_factors"`
-	ProcessingTime    time.Duration `json:"processing_time"`
+	QueryTerms       []string      `json:"query_terms"`
+	ConceptsDetected []string      `json:"concepts_detected"`
+	FiltersApplied   []string      `json:"filters_applied"`
+	SearchStrategy   string        `json:"search_strategy"`
+	RankingFactors   []string      `json:"ranking_factors"`
+	ProcessingTime   time.Duration `json:"processing_time"`
 }
 
 // ExplainedSearch performs search with detailed explanations
 func (se *SearchExplainer) ExplainedSearch(ctx context.Context, query types.MemoryQuery, embeddings []float64, config *ExplainedSearchConfig) (*ExplainedSearchResults, error) {
 	start := time.Now()
-	
+
 	if config == nil {
 		config = DefaultExplainedSearchConfig()
 	}
@@ -132,7 +133,7 @@ func (se *SearchExplainer) ExplainedSearch(ctx context.Context, query types.Memo
 
 	for _, result := range searchResults.Results {
 		explained := se.explainResult(ctx, result, query, config)
-		
+
 		// Add citation if requested
 		if config.IncludeCitations {
 			citationID := se.generateCitationID(citationCounter)
@@ -166,10 +167,10 @@ func (se *SearchExplainer) ExplainedSearch(ctx context.Context, query types.Memo
 // explainResult creates a detailed explanation for a single result
 func (se *SearchExplainer) explainResult(ctx context.Context, result types.SearchResult, query types.MemoryQuery, config *ExplainedSearchConfig) ExplainedSearchResult {
 	chunk := result.Chunk
-	
+
 	// Calculate relevance explanation
 	relevance := se.calculateRelevanceExplanation(chunk, query, result.Score)
-	
+
 	// Calculate context explanation
 	var context ContextExplanation
 	if config.IncludeContext {
@@ -192,42 +193,42 @@ func (se *SearchExplainer) calculateRelevanceExplanation(chunk types.Conversatio
 
 	// Extract query terms
 	queryTerms := se.extractQueryTerms(query.Query)
-	
+
 	// Calculate semantic similarity (simplified - would use embeddings in real implementation)
 	explanation.SemanticSimilarity = se.calculateSemanticSimilarity(chunk.Content, query.Query)
-	
+
 	// Find keyword matches
 	explanation.KeywordMatches = se.findKeywordMatches(chunk, queryTerms)
-	
+
 	// Calculate recency boost
 	explanation.RecencyBoost = se.calculateRecencyBoost(chunk.Timestamp)
-	
+
 	// Calculate usage frequency boost (simplified)
 	explanation.UsageFrequencyBoost = se.calculateUsageBoost(chunk)
-	
+
 	// Calculate confidence score
 	if chunk.Metadata.Confidence != nil {
 		explanation.ConfidenceScore = chunk.Metadata.Confidence.Score
 	} else {
 		explanation.ConfidenceScore = 0.5 // Default
 	}
-	
+
 	// Calculate quality score
 	if chunk.Metadata.Quality != nil {
 		explanation.QualityScore = chunk.Metadata.Quality.OverallQuality
 	} else {
 		explanation.QualityScore = 0.5 // Default
 	}
-	
+
 	// Detect matched concepts
 	explanation.MatchedConcepts = se.detectMatchedConcepts(chunk, queryTerms)
-	
+
 	// Generate human-readable explanation
 	explanation.Explanation = se.generateRelevanceExplanation(explanation, chunk, query)
-	
+
 	// Recalculate overall score with explanation factors
 	explanation.OverallScore = se.calculateWeightedScore(explanation)
-	
+
 	return explanation
 }
 
@@ -258,14 +259,37 @@ func (se *SearchExplainer) calculateContextExplanation(ctx context.Context, chun
 		}
 	}
 
-	// Add session context (simplified - would need session query method)
+	// Use query to enhance session context detection
 	if chunk.SessionID != "" {
-		context.SessionContext = append(context.SessionContext, chunk.SessionID)
+		sessionDesc := chunk.SessionID
+		// If query mentions specific terms, add them to session context
+		queryTerms := se.extractQueryTerms(query.Query)
+		for _, term := range queryTerms {
+			if strings.Contains(strings.ToLower(chunk.Content), term) {
+				sessionDesc += fmt.Sprintf(" (matches: %s)", term)
+				break
+			}
+		}
+		context.SessionContext = append(context.SessionContext, sessionDesc)
 	}
 
-	// Add repository context
+	// Enhanced repository context using query filters
 	if chunk.Metadata.Repository != "" {
-		context.RepositoryContext = append(context.RepositoryContext, chunk.Metadata.Repository)
+		repoDesc := chunk.Metadata.Repository
+		if query.Repository != nil && *query.Repository == chunk.Metadata.Repository {
+			repoDesc += " (query-filtered)"
+		}
+		context.RepositoryContext = append(context.RepositoryContext, repoDesc)
+	}
+
+	// Add conceptual context based on query
+	queryConcepts := se.detectQueryConcepts(query.Query)
+	for _, concept := range queryConcepts {
+		context.ConceptualContext = append(context.ConceptualContext, ConceptualContext{
+			ChunkID:    chunk.ID,
+			Concepts:   []string{concept},
+			Similarity: 0.8, // Estimated based on query detection
+		})
 	}
 
 	// Add temporal context (simplified)
@@ -280,7 +304,7 @@ func (se *SearchExplainer) extractQueryTerms(query string) []string {
 	// Simple tokenization - in production would use proper NLP
 	words := strings.Fields(strings.ToLower(query))
 	terms := make([]string, 0)
-	
+
 	for _, word := range words {
 		// Remove punctuation and filter stop words
 		word = strings.Trim(word, ".,!?;:")
@@ -288,7 +312,7 @@ func (se *SearchExplainer) extractQueryTerms(query string) []string {
 			terms = append(terms, word)
 		}
 	}
-	
+
 	return terms
 }
 
@@ -296,7 +320,7 @@ func (se *SearchExplainer) calculateSemanticSimilarity(content, query string) fl
 	// Simplified semantic similarity - would use embeddings in real implementation
 	contentWords := strings.Fields(strings.ToLower(content))
 	queryWords := strings.Fields(strings.ToLower(query))
-	
+
 	matches := 0
 	for _, qWord := range queryWords {
 		for _, cWord := range contentWords {
@@ -306,11 +330,11 @@ func (se *SearchExplainer) calculateSemanticSimilarity(content, query string) fl
 			}
 		}
 	}
-	
+
 	if len(queryWords) == 0 {
 		return 0.0
 	}
-	
+
 	return float64(matches) / float64(len(queryWords))
 }
 
@@ -318,19 +342,19 @@ func (se *SearchExplainer) findKeywordMatches(chunk types.ConversationChunk, que
 	matches := make([]string, 0)
 	contentLower := strings.ToLower(chunk.Content)
 	summaryLower := strings.ToLower(chunk.Summary)
-	
+
 	for _, term := range queryTerms {
 		if strings.Contains(contentLower, term) || strings.Contains(summaryLower, term) {
 			matches = append(matches, term)
 		}
 	}
-	
+
 	return matches
 }
 
 func (se *SearchExplainer) calculateRecencyBoost(timestamp time.Time) float64 {
 	daysSince := time.Since(timestamp).Hours() / 24
-	
+
 	// Boost for recent memories
 	switch {
 	case daysSince < 1:
@@ -340,30 +364,30 @@ func (se *SearchExplainer) calculateRecencyBoost(timestamp time.Time) float64 {
 	case daysSince < 30:
 		return 0.1 // Small boost for somewhat recent
 	}
-	
+
 	return 0.0 // No boost for old memories
 }
 
 func (se *SearchExplainer) calculateUsageBoost(chunk types.ConversationChunk) float64 {
 	// Simplified usage boost based on outcome and type
 	boost := 0.0
-	
+
 	// Boost successful outcomes
 	if chunk.Metadata.Outcome == types.OutcomeSuccess {
 		boost += 0.2
 	}
-	
+
 	// Boost solutions and decisions (likely to be referenced)
 	if chunk.Type == types.ChunkTypeSolution || chunk.Type == types.ChunkTypeArchitectureDecision {
 		boost += 0.1
 	}
-	
+
 	return boost
 }
 
 func (se *SearchExplainer) detectMatchedConcepts(chunk types.ConversationChunk, queryTerms []string) []string {
 	concepts := make([]string, 0)
-	
+
 	// Extract concepts from tags
 	for _, tag := range chunk.Metadata.Tags {
 		for _, term := range queryTerms {
@@ -372,7 +396,7 @@ func (se *SearchExplainer) detectMatchedConcepts(chunk types.ConversationChunk, 
 			}
 		}
 	}
-	
+
 	// Extract concepts from content (simplified)
 	content := strings.ToLower(chunk.Content)
 	if strings.Contains(content, "error") || strings.Contains(content, "bug") {
@@ -384,41 +408,62 @@ func (se *SearchExplainer) detectMatchedConcepts(chunk types.ConversationChunk, 
 	if strings.Contains(content, "security") || strings.Contains(content, "vulnerability") {
 		concepts = append(concepts, "security")
 	}
-	
+
 	return concepts
 }
 
 func (se *SearchExplainer) generateRelevanceExplanation(rel RelevanceExplanation, chunk types.ConversationChunk, query types.MemoryQuery) string {
 	explanation := "This result is relevant because: "
-	
+
 	factors := make([]string, 0)
-	
+
 	if len(rel.KeywordMatches) > 0 {
 		factors = append(factors, "it contains matching keywords: "+strings.Join(rel.KeywordMatches, ", "))
 	}
-	
+
 	if rel.SemanticSimilarity > 0.3 {
 		factors = append(factors, "it has high semantic similarity to your query")
 	}
-	
+
 	if rel.RecencyBoost > 0 {
 		factors = append(factors, "it's a recent memory")
 	}
-	
+
 	if rel.ConfidenceScore > 0.7 {
 		factors = append(factors, "it has high confidence")
 	}
-	
+
 	if chunk.Metadata.Outcome == types.OutcomeSuccess {
 		factors = append(factors, "it represents a successful outcome")
 	}
-	
+
+	// Use query parameters to enhance explanation
+	if query.Repository != nil && chunk.Metadata.Repository == *query.Repository {
+		factors = append(factors, fmt.Sprintf("it's from the requested repository: %s", *query.Repository))
+	}
+
+	if len(query.Types) > 0 {
+		for _, queryType := range query.Types {
+			if chunk.Type == queryType {
+				factors = append(factors, fmt.Sprintf("it matches the requested type: %s", queryType))
+				break
+			}
+		}
+	}
+
+	// Check if query mentions specific problem/solution terms
+	queryLower := strings.ToLower(query.Query)
+	if (strings.Contains(queryLower, "error") || strings.Contains(queryLower, "problem")) &&
+		chunk.Metadata.Outcome == types.OutcomeSuccess {
+		factors = append(factors, "it provides a solution to a problem similar to your query")
+	}
+
 	if len(factors) == 0 {
 		explanation += "it has general similarity to your query."
 	} else {
 		explanation += strings.Join(factors, "; ") + "."
 	}
-	
+
 	return explanation
 }
 
@@ -432,7 +477,7 @@ func (se *SearchExplainer) calculateWeightedScore(rel RelevanceExplanation) floa
 		"confidence": 0.10,
 		"quality":    0.05,
 	}
-	
+
 	score := 0.0
 	score += weights["semantic"] * rel.SemanticSimilarity
 	score += weights["keywords"] * (float64(len(rel.KeywordMatches)) / 5.0) // Normalize to max 5 keywords
@@ -440,7 +485,7 @@ func (se *SearchExplainer) calculateWeightedScore(rel RelevanceExplanation) floa
 	score += weights["usage"] * rel.UsageFrequencyBoost
 	score += weights["confidence"] * rel.ConfidenceScore
 	score += weights["quality"] * rel.QualityScore
-	
+
 	return score
 }
 
@@ -450,12 +495,34 @@ func (se *SearchExplainer) findTemporalContext(chunk types.ConversationChunk, ma
 }
 
 func (se *SearchExplainer) explainQuery(query types.MemoryQuery, embeddings []float64, start time.Time) SearchQueryExplanation {
+	// Use embeddings to enhance search strategy explanation
+	searchStrategy := "semantic_vector_search"
+	if len(embeddings) > 0 {
+		searchStrategy = fmt.Sprintf("semantic_vector_search (dim=%d)", len(embeddings))
+	}
+
+	// Calculate embedding quality if available
+	rankingFactors := []string{"semantic_similarity", "keyword_matches", "recency", "confidence", "quality"}
+	if len(embeddings) > 0 {
+		// Check if embeddings have good distribution (not all zeros or too uniform)
+		nonZeroCount := 0
+		for _, val := range embeddings {
+			if val != 0 {
+				nonZeroCount++
+			}
+		}
+		embeddingQuality := float64(nonZeroCount) / float64(len(embeddings))
+		if embeddingQuality > 0.1 {
+			rankingFactors = append(rankingFactors, "vector_quality")
+		}
+	}
+
 	return SearchQueryExplanation{
 		QueryTerms:       se.extractQueryTerms(query.Query),
 		ConceptsDetected: se.detectQueryConcepts(query.Query),
 		FiltersApplied:   se.getAppliedFilters(query),
-		SearchStrategy:   "semantic_vector_search",
-		RankingFactors:   []string{"semantic_similarity", "keyword_matches", "recency", "confidence", "quality"},
+		SearchStrategy:   searchStrategy,
+		RankingFactors:   rankingFactors,
 		ProcessingTime:   time.Since(start),
 	}
 }
@@ -463,7 +530,7 @@ func (se *SearchExplainer) explainQuery(query types.MemoryQuery, embeddings []fl
 func (se *SearchExplainer) detectQueryConcepts(query string) []string {
 	concepts := make([]string, 0)
 	queryLower := strings.ToLower(query)
-	
+
 	conceptKeywords := map[string][]string{
 		"debugging":    {"error", "bug", "issue", "problem", "failed"},
 		"performance":  {"slow", "performance", "optimization", "speed"},
@@ -471,7 +538,7 @@ func (se *SearchExplainer) detectQueryConcepts(query string) []string {
 		"architecture": {"design", "architecture", "pattern", "structure"},
 		"deployment":   {"deploy", "deployment", "release", "production"},
 	}
-	
+
 	for concept, keywords := range conceptKeywords {
 		for _, keyword := range keywords {
 			if strings.Contains(queryLower, keyword) {
@@ -480,17 +547,17 @@ func (se *SearchExplainer) detectQueryConcepts(query string) []string {
 			}
 		}
 	}
-	
+
 	return concepts
 }
 
 func (se *SearchExplainer) getAppliedFilters(query types.MemoryQuery) []string {
 	filters := make([]string, 0)
-	
+
 	if query.Repository != nil && *query.Repository != "" {
 		filters = append(filters, "repository:"+*query.Repository)
 	}
-	
+
 	if len(query.Types) > 0 {
 		typeStrs := make([]string, len(query.Types))
 		for i, t := range query.Types {
@@ -498,11 +565,11 @@ func (se *SearchExplainer) getAppliedFilters(query types.MemoryQuery) []string {
 		}
 		filters = append(filters, "types:"+strings.Join(typeStrs, ","))
 	}
-	
+
 	if query.Recency != types.RecencyAllTime {
 		filters = append(filters, "recency:"+string(query.Recency))
 	}
-	
+
 	return filters
 }
 
@@ -512,20 +579,20 @@ func (se *SearchExplainer) generateCitationID(counter int) string {
 
 func (se *SearchExplainer) generateCitationText(chunk types.ConversationChunk) string {
 	citation := ""
-	
+
 	// Add type and timestamp
 	citation += string(chunk.Type) + " from " + chunk.Timestamp.Format("2006-01-02")
-	
+
 	// Add repository if available
 	if chunk.Metadata.Repository != "" {
 		citation += " (" + chunk.Metadata.Repository + ")"
 	}
-	
+
 	// Add session if available
 	if chunk.SessionID != "" {
 		citation += " [Session: " + chunk.SessionID + "]"
 	}
-	
+
 	return citation
 }
 
@@ -538,6 +605,6 @@ func (se *SearchExplainer) isStopWord(word string) bool {
 		"have": true, "has": true, "had": true, "do": true, "does": true,
 		"did": true, "will": true, "would": true, "could": true, "should": true,
 	}
-	
+
 	return stopWords[word]
 }

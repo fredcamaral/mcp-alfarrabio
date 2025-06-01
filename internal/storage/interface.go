@@ -44,26 +44,26 @@ type VectorStore interface {
 	Close() error
 
 	// Additional methods for service compatibility
-	
+
 	// GetAllChunks retrieves all chunks (for backup operations)
 	GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error)
-	
+
 	// DeleteCollection deletes an entire collection
 	DeleteCollection(ctx context.Context, collection string) error
-	
+
 	// ListCollections lists all available collections
 	ListCollections(ctx context.Context) ([]string, error)
-	
+
 	// FindSimilar finds similar chunks based on content (simplified interface)
 	FindSimilar(ctx context.Context, content string, chunkType *types.ChunkType, limit int) ([]types.ConversationChunk, error)
-	
+
 	// StoreChunk is an alias for Store for backward compatibility
 	StoreChunk(ctx context.Context, chunk types.ConversationChunk) error
-	
+
 	// Batch operations
 	BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error)
 	BatchDelete(ctx context.Context, ids []string) (*BatchResult, error)
-	
+
 	// Relationship management
 	StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error)
 	GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error)

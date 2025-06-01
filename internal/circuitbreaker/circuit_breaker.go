@@ -137,7 +137,8 @@ func (cb *CircuitBreaker) canExecute() error {
 		current := atomic.AddInt32(&cb.halfOpenRequests, 1)
 		// Bounds check to prevent integer overflow
 		if cb.config.MaxConcurrentRequests > 0 && cb.config.MaxConcurrentRequests <= math.MaxInt32 {
-			if current > int32(cb.config.MaxConcurrentRequests) { //nolint:gosec // Bounds checked above
+			maxRequests := int32(cb.config.MaxConcurrentRequests) // #nosec G115 Safe conversion: bounds checked above
+			if current > maxRequests {
 				atomic.AddInt32(&cb.halfOpenRequests, -1)
 				return ErrTooManyConcurrentRequests
 			}
@@ -183,7 +184,8 @@ func (cb *CircuitBreaker) recordSuccess() {
 		successes := atomic.AddInt32(&cb.consecutiveSuccesses, 1)
 		// Bounds check to prevent integer overflow
 		if cb.config.SuccessThreshold > 0 && cb.config.SuccessThreshold <= math.MaxInt32 {
-			if successes >= int32(cb.config.SuccessThreshold) { //nolint:gosec // Bounds checked above
+			successThreshold := int32(cb.config.SuccessThreshold) // #nosec G115 Safe conversion: bounds checked above
+			if successes >= successThreshold {
 				cb.transitionTo(StateClosed)
 			}
 		}
@@ -204,7 +206,8 @@ func (cb *CircuitBreaker) recordFailure() {
 		failures := atomic.AddInt32(&cb.consecutiveFailures, 1)
 		// Bounds check to prevent integer overflow
 		if cb.config.FailureThreshold > 0 && cb.config.FailureThreshold <= math.MaxInt32 {
-			if failures >= int32(cb.config.FailureThreshold) { //nolint:gosec // Bounds checked above
+			failureThreshold := int32(cb.config.FailureThreshold) // #nosec G115 Safe conversion: bounds checked above
+			if failures >= failureThreshold {
 				cb.transitionTo(StateOpen)
 			}
 		}
@@ -231,7 +234,8 @@ func (cb *CircuitBreaker) shouldTransitionToHalfOpen() bool {
 // transitionTo transitions to a new state
 func (cb *CircuitBreaker) transitionTo(newState State) {
 	// Safe conversion - State values are constants 0, 1, 2
-	oldState := State(atomic.SwapInt32(&cb.state, int32(newState))) //nolint:gosec // State values are constants
+	newStateInt32 := int32(newState) // #nosec G115 Safe conversion: State values are constants 0, 1, 2
+	oldState := State(atomic.SwapInt32(&cb.state, newStateInt32))
 
 	if oldState == newState {
 		return

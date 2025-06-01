@@ -11,11 +11,11 @@ import (
 // TemplateField represents a field in a memory template
 type TemplateField struct {
 	Name         string      `json:"name"`
-	Type         string      `json:"type"`          // string, number, boolean, array, object
+	Type         string      `json:"type"` // string, number, boolean, array, object
 	Required     bool        `json:"required"`
 	Description  string      `json:"description"`
 	DefaultValue interface{} `json:"default_value,omitempty"`
-	Options      []string    `json:"options,omitempty"`     // For enum-like fields
+	Options      []string    `json:"options,omitempty"` // For enum-like fields
 	Validation   *Validation `json:"validation,omitempty"`
 }
 
@@ -25,24 +25,24 @@ type Validation struct {
 	MaxLength *int     `json:"max_length,omitempty"`
 	Min       *float64 `json:"min,omitempty"`
 	Max       *float64 `json:"max,omitempty"`
-	Pattern   *string  `json:"pattern,omitempty"`   // Regex pattern
-	Custom    *string  `json:"custom,omitempty"`    // Custom validation function name
+	Pattern   *string  `json:"pattern,omitempty"` // Regex pattern
+	Custom    *string  `json:"custom,omitempty"`  // Custom validation function name
 }
 
 // MemoryTemplate defines the structure for creating structured memories
 type MemoryTemplate struct {
-	ID               string          `json:"id"`
-	Name             string          `json:"name"`
-	Description      string          `json:"description"`
-	Version          string          `json:"version"`
-	ChunkType        types.ChunkType `json:"chunk_type"`
-	RequiredFields   []TemplateField `json:"required_fields"`
-	OptionalFields   []TemplateField `json:"optional_fields"`
-	AutoTags         []string        `json:"auto_tags"`         // Tags automatically applied
-	DefaultMetadata  map[string]interface{} `json:"default_metadata,omitempty"`
-	CreatedAt        time.Time       `json:"created_at"`
-	UpdatedAt        time.Time       `json:"updated_at"`
-	UsageCount       int             `json:"usage_count"`
+	ID              string                 `json:"id"`
+	Name            string                 `json:"name"`
+	Description     string                 `json:"description"`
+	Version         string                 `json:"version"`
+	ChunkType       types.ChunkType        `json:"chunk_type"`
+	RequiredFields  []TemplateField        `json:"required_fields"`
+	OptionalFields  []TemplateField        `json:"optional_fields"`
+	AutoTags        []string               `json:"auto_tags"` // Tags automatically applied
+	DefaultMetadata map[string]interface{} `json:"default_metadata,omitempty"`
+	CreatedAt       time.Time              `json:"created_at"`
+	UpdatedAt       time.Time              `json:"updated_at"`
+	UsageCount      int                    `json:"usage_count"`
 }
 
 // TemplateInstance represents a completed template with user data
@@ -55,9 +55,9 @@ type TemplateInstance struct {
 
 // ValidationResult represents the result of template validation
 type ValidationResult struct {
-	Valid   bool                    `json:"valid"`
-	Errors  []ValidationError       `json:"errors,omitempty"`
-	Warnings []ValidationWarning    `json:"warnings,omitempty"`
+	Valid    bool                `json:"valid"`
+	Errors   []ValidationError   `json:"errors,omitempty"`
+	Warnings []ValidationWarning `json:"warnings,omitempty"`
 }
 
 // ValidationError represents a validation error
@@ -84,10 +84,10 @@ func NewTemplateManager() *TemplateManager {
 	tm := &TemplateManager{
 		templates: make(map[string]*MemoryTemplate),
 	}
-	
+
 	// Load built-in templates
 	tm.loadBuiltinTemplates()
-	
+
 	return tm
 }
 
@@ -103,7 +103,7 @@ func (tm *TemplateManager) loadBuiltinTemplates() {
 		tm.createPerformanceTemplate(),
 		tm.createSecurityTemplate(),
 	}
-	
+
 	for _, template := range builtinTemplates {
 		tm.templates[template.ID] = template
 	}
@@ -140,20 +140,20 @@ func (tm *TemplateManager) ValidateInstance(templateID string, fields map[string
 			}},
 		}
 	}
-	
+
 	result := &ValidationResult{
 		Valid:    true,
 		Errors:   []ValidationError{},
 		Warnings: []ValidationWarning{},
 	}
-	
+
 	// Validate required fields
 	for _, field := range template.RequiredFields {
 		if err := tm.validateField(field, fields[field.Name], true, result); err != nil {
 			result.Valid = false
 		}
 	}
-	
+
 	// Validate optional fields (if provided)
 	for _, field := range template.OptionalFields {
 		if value, exists := fields[field.Name]; exists {
@@ -163,7 +163,7 @@ func (tm *TemplateManager) ValidateInstance(templateID string, fields map[string
 			}
 		}
 	}
-	
+
 	// Check for unknown fields
 	allKnownFields := make(map[string]bool)
 	for _, field := range template.RequiredFields {
@@ -172,7 +172,7 @@ func (tm *TemplateManager) ValidateInstance(templateID string, fields map[string
 	for _, field := range template.OptionalFields {
 		allKnownFields[field.Name] = true
 	}
-	
+
 	for fieldName := range fields {
 		if !allKnownFields[fieldName] {
 			result.Warnings = append(result.Warnings, ValidationWarning{
@@ -182,7 +182,7 @@ func (tm *TemplateManager) ValidateInstance(templateID string, fields map[string
 			})
 		}
 	}
-	
+
 	return result
 }
 
@@ -192,19 +192,19 @@ func (tm *TemplateManager) CreateChunkFromTemplate(templateID, sessionID string,
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Validate the instance
 	validation := tm.ValidateInstance(templateID, fields)
 	if !validation.Valid {
 		return nil, fmt.Errorf("template validation failed: %v", validation.Errors)
 	}
-	
+
 	// Build content from template fields
 	content := tm.buildContentFromTemplate(template, fields)
-	
+
 	// Apply auto tags
 	metadata.Tags = append(metadata.Tags, template.AutoTags...)
-	
+
 	// Apply default metadata
 	if template.DefaultMetadata != nil {
 		if metadata.ExtendedMetadata == nil {
@@ -216,7 +216,7 @@ func (tm *TemplateManager) CreateChunkFromTemplate(templateID, sessionID string,
 			}
 		}
 	}
-	
+
 	// Store template information in metadata
 	if metadata.ExtendedMetadata == nil {
 		metadata.ExtendedMetadata = make(map[string]interface{})
@@ -224,17 +224,17 @@ func (tm *TemplateManager) CreateChunkFromTemplate(templateID, sessionID string,
 	metadata.ExtendedMetadata["template_id"] = templateID
 	metadata.ExtendedMetadata["template_version"] = template.Version
 	metadata.ExtendedMetadata["template_fields"] = fields
-	
+
 	// Create the chunk
 	chunk, err := types.NewConversationChunk(sessionID, content, template.ChunkType, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chunk: %w", err)
 	}
-	
+
 	// Update template usage count
 	template.UsageCount++
 	template.UpdatedAt = time.Now().UTC()
-	
+
 	return chunk, nil
 }
 
@@ -249,22 +249,22 @@ func (tm *TemplateManager) validateField(field TemplateField, value interface{},
 		})
 		return fmt.Errorf("required field missing: %s", field.Name)
 	}
-	
+
 	// Skip validation if field is not provided and not required
 	if value == nil {
 		return nil
 	}
-	
+
 	// Type validation
 	if err := tm.validateFieldType(field, value, result); err != nil {
 		return err
 	}
-	
+
 	// Custom validation rules
 	if field.Validation != nil {
 		tm.validateFieldRules(field, value, result)
 	}
-	
+
 	return nil
 }
 
@@ -320,14 +320,14 @@ func (tm *TemplateManager) validateFieldType(field TemplateField, value interfac
 			return fmt.Errorf("invalid type for field %s", field.Name)
 		}
 	}
-	
+
 	return nil
 }
 
 // validateFieldRules validates custom field rules
 func (tm *TemplateManager) validateFieldRules(field TemplateField, value interface{}, result *ValidationResult) {
 	validation := field.Validation
-	
+
 	// String length validation
 	if strValue, ok := value.(string); ok {
 		if validation.MinLength != nil && len(strValue) < *validation.MinLength {
@@ -345,7 +345,7 @@ func (tm *TemplateManager) validateFieldRules(field TemplateField, value interfa
 			})
 		}
 	}
-	
+
 	// Number range validation
 	if numValue, ok := tm.getNumericValue(value); ok {
 		if validation.Min != nil && numValue < *validation.Min {
@@ -384,10 +384,10 @@ func (tm *TemplateManager) getNumericValue(value interface{}) (float64, bool) {
 // buildContentFromTemplate builds content string from template fields
 func (tm *TemplateManager) buildContentFromTemplate(template *MemoryTemplate, fields map[string]interface{}) string {
 	var content strings.Builder
-	
+
 	// Add template header
 	content.WriteString(fmt.Sprintf("# %s\n\n", template.Name))
-	
+
 	// Add required fields
 	if len(template.RequiredFields) > 0 {
 		for _, field := range template.RequiredFields {
@@ -396,12 +396,12 @@ func (tm *TemplateManager) buildContentFromTemplate(template *MemoryTemplate, fi
 			}
 		}
 	}
-	
+
 	// Add optional fields
 	if len(template.OptionalFields) > 0 {
 		hasOptionalData := false
 		var optionalContent strings.Builder
-		
+
 		for _, field := range template.OptionalFields {
 			if value, exists := fields[field.Name]; exists && value != nil {
 				if !hasOptionalData {
@@ -411,15 +411,15 @@ func (tm *TemplateManager) buildContentFromTemplate(template *MemoryTemplate, fi
 				optionalContent.WriteString(fmt.Sprintf("**%s**: %s\n\n", field.Description, tm.formatFieldValue(value)))
 			}
 		}
-		
+
 		if hasOptionalData {
 			content.WriteString(optionalContent.String())
 		}
 	}
-	
+
 	// Add timestamp
 	content.WriteString(fmt.Sprintf("---\n*Generated from template %s at %s*", template.Name, time.Now().Format(time.RFC3339)))
-	
+
 	return content.String()
 }
 
@@ -464,7 +464,7 @@ func (tm *TemplateManager) createProblemTemplate() *MemoryTemplate {
 			},
 			{
 				Name:        "impact",
-				Type:        "string", 
+				Type:        "string",
 				Required:    true,
 				Description: "How does this affect the system/users?",
 				Options:     []string{"low", "medium", "high", "critical"},

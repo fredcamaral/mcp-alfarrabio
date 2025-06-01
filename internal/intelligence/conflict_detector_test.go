@@ -96,10 +96,10 @@ func TestConflictDetector_DetectConflicts(t *testing.T) {
 		}
 
 		t.Logf("Detected %d architectural conflicts", result.ConflictsFound)
-		
+
 		// Log details of detected conflicts for debugging
 		for i, conflict := range result.Conflicts {
-			t.Logf("Conflict %d: Type=%s, Severity=%s, Confidence=%.2f", 
+			t.Logf("Conflict %d: Type=%s, Severity=%s, Confidence=%.2f",
 				i+1, conflict.Type, conflict.Severity, conflict.Confidence)
 		}
 	})

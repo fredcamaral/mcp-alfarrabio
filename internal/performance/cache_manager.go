@@ -3,6 +3,7 @@ package performance
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -11,23 +12,23 @@ import (
 type CacheLevel string
 
 const (
-	CacheLevelL1        CacheLevel = "l1"        // In-memory, fastest
-	CacheLevelL2        CacheLevel = "l2"        // Distributed (Redis-like)
-	CacheLevelL3        CacheLevel = "l3"        // Persistent storage
-	CacheLevelBridge    CacheLevel = "bridge"    // Cross-service cache
-	CacheLevelCDN       CacheLevel = "cdn"       // Content delivery cache
+	CacheLevelL1     CacheLevel = "l1"     // In-memory, fastest
+	CacheLevelL2     CacheLevel = "l2"     // Distributed (Redis-like)
+	CacheLevelL3     CacheLevel = "l3"     // Persistent storage
+	CacheLevelBridge CacheLevel = "bridge" // Cross-service cache
+	CacheLevelCDN    CacheLevel = "cdn"    // Content delivery cache
 )
 
 // CacheStrategy defines caching strategies for different data types
 type CacheStrategy string
 
 const (
-	StrategyWriteThrough     CacheStrategy = "write_through"
-	StrategyWriteBack        CacheStrategy = "write_back"
-	StrategyWriteAround      CacheStrategy = "write_around"
-	StrategyReadThrough      CacheStrategy = "read_through"
-	StrategyRefreshAhead     CacheStrategy = "refresh_ahead"
-	StrategyAdaptive         CacheStrategy = "adaptive"
+	StrategyWriteThrough CacheStrategy = "write_through"
+	StrategyWriteBack    CacheStrategy = "write_back"
+	StrategyWriteAround  CacheStrategy = "write_around"
+	StrategyReadThrough  CacheStrategy = "read_through"
+	StrategyRefreshAhead CacheStrategy = "refresh_ahead"
+	StrategyAdaptive     CacheStrategy = "adaptive"
 )
 
 // CachePolicy defines cache behavior policies
@@ -49,149 +50,134 @@ type CachePolicy struct {
 
 // CacheEntry represents a cached item with metadata
 type CacheEntry struct {
-	Key           string                 `json:"key"`
-	Value         interface{}            `json:"value"`
-	Metadata      map[string]interface{} `json:"metadata"`
-	CreatedAt     time.Time              `json:"created_at"`
-	LastAccessed  time.Time              `json:"last_accessed"`
-	LastModified  time.Time              `json:"last_modified"`
-	AccessCount   int64                  `json:"access_count"`
-	Size          int64                  `json:"size"`
-	TTL           time.Duration          `json:"ttl"`
-	Level         CacheLevel             `json:"level"`
-	Tags          []string               `json:"tags"`
-	Priority      int                    `json:"priority"`
-	Version       int64                  `json:"version"`
-	Checksum      string                 `json:"checksum"`
-	Compressed    bool                   `json:"compressed"`
-	Encrypted     bool                   `json:"encrypted"`
-	Dependencies  []string               `json:"dependencies"`
+	Key          string                 `json:"key"`
+	Value        interface{}            `json:"value"`
+	Metadata     map[string]interface{} `json:"metadata"`
+	CreatedAt    time.Time              `json:"created_at"`
+	LastAccessed time.Time              `json:"last_accessed"`
+	LastModified time.Time              `json:"last_modified"`
+	AccessCount  int64                  `json:"access_count"`
+	Size         int64                  `json:"size"`
+	TTL          time.Duration          `json:"ttl"`
+	Level        CacheLevel             `json:"level"`
+	Tags         []string               `json:"tags"`
+	Priority     int                    `json:"priority"`
+	Version      int64                  `json:"version"`
+	Checksum     string                 `json:"checksum"`
+	Compressed   bool                   `json:"compressed"`
+	Encrypted    bool                   `json:"encrypted"`
+	Dependencies []string               `json:"dependencies"`
 }
 
 // CacheStatistics holds detailed cache performance metrics
 type CacheStatistics struct {
-	Level              CacheLevel    `json:"level"`
-	TotalOperations    int64         `json:"total_operations"`
-	Hits               int64         `json:"hits"`
-	Misses             int64         `json:"misses"`
-	Evictions          int64         `json:"evictions"`
-	Expires            int64         `json:"expires"`
-	Writes             int64         `json:"writes"`
-	Reads              int64         `json:"reads"`
-	Deletes            int64         `json:"deletes"`
-	HitRate            float64       `json:"hit_rate"`
-	MissRate           float64       `json:"miss_rate"`
-	EvictionRate       float64       `json:"eviction_rate"`
-	AverageLatency     time.Duration `json:"average_latency"`
-	P95Latency         time.Duration `json:"p95_latency"`
-	P99Latency         time.Duration `json:"p99_latency"`
-	ThroughputPerSec   float64       `json:"throughput_per_sec"`
-	MemoryUsage        int64         `json:"memory_usage"`
-	MaxMemoryUsage     int64         `json:"max_memory_usage"`
-	CompressionRatio   float64       `json:"compression_ratio"`
-	NetworkBytesIn     int64         `json:"network_bytes_in"`
-	NetworkBytesOut    int64         `json:"network_bytes_out"`
-	ErrorCount         int64         `json:"error_count"`
-	LastError          string        `json:"last_error"`
-	LastUpdated        time.Time     `json:"last_updated"`
-	WindowStart        time.Time     `json:"window_start"`
-	WindowDuration     time.Duration `json:"window_duration"`
+	Level            CacheLevel    `json:"level"`
+	TotalOperations  int64         `json:"total_operations"`
+	Hits             int64         `json:"hits"`
+	Misses           int64         `json:"misses"`
+	Evictions        int64         `json:"evictions"`
+	Expires          int64         `json:"expires"`
+	Writes           int64         `json:"writes"`
+	Reads            int64         `json:"reads"`
+	Deletes          int64         `json:"deletes"`
+	HitRate          float64       `json:"hit_rate"`
+	MissRate         float64       `json:"miss_rate"`
+	EvictionRate     float64       `json:"eviction_rate"`
+	AverageLatency   time.Duration `json:"average_latency"`
+	P95Latency       time.Duration `json:"p95_latency"`
+	P99Latency       time.Duration `json:"p99_latency"`
+	ThroughputPerSec float64       `json:"throughput_per_sec"`
+	MemoryUsage      int64         `json:"memory_usage"`
+	MaxMemoryUsage   int64         `json:"max_memory_usage"`
+	CompressionRatio float64       `json:"compression_ratio"`
+	NetworkBytesIn   int64         `json:"network_bytes_in"`
+	NetworkBytesOut  int64         `json:"network_bytes_out"`
+	ErrorCount       int64         `json:"error_count"`
+	LastError        string        `json:"last_error"`
+	LastUpdated      time.Time     `json:"last_updated"`
+	WindowStart      time.Time     `json:"window_start"`
+	WindowDuration   time.Duration `json:"window_duration"`
 }
 
 // CacheManager manages multi-level caching with advanced features
 type CacheManager struct {
 	// Cache levels
-	l1Cache  *AdvancedCache
-	l2Cache  *DistributedCache
-	l3Cache  *PersistentCache
-	
+	l1Cache *AdvancedCache
+	l2Cache *DistributedCache
+	l3Cache *PersistentCache
+
 	// Configuration
-	policies        map[string]*CachePolicy
-	defaultPolicy   *CachePolicy
-	globalTTL       time.Duration
-	maxTotalMemory  int64
-	
+	policies       map[string]*CachePolicy
+	defaultPolicy  *CachePolicy
+	globalTTL      time.Duration
+	maxTotalMemory int64
+
 	// Statistics and monitoring
 	statistics      map[CacheLevel]*CacheStatistics
 	statsMutex      sync.RWMutex
 	metricsInterval time.Duration
-	
+
 	// Coordination
 	coherencyManager *CacheCoherencyManager
 	prefetcher       *CachePrefetcher
 	warmupManager    *CacheWarmupManager
-	
+
 	// Background operations
 	ctx             context.Context
 	cancel          context.CancelFunc
 	backgroundWG    sync.WaitGroup
 	cleanupInterval time.Duration
-	
+
 	// Configuration flags
-	enabled                bool
-	distributedEnabled     bool
-	compressionEnabled     bool
-	encryptionEnabled      bool
-	prefetchingEnabled     bool
-	adaptiveTTLEnabled     bool
-	crossLevelEviction     bool
-	
+	enabled            bool
+	distributedEnabled bool
+	compressionEnabled bool
+	encryptionEnabled  bool
+	prefetchingEnabled bool
+	adaptiveTTLEnabled bool
+	crossLevelEviction bool
+
 	// Performance tracking
-	totalMemoryUsage       int64
-	operationLatencies     []time.Duration
-	latencyMutex          sync.Mutex
+	totalMemoryUsage   int64
+	operationLatencies []time.Duration
+	latencyMutex       sync.Mutex
 }
 
 // AdvancedCache represents the L1 (in-memory) cache with advanced features
 type AdvancedCache struct {
-	data                 map[string]*CacheEntry
-	mutex               sync.RWMutex
-	policy              *CachePolicy
-	maxSize             int
-	currentSize         int64
-	maxMemory           int64
-	currentMemory       int64
-	accessOrder         []string
-	sizeIndex           map[string]int64
-	priorityQueue       []*CacheEntry
-	partitions          int
-	partitionedData     []map[string]*CacheEntry
-	partitionMutexes    []sync.RWMutex
-	hotKeys             map[string]int64
-	adaptiveThresholds  map[string]float64
-	compressionEnabled  bool
-	statisticsEnabled   bool
+	data               map[string]*CacheEntry
+	mutex              sync.RWMutex
+	policy             *CachePolicy
+	maxSize            int
+	currentSize        int64
+	hotKeys            map[string]int64
+	adaptiveThresholds map[string]float64
+	compressionEnabled bool
+	statisticsEnabled  bool
 }
 
 // DistributedCache represents the L2 (distributed) cache layer
 type DistributedCache struct {
-	nodes               []CacheNode
-	hashRing            *ConsistentHashRing
-	replicationFactor   int
-	consistencyLevel    string
-	partitionCount      int
-	readPreference      string
-	writePreference     string
-	conflictResolution  string
-	networkTimeout      time.Duration
-	retryPolicy         *RetryPolicy
-	compressionEnabled  bool
-	encryptionEnabled   bool
-	statistics          *CacheStatistics
-	mutex              sync.RWMutex
+	nodes              []CacheNode
+	hashRing           *ConsistentHashRing
+	replicationFactor  int
+	consistencyLevel   string
+	partitionCount     int
+	readPreference     string
+	writePreference    string
+	conflictResolution string
+	networkTimeout     time.Duration
+	compressionEnabled bool
+	encryptionEnabled  bool
+	statistics         *CacheStatistics
 }
 
 // PersistentCache represents the L3 (persistent) cache layer
 type PersistentCache struct {
-	storageBackend      CacheStorageBackend
-	indexManager        *CacheIndexManager
 	compressionLevel    int
-	encryptionKey       []byte
 	maxFileSize         int64
 	compactionThreshold float64
 	writeBuffer         map[string]*CacheEntry
-	writeBufferSize     int64
-	writeBufferMutex    sync.Mutex
 	flushInterval       time.Duration
 	statistics          *CacheStatistics
 	backgroundSync      bool
@@ -199,22 +185,21 @@ type PersistentCache struct {
 
 // CacheNode represents a node in the distributed cache
 type CacheNode struct {
-	ID          string `json:"id"`
-	Address     string `json:"address"`
-	Weight      int    `json:"weight"`
-	IsHealthy   bool   `json:"is_healthy"`
-	LastPing    time.Time `json:"last_ping"`
-	Latency     time.Duration `json:"latency"`
-	Load        float64 `json:"load"`
-	Version     string `json:"version"`
-	Capabilities []string `json:"capabilities"`
+	ID           string        `json:"id"`
+	Address      string        `json:"address"`
+	Weight       int           `json:"weight"`
+	IsHealthy    bool          `json:"is_healthy"`
+	LastPing     time.Time     `json:"last_ping"`
+	Latency      time.Duration `json:"latency"`
+	Load         float64       `json:"load"`
+	Version      string        `json:"version"`
+	Capabilities []string      `json:"capabilities"`
 }
 
 // ConsistentHashRing provides consistent hashing for distributed caching
 type ConsistentHashRing struct {
 	nodes        map[uint32]string
 	sortedHashes []uint32
-	mutex        sync.RWMutex
 	replicas     int
 }
 
@@ -228,65 +213,52 @@ type CacheStorageBackend interface {
 	GetStats() map[string]interface{}
 }
 
-// CacheIndexManager manages indexes for fast lookups
-type CacheIndexManager struct {
-	primaryIndex    map[string]string
-	tagIndex        map[string][]string
-	sizeIndex       map[int64][]string
-	timestampIndex  map[time.Time][]string
-	mutex          sync.RWMutex
-}
-
 // CacheCoherencyManager ensures cache consistency across levels
 type CacheCoherencyManager struct {
 	invalidationQueue chan string
 	subscribers       map[string][]chan string
-	mutex            sync.RWMutex
-	enabled          bool
+	enabled           bool
 }
 
 // CachePrefetcher implements intelligent cache prefetching
 type CachePrefetcher struct {
-	patterns          map[string]*AccessPattern
-	predictions       map[string][]string
-	threshold         float64
-	enabled           bool
-	learningEnabled   bool
-	mutex            sync.RWMutex
+	patterns        map[string]*AccessPattern
+	predictions     map[string][]string
+	threshold       float64
+	enabled         bool
+	learningEnabled bool
+	mutex           sync.RWMutex
 }
 
 // AccessPattern represents access patterns for prefetching
 type AccessPattern struct {
-	Key           string    `json:"key"`
-	Frequency     float64   `json:"frequency"`
-	LastAccess    time.Time `json:"last_access"`
-	Predictors    []string  `json:"predictors"`
-	Confidence    float64   `json:"confidence"`
-	TimeOfDay     []int     `json:"time_of_day"`
-	DayOfWeek     []int     `json:"day_of_week"`
-	Seasonality   []float64 `json:"seasonality"`
+	Key         string    `json:"key"`
+	Frequency   float64   `json:"frequency"`
+	LastAccess  time.Time `json:"last_access"`
+	Predictors  []string  `json:"predictors"`
+	Confidence  float64   `json:"confidence"`
+	TimeOfDay   []int     `json:"time_of_day"`
+	DayOfWeek   []int     `json:"day_of_week"`
+	Seasonality []float64 `json:"seasonality"`
 }
 
 // CacheWarmupManager handles cache warming strategies
 type CacheWarmupManager struct {
-	strategies        map[string]*WarmupStrategy
-	currentStrategy   *WarmupStrategy
-	enabled          bool
-	warmupInProgress bool
-	mutex           sync.RWMutex
+	strategies map[string]*WarmupStrategy
+	enabled    bool
 }
 
 // WarmupStrategy defines cache warming behavior
 type WarmupStrategy struct {
-	Name         string        `json:"name"`
-	DataSources  []string      `json:"data_sources"`
-	Priority     int           `json:"priority"`
-	BatchSize    int           `json:"batch_size"`
-	Concurrency  int           `json:"concurrency"`
-	Timeout      time.Duration `json:"timeout"`
-	Schedule     string        `json:"schedule"`
-	Filters      []string      `json:"filters"`
-	Enabled      bool          `json:"enabled"`
+	Name        string        `json:"name"`
+	DataSources []string      `json:"data_sources"`
+	Priority    int           `json:"priority"`
+	BatchSize   int           `json:"batch_size"`
+	Concurrency int           `json:"concurrency"`
+	Timeout     time.Duration `json:"timeout"`
+	Schedule    string        `json:"schedule"`
+	Filters     []string      `json:"filters"`
+	Enabled     bool          `json:"enabled"`
 }
 
 // RetryPolicy defines retry behavior for distributed operations
@@ -302,7 +274,7 @@ type RetryPolicy struct {
 // NewCacheManager creates a new multi-level cache manager
 func NewCacheManager(ctx context.Context) *CacheManager {
 	cacheCtx, cancel := context.WithCancel(ctx)
-	
+
 	defaultPolicy := &CachePolicy{
 		Name:              "default",
 		TTL:               30 * time.Minute,
@@ -318,48 +290,48 @@ func NewCacheManager(ctx context.Context) *CacheManager {
 		WarmupEnabled:     true,
 		StatisticsEnabled: true,
 	}
-	
+
 	cm := &CacheManager{
-		l1Cache:              NewAdvancedCache(defaultPolicy),
-		l2Cache:              NewDistributedCache(defaultPolicy),
-		l3Cache:              NewPersistentCache(defaultPolicy),
-		policies:             make(map[string]*CachePolicy),
-		defaultPolicy:        defaultPolicy,
-		globalTTL:            getEnvDurationMinutes("MCP_CACHE_GLOBAL_TTL_MINUTES", 60),
-		maxTotalMemory:       getEnvInt64("MCP_CACHE_MAX_MEMORY_MB", 1024) * 1024 * 1024, // Convert MB to bytes
-		statistics:           make(map[CacheLevel]*CacheStatistics),
-		metricsInterval:      getEnvDurationSeconds("MCP_CACHE_METRICS_INTERVAL_SECONDS", 30),
-		ctx:                  cacheCtx,
-		cancel:               cancel,
-		cleanupInterval:      getEnvDurationMinutes("MCP_CACHE_CLEANUP_INTERVAL_MINUTES", 10),
-		enabled:              true,
-		distributedEnabled:   getEnvBool("MCP_CACHE_DISTRIBUTED_ENABLED", true),
-		compressionEnabled:   getEnvBool("MCP_CACHE_COMPRESSION_ENABLED", true),
-		encryptionEnabled:    getEnvBool("MCP_CACHE_ENCRYPTION_ENABLED", false),
-		prefetchingEnabled:   getEnvBool("MCP_CACHE_PREFETCH_ENABLED", true),
-		adaptiveTTLEnabled:   getEnvBool("MCP_CACHE_ADAPTIVE_TTL_ENABLED", true),
-		crossLevelEviction:   getEnvBool("MCP_CACHE_CROSS_LEVEL_EVICTION_ENABLED", true),
-		operationLatencies:   make([]time.Duration, 0, 1000),
+		l1Cache:            NewAdvancedCache(defaultPolicy),
+		l2Cache:            NewDistributedCache(defaultPolicy),
+		l3Cache:            NewPersistentCache(defaultPolicy),
+		policies:           make(map[string]*CachePolicy),
+		defaultPolicy:      defaultPolicy,
+		globalTTL:          getEnvDurationMinutes("MCP_CACHE_GLOBAL_TTL_MINUTES", 60),
+		maxTotalMemory:     getEnvInt64("MCP_CACHE_MAX_MEMORY_MB", 1024) * 1024 * 1024, // Convert MB to bytes
+		statistics:         make(map[CacheLevel]*CacheStatistics),
+		metricsInterval:    getEnvDurationSeconds("MCP_CACHE_METRICS_INTERVAL_SECONDS", 30),
+		ctx:                cacheCtx,
+		cancel:             cancel,
+		cleanupInterval:    getEnvDurationMinutes("MCP_CACHE_CLEANUP_INTERVAL_MINUTES", 10),
+		enabled:            true,
+		distributedEnabled: getEnvBool("MCP_CACHE_DISTRIBUTED_ENABLED", true),
+		compressionEnabled: getEnvBool("MCP_CACHE_COMPRESSION_ENABLED", true),
+		encryptionEnabled:  getEnvBool("MCP_CACHE_ENCRYPTION_ENABLED", false),
+		prefetchingEnabled: getEnvBool("MCP_CACHE_PREFETCH_ENABLED", true),
+		adaptiveTTLEnabled: getEnvBool("MCP_CACHE_ADAPTIVE_TTL_ENABLED", true),
+		crossLevelEviction: getEnvBool("MCP_CACHE_CROSS_LEVEL_EVICTION_ENABLED", true),
+		operationLatencies: make([]time.Duration, 0, 1000),
 	}
-	
+
 	// Initialize coherency manager
 	cm.coherencyManager = NewCacheCoherencyManager()
-	
+
 	// Initialize prefetcher
 	cm.prefetcher = NewCachePrefetcher(0.8)
-	
+
 	// Initialize warmup manager
 	cm.warmupManager = NewCacheWarmupManager()
-	
+
 	// Initialize statistics for all levels
 	cm.initializeStatistics()
-	
+
 	// Register default policy
 	cm.policies["default"] = defaultPolicy
-	
+
 	// Start background operations
 	cm.startBackgroundOperations()
-	
+
 	return cm
 }
 
@@ -368,12 +340,12 @@ func (cm *CacheManager) Get(key string) (interface{}, bool) {
 	if !cm.enabled {
 		return nil, false
 	}
-	
+
 	startTime := time.Now()
 	defer func() {
 		cm.recordOperationLatency(time.Since(startTime))
 	}()
-	
+
 	// Try L1 cache first
 	if value, found := cm.l1Cache.Get(key); found {
 		cm.updateStatistics(CacheLevelL1, "hit", time.Since(startTime))
@@ -381,7 +353,7 @@ func (cm *CacheManager) Get(key string) (interface{}, bool) {
 		return value, true
 	}
 	cm.updateStatistics(CacheLevelL1, "miss", time.Since(startTime))
-	
+
 	// Try L2 cache
 	if cm.distributedEnabled {
 		if value, found := cm.l2Cache.Get(key); found {
@@ -393,7 +365,7 @@ func (cm *CacheManager) Get(key string) (interface{}, bool) {
 		}
 		cm.updateStatistics(CacheLevelL2, "miss", time.Since(startTime))
 	}
-	
+
 	// Try L3 cache
 	if value, found := cm.l3Cache.Get(key); found {
 		cm.updateStatistics(CacheLevelL3, "hit", time.Since(startTime))
@@ -406,12 +378,12 @@ func (cm *CacheManager) Get(key string) (interface{}, bool) {
 		return value, true
 	}
 	cm.updateStatistics(CacheLevelL3, "miss", time.Since(startTime))
-	
+
 	// Cache miss - trigger prefetching if enabled
 	if cm.prefetchingEnabled {
 		go cm.prefetcher.HandleMiss(key)
 	}
-	
+
 	return nil, false
 }
 
@@ -420,22 +392,22 @@ func (cm *CacheManager) Set(key string, value interface{}, policyName ...string)
 	if !cm.enabled {
 		return nil
 	}
-	
+
 	startTime := time.Now()
 	defer func() {
 		cm.recordOperationLatency(time.Since(startTime))
 	}()
-	
+
 	policy := cm.defaultPolicy
 	if len(policyName) > 0 && policyName[0] != "" {
 		if p, exists := cm.policies[policyName[0]]; exists {
 			policy = p
 		}
 	}
-	
+
 	// Record access pattern
 	cm.recordAccess(key)
-	
+
 	switch policy.Strategy {
 	case StrategyWriteThrough:
 		return cm.writeThrough(key, value, policy)
@@ -458,43 +430,53 @@ func (cm *CacheManager) Set(key string, value interface{}, policyName ...string)
 func (cm *CacheManager) writeThrough(key string, value interface{}, policy *CachePolicy) error {
 	// Write to all levels synchronously
 	cm.l1Cache.Set(key, value, policy)
-	
+
 	if cm.distributedEnabled {
 		if err := cm.l2Cache.Set(key, value, policy); err != nil {
-			// Log error but don't fail
+			// Return error for L2 failures in write-through mode
+			return fmt.Errorf("failed to write to L2 cache: %w", err)
 		}
 	}
-	
+
 	if err := cm.l3Cache.Set(key, value, policy); err != nil {
-		// Log error but don't fail
+		// Return error for L3 failures in write-through mode
+		return fmt.Errorf("failed to write to L3 cache: %w", err)
 	}
-	
+
 	cm.updateStatistics(CacheLevelL1, "write", 0)
 	if cm.distributedEnabled {
 		cm.updateStatistics(CacheLevelL2, "write", 0)
 	}
 	cm.updateStatistics(CacheLevelL3, "write", 0)
-	
+
 	return nil
 }
 
 // writeBack implements write-back caching strategy
 func (cm *CacheManager) writeBack(key string, value interface{}, policy *CachePolicy) error {
-	// Write to L1 immediately, schedule background writes to other levels
+	// Validate inputs
+	if key == "" {
+		return fmt.Errorf("cache key cannot be empty")
+	}
+	if value == nil {
+		return fmt.Errorf("cache value cannot be nil")
+	}
+
+	// Write to L1 immediately (AdvancedCache.Set doesn't return error)
 	cm.l1Cache.Set(key, value, policy)
 	cm.updateStatistics(CacheLevelL1, "write", 0)
-	
+
 	// Schedule async writes
 	go func() {
 		if cm.distributedEnabled {
 			_ = cm.l2Cache.Set(key, value, policy)
 			cm.updateStatistics(CacheLevelL2, "write", 0)
 		}
-		
+
 		_ = cm.l3Cache.Set(key, value, policy)
 		cm.updateStatistics(CacheLevelL3, "write", 0)
 	}()
-	
+
 	return nil
 }
 
@@ -504,11 +486,11 @@ func (cm *CacheManager) writeAround(key string, value interface{}, policy *Cache
 	if err := cm.l3Cache.Set(key, value, policy); err != nil {
 		return err
 	}
-	
+
 	if cm.distributedEnabled {
 		go func() { _ = cm.l2Cache.Set(key, value, policy) }()
 	}
-	
+
 	cm.updateStatistics(CacheLevelL3, "write", 0)
 	return nil
 }
@@ -518,45 +500,45 @@ func (cm *CacheManager) Delete(key string) error {
 	if !cm.enabled {
 		return nil
 	}
-	
+
 	startTime := time.Now()
 	defer func() {
 		cm.recordOperationLatency(time.Since(startTime))
 	}()
-	
+
 	// Delete from all levels
 	cm.l1Cache.Delete(key)
-	
+
 	if cm.distributedEnabled {
 		cm.l2Cache.Delete(key)
 	}
-	
+
 	cm.l3Cache.Delete(key)
-	
+
 	// Invalidate across the cluster
 	if cm.coherencyManager.enabled {
 		cm.coherencyManager.Invalidate(key)
 	}
-	
+
 	cm.updateStatistics(CacheLevelL1, "delete", time.Since(startTime))
 	if cm.distributedEnabled {
 		cm.updateStatistics(CacheLevelL2, "delete", time.Since(startTime))
 	}
 	cm.updateStatistics(CacheLevelL3, "delete", time.Since(startTime))
-	
+
 	return nil
 }
 
 // Clear removes all cached entries
 func (cm *CacheManager) Clear() error {
 	cm.l1Cache.Clear()
-	
+
 	if cm.distributedEnabled {
 		cm.l2Cache.Clear()
 	}
-	
+
 	cm.l3Cache.Clear()
-	
+
 	// Reset statistics
 	cm.statsMutex.Lock()
 	for level := range cm.statistics {
@@ -566,7 +548,7 @@ func (cm *CacheManager) Clear() error {
 		}
 	}
 	cm.statsMutex.Unlock()
-	
+
 	return nil
 }
 
@@ -574,40 +556,40 @@ func (cm *CacheManager) Clear() error {
 func (cm *CacheManager) GetStatistics() map[CacheLevel]*CacheStatistics {
 	cm.statsMutex.RLock()
 	defer cm.statsMutex.RUnlock()
-	
+
 	result := make(map[CacheLevel]*CacheStatistics)
 	for level, stats := range cm.statistics {
 		// Create a copy
 		statsCopy := *stats
 		result[level] = &statsCopy
 	}
-	
+
 	return result
 }
 
 // GetOverallStatistics returns aggregated statistics across all levels
 func (cm *CacheManager) GetOverallStatistics() map[string]interface{} {
 	stats := cm.GetStatistics()
-	
+
 	totalOps := int64(0)
 	totalHits := int64(0)
 	totalMisses := int64(0)
 	totalMemory := int64(0)
-	
+
 	for _, stat := range stats {
 		totalOps += stat.TotalOperations
 		totalHits += stat.Hits
 		totalMisses += stat.Misses
 		totalMemory += stat.MemoryUsage
 	}
-	
+
 	hitRate := 0.0
 	if totalOps > 0 {
 		hitRate = float64(totalHits) / float64(totalOps)
 	}
-	
+
 	return map[string]interface{}{
-		"total_operations":     totalOps,
+		"total_operations":    totalOps,
 		"total_hits":          totalHits,
 		"total_misses":        totalMisses,
 		"overall_hit_rate":    hitRate,
@@ -659,7 +641,7 @@ func (cm *CacheManager) initializeStatistics() {
 		LastUpdated: time.Now(),
 		WindowStart: time.Now(),
 	}
-	
+
 	if cm.distributedEnabled {
 		cm.statistics[CacheLevelL2] = &CacheStatistics{
 			Level:       CacheLevelL2,
@@ -667,7 +649,7 @@ func (cm *CacheManager) initializeStatistics() {
 			WindowStart: time.Now(),
 		}
 	}
-	
+
 	cm.statistics[CacheLevelL3] = &CacheStatistics{
 		Level:       CacheLevelL3,
 		LastUpdated: time.Now(),
@@ -678,15 +660,15 @@ func (cm *CacheManager) initializeStatistics() {
 func (cm *CacheManager) updateStatistics(level CacheLevel, operation string, latency time.Duration) {
 	cm.statsMutex.Lock()
 	defer cm.statsMutex.Unlock()
-	
+
 	stats, exists := cm.statistics[level]
 	if !exists {
 		return
 	}
-	
+
 	stats.TotalOperations++
 	stats.LastUpdated = time.Now()
-	
+
 	switch operation {
 	case "hit":
 		stats.Hits++
@@ -699,13 +681,13 @@ func (cm *CacheManager) updateStatistics(level CacheLevel, operation string, lat
 	case "delete":
 		stats.Deletes++
 	}
-	
+
 	// Update hit rate
 	if stats.TotalOperations > 0 {
 		stats.HitRate = float64(stats.Hits) / float64(stats.TotalOperations)
 		stats.MissRate = float64(stats.Misses) / float64(stats.TotalOperations)
 	}
-	
+
 	// Update latency metrics (simplified)
 	if latency > 0 {
 		stats.AverageLatency = (stats.AverageLatency + latency) / 2
@@ -721,9 +703,9 @@ func (cm *CacheManager) recordAccess(key string) {
 func (cm *CacheManager) recordOperationLatency(latency time.Duration) {
 	cm.latencyMutex.Lock()
 	defer cm.latencyMutex.Unlock()
-	
+
 	cm.operationLatencies = append(cm.operationLatencies, latency)
-	
+
 	// Keep only recent latencies
 	if len(cm.operationLatencies) > 1000 {
 		cm.operationLatencies = cm.operationLatencies[len(cm.operationLatencies)-500:]
@@ -732,13 +714,13 @@ func (cm *CacheManager) recordOperationLatency(latency time.Duration) {
 
 func (cm *CacheManager) getEnabledLevels() []string {
 	levels := []string{"L1"}
-	
+
 	if cm.distributedEnabled {
 		levels = append(levels, "L2")
 	}
-	
+
 	levels = append(levels, "L3")
-	
+
 	return levels
 }
 
@@ -746,11 +728,11 @@ func (cm *CacheManager) startBackgroundOperations() {
 	// Start metrics collection
 	cm.backgroundWG.Add(1)
 	go cm.metricsCollectionLoop()
-	
+
 	// Start cleanup operations
 	cm.backgroundWG.Add(1)
 	go cm.cleanupLoop()
-	
+
 	// Start prefetching if enabled
 	if cm.prefetchingEnabled {
 		cm.backgroundWG.Add(1)
@@ -760,10 +742,10 @@ func (cm *CacheManager) startBackgroundOperations() {
 
 func (cm *CacheManager) metricsCollectionLoop() {
 	defer cm.backgroundWG.Done()
-	
+
 	ticker := time.NewTicker(cm.metricsInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-cm.ctx.Done():
@@ -776,10 +758,10 @@ func (cm *CacheManager) metricsCollectionLoop() {
 
 func (cm *CacheManager) cleanupLoop() {
 	defer cm.backgroundWG.Done()
-	
+
 	ticker := time.NewTicker(cm.cleanupInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-cm.ctx.Done():
@@ -792,10 +774,10 @@ func (cm *CacheManager) cleanupLoop() {
 
 func (cm *CacheManager) prefetchingLoop() {
 	defer cm.backgroundWG.Done()
-	
+
 	ticker := time.NewTicker(5 * time.Minute)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-cm.ctx.Done():
@@ -813,7 +795,7 @@ func (cm *CacheManager) collectMetrics() {
 		cm.totalMemoryUsage += cm.l2Cache.GetMemoryUsage()
 	}
 	cm.totalMemoryUsage += cm.l3Cache.GetMemoryUsage()
-	
+
 	// Update throughput metrics
 	cm.calculateThroughput()
 }
@@ -821,7 +803,7 @@ func (cm *CacheManager) collectMetrics() {
 func (cm *CacheManager) calculateThroughput() {
 	cm.statsMutex.Lock()
 	defer cm.statsMutex.Unlock()
-	
+
 	for _, stats := range cm.statistics {
 		windowDuration := time.Since(stats.WindowStart)
 		if windowDuration > 0 {
@@ -833,13 +815,13 @@ func (cm *CacheManager) calculateThroughput() {
 func (cm *CacheManager) performCleanup() {
 	// Cleanup expired entries
 	cm.l1Cache.CleanupExpired()
-	
+
 	if cm.distributedEnabled {
 		cm.l2Cache.CleanupExpired()
 	}
-	
+
 	cm.l3Cache.CleanupExpired()
-	
+
 	// Cleanup operation latencies
 	cm.latencyMutex.Lock()
 	if len(cm.operationLatencies) > 500 {
@@ -852,12 +834,12 @@ func (cm *CacheManager) performCleanup() {
 func (cm *CacheManager) Shutdown() error {
 	cm.cancel()
 	cm.backgroundWG.Wait()
-	
+
 	// Flush any pending writes
 	if cm.l3Cache != nil {
 		cm.l3Cache.Flush()
 	}
-	
+
 	return nil
 }
 
@@ -866,7 +848,7 @@ func (cm *CacheManager) Shutdown() error {
 
 func NewAdvancedCache(policy *CachePolicy) *AdvancedCache {
 	return &AdvancedCache{
-		data:                make(map[string]*CacheEntry),
+		data:               make(map[string]*CacheEntry),
 		policy:             policy,
 		maxSize:            policy.MaxSize,
 		hotKeys:            make(map[string]int64),
@@ -879,32 +861,32 @@ func NewAdvancedCache(policy *CachePolicy) *AdvancedCache {
 func (ac *AdvancedCache) Get(key string) (interface{}, bool) {
 	ac.mutex.RLock()
 	defer ac.mutex.RUnlock()
-	
+
 	entry, exists := ac.data[key]
 	if !exists {
 		return nil, false
 	}
-	
+
 	// Check TTL
 	if time.Since(entry.CreatedAt) > entry.TTL {
 		go ac.deleteExpired(key)
 		return nil, false
 	}
-	
+
 	// Update access information
 	entry.LastAccessed = time.Now()
 	entry.AccessCount++
-	
+
 	// Track hot keys
 	ac.hotKeys[key] = entry.AccessCount
-	
+
 	return entry.Value, true
 }
 
 func (ac *AdvancedCache) Set(key string, value interface{}, policy *CachePolicy) {
 	ac.mutex.Lock()
 	defer ac.mutex.Unlock()
-	
+
 	entry := &CacheEntry{
 		Key:          key,
 		Value:        value,
@@ -916,15 +898,15 @@ func (ac *AdvancedCache) Set(key string, value interface{}, policy *CachePolicy)
 		Priority:     5, // Default priority
 		Version:      1,
 	}
-	
+
 	// Estimate size
 	entry.Size = estimateSize(value)
-	
+
 	// Check if eviction is needed
 	if len(ac.data) >= ac.maxSize {
 		ac.evictLRU()
 	}
-	
+
 	ac.data[key] = entry
 	ac.currentSize += entry.Size
 }
@@ -932,7 +914,7 @@ func (ac *AdvancedCache) Set(key string, value interface{}, policy *CachePolicy)
 func (ac *AdvancedCache) Delete(key string) {
 	ac.mutex.Lock()
 	defer ac.mutex.Unlock()
-	
+
 	if entry, exists := ac.data[key]; exists {
 		ac.currentSize -= entry.Size
 		delete(ac.data, key)
@@ -943,7 +925,7 @@ func (ac *AdvancedCache) Delete(key string) {
 func (ac *AdvancedCache) Clear() {
 	ac.mutex.Lock()
 	defer ac.mutex.Unlock()
-	
+
 	ac.data = make(map[string]*CacheEntry)
 	ac.hotKeys = make(map[string]int64)
 	ac.currentSize = 0
@@ -958,7 +940,7 @@ func (ac *AdvancedCache) GetMemoryUsage() int64 {
 func (ac *AdvancedCache) CleanupExpired() {
 	ac.mutex.Lock()
 	defer ac.mutex.Unlock()
-	
+
 	now := time.Now()
 	for key, entry := range ac.data {
 		if now.Sub(entry.CreatedAt) > entry.TTL {
@@ -972,7 +954,7 @@ func (ac *AdvancedCache) CleanupExpired() {
 func (ac *AdvancedCache) deleteExpired(key string) {
 	ac.mutex.Lock()
 	defer ac.mutex.Unlock()
-	
+
 	if entry, exists := ac.data[key]; exists {
 		ac.currentSize -= entry.Size
 		delete(ac.data, key)
@@ -984,17 +966,17 @@ func (ac *AdvancedCache) evictLRU() {
 	if len(ac.data) == 0 {
 		return
 	}
-	
+
 	var oldestKey string
 	oldestTime := time.Now()
-	
+
 	for key, entry := range ac.data {
 		if entry.LastAccessed.Before(oldestTime) {
 			oldestTime = entry.LastAccessed
 			oldestKey = key
 		}
 	}
-	
+
 	if oldestKey != "" {
 		if entry := ac.data[oldestKey]; entry != nil {
 			ac.currentSize -= entry.Size
@@ -1008,18 +990,18 @@ func (ac *AdvancedCache) evictLRU() {
 
 func NewDistributedCache(policy *CachePolicy) *DistributedCache {
 	return &DistributedCache{
-		nodes:               []CacheNode{},
-		hashRing:            NewConsistentHashRing(100),
-		replicationFactor:   policy.Replication,
-		consistencyLevel:    policy.ConsistencyLevel,
-		partitionCount:      32,
-		readPreference:      "primary",
-		writePreference:     "majority",
-		conflictResolution:  "last_write_wins",
-		networkTimeout:      5 * time.Second,
-		compressionEnabled:  policy.Compression,
-		encryptionEnabled:   policy.Encryption,
-		statistics:          &CacheStatistics{Level: CacheLevelL2},
+		nodes:              []CacheNode{},
+		hashRing:           NewConsistentHashRing(100),
+		replicationFactor:  policy.Replication,
+		consistencyLevel:   policy.ConsistencyLevel,
+		partitionCount:     32,
+		readPreference:     "primary",
+		writePreference:    "majority",
+		conflictResolution: "last_write_wins",
+		networkTimeout:     5 * time.Second,
+		compressionEnabled: policy.Compression,
+		encryptionEnabled:  policy.Encryption,
+		statistics:         &CacheStatistics{Level: CacheLevelL2},
 	}
 }
 
@@ -1103,7 +1085,7 @@ func NewCacheCoherencyManager() *CacheCoherencyManager {
 	return &CacheCoherencyManager{
 		invalidationQueue: make(chan string, 1000),
 		subscribers:       make(map[string][]chan string),
-		enabled:          true,
+		enabled:           true,
 	}
 }
 
@@ -1131,10 +1113,10 @@ func (cp *CachePrefetcher) RecordAccess(key string) {
 	if !cp.enabled {
 		return
 	}
-	
+
 	cp.mutex.Lock()
 	defer cp.mutex.Unlock()
-	
+
 	pattern, exists := cp.patterns[key]
 	if !exists {
 		pattern = &AccessPattern{
@@ -1161,14 +1143,14 @@ func (cp *CachePrefetcher) AnalyzePatterns() {
 func (cp *CachePrefetcher) GetSuggestions() []string {
 	cp.mutex.RLock()
 	defer cp.mutex.RUnlock()
-	
+
 	suggestions := []string{}
 	for key, pattern := range cp.patterns {
 		if pattern.Confidence > cp.threshold {
 			suggestions = append(suggestions, key)
 		}
 	}
-	
+
 	return suggestions
 }
 

@@ -28,7 +28,6 @@ type ServerConfig struct {
 	WriteTimeout int    `json:"write_timeout_seconds"`
 }
 
-
 // QdrantConfig represents Qdrant vector database configuration
 type QdrantConfig struct {
 	Host           string       `json:"host"`
@@ -232,7 +231,6 @@ func loadServerConfig(config *Config) {
 	}
 }
 
-
 // loadQdrantConfig loads Qdrant configuration from environment
 func loadQdrantConfig(config *Config) {
 	loadQdrantBasicConfig(config)
@@ -247,7 +245,7 @@ func loadQdrantBasicConfig(config *Config) {
 	} else if host := os.Getenv("QDRANT_HOST"); host != "" {
 		config.Qdrant.Host = host
 	}
-	
+
 	if port := os.Getenv("MCP_MEMORY_QDRANT_PORT"); port != "" {
 		if p, err := strconv.Atoi(port); err == nil {
 			config.Qdrant.Port = p
@@ -257,13 +255,13 @@ func loadQdrantBasicConfig(config *Config) {
 			config.Qdrant.Port = p
 		}
 	}
-	
+
 	if apiKey := os.Getenv("MCP_MEMORY_QDRANT_API_KEY"); apiKey != "" {
 		config.Qdrant.APIKey = apiKey
 	} else if apiKey := os.Getenv("QDRANT_API_KEY"); apiKey != "" {
 		config.Qdrant.APIKey = apiKey
 	}
-	
+
 	if useTLS := os.Getenv("MCP_MEMORY_QDRANT_USE_TLS"); useTLS != "" {
 		if tls, err := strconv.ParseBool(useTLS); err == nil {
 			config.Qdrant.UseTLS = tls
@@ -273,25 +271,25 @@ func loadQdrantBasicConfig(config *Config) {
 			config.Qdrant.UseTLS = tls
 		}
 	}
-	
+
 	if collection := os.Getenv("MCP_MEMORY_QDRANT_COLLECTION"); collection != "" {
 		config.Qdrant.Collection = collection
 	} else if collection := os.Getenv("QDRANT_COLLECTION"); collection != "" {
 		config.Qdrant.Collection = collection
 	}
-	
+
 	if healthCheck := os.Getenv("MCP_MEMORY_QDRANT_HEALTH_CHECK"); healthCheck != "" {
 		if hc, err := strconv.ParseBool(healthCheck); err == nil {
 			config.Qdrant.HealthCheck = hc
 		}
 	}
-	
+
 	if retryAttempts := os.Getenv("MCP_MEMORY_QDRANT_RETRY_ATTEMPTS"); retryAttempts != "" {
 		if ra, err := strconv.Atoi(retryAttempts); err == nil {
 			config.Qdrant.RetryAttempts = ra
 		}
 	}
-	
+
 	if timeoutSeconds := os.Getenv("MCP_MEMORY_QDRANT_TIMEOUT_SECONDS"); timeoutSeconds != "" {
 		if ts, err := strconv.Atoi(timeoutSeconds); err == nil {
 			config.Qdrant.TimeoutSeconds = ts

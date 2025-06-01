@@ -24,11 +24,11 @@ const (
 
 // QdrantStore implements VectorStore interface for Qdrant vector database
 type QdrantStore struct {
-	client              *qdrant.Client
-	config              *config.QdrantConfig
-	metrics             *StorageMetrics
-	collectionName      string
-	relationshipStore   *RelationshipStore
+	client            *qdrant.Client
+	config            *config.QdrantConfig
+	metrics           *StorageMetrics
+	collectionName    string
+	relationshipStore *RelationshipStore
 }
 
 // NewQdrantStore creates a new Qdrant vector store
@@ -138,8 +138,8 @@ func (qs *QdrantStore) Store(ctx context.Context, chunk types.ConversationChunk)
 		return fmt.Errorf("failed to store chunk in Qdrant: %w", err)
 	}
 
-	logging.Debug("Stored chunk in Qdrant", 
-		"id", chunk.ID, 
+	logging.Debug("Stored chunk in Qdrant",
+		"id", chunk.ID,
 		"repository", chunk.Metadata.Repository,
 		"type", chunk.Type,
 	)
@@ -160,20 +160,20 @@ func (qs *QdrantStore) Search(ctx context.Context, query types.MemoryQuery, embe
 
 	// Convert embeddings to float32
 	embeddings32 := qs.float64ToFloat32(embeddings)
-	
+
 	// Perform search using Query method
 	searchResult, err := qs.client.Query(ctx, &qdrant.QueryPoints{
-		CollectionName:  qs.collectionName,
-		Query:           qdrant.NewQuery(embeddings32...),
-		Limit:           func() *uint64 {
+		CollectionName: qs.collectionName,
+		Query:          qdrant.NewQuery(embeddings32...),
+		Limit: func() *uint64 {
 			if query.Limit < 0 {
 				return qdrant.PtrOf(uint64(0))
 			}
 			return qdrant.PtrOf(uint64(query.Limit))
 		}(),
-		WithPayload:     qdrant.NewWithPayload(true),
-		Filter:          filter,
-		ScoreThreshold:  qdrant.PtrOf(float32(query.MinRelevanceScore)),
+		WithPayload:    qdrant.NewWithPayload(true),
+		Filter:         filter,
+		ScoreThreshold: qdrant.PtrOf(float32(query.MinRelevanceScore)),
 	})
 
 	if err != nil {
@@ -182,8 +182,8 @@ func (qs *QdrantStore) Search(ctx context.Context, query types.MemoryQuery, embe
 
 	// Convert results
 	results := &types.SearchResults{
-		Results: make([]types.SearchResult, 0, len(searchResult)),
-		Total:   len(searchResult),
+		Results:   make([]types.SearchResult, 0, len(searchResult)),
+		Total:     len(searchResult),
 		QueryTime: time.Since(start),
 	}
 
@@ -201,7 +201,7 @@ func (qs *QdrantStore) Search(ctx context.Context, query types.MemoryQuery, embe
 		results.Results = append(results.Results, result)
 	}
 
-	logging.Debug("Search completed", 
+	logging.Debug("Search completed",
 		"query", query.Query,
 		"results", len(results.Results),
 		"total_time_ms", time.Since(start).Milliseconds(),
@@ -218,9 +218,9 @@ func (qs *QdrantStore) GetByID(ctx context.Context, id string) (*types.Conversat
 	// Get point by ID
 	points, err := qs.client.Get(ctx, &qdrant.GetPoints{
 		CollectionName: qs.collectionName,
-		Ids:           []*qdrant.PointId{qs.stringToPointId(id)},
-		WithPayload:   &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
-		WithVectors:   &qdrant.WithVectorsSelector{SelectorOptions: &qdrant.WithVectorsSelector_Enable{Enable: true}},
+		Ids:            []*qdrant.PointId{qs.stringToPointId(id)},
+		WithPayload:    &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
+		WithVectors:    &qdrant.WithVectorsSelector{SelectorOptions: &qdrant.WithVectorsSelector_Enable{Enable: true}},
 	})
 
 	if err != nil {
@@ -269,7 +269,7 @@ func (qs *QdrantStore) ListByRepository(ctx context.Context, repository string, 
 	} else {
 		scrollLimit = uint32(totalNeeded)
 	}
-	
+
 	points, err := qs.client.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: qs.collectionName,
 		Filter:         filter,
@@ -296,7 +296,7 @@ func (qs *QdrantStore) ListByRepository(ctx context.Context, repository string, 
 	sort.Slice(allChunks, func(i, j int) bool {
 		return allChunks[i].Timestamp.After(allChunks[j].Timestamp)
 	})
-	
+
 	// Apply manual offset and limit since Qdrant Scroll doesn't support traditional offset
 	var chunks []types.ConversationChunk
 	if offset < len(allChunks) {
@@ -437,12 +437,12 @@ func (qs *QdrantStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	vectorsCount := info.GetVectorsCount()
 	segmentsCount := info.GetSegmentsCount()
 	indexedVectorsCount := info.GetIndexedVectorsCount()
-	
-	// Estimate storage size: 
+
+	// Estimate storage size:
 	// - Each vector is ~1536 dimensions * 4 bytes (float32) = ~6KB
 	// - Add metadata overhead (~2KB per chunk)
 	// - Add index overhead based on segments and indexed vectors
-	
+
 	// Safe conversion with overflow protection
 	var estimatedVectorSize int64
 	if vectorsCount > math.MaxInt64/(defaultVectorSize*4) {
@@ -450,21 +450,21 @@ func (qs *QdrantStore) GetStats(ctx context.Context) (*StoreStats, error) {
 	} else {
 		estimatedVectorSize = int64(vectorsCount) * defaultVectorSize * 4
 	}
-	
+
 	var estimatedIndexSize int64
 	if segmentsCount > math.MaxInt64/(1024*1024) {
 		estimatedIndexSize = math.MaxInt64
 	} else {
 		estimatedIndexSize = int64(segmentsCount) * 1024 * 1024
 	}
-	
+
 	var estimatedIndexOverhead int64
 	if indexedVectorsCount > math.MaxInt64/512 {
 		estimatedIndexOverhead = math.MaxInt64
 	} else {
 		estimatedIndexOverhead = int64(indexedVectorsCount) * 512
 	}
-	
+
 	estimatedMetadataSize := totalChunks * 2048 // ~2KB metadata per chunk
 	estimatedStorageSize := estimatedVectorSize + estimatedMetadataSize + estimatedIndexSize + estimatedIndexOverhead
 
@@ -485,7 +485,7 @@ func (qs *QdrantStore) GetStats(ctx context.Context) (*StoreStats, error) {
 // enrichStatsWithSampleData adds detailed statistics by sampling collection data
 func (qs *QdrantStore) enrichStatsWithSampleData(ctx context.Context, stats *StoreStats) {
 	sampleSize := qs.calculateSampleSize(stats.TotalChunks)
-	
+
 	points, err := qs.client.Scroll(ctx, &qdrant.ScrollPoints{
 		CollectionName: qs.collectionName,
 		Limit:          qdrant.PtrOf(sampleSize),
@@ -518,7 +518,7 @@ func (qs *QdrantStore) processStatsFromPoints(points []*qdrant.RetrievedPoint, s
 
 	for _, point := range points {
 		payload := point.GetPayload()
-		
+
 		qs.updateTypeStats(payload, stats)
 		qs.updateRepoStats(payload, stats)
 		qs.updateTimeStats(payload, &oldestTime, &newestTime)
@@ -567,12 +567,12 @@ func (qs *QdrantStore) getEmbeddingSize(point *qdrant.RetrievedPoint) int {
 	if vectors == nil {
 		return 0
 	}
-	
+
 	vector := vectors.GetVector()
 	if vector == nil {
 		return 0
 	}
-	
+
 	return len(vector.GetData())
 }
 
@@ -649,7 +649,7 @@ func (qs *QdrantStore) Cleanup(ctx context.Context, retentionDays int) (int, err
 		return 0, fmt.Errorf("failed to cleanup old chunks: %w", err)
 	}
 
-	logging.Info("Cleaned up old chunks", 
+	logging.Info("Cleaned up old chunks",
 		"deleted_count", deletedCount,
 		"retention_days", retentionDays,
 	)
@@ -673,15 +673,15 @@ func (qs *QdrantStore) Close() error {
 // chunkToPoint converts a ConversationChunk to Qdrant PointStruct
 func (qs *QdrantStore) chunkToPoint(chunk types.ConversationChunk) *qdrant.PointStruct {
 	payload := map[string]*qdrant.Value{
-		"content":        qs.stringToValue(chunk.Content),
-		"summary":        qs.stringToValue(chunk.Summary),
-		"type":           qs.stringToValue(string(chunk.Type)),
-		"repository":     qs.stringToValue(chunk.Metadata.Repository),
-		"session_id":     qs.stringToValue(chunk.SessionID),
-		"outcome":        qs.stringToValue(string(chunk.Metadata.Outcome)),
-		"difficulty":     qs.stringToValue(string(chunk.Metadata.Difficulty)),
-		"timestamp":      qs.int64ToValue(chunk.Timestamp.Unix()),
-		"branch":         qs.stringToValue(chunk.Metadata.Branch),
+		"content":    qs.stringToValue(chunk.Content),
+		"summary":    qs.stringToValue(chunk.Summary),
+		"type":       qs.stringToValue(string(chunk.Type)),
+		"repository": qs.stringToValue(chunk.Metadata.Repository),
+		"session_id": qs.stringToValue(chunk.SessionID),
+		"outcome":    qs.stringToValue(string(chunk.Metadata.Outcome)),
+		"difficulty": qs.stringToValue(string(chunk.Metadata.Difficulty)),
+		"timestamp":  qs.int64ToValue(chunk.Timestamp.Unix()),
+		"branch":     qs.stringToValue(chunk.Metadata.Branch),
 	}
 
 	// Add tags as a list
@@ -705,7 +705,6 @@ func (qs *QdrantStore) chunkToPoint(chunk types.ConversationChunk) *qdrant.Point
 		Payload: payload,
 	}
 }
-
 
 // buildChunkFromPayload creates a ConversationChunk from payload and extracted data
 func (qs *QdrantStore) buildChunkFromPayload(id string, embeddings []float64, payload map[string]*qdrant.Value) (*types.ConversationChunk, error) {
@@ -819,7 +818,7 @@ func (qs *QdrantStore) buildFilter(query types.MemoryQuery) *qdrant.Filter {
 		case types.RecencyAllTime:
 			// No time filtering for all time
 		}
-		
+
 		if !cutoffTime.IsZero() {
 			conditions = append(conditions, &qdrant.Condition{
 				ConditionOneOf: &qdrant.Condition_Field{
@@ -911,15 +910,15 @@ func (qs *QdrantStore) getStringSliceFromPayload(payload map[string]*qdrant.Valu
 // updateMetrics updates operation metrics
 func (qs *QdrantStore) updateMetrics(operation string, start time.Time) {
 	duration := time.Since(start)
-	
+
 	qs.metrics.OperationCounts[operation]++
-	
+
 	// Update average latency
 	currentAvg := qs.metrics.AverageLatency[operation]
 	count := float64(qs.metrics.OperationCounts[operation])
 	newLatency := float64(duration.Milliseconds())
 	qs.metrics.AverageLatency[operation] = (currentAvg*(count-1) + newLatency) / count
-	
+
 	qs.metrics.LastOperation = &operation
 }
 
@@ -1061,8 +1060,8 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []types.Conversati
 		ProcessedIDs: processedIDs,
 	}
 
-	logging.Debug("Batch store completed", 
-		"success", result.Success, 
+	logging.Debug("Batch store completed",
+		"success", result.Success,
 		"failed", result.Failed,
 		"total", len(chunks),
 	)
@@ -1113,8 +1112,8 @@ func (qs *QdrantStore) BatchDelete(ctx context.Context, ids []string) (*BatchRes
 		ProcessedIDs: ids,
 	}
 
-	logging.Debug("Batch delete completed", 
-		"success", result.Success, 
+	logging.Debug("Batch delete completed",
+		"success", result.Success,
 		"total", len(ids),
 	)
 

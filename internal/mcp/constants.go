@@ -8,4 +8,13 @@ const (
 
 	// GlobalMemoryDescription is used in tool parameter descriptions
 	GlobalMemoryDescription = " (use '_global' for global memories)"
+
+	// MCP tool operation names
+	OperationStoreChunk    = "store_chunk"
+	OperationStoreDecision = "store_decision"
+	OperationHealth        = "health"
+	OperationStatus        = "status"
+
+	// Common filter values
+	FilterValueAll = "all"
 )

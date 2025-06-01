@@ -397,22 +397,22 @@ func (cs *ChunkingService) assessOutcome(content string) types.Outcome {
 
 	// Strong success indicators (weighted higher)
 	strongSuccessIndicators := []string{
-		"completed successfully", "fixed the issue", "problem solved", "working now", 
+		"completed successfully", "fixed the issue", "problem solved", "working now",
 		"tests pass", "build successful", "merged", "deployed", "resolved",
 	}
-	
-	// Success indicators 
+
+	// Success indicators
 	successIndicators := []string{
 		"completed", "fixed", "solved", "working", "success", "done", "implemented",
 		"added", "updated", "created", "built", "tested", "verified", "finished",
 	}
-	
+
 	// Failure indicators
 	failureIndicators := []string{
 		"failed", "error", "broken", "not working", "issue", "problem", "bug",
 		"crashed", "timeout", "exception", "cannot", "unable", "stuck",
 	}
-	
+
 	// Progress indicators
 	progressIndicators := []string{
 		"in progress", "working on", "implementing", "developing", "testing",
@@ -538,44 +538,44 @@ func (cs *ChunkingService) cleanContentForEmbedding(content string) string {
 	emojiPattern := `[🚀🔍🔒🔧💡⚡✅❌🎯📊📈📉🛠️🔄🌟⭐💻📝🗂️🎉🔥💪🎨🚨⚠️✨🔎🆕🔵🟢🔴🟡]`
 	re := regexp.MustCompile(emojiPattern)
 	cleaned := re.ReplaceAllString(content, "")
-	
+
 	// Remove excessive whitespace and normalize
 	cleaned = regexp.MustCompile(`\s+`).ReplaceAllString(cleaned, " ")
 	cleaned = strings.TrimSpace(cleaned)
-	
+
 	// Remove markdown formatting that doesn't add semantic value
 	// Remove bold/italic markers
 	cleaned = regexp.MustCompile(`\*\*([^*]+)\*\*`).ReplaceAllString(cleaned, "$1")
 	cleaned = regexp.MustCompile(`\*([^*]+)\*`).ReplaceAllString(cleaned, "$1")
 	cleaned = regexp.MustCompile(`_([^_]+)_`).ReplaceAllString(cleaned, "$1")
-	
+
 	// Remove code blocks but keep inline code content
 	cleaned = regexp.MustCompile("```[^`]*```").ReplaceAllString(cleaned, "code_block")
 	cleaned = regexp.MustCompile("`([^`]+)`").ReplaceAllString(cleaned, "$1")
-	
+
 	// Remove URLs but keep domain info for context
 	cleaned = regexp.MustCompile(`https?://([^/\s]+)[^\s]*`).ReplaceAllString(cleaned, "website_$1")
-	
+
 	// Remove excessive punctuation
 	cleaned = regexp.MustCompile(`[!]{2,}`).ReplaceAllString(cleaned, "!")
 	cleaned = regexp.MustCompile(`[?]{2,}`).ReplaceAllString(cleaned, "?")
 	cleaned = regexp.MustCompile(`[-]{3,}`).ReplaceAllString(cleaned, "")
-	
+
 	// Normalize common abbreviations for better semantic matching
 	replacements := map[string]string{
-		"w/":     "with",
-		"&":      "and", 
-		"@":      "at",
-		"#":      "number",
-		"e.g.":   "for example",
-		"i.e.":   "that is",
-		"etc.":   "and so on",
+		"w/":   "with",
+		"&":    "and",
+		"@":    "at",
+		"#":    "number",
+		"e.g.": "for example",
+		"i.e.": "that is",
+		"etc.": "and so on",
 	}
-	
+
 	for old, new := range replacements {
 		cleaned = strings.ReplaceAll(cleaned, old, new)
 	}
-	
+
 	return cleaned
 }
 

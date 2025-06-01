@@ -37,7 +37,7 @@ func createTestChunks(n int) []types.ConversationChunk {
 	for i := 0; i < n; i++ {
 		chunks[i] = types.ConversationChunk{
 			ID:         fmt.Sprintf("test-chunk-%d", chunkIDCounter+i), // Use unique incremental IDs
-			Content:    "Test content " + string(rune(i)), // Keep content pattern consistent for test logic
+			Content:    "Test content " + string(rune(i)),              // Keep content pattern consistent for test logic
 			SessionID:  "test-session",
 			Timestamp:  baseTime.Add(time.Duration(i) * time.Hour),
 			Summary:    "Test summary",
@@ -51,7 +51,7 @@ func createTestChunks(n int) []types.ConversationChunk {
 			},
 		}
 	}
-	
+
 	chunkIDCounter += n // Update counter to ensure uniqueness across calls
 	return chunks
 }

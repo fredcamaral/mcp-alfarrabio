@@ -12,6 +12,11 @@ import (
 	"github.com/google/uuid"
 )
 
+const (
+	// Task status constants
+	TaskStatusCompleted = "completed"
+)
+
 // NarrativeFlow represents the flow of a conversation with phases and transitions
 type NarrativeFlow struct {
 	Phases      []ConversationPhase `json:"phases"`
@@ -554,72 +559,154 @@ func (l *LLMSummarizer) extractCriticalInformation(chunks []types.ConversationCh
 	outcomeMap := make(map[string]bool)
 
 	for _, chunk := range chunks {
-		switch chunk.Type {
-		case types.ChunkTypeSolution:
-			if chunk.Metadata.Outcome == types.OutcomeSuccess {
-				info.Solutions = append(info.Solutions, chunk)
-			}
-		case types.ChunkTypeArchitectureDecision:
-			info.Decisions = append(info.Decisions, chunk)
-		case types.ChunkTypeAnalysis:
-			if l.containsLearning(chunk) {
-				info.Learnings = append(info.Learnings, chunk)
-			}
-		case types.ChunkTypeProblem:
-			if chunk.Metadata.Difficulty == types.DifficultyComplex {
-				info.Errors = append(info.Errors, chunk)
-			}
-		case types.ChunkTypeCodeChange:
-			// Code changes can be solutions if successful
-			if chunk.Metadata.Outcome == types.OutcomeSuccess {
-				info.Solutions = append(info.Solutions, chunk)
-			}
-		case types.ChunkTypeDiscussion:
-			// Discussions can contain learnings
-			if l.containsLearning(chunk) {
-				info.Learnings = append(info.Learnings, chunk)
-			}
-		case types.ChunkTypeSessionSummary:
-			// Session summaries already contain aggregated info
-		case types.ChunkTypeVerification:
-			// Verifications can be solutions if successful
-			if chunk.Metadata.Outcome == types.OutcomeSuccess {
-				info.Solutions = append(info.Solutions, chunk)
-			}
-		case types.ChunkTypeQuestion:
-			// Questions that lead to insights are learnings
-			if l.containsLearning(chunk) {
-				info.Learnings = append(info.Learnings, chunk)
-			}
-		}
-
-		// Extract technologies
-		for _, tag := range chunk.Metadata.Tags {
-			if l.isTechnologyTag(tag) {
-				techMap[tag] = true
-			}
-		}
-
-		// Extract outcomes
-		if chunk.Metadata.Outcome != "" {
-			outcomeMap[string(chunk.Metadata.Outcome)] = true
-		}
-
-		// Extract relationships
-		if len(chunk.RelatedChunks) > 0 {
-			info.Relationships[chunk.ID] = chunk.RelatedChunks
-		}
+		l.processChunkByCategoryType(chunk, &info)
+		l.extractTechnologiesFromChunk(chunk, techMap)
+		l.extractOutcomesFromChunk(chunk, outcomeMap)
+		l.extractRelationshipsFromChunk(chunk, &info)
 	}
 
-	// Convert maps to slices
+	l.convertMapsToSlices(techMap, outcomeMap, &info)
+	return info
+}
+
+// processChunkByCategoryType processes a chunk based on its category type
+func (l *LLMSummarizer) processChunkByCategoryType(chunk types.ConversationChunk, info *CriticalInformation) {
+	switch chunk.Type {
+	case types.ChunkTypeSolution:
+		l.processSolutionChunk(chunk, info)
+	case types.ChunkTypeArchitectureDecision:
+		l.processArchitectureDecisionChunk(chunk, info)
+	case types.ChunkTypeAnalysis:
+		l.processAnalysisChunk(chunk, info)
+	case types.ChunkTypeProblem:
+		l.processProblemChunk(chunk, info)
+	case types.ChunkTypeCodeChange:
+		l.processCodeChangeChunk(chunk, info)
+	case types.ChunkTypeDiscussion:
+		l.processDiscussionChunk(chunk, info)
+	case types.ChunkTypeTask:
+		l.processTaskChunk(chunk, info)
+	case types.ChunkTypeTaskUpdate, types.ChunkTypeTaskProgress:
+		l.processTaskUpdateChunk(chunk, info)
+	case types.ChunkTypeVerification:
+		l.processVerificationChunk(chunk, info)
+	case types.ChunkTypeQuestion:
+		l.processQuestionChunk(chunk, info)
+	case types.ChunkTypeSessionSummary:
+		// Session summaries already contain aggregated info - no processing needed
+	}
+}
+
+// processSolutionChunk handles solution-type chunks
+func (l *LLMSummarizer) processSolutionChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	if chunk.Metadata.Outcome == types.OutcomeSuccess {
+		info.Solutions = append(info.Solutions, chunk)
+	}
+}
+
+// processArchitectureDecisionChunk handles architecture decision chunks
+func (l *LLMSummarizer) processArchitectureDecisionChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	info.Decisions = append(info.Decisions, chunk)
+}
+
+// processAnalysisChunk handles analysis-type chunks
+func (l *LLMSummarizer) processAnalysisChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	if l.containsLearning(chunk) {
+		info.Learnings = append(info.Learnings, chunk)
+	}
+}
+
+// processProblemChunk handles problem-type chunks
+func (l *LLMSummarizer) processProblemChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	if chunk.Metadata.Difficulty == types.DifficultyComplex {
+		info.Errors = append(info.Errors, chunk)
+	}
+}
+
+// processCodeChangeChunk handles code change chunks
+func (l *LLMSummarizer) processCodeChangeChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	// Code changes can be solutions if successful
+	if chunk.Metadata.Outcome == types.OutcomeSuccess {
+		info.Solutions = append(info.Solutions, chunk)
+	}
+}
+
+// processDiscussionChunk handles discussion-type chunks
+func (l *LLMSummarizer) processDiscussionChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	// Discussions can contain learnings
+	if l.containsLearning(chunk) {
+		info.Learnings = append(info.Learnings, chunk)
+	}
+}
+
+// processTaskChunk handles task-type chunks
+func (l *LLMSummarizer) processTaskChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	// Completed tasks are valuable solutions
+	if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted {
+		info.Solutions = append(info.Solutions, chunk)
+		return
+	}
+	// High priority tasks are important even if not completed
+	if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == "high" {
+		info.Decisions = append(info.Decisions, chunk)
+	}
+}
+
+// processTaskUpdateChunk handles task update and progress chunks
+func (l *LLMSummarizer) processTaskUpdateChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	// Task updates and progress can contain learnings about process
+	if l.containsLearning(chunk) {
+		info.Learnings = append(info.Learnings, chunk)
+	}
+}
+
+// processVerificationChunk handles verification-type chunks
+func (l *LLMSummarizer) processVerificationChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	// Verifications can be solutions if successful
+	if chunk.Metadata.Outcome == types.OutcomeSuccess {
+		info.Solutions = append(info.Solutions, chunk)
+	}
+}
+
+// processQuestionChunk handles question-type chunks
+func (l *LLMSummarizer) processQuestionChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	// Questions that lead to insights are learnings
+	if l.containsLearning(chunk) {
+		info.Learnings = append(info.Learnings, chunk)
+	}
+}
+
+// extractTechnologiesFromChunk extracts technology tags from a chunk
+func (l *LLMSummarizer) extractTechnologiesFromChunk(chunk types.ConversationChunk, techMap map[string]bool) {
+	for _, tag := range chunk.Metadata.Tags {
+		if l.isTechnologyTag(tag) {
+			techMap[tag] = true
+		}
+	}
+}
+
+// extractOutcomesFromChunk extracts outcomes from a chunk
+func (l *LLMSummarizer) extractOutcomesFromChunk(chunk types.ConversationChunk, outcomeMap map[string]bool) {
+	if chunk.Metadata.Outcome != "" {
+		outcomeMap[string(chunk.Metadata.Outcome)] = true
+	}
+}
+
+// extractRelationshipsFromChunk extracts relationships from a chunk
+func (l *LLMSummarizer) extractRelationshipsFromChunk(chunk types.ConversationChunk, info *CriticalInformation) {
+	if len(chunk.RelatedChunks) > 0 {
+		info.Relationships[chunk.ID] = chunk.RelatedChunks
+	}
+}
+
+// convertMapsToSlices converts technology and outcome maps to slices
+func (l *LLMSummarizer) convertMapsToSlices(techMap map[string]bool, outcomeMap map[string]bool, info *CriticalInformation) {
 	for tech := range techMap {
 		info.Technologies = append(info.Technologies, tech)
 	}
 	for outcome := range outcomeMap {
 		info.KeyOutcomes = append(info.KeyOutcomes, outcome)
 	}
-
-	return info
 }
 
 // generateIntelligentSummary creates the final intelligent summary
@@ -695,7 +782,6 @@ func (l *LLMSummarizer) generateIntelligentSummary(narrative NarrativeFlow, crit
 	return strings.Join(parts, ". ")
 }
 
-
 func formatDuration(d time.Duration) string {
 	switch {
 	case d < time.Hour:
@@ -765,6 +851,16 @@ func (l *LLMSummarizer) detectPhase(chunk types.ConversationChunk) types.Convers
 		return types.FlowProblem
 	case types.ChunkTypeArchitectureDecision:
 		return types.FlowSolution
+	// Task-oriented chunk types
+	case types.ChunkTypeTask:
+		// Tasks start as problems to be solved
+		return types.FlowProblem
+	case types.ChunkTypeTaskUpdate:
+		// Updates are typically investigations/progress
+		return types.FlowInvestigation
+	case types.ChunkTypeTaskProgress:
+		// Progress tracking is investigation/verification
+		return types.FlowVerification
 	default:
 		return types.FlowInvestigation
 	}
@@ -839,6 +935,17 @@ func (l *LLMSummarizer) isKeyEvent(chunk types.ConversationChunk) bool {
 		return false // Discussions are rarely key events by themselves
 	case types.ChunkTypeSessionSummary:
 		return false // Summaries are not events
+	// Task-oriented chunk types
+	case types.ChunkTypeTask:
+		// High priority tasks or completed tasks are key events
+		return (chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == "high") ||
+			(chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted)
+	case types.ChunkTypeTaskUpdate:
+		// Updates that change status are key events
+		return chunk.Metadata.TaskStatus != nil
+	case types.ChunkTypeTaskProgress:
+		// High progress milestones are key events (80%+ completion)
+		return chunk.Metadata.TaskProgress != nil && *chunk.Metadata.TaskProgress >= 80
 	case types.ChunkTypeAnalysis:
 		return l.containsLearning(chunk) // Analysis with insights are key
 	case types.ChunkTypeQuestion:
@@ -877,6 +984,19 @@ func (l *LLMSummarizer) classifyEvent(chunk types.ConversationChunk) EventType {
 		return EventTypeErrorResolved
 	case types.ChunkTypeDiscussion:
 		return EventTypeBreakthroughMade // Discussions often lead to insights
+	// Task-oriented chunk types
+	case types.ChunkTypeTask:
+		if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted {
+			return EventTypeSolutionFound // Completed tasks are solutions
+		}
+		return EventTypeProblemFound // New tasks are problems to solve
+	case types.ChunkTypeTaskUpdate:
+		if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted {
+			return EventTypeSolutionFound
+		}
+		return EventTypeBreakthroughMade // Progress/updates are breakthroughs
+	case types.ChunkTypeTaskProgress:
+		return EventTypeBreakthroughMade // Progress tracking shows advancement
 	case types.ChunkTypeSessionSummary:
 		return EventTypeSolutionFound // Summaries capture completed work
 	case types.ChunkTypeAnalysis:

@@ -1,0 +1,168 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 240 10% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 260 94% 59%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 3.7% 15.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 3.7% 15.9%;
+    --muted-foreground: 240 5% 64.9%;
+    --accent: 240 3.7% 15.9%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 3.7% 15.9%;
+    --input: 240 3.7% 15.9%;
+    --ring: 260 94% 59%;
+    --radius: 0.5rem;
+  }
+
+  .light {
+    --background: 0 0% 100%;
+    --foreground: 240 10% 3.9%;
+    --card: 0 0% 100%;
+    --card-foreground: 240 10% 3.9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 240 10% 3.9%;
+    --primary: 260 94% 59%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4.8% 95.9%;
+    --secondary-foreground: 240 5.9% 10%;
+    --muted: 240 4.8% 95.9%;
+    --muted-foreground: 240 3.8% 46.1%;
+    --accent: 240 4.8% 95.9%;
+    --accent-foreground: 240 5.9% 10%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 5.9% 90%;
+    --input: 240 5.9% 90%;
+    --ring: 260 94% 59%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-muted/20;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted-foreground/30 rounded-full;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Memory type icons and colors */
+.memory-type-problem {
+  @apply text-red-400 bg-red-500/10 border-red-500/20;
+}
+
+.memory-type-solution {
+  @apply text-green-400 bg-green-500/10 border-green-500/20;
+}
+
+.memory-type-architecture_decision {
+  @apply text-blue-400 bg-blue-500/10 border-blue-500/20;
+}
+
+.memory-type-session_summary {
+  @apply text-purple-400 bg-purple-500/10 border-purple-500/20;
+}
+
+.memory-type-code_change {
+  @apply text-orange-400 bg-orange-500/10 border-orange-500/20;
+}
+
+.memory-type-discussion {
+  @apply text-cyan-400 bg-cyan-500/10 border-cyan-500/20;
+}
+
+.memory-type-analysis {
+  @apply text-yellow-400 bg-yellow-500/10 border-yellow-500/20;
+}
+
+.memory-type-verification {
+  @apply text-emerald-400 bg-emerald-500/10 border-emerald-500/20;
+}
+
+/* Custom animations */
+.fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.slide-up {
+  animation: slide-up 0.3s ease-out;
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* Glassmorphism effects */
+.glass {
+  backdrop-filter: blur(10px);
+  background: rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.light .glass {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Command palette styles */
+.command-palette {
+  @apply bg-background/95 backdrop-blur;
+}
+
+/* Memory connection lines */
+.memory-connection {
+  stroke: hsl(var(--muted-foreground));
+  stroke-width: 1px;
+  stroke-dasharray: 2, 2;
+  opacity: 0.5;
+}
+
+.memory-connection.active {
+  stroke: hsl(var(--primary));
+  stroke-width: 2px;
+  opacity: 1;
+}
+
+/* Responsive typography */
+@media (max-width: 768px) {
+  .responsive-text {
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+}

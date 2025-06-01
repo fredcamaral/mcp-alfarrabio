@@ -27,13 +27,13 @@ const (
 type ConflictResolutionType string
 
 const (
-	ResolutionAcceptLatest    ConflictResolutionType = "accept_latest"
-	ResolutionAcceptHighest   ConflictResolutionType = "accept_highest_confidence"
-	ResolutionMerge           ConflictResolutionType = "merge"
-	ResolutionManualReview    ConflictResolutionType = "manual_review"
-	ResolutionContextual      ConflictResolutionType = "contextual"
-	ResolutionEvolutionary    ConflictResolutionType = "evolutionary"
-	ResolutionDomain          ConflictResolutionType = "domain_specific"
+	ResolutionAcceptLatest  ConflictResolutionType = "accept_latest"
+	ResolutionAcceptHighest ConflictResolutionType = "accept_highest_confidence"
+	ResolutionMerge         ConflictResolutionType = "merge"
+	ResolutionManualReview  ConflictResolutionType = "manual_review"
+	ResolutionContextual    ConflictResolutionType = "contextual"
+	ResolutionEvolutionary  ConflictResolutionType = "evolutionary"
+	ResolutionDomain        ConflictResolutionType = "domain_specific"
 )
 
 // ConflictSeverity represents the severity level of a conflict
@@ -49,27 +49,27 @@ const (
 
 // Conflict represents a detected conflict between chunks
 type Conflict struct {
-	ID           string           `json:"id"`
-	Type         ConflictType     `json:"type"`
-	Severity     ConflictSeverity `json:"severity"`
-	Title        string           `json:"title"`
-	Description  string           `json:"description"`
-	Confidence   float64          `json:"confidence"`
-	
+	ID          string           `json:"id"`
+	Type        ConflictType     `json:"type"`
+	Severity    ConflictSeverity `json:"severity"`
+	Title       string           `json:"title"`
+	Description string           `json:"description"`
+	Confidence  float64          `json:"confidence"`
+
 	// Conflicting chunks
-	PrimaryChunk   types.ConversationChunk `json:"primary_chunk"`
-	ConflictChunk  types.ConversationChunk `json:"conflict_chunk"`
-	RelatedChunks  []types.ConversationChunk `json:"related_chunks,omitempty"`
-	
+	PrimaryChunk  types.ConversationChunk   `json:"primary_chunk"`
+	ConflictChunk types.ConversationChunk   `json:"conflict_chunk"`
+	RelatedChunks []types.ConversationChunk `json:"related_chunks,omitempty"`
+
 	// Conflict details
 	ConflictPoints []ConflictPoint `json:"conflict_points"`
 	Evidence       []string        `json:"evidence"`
 	Context        map[string]any  `json:"context"`
-	
+
 	// Temporal information
 	TimeDifference time.Duration `json:"time_difference"`
 	DetectedAt     time.Time     `json:"detected_at"`
-	
+
 	// Resolution information
 	Resolved       bool                    `json:"resolved"`
 	ResolutionType *ConflictResolutionType `json:"resolution_type,omitempty"`
@@ -86,23 +86,23 @@ type ConflictPoint struct {
 
 // ConflictDetectionResult contains the results of conflict detection
 type ConflictDetectionResult struct {
-	Repository      string     `json:"repository"`
-	Timeframe       string     `json:"timeframe"`
-	TotalChunks     int        `json:"total_chunks"`
-	ConflictsFound  int        `json:"conflicts_found"`
-	Conflicts       []Conflict `json:"conflicts"`
-	AnalysisTime    time.Time  `json:"analysis_time"`
-	ProcessingTime  string     `json:"processing_time"`
+	Repository     string     `json:"repository"`
+	Timeframe      string     `json:"timeframe"`
+	TotalChunks    int        `json:"total_chunks"`
+	ConflictsFound int        `json:"conflicts_found"`
+	Conflicts      []Conflict `json:"conflicts"`
+	AnalysisTime   time.Time  `json:"analysis_time"`
+	ProcessingTime string     `json:"processing_time"`
 }
 
 // ConflictDetector is the main conflict detection engine
 type ConflictDetector struct {
 	// Configuration
-	minConfidence         float64
-	maxTimeDifferencedays int
+	minConfidence          float64
+	maxTimeDifferencedays  int
 	enableTemporalAnalysis bool
 	enablePatternAnalysis  bool
-	
+
 	// Keyword sets for different conflict domains
 	architecturalKeywords []string
 	technicalKeywords     []string
@@ -117,7 +117,7 @@ func NewConflictDetector() *ConflictDetector {
 		maxTimeDifferencedays:  180, // 6 months
 		enableTemporalAnalysis: true,
 		enablePatternAnalysis:  true,
-		
+
 		architecturalKeywords: []string{
 			"architecture", "design", "pattern", "structure", "component",
 			"microservice", "monolith", "database", "storage", "cache",
@@ -142,47 +142,47 @@ func NewConflictDetector() *ConflictDetector {
 // DetectConflicts analyzes chunks and detects conflicts
 func (cd *ConflictDetector) DetectConflicts(ctx context.Context, chunks []types.ConversationChunk) (*ConflictDetectionResult, error) {
 	startTime := time.Now()
-	
+
 	result := &ConflictDetectionResult{
-		TotalChunks:    len(chunks),
-		Conflicts:      []Conflict{},
-		AnalysisTime:   startTime,
+		TotalChunks:  len(chunks),
+		Conflicts:    []Conflict{},
+		AnalysisTime: startTime,
 	}
-	
+
 	if len(chunks) < 2 {
 		result.ProcessingTime = time.Since(startTime).String()
 		return result, nil
 	}
-	
+
 	// Detect different types of conflicts
 	conflicts := []Conflict{}
-	
+
 	// 1. Architectural conflicts
 	archConflicts := cd.detectArchitecturalConflicts(chunks)
 	conflicts = append(conflicts, archConflicts...)
-	
+
 	// 2. Technical conflicts
 	techConflicts := cd.detectTechnicalConflicts(chunks)
 	conflicts = append(conflicts, techConflicts...)
-	
+
 	// 3. Temporal conflicts
 	if cd.enableTemporalAnalysis {
 		temporalConflicts := cd.detectTemporalConflicts(chunks)
 		conflicts = append(conflicts, temporalConflicts...)
 	}
-	
+
 	// 4. Outcome conflicts
 	outcomeConflicts := cd.detectOutcomeConflicts(chunks)
 	conflicts = append(conflicts, outcomeConflicts...)
-	
+
 	// 5. Decision conflicts
 	decisionConflicts := cd.detectDecisionConflicts(chunks)
 	conflicts = append(conflicts, decisionConflicts...)
-	
+
 	// 6. Methodology conflicts
 	methodConflicts := cd.detectMethodologyConflicts(chunks)
 	conflicts = append(conflicts, methodConflicts...)
-	
+
 	// Filter conflicts by confidence threshold
 	filteredConflicts := []Conflict{}
 	for _, conflict := range conflicts {
@@ -190,7 +190,7 @@ func (cd *ConflictDetector) DetectConflicts(ctx context.Context, chunks []types.
 			filteredConflicts = append(filteredConflicts, conflict)
 		}
 	}
-	
+
 	// Sort by severity and confidence
 	sort.Slice(filteredConflicts, func(i, j int) bool {
 		if filteredConflicts[i].Severity != filteredConflicts[j].Severity {
@@ -198,18 +198,18 @@ func (cd *ConflictDetector) DetectConflicts(ctx context.Context, chunks []types.
 		}
 		return filteredConflicts[i].Confidence > filteredConflicts[j].Confidence
 	})
-	
+
 	result.Conflicts = filteredConflicts
 	result.ConflictsFound = len(filteredConflicts)
 	result.ProcessingTime = time.Since(startTime).String()
-	
+
 	return result, nil
 }
 
 // detectArchitecturalConflicts finds conflicts in architectural decisions
 func (cd *ConflictDetector) detectArchitecturalConflicts(chunks []types.ConversationChunk) []Conflict {
 	var conflicts []Conflict
-	
+
 	// Group architectural decision chunks
 	archChunks := []types.ConversationChunk{}
 	for _, chunk := range chunks {
@@ -218,27 +218,27 @@ func (cd *ConflictDetector) detectArchitecturalConflicts(chunks []types.Conversa
 			archChunks = append(archChunks, chunk)
 		}
 	}
-	
+
 	// Compare architectural chunks for conflicts
 	for i, chunk1 := range archChunks {
 		for j, chunk2 := range archChunks {
 			if i >= j || chunk1.SessionID == chunk2.SessionID {
 				continue
 			}
-			
+
 			if conflict := cd.analyzeArchitecturalConflict(chunk1, chunk2); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}
 	}
-	
+
 	return conflicts
 }
 
 // detectTechnicalConflicts finds conflicts in technical implementations
 func (cd *ConflictDetector) detectTechnicalConflicts(chunks []types.ConversationChunk) []Conflict {
 	var conflicts []Conflict
-	
+
 	// Group technical chunks
 	techChunks := []types.ConversationChunk{}
 	for _, chunk := range chunks {
@@ -247,87 +247,87 @@ func (cd *ConflictDetector) detectTechnicalConflicts(chunks []types.Conversation
 			techChunks = append(techChunks, chunk)
 		}
 	}
-	
+
 	// Compare technical approaches
 	for i, chunk1 := range techChunks {
 		for j, chunk2 := range techChunks {
 			if i >= j || chunk1.SessionID == chunk2.SessionID {
 				continue
 			}
-			
+
 			if conflict := cd.analyzeTechnicalConflict(chunk1, chunk2); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}
 	}
-	
+
 	return conflicts
 }
 
 // detectTemporalConflicts finds conflicts based on temporal patterns
 func (cd *ConflictDetector) detectTemporalConflicts(chunks []types.ConversationChunk) []Conflict {
 	var conflicts []Conflict
-	
+
 	// Sort chunks by timestamp
 	sortedChunks := make([]types.ConversationChunk, len(chunks))
 	copy(sortedChunks, chunks)
 	sort.Slice(sortedChunks, func(i, j int) bool {
 		return sortedChunks[i].Timestamp.Before(sortedChunks[j].Timestamp)
 	})
-	
+
 	// Look for contradictory patterns over time
 	for i := 0; i < len(sortedChunks)-1; i++ {
 		for j := i + 1; j < len(sortedChunks); j++ {
 			chunk1 := sortedChunks[i]
 			chunk2 := sortedChunks[j]
-			
+
 			timeDiff := chunk2.Timestamp.Sub(chunk1.Timestamp)
 			if timeDiff.Hours() > float64(cd.maxTimeDifferencedays*24) {
 				break // Too far apart
 			}
-			
+
 			if conflict := cd.analyzeTemporalConflict(chunk1, chunk2, timeDiff); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}
 	}
-	
+
 	return conflicts
 }
 
 // detectOutcomeConflicts finds conflicts in reported outcomes
 func (cd *ConflictDetector) detectOutcomeConflicts(chunks []types.ConversationChunk) []Conflict {
 	var conflicts []Conflict
-	
+
 	// Group chunks with similar content but different outcomes
 	chunkGroups := cd.groupSimilarChunks(chunks)
-	
+
 	for _, group := range chunkGroups {
 		if len(group) < 2 {
 			continue
 		}
-		
+
 		// Check for outcome conflicts within the group
 		for i, chunk1 := range group {
 			for j, chunk2 := range group {
 				if i >= j {
 					continue
 				}
-				
+
 				if conflict := cd.analyzeOutcomeConflict(chunk1, chunk2); conflict != nil {
 					conflicts = append(conflicts, *conflict)
 				}
 			}
 		}
 	}
-	
+
 	return conflicts
 }
 
 // detectDecisionConflicts finds conflicts in decision-making
 func (cd *ConflictDetector) detectDecisionConflicts(chunks []types.ConversationChunk) []Conflict {
 	var conflicts []Conflict
-	
+
 	// Find decision-related chunks
 	decisionChunks := []types.ConversationChunk{}
 	for _, chunk := range chunks {
@@ -336,27 +336,27 @@ func (cd *ConflictDetector) detectDecisionConflicts(chunks []types.ConversationC
 			decisionChunks = append(decisionChunks, chunk)
 		}
 	}
-	
+
 	// Analyze decision conflicts
 	for i, chunk1 := range decisionChunks {
 		for j, chunk2 := range decisionChunks {
 			if i >= j || chunk1.SessionID == chunk2.SessionID {
 				continue
 			}
-			
+
 			if conflict := cd.analyzeDecisionConflict(chunk1, chunk2); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}
 	}
-	
+
 	return conflicts
 }
 
 // detectMethodologyConflicts finds conflicts in methodological approaches
 func (cd *ConflictDetector) detectMethodologyConflicts(chunks []types.ConversationChunk) []Conflict {
 	var conflicts []Conflict
-	
+
 	// Find methodology-related chunks
 	methodChunks := []types.ConversationChunk{}
 	for _, chunk := range chunks {
@@ -364,45 +364,44 @@ func (cd *ConflictDetector) detectMethodologyConflicts(chunks []types.Conversati
 			methodChunks = append(methodChunks, chunk)
 		}
 	}
-	
+
 	// Analyze methodology conflicts
 	for i, chunk1 := range methodChunks {
 		for j, chunk2 := range methodChunks {
 			if i >= j || chunk1.SessionID == chunk2.SessionID {
 				continue
 			}
-			
+
 			if conflict := cd.analyzeMethodologyConflict(chunk1, chunk2); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}
 	}
-	
+
 	return conflicts
 }
 
 // Analysis methods for specific conflict types
 
 // analyzeGenericConflict provides common conflict analysis logic
-func (cd *ConflictDetector) analyzeGenericConflict(chunk1, chunk2 types.ConversationChunk, conflictType ConflictType, 
+func (cd *ConflictDetector) analyzeGenericConflict(chunk1, chunk2 types.ConversationChunk, conflictType ConflictType,
 	findConflictPoints func(string, string) []ConflictPoint,
 	determineSeverity func([]ConflictPoint) ConflictSeverity,
 	generateDescription func([]ConflictPoint) string,
 	title string) *Conflict {
-	
 	similarity := cd.calculateContentSimilarity(chunk1.Content, chunk2.Content)
 	if similarity < 0.3 {
 		return nil
 	}
-	
+
 	conflictPoints := findConflictPoints(chunk1.Content, chunk2.Content)
 	if len(conflictPoints) == 0 {
 		return nil
 	}
-	
+
 	confidence := cd.calculateConflictConfidence(similarity, conflictPoints)
 	severity := determineSeverity(conflictPoints)
-	
+
 	return &Conflict{
 		ID:             cd.generateConflictID(),
 		Type:           conflictType,
@@ -441,16 +440,16 @@ func (cd *ConflictDetector) analyzeTemporalConflict(chunk1, chunk2 types.Convers
 	if similarity < 0.4 {
 		return nil
 	}
-	
+
 	// Check if there's a temporal progression that seems contradictory
 	if !cd.hasTemporalContradiction(chunk1, chunk2) {
 		return nil
 	}
-	
+
 	conflictPoints := cd.findTemporalConflictPoints(chunk1.Content, chunk2.Content)
 	confidence := cd.calculateConflictConfidence(similarity, conflictPoints)
 	severity := cd.determineTemporalSeverity(timeDiff, conflictPoints)
-	
+
 	return &Conflict{
 		ID:             cd.generateConflictID(),
 		Type:           ConflictTypeTemporal,
@@ -472,16 +471,16 @@ func (cd *ConflictDetector) analyzeOutcomeConflict(chunk1, chunk2 types.Conversa
 	if chunk1.Metadata.Outcome == chunk2.Metadata.Outcome {
 		return nil // Same outcome, no conflict
 	}
-	
+
 	similarity := cd.calculateContentSimilarity(chunk1.Content, chunk2.Content)
 	if similarity < 0.5 {
 		return nil // Not similar enough
 	}
-	
+
 	conflictPoints := cd.findOutcomeConflictPoints(chunk1, chunk2)
 	confidence := cd.calculateConflictConfidence(similarity, conflictPoints)
 	severity := cd.determineOutcomeSeverity(chunk1.Metadata.Outcome, chunk2.Metadata.Outcome)
-	
+
 	return &Conflict{
 		ID:             cd.generateConflictID(),
 		Type:           ConflictTypeOutcome,
@@ -539,17 +538,17 @@ func (cd *ConflictDetector) containsDecisionLanguage(content string) bool {
 func (cd *ConflictDetector) calculateContentSimilarity(content1, content2 string) float64 {
 	words1 := strings.Fields(strings.ToLower(content1))
 	words2 := strings.Fields(strings.ToLower(content2))
-	
+
 	if len(words1) == 0 || len(words2) == 0 {
 		return 0.0
 	}
-	
+
 	// Simple Jaccard similarity
 	set1 := make(map[string]bool)
 	for _, word := range words1 {
 		set1[word] = true
 	}
-	
+
 	intersection := 0
 	set2 := make(map[string]bool)
 	for _, word := range words2 {
@@ -558,41 +557,42 @@ func (cd *ConflictDetector) calculateContentSimilarity(content1, content2 string
 			intersection++
 		}
 	}
-	
+
 	union := len(set1) + len(set2) - intersection
 	if union == 0 {
 		return 0.0
 	}
-	
+
 	return float64(intersection) / float64(union)
 }
 
 func (cd *ConflictDetector) groupSimilarChunks(chunks []types.ConversationChunk) [][]types.ConversationChunk {
-	var groups [][]types.ConversationChunk
+	// Pre-allocate with estimated capacity (worst case: each chunk is its own group)
+	groups := make([][]types.ConversationChunk, 0, len(chunks))
 	used := make(map[int]bool)
-	
+
 	for i, chunk1 := range chunks {
 		if used[i] {
 			continue
 		}
-		
+
 		group := []types.ConversationChunk{chunk1}
 		used[i] = true
-		
+
 		for j, chunk2 := range chunks {
 			if i == j || used[j] {
 				continue
 			}
-			
+
 			if cd.calculateContentSimilarity(chunk1.Content, chunk2.Content) > 0.4 {
 				group = append(group, chunk2)
 				used[j] = true
 			}
 		}
-		
+
 		groups = append(groups, group)
 	}
-	
+
 	return groups
 }
 
@@ -601,7 +601,7 @@ func (cd *ConflictDetector) hasTemporalContradiction(chunk1, chunk2 types.Conver
 	if chunk1.Metadata.Outcome == types.OutcomeSuccess && chunk2.Metadata.Outcome == types.OutcomeFailed {
 		return true
 	}
-	
+
 	// Check for contradictory statements
 	contradictions := [][]string{
 		{"works", "doesn't work"},
@@ -612,16 +612,16 @@ func (cd *ConflictDetector) hasTemporalContradiction(chunk1, chunk2 types.Conver
 		{"fast", "slow"},
 		{"secure", "vulnerable"},
 	}
-	
+
 	content1Lower := strings.ToLower(chunk1.Content)
 	content2Lower := strings.ToLower(chunk2.Content)
-	
+
 	for _, pair := range contradictions {
 		if strings.Contains(content1Lower, pair[0]) && strings.Contains(content2Lower, pair[1]) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -629,13 +629,13 @@ func (cd *ConflictDetector) calculateConflictConfidence(similarity float64, conf
 	if len(conflictPoints) == 0 {
 		return 0.0
 	}
-	
+
 	avgPointConfidence := 0.0
 	for _, point := range conflictPoints {
 		avgPointConfidence += point.Confidence
 	}
 	avgPointConfidence /= float64(len(conflictPoints))
-	
+
 	// Combine similarity and conflict point confidence
 	return (similarity*0.3 + avgPointConfidence*0.7)
 }
@@ -713,7 +713,7 @@ func (cd *ConflictDetector) determineTechnicalSeverity(conflictPoints []Conflict
 	return SeverityMedium
 }
 
-func (cd *ConflictDetector) determineTemporalSeverity(timeDiff time.Duration, conflictPoints []ConflictPoint) ConflictSeverity {
+func (cd *ConflictDetector) determineTemporalSeverity(timeDiff time.Duration, _ []ConflictPoint) ConflictSeverity {
 	days := timeDiff.Hours() / 24
 	if days < 7 {
 		return SeverityHigh // Recent contradiction
@@ -756,7 +756,7 @@ func (cd *ConflictDetector) generateTechnicalDescription(conflictPoints []Confli
 	return fmt.Sprintf("Detected %d technical implementation conflicts", len(conflictPoints))
 }
 
-func (cd *ConflictDetector) generateTemporalDescription(timeDiff time.Duration, conflictPoints []ConflictPoint) string {
+func (cd *ConflictDetector) generateTemporalDescription(timeDiff time.Duration, _ []ConflictPoint) string {
 	days := int(timeDiff.Hours() / 24)
 	return fmt.Sprintf("Temporal contradiction detected %d days apart", days)
 }
@@ -776,11 +776,11 @@ func (cd *ConflictDetector) generateMethodologyDescription(conflictPoints []Conf
 func (cd *ConflictDetector) extractEvidence(content1, content2 string) []string {
 	// Simple evidence extraction - could be enhanced with NLP
 	evidence := []string{}
-	
+
 	// Extract conflicting statements
 	sentences1 := strings.Split(content1, ".")
 	sentences2 := strings.Split(content2, ".")
-	
+
 	for _, s1 := range sentences1 {
 		for _, s2 := range sentences2 {
 			if cd.areSentencesConflicting(s1, s2) {
@@ -788,7 +788,7 @@ func (cd *ConflictDetector) extractEvidence(content1, content2 string) []string 
 			}
 		}
 	}
-	
+
 	return evidence
 }
 
@@ -803,10 +803,10 @@ func (cd *ConflictDetector) areSentencesConflicting(s1, s2 string) bool {
 		{"fast", "slow"},
 		{"secure", "insecure"},
 	}
-	
+
 	s1Lower := strings.ToLower(s1)
 	s2Lower := strings.ToLower(s2)
-	
+
 	for _, pair := range contradictions {
 		if strings.Contains(s1Lower, pair[0]) && strings.Contains(s2Lower, pair[1]) {
 			return true
@@ -815,6 +815,6 @@ func (cd *ConflictDetector) areSentencesConflicting(s1, s2 string) bool {
 			return true
 		}
 	}
-	
+
 	return false
 }

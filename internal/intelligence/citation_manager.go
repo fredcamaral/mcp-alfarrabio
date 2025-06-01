@@ -18,62 +18,62 @@ type CitationManager struct {
 
 // CitationConfig configures citation behavior
 type CitationConfig struct {
-	CitationStyle       string                      `json:"citation_style"`       // "apa", "mla", "chicago", "simple"
-	IncludeTimestamps   bool                        `json:"include_timestamps"`
-	IncludeRepository   bool                        `json:"include_repository"`
-	IncludeConfidence   bool                        `json:"include_confidence"`
-	MaxCitationsPerResponse int                     `json:"max_citations_per_response"`
-	MinConfidenceForCitation float64               `json:"min_confidence_for_citation"`
-	CustomFormats       map[string]CitationFormat  `json:"custom_formats"`
-	GroupSimilarSources bool                       `json:"group_similar_sources"`
+	CitationStyle            string                    `json:"citation_style"` // "apa", "mla", "chicago", "simple"
+	IncludeTimestamps        bool                      `json:"include_timestamps"`
+	IncludeRepository        bool                      `json:"include_repository"`
+	IncludeConfidence        bool                      `json:"include_confidence"`
+	MaxCitationsPerResponse  int                       `json:"max_citations_per_response"`
+	MinConfidenceForCitation float64                   `json:"min_confidence_for_citation"`
+	CustomFormats            map[string]CitationFormat `json:"custom_formats"`
+	GroupSimilarSources      bool                      `json:"group_similar_sources"`
 }
 
 // CitationFormat defines how to format citations
 type CitationFormat struct {
-	Template     string            `json:"template"`     // Template with placeholders
-	Fields       []string          `json:"fields"`       // Required fields
-	Separator    string            `json:"separator"`    // Separator for multiple citations
-	Prefix       string            `json:"prefix"`       // Prefix for citation list
-	Suffix       string            `json:"suffix"`       // Suffix for citation list
+	Template  string   `json:"template"`  // Template with placeholders
+	Fields    []string `json:"fields"`    // Required fields
+	Separator string   `json:"separator"` // Separator for multiple citations
+	Prefix    string   `json:"prefix"`    // Prefix for citation list
+	Suffix    string   `json:"suffix"`    // Suffix for citation list
 }
 
 // Citation represents a single citation
 type Citation struct {
-	ID          string                 `json:"id"`
-	ChunkID     string                 `json:"chunk_id"`
-	Type        types.ChunkType        `json:"type"`
-	Repository  string                 `json:"repository"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Summary     string                 `json:"summary"`
-	Confidence  float64                `json:"confidence"`
-	Relevance   float64                `json:"relevance"`
-	UsageCount  int                    `json:"usage_count"`
-	Context     string                 `json:"context"`     // Quoted or relevant portion
-	Metadata    map[string]interface{} `json:"metadata"`
-	FormattedText string               `json:"formatted_text"`
+	ID            string                 `json:"id"`
+	ChunkID       string                 `json:"chunk_id"`
+	Type          types.ChunkType        `json:"type"`
+	Repository    string                 `json:"repository"`
+	Timestamp     time.Time              `json:"timestamp"`
+	Summary       string                 `json:"summary"`
+	Confidence    float64                `json:"confidence"`
+	Relevance     float64                `json:"relevance"`
+	UsageCount    int                    `json:"usage_count"`
+	Context       string                 `json:"context"` // Quoted or relevant portion
+	Metadata      map[string]interface{} `json:"metadata"`
+	FormattedText string                 `json:"formatted_text"`
 }
 
 // CitationGroup represents grouped citations
 type CitationGroup struct {
-	GroupID     string      `json:"group_id"`
-	GroupType   string      `json:"group_type"`   // "repository", "session", "type", "topic"
-	GroupName   string      `json:"group_name"`
-	Citations   []Citation  `json:"citations"`
-	Summary     string      `json:"summary"`
-	Weight      float64     `json:"weight"`       // Combined weight of citations
+	GroupID   string     `json:"group_id"`
+	GroupType string     `json:"group_type"` // "repository", "session", "type", "topic"
+	GroupName string     `json:"group_name"`
+	Citations []Citation `json:"citations"`
+	Summary   string     `json:"summary"`
+	Weight    float64    `json:"weight"` // Combined weight of citations
 }
 
 // ResponseCitations represents citations for a complete AI response
 type ResponseCitations struct {
-	ResponseID        string          `json:"response_id"`
-	Query             string          `json:"query"`
-	TotalCitations    int             `json:"total_citations"`
-	Groups            []CitationGroup `json:"groups,omitempty"`
-	IndividualCitations []Citation    `json:"individual_citations,omitempty"`
-	FormattedBibliography string      `json:"formatted_bibliography"`
-	InlineCitations   map[string]string `json:"inline_citations"` // text_hash -> citation_reference
-	GeneratedAt       time.Time       `json:"generated_at"`
-	Style             string          `json:"style"`
+	ResponseID            string            `json:"response_id"`
+	Query                 string            `json:"query"`
+	TotalCitations        int               `json:"total_citations"`
+	Groups                []CitationGroup   `json:"groups,omitempty"`
+	IndividualCitations   []Citation        `json:"individual_citations,omitempty"`
+	FormattedBibliography string            `json:"formatted_bibliography"`
+	InlineCitations       map[string]string `json:"inline_citations"` // text_hash -> citation_reference
+	GeneratedAt           time.Time         `json:"generated_at"`
+	Style                 string            `json:"style"`
 }
 
 // NewCitationManager creates a new citation manager
@@ -124,11 +124,11 @@ func DefaultCitationConfig() *CitationConfig {
 func (cm *CitationManager) GenerateCitations(ctx context.Context, results []types.SearchResult, query string) (*ResponseCitations, error) {
 	if len(results) == 0 {
 		return &ResponseCitations{
-			ResponseID:      cm.generateResponseID(query),
-			Query:           query,
-			TotalCitations:  0,
-			GeneratedAt:     time.Now(),
-			Style:           cm.config.CitationStyle,
+			ResponseID:     cm.generateResponseID(query),
+			Query:          query,
+			TotalCitations: 0,
+			GeneratedAt:    time.Now(),
+			Style:          cm.config.CitationStyle,
 		}, nil
 	}
 
@@ -173,20 +173,20 @@ func (cm *CitationManager) GenerateCitations(ctx context.Context, results []type
 func (cm *CitationManager) CreateInlineReference(text string, citations *ResponseCitations) string {
 	// Generate hash for the text
 	textHash := cm.generateTextHash(text)
-	
+
 	// Find matching citations
 	matchingCitations := cm.findMatchingCitations(text, citations.IndividualCitations)
-	
+
 	if len(matchingCitations) == 0 {
 		return text
 	}
 
 	// Generate inline reference
 	inlineRef := cm.formatInlineReference(matchingCitations)
-	
+
 	// Store in inline citations map
 	citations.InlineCitations[textHash] = inlineRef
-	
+
 	return text + " " + inlineRef
 }
 
@@ -205,13 +205,13 @@ func (cm *CitationManager) UpdateCitationUsage(ctx context.Context, citationIDs 
 
 func (cm *CitationManager) filterByConfidence(results []types.SearchResult) []types.SearchResult {
 	filtered := make([]types.SearchResult, 0)
-	
+
 	for _, result := range results {
 		confidence := 0.5 // Default confidence
 		if result.Chunk.Metadata.Confidence != nil {
 			confidence = result.Chunk.Metadata.Confidence.Score
 		}
-		
+
 		if confidence >= cm.config.MinConfidenceForCitation {
 			filtered = append(filtered, result)
 		}
@@ -227,7 +227,7 @@ func (cm *CitationManager) filterByConfidence(results []types.SearchResult) []ty
 
 func (cm *CitationManager) createCitation(result types.SearchResult, index int) Citation {
 	chunk := result.Chunk
-	
+
 	confidence := 0.5
 	if chunk.Metadata.Confidence != nil {
 		confidence = chunk.Metadata.Confidence.Score
@@ -235,7 +235,7 @@ func (cm *CitationManager) createCitation(result types.SearchResult, index int) 
 
 	// Generate citation ID (will be used below)
 	citationID := fmt.Sprintf("%d", index)
-	
+
 	// Extract context (first 200 chars of content)
 	context := chunk.Content
 	if len(context) > 200 {
@@ -243,17 +243,17 @@ func (cm *CitationManager) createCitation(result types.SearchResult, index int) 
 	}
 
 	citation := Citation{
-		ID:          citationID,
-		ChunkID:     chunk.ID,
-		Type:        chunk.Type,
-		Repository:  chunk.Metadata.Repository,
-		Timestamp:   chunk.Timestamp,
-		Summary:     chunk.Summary,
-		Confidence:  confidence,
-		Relevance:   result.Score,
-		UsageCount:  0,
-		Context:     context,
-		Metadata:    make(map[string]interface{}),
+		ID:         citationID,
+		ChunkID:    chunk.ID,
+		Type:       chunk.Type,
+		Repository: chunk.Metadata.Repository,
+		Timestamp:  chunk.Timestamp,
+		Summary:    chunk.Summary,
+		Confidence: confidence,
+		Relevance:  result.Score,
+		UsageCount: 0,
+		Context:    context,
+		Metadata:   make(map[string]interface{}),
 	}
 
 	// Add additional metadata
@@ -318,7 +318,7 @@ func (cm *CitationManager) groupCitations(citations []Citation) []CitationGroup 
 
 func (cm *CitationManager) formatBibliography(citations []Citation, groups []CitationGroup) string {
 	format := cm.config.CustomFormats[cm.config.CitationStyle]
-	
+
 	var bibliography strings.Builder
 	bibliography.WriteString(format.Prefix)
 
@@ -329,7 +329,7 @@ func (cm *CitationManager) formatBibliography(citations []Citation, groups []Cit
 				bibliography.WriteString("\n")
 			}
 			bibliography.WriteString(fmt.Sprintf("\n%s:\n", group.GroupName))
-			
+
 			for _, citation := range group.Citations {
 				bibliography.WriteString("  ")
 				bibliography.WriteString(citation.FormattedText)
@@ -352,16 +352,16 @@ func (cm *CitationManager) formatBibliography(citations []Citation, groups []Cit
 
 func (cm *CitationManager) generateInlineCitationMap(citations []Citation) map[string]string {
 	inlineMap := make(map[string]string)
-	
+
 	for _, citation := range citations {
 		// Create inline reference for this citation
 		inlineFormat := cm.config.CustomFormats["inline"]
 		inlineRef := cm.replacePlaceholders(inlineFormat.Template, citation)
-		
+
 		// Map citation ID to inline reference
 		inlineMap[citation.ChunkID] = inlineRef
 	}
-	
+
 	return inlineMap
 }
 
@@ -372,7 +372,7 @@ func (cm *CitationManager) formatCitationText(citation Citation) string {
 
 func (cm *CitationManager) replacePlaceholders(template string, citation Citation) string {
 	text := template
-	
+
 	replacements := map[string]string{
 		"{id}":         citation.ID,
 		"{chunk_id}":   citation.ChunkID,
@@ -405,15 +405,15 @@ func (cm *CitationManager) generateTextHash(text string) string {
 func (cm *CitationManager) findMatchingCitations(text string, citations []Citation) []Citation {
 	matching := make([]Citation, 0)
 	textLower := strings.ToLower(text)
-	
+
 	for _, citation := range citations {
 		// Check if citation content is referenced in the text
 		if strings.Contains(textLower, strings.ToLower(citation.Summary)) ||
-		   strings.Contains(textLower, strings.ToLower(citation.Context)) {
+			strings.Contains(textLower, strings.ToLower(citation.Context)) {
 			matching = append(matching, citation)
 		}
 	}
-	
+
 	return matching
 }
 
@@ -421,14 +421,14 @@ func (cm *CitationManager) formatInlineReference(citations []Citation) string {
 	if len(citations) == 0 {
 		return ""
 	}
-	
+
 	inlineFormat := cm.config.CustomFormats["inline"]
 	refs := make([]string, len(citations))
-	
+
 	for i, citation := range citations {
 		refs[i] = cm.replacePlaceholders(inlineFormat.Template, citation)
 	}
-	
+
 	return strings.Join(refs, inlineFormat.Separator)
 }
 
@@ -436,7 +436,7 @@ func (cm *CitationManager) generateGroupSummary(group *CitationGroup) string {
 	if len(group.Citations) == 0 {
 		return ""
 	}
-	
+
 	switch group.GroupType {
 	case "repository":
 		return fmt.Sprintf("%d sources from %s", len(group.Citations), group.GroupName)

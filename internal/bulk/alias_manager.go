@@ -17,33 +17,33 @@ import (
 type AliasType string
 
 const (
-	AliasTypeTag      AliasType = "tag"       // Tag-based alias (e.g., "@bug-fixes")
-	AliasTypeShortcut AliasType = "shortcut"  // Custom shortcut (e.g., "#auth-module")
-	AliasTypeQuery    AliasType = "query"     // Saved query (e.g., "!recent-errors")
+	AliasTypeTag        AliasType = "tag"        // Tag-based alias (e.g., "@bug-fixes")
+	AliasTypeShortcut   AliasType = "shortcut"   // Custom shortcut (e.g., "#auth-module")
+	AliasTypeQuery      AliasType = "query"      // Saved query (e.g., "!recent-errors")
 	AliasTypeCollection AliasType = "collection" // Named collection (e.g., "&deployment-notes")
 )
 
 // Alias represents a memory alias for flexible referencing
 type Alias struct {
-	ID          string            `json:"id"`
-	Name        string            `json:"name"`
-	Type        AliasType         `json:"type"`
-	Description string            `json:"description,omitempty"`
-	Target      AliasTarget       `json:"target"`
-	Metadata    AliasMetadata     `json:"metadata"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
-	AccessCount int               `json:"access_count"`
-	LastAccessed *time.Time       `json:"last_accessed,omitempty"`
+	ID           string        `json:"id"`
+	Name         string        `json:"name"`
+	Type         AliasType     `json:"type"`
+	Description  string        `json:"description,omitempty"`
+	Target       AliasTarget   `json:"target"`
+	Metadata     AliasMetadata `json:"metadata"`
+	CreatedAt    time.Time     `json:"created_at"`
+	UpdatedAt    time.Time     `json:"updated_at"`
+	AccessCount  int           `json:"access_count"`
+	LastAccessed *time.Time    `json:"last_accessed,omitempty"`
 }
 
 // AliasTarget defines what the alias points to
 type AliasTarget struct {
-	Type        TargetType        `json:"type"`
-	ChunkIDs    []string          `json:"chunk_ids,omitempty"`
-	Query       *QueryTarget      `json:"query,omitempty"`
-	Filter      *FilterTarget     `json:"filter,omitempty"`
-	Collection  *CollectionTarget `json:"collection,omitempty"`
+	Type       TargetType        `json:"type"`
+	ChunkIDs   []string          `json:"chunk_ids,omitempty"`
+	Query      *QueryTarget      `json:"query,omitempty"`
+	Filter     *FilterTarget     `json:"filter,omitempty"`
+	Collection *CollectionTarget `json:"collection,omitempty"`
 }
 
 // TargetType represents the type of alias target
@@ -69,22 +69,22 @@ type QueryTarget struct {
 
 // FilterTarget represents a filter-based target
 type FilterTarget struct {
-	Repository   *string              `json:"repository,omitempty"`
-	SessionIDs   []string             `json:"session_ids,omitempty"`
-	ChunkTypes   []types.ChunkType    `json:"chunk_types,omitempty"`
-	Tags         []string             `json:"tags,omitempty"`
-	Outcomes     []types.Outcome      `json:"outcomes,omitempty"`
-	Difficulties []types.Difficulty   `json:"difficulties,omitempty"`
-	DateRange    *DateRange           `json:"date_range,omitempty"`
-	ContentMatch *string              `json:"content_match,omitempty"` // Regex pattern
+	Repository   *string            `json:"repository,omitempty"`
+	SessionIDs   []string           `json:"session_ids,omitempty"`
+	ChunkTypes   []types.ChunkType  `json:"chunk_types,omitempty"`
+	Tags         []string           `json:"tags,omitempty"`
+	Outcomes     []types.Outcome    `json:"outcomes,omitempty"`
+	Difficulties []types.Difficulty `json:"difficulties,omitempty"`
+	DateRange    *DateRange         `json:"date_range,omitempty"`
+	ContentMatch *string            `json:"content_match,omitempty"` // Regex pattern
 }
 
 // CollectionTarget represents a named collection
 type CollectionTarget struct {
-	Name        string            `json:"name"`
-	Description string            `json:"description,omitempty"`
-	ChunkIDs    []string          `json:"chunk_ids"`
-	Tags        []string          `json:"tags,omitempty"`
+	Name        string                 `json:"name"`
+	Description string                 `json:"description,omitempty"`
+	ChunkIDs    []string               `json:"chunk_ids"`
+	Tags        []string               `json:"tags,omitempty"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
@@ -96,21 +96,21 @@ type DateRange struct {
 
 // AliasMetadata contains metadata about the alias
 type AliasMetadata struct {
-	CreatedBy   string            `json:"created_by,omitempty"`
-	Repository  string            `json:"repository,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	IsPublic    bool              `json:"is_public"`
-	IsFavorite  bool              `json:"is_favorite"`
-	Custom      map[string]interface{} `json:"custom,omitempty"`
+	CreatedBy  string                 `json:"created_by,omitempty"`
+	Repository string                 `json:"repository,omitempty"`
+	Tags       []string               `json:"tags,omitempty"`
+	IsPublic   bool                   `json:"is_public"`
+	IsFavorite bool                   `json:"is_favorite"`
+	Custom     map[string]interface{} `json:"custom,omitempty"`
 }
 
 // AliasResult represents the result of resolving an alias
 type AliasResult struct {
-	Alias      Alias                    `json:"alias"`
+	Alias      Alias                     `json:"alias"`
 	Chunks     []types.ConversationChunk `json:"chunks"`
 	TotalFound int                       `json:"total_found"`
-	Message    string                   `json:"message,omitempty"`
-	Warnings   []string                 `json:"warnings,omitempty"`
+	Message    string                    `json:"message,omitempty"`
+	Warnings   []string                  `json:"warnings,omitempty"`
 }
 
 // AliasManager handles memory aliases for flexible referencing
@@ -338,7 +338,7 @@ func (am *AliasManager) validateAlias(alias Alias) error {
 	if alias.Name == "" {
 		return fmt.Errorf("alias name cannot be empty")
 	}
-	
+
 	if !am.isValidAliasName(alias.Name) {
 		return fmt.Errorf("invalid alias name format: %s", alias.Name)
 	}
@@ -447,7 +447,7 @@ func (am *AliasManager) resolveTarget(ctx context.Context, target AliasTarget) (
 }
 
 func (am *AliasManager) resolveChunkTarget(ctx context.Context, chunkIDs []string) ([]types.ConversationChunk, error) {
-	var chunks []types.ConversationChunk
+	chunks := make([]types.ConversationChunk, 0, len(chunkIDs))
 	for _, id := range chunkIDs {
 		chunk, err := am.storage.GetByID(ctx, id)
 		if err != nil {
@@ -459,7 +459,7 @@ func (am *AliasManager) resolveChunkTarget(ctx context.Context, chunkIDs []strin
 	return chunks, nil
 }
 
-func (am *AliasManager) resolveQueryTarget(ctx context.Context, query QueryTarget) ([]types.ConversationChunk, error) {
+func (am *AliasManager) resolveQueryTarget(_ context.Context, query QueryTarget) ([]types.ConversationChunk, error) {
 	// Convert QueryTarget to MemoryQuery
 	_ = &types.MemoryQuery{
 		Query:             query.Query,
@@ -487,10 +487,10 @@ func (am *AliasManager) resolveCollectionTarget(ctx context.Context, collection 
 func (am *AliasManager) findAliasReferences(text string) []string {
 	// Find alias references: @tag, #shortcut, !query, &collection
 	patterns := []string{
-		`@[a-zA-Z0-9_-]+`,   // Tag aliases
-		`#[a-zA-Z0-9_-]+`,   // Shortcut aliases
-		`![a-zA-Z0-9_-]+`,   // Query aliases
-		`&[a-zA-Z0-9_-]+`,   // Collection aliases
+		`@[a-zA-Z0-9_-]+`, // Tag aliases
+		`#[a-zA-Z0-9_-]+`, // Shortcut aliases
+		`![a-zA-Z0-9_-]+`, // Query aliases
+		`&[a-zA-Z0-9_-]+`, // Collection aliases
 	}
 
 	var references []string
@@ -547,7 +547,7 @@ func (am *AliasManager) matchesFilter(alias Alias, filter AliasListFilter) bool 
 	if filter.Query != nil {
 		query := strings.ToLower(*filter.Query)
 		if !strings.Contains(strings.ToLower(alias.Name), query) &&
-		   !strings.Contains(strings.ToLower(alias.Description), query) {
+			!strings.Contains(strings.ToLower(alias.Description), query) {
 			return false
 		}
 	}
@@ -559,7 +559,7 @@ func (am *AliasManager) generateResultMessage(alias *Alias, resultCount int) str
 	if resultCount == 0 {
 		return fmt.Sprintf("No memories found for alias '%s'", alias.Name)
 	}
-	return fmt.Sprintf("Found %d memories for alias '%s' (%s)", 
+	return fmt.Sprintf("Found %d memories for alias '%s' (%s)",
 		resultCount, alias.Name, alias.Type)
 }
 

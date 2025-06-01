@@ -2,10 +2,10 @@ package intelligence
 
 import (
 	"context"
+	"fmt"
 	"sort"
 	"time"
 )
-
 
 // ResolutionStrategy represents a strategy for resolving conflicts
 type ResolutionStrategy struct {
@@ -30,24 +30,24 @@ type ResolutionStep struct {
 
 // ResolutionRecommendation contains recommendations for resolving conflicts
 type ResolutionRecommendation struct {
-	ConflictID      string               `json:"conflict_id"`
-	ConflictType    ConflictType         `json:"conflict_type"`
-	Severity        ConflictSeverity     `json:"severity"`
-	Strategies      []ResolutionStrategy `json:"strategies"`
-	Recommended     *ResolutionStrategy  `json:"recommended,omitempty"`
-	Context         ConflictContext      `json:"context"`
-	GeneratedAt     time.Time            `json:"generated_at"`
-	ValidUntil      time.Time            `json:"valid_until"`
+	ConflictID   string               `json:"conflict_id"`
+	ConflictType ConflictType         `json:"conflict_type"`
+	Severity     ConflictSeverity     `json:"severity"`
+	Strategies   []ResolutionStrategy `json:"strategies"`
+	Recommended  *ResolutionStrategy  `json:"recommended,omitempty"`
+	Context      ConflictContext      `json:"context"`
+	GeneratedAt  time.Time            `json:"generated_at"`
+	ValidUntil   time.Time            `json:"valid_until"`
 }
 
 // ConflictContext provides additional context for resolution
 type ConflictContext struct {
-	Repository        string                    `json:"repository"`
-	AffectedFiles     []string                  `json:"affected_files"`
-	RelatedPatterns   []string                  `json:"related_patterns"`
-	StakeholderImpact map[string]string         `json:"stakeholder_impact"`
-	BusinessContext   map[string]any            `json:"business_context"`
-	TechnicalContext  map[string]any            `json:"technical_context"`
+	Repository        string            `json:"repository"`
+	AffectedFiles     []string          `json:"affected_files"`
+	RelatedPatterns   []string          `json:"related_patterns"`
+	StakeholderImpact map[string]string `json:"stakeholder_impact"`
+	BusinessContext   map[string]any    `json:"business_context"`
+	TechnicalContext  map[string]any    `json:"technical_context"`
 }
 
 // ConflictResolver provides conflict resolution strategies and recommendations
@@ -55,7 +55,7 @@ type ConflictResolver struct {
 	// Configuration
 	defaultStrategyCount int
 	maxResolutionAge     time.Duration
-	
+
 	// Strategy weights for different conflict types
 	strategyWeights map[ConflictType]map[ConflictResolutionType]float64
 }
@@ -72,19 +72,19 @@ func NewConflictResolver() *ConflictResolver {
 // ResolveConflicts generates resolution recommendations for conflicts
 func (cr *ConflictResolver) ResolveConflicts(ctx context.Context, conflicts []Conflict) ([]ResolutionRecommendation, error) {
 	recommendations := make([]ResolutionRecommendation, 0, len(conflicts))
-	
+
 	for _, conflict := range conflicts {
 		recommendation := cr.generateResolutionRecommendation(conflict)
 		recommendations = append(recommendations, recommendation)
 	}
-	
+
 	return recommendations, nil
 }
 
 // GenerateResolutionStrategies creates multiple resolution strategies for a conflict
 func (cr *ConflictResolver) GenerateResolutionStrategies(conflict Conflict) []ResolutionStrategy {
 	var strategies []ResolutionStrategy
-	
+
 	// Generate different types of strategies based on conflict type
 	switch conflict.Type {
 	case ConflictTypeArchitectural:
@@ -104,52 +104,52 @@ func (cr *ConflictResolver) GenerateResolutionStrategies(conflict Conflict) []Re
 	default:
 		strategies = cr.generateGenericStrategies(conflict)
 	}
-	
+
 	// Score and sort strategies
 	for i := range strategies {
 		strategies[i].Confidence = cr.calculateStrategyConfidence(conflict, strategies[i])
 	}
-	
+
 	sort.Slice(strategies, func(i, j int) bool {
 		return strategies[i].Confidence > strategies[j].Confidence
 	})
-	
+
 	// Limit to default count
 	if len(strategies) > cr.defaultStrategyCount {
 		strategies = strategies[:cr.defaultStrategyCount]
 	}
-	
+
 	return strategies
 }
 
 // generateResolutionRecommendation creates a comprehensive resolution recommendation
 func (cr *ConflictResolver) generateResolutionRecommendation(conflict Conflict) ResolutionRecommendation {
 	strategies := cr.GenerateResolutionStrategies(conflict)
-	
+
 	var recommended *ResolutionStrategy
 	if len(strategies) > 0 {
 		recommended = &strategies[0]
 	}
-	
+
 	context := cr.buildConflictContext(conflict)
-	
+
 	return ResolutionRecommendation{
-		ConflictID:      conflict.ID,
-		ConflictType:    conflict.Type,
-		Severity:        conflict.Severity,
-		Strategies:      strategies,
-		Recommended:     recommended,
-		Context:         context,
-		GeneratedAt:     time.Now(),
-		ValidUntil:      time.Now().Add(cr.maxResolutionAge),
+		ConflictID:   conflict.ID,
+		ConflictType: conflict.Type,
+		Severity:     conflict.Severity,
+		Strategies:   strategies,
+		Recommended:  recommended,
+		Context:      context,
+		GeneratedAt:  time.Now(),
+		ValidUntil:   time.Now().Add(cr.maxResolutionAge),
 	}
 }
 
 // Strategy generation methods for different conflict types
 
-func (cr *ConflictResolver) generateArchitecturalStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateArchitecturalStrategies(_ Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
-	
+
 	// Strategy 1: Accept latest architectural decision
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionAcceptLatest,
@@ -176,7 +176,7 @@ func (cr *ConflictResolver) generateArchitecturalStrategies(conflict Conflict) [
 			"applicable_to": []string{"architecture", "design_patterns"},
 		},
 	})
-	
+
 	// Strategy 2: Merge architectural approaches
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionMerge,
@@ -201,10 +201,10 @@ func (cr *ConflictResolver) generateArchitecturalStrategies(conflict Conflict) [
 		},
 		Context: map[string]any{
 			"strategy_type": "synthesis",
-			"complexity": "high",
+			"complexity":    "high",
 		},
 	})
-	
+
 	// Strategy 3: Context-specific resolution
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionContextual,
@@ -228,17 +228,17 @@ func (cr *ConflictResolver) generateArchitecturalStrategies(conflict Conflict) [
 			"Requires careful interface management",
 		},
 		Context: map[string]any{
-			"strategy_type": "contextual_separation",
+			"strategy_type":       "contextual_separation",
 			"governance_required": true,
 		},
 	})
-	
+
 	return strategies
 }
 
-func (cr *ConflictResolver) generateTechnicalStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateTechnicalStrategies(_ Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
-	
+
 	// Strategy 1: Benchmark and choose
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionAcceptHighest,
@@ -262,11 +262,11 @@ func (cr *ConflictResolver) generateTechnicalStrategies(conflict Conflict) []Res
 			"May not capture all relevant factors",
 		},
 		Context: map[string]any{
-			"strategy_type": "empirical_testing",
+			"strategy_type":      "empirical_testing",
 			"resources_required": "medium",
 		},
 	})
-	
+
 	// Strategy 2: Evolutionary approach
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionEvolutionary,
@@ -291,16 +291,16 @@ func (cr *ConflictResolver) generateTechnicalStrategies(conflict Conflict) []Res
 		},
 		Context: map[string]any{
 			"strategy_type": "gradual_migration",
-			"risk_level": "low",
+			"risk_level":    "low",
 		},
 	})
-	
+
 	return strategies
 }
 
 func (cr *ConflictResolver) generateTemporalStrategies(conflict Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
-	
+
 	// Strategy 1: Accept latest
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionAcceptLatest,
@@ -322,17 +322,17 @@ func (cr *ConflictResolver) generateTemporalStrategies(conflict Conflict) []Reso
 			"Could be based on incomplete recent information",
 		},
 		Context: map[string]any{
-			"strategy_type": "temporal_precedence",
+			"strategy_type":   "temporal_precedence",
 			"time_difference": conflict.TimeDifference.String(),
 		},
 	})
-	
+
 	return strategies
 }
 
-func (cr *ConflictResolver) generateOutcomeStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateOutcomeStrategies(_ Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
-	
+
 	// Strategy 1: Investigate root cause
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionManualReview,
@@ -355,17 +355,17 @@ func (cr *ConflictResolver) generateOutcomeStrategies(conflict Conflict) []Resol
 			"May not yield clear conclusions",
 		},
 		Context: map[string]any{
-			"strategy_type": "root_cause_analysis",
+			"strategy_type":          "root_cause_analysis",
 			"investigation_required": true,
 		},
 	})
-	
+
 	return strategies
 }
 
-func (cr *ConflictResolver) generateDecisionStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateDecisionStrategies(_ Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
-	
+
 	// Strategy 1: Re-evaluate with current context
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionContextual,
@@ -388,17 +388,17 @@ func (cr *ConflictResolver) generateDecisionStrategies(conflict Conflict) []Reso
 			"Requires effort to re-evaluate",
 		},
 		Context: map[string]any{
-			"strategy_type": "contextual_re_evaluation",
+			"strategy_type":       "contextual_re_evaluation",
 			"decision_governance": true,
 		},
 	})
-	
+
 	return strategies
 }
 
-func (cr *ConflictResolver) generateMethodologyStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateMethodologyStrategies(_ Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
-	
+
 	// Strategy 1: Establish standard methodology
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionDomain,
@@ -422,16 +422,16 @@ func (cr *ConflictResolver) generateMethodologyStrategies(conflict Conflict) []R
 		},
 		Context: map[string]any{
 			"strategy_type": "standardization",
-			"scope": "organization_wide",
+			"scope":         "organization_wide",
 		},
 	})
-	
+
 	return strategies
 }
 
-func (cr *ConflictResolver) generateGenericStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateGenericStrategies(_ Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
-	
+
 	// Generic strategy 1: Manual review
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionManualReview,
@@ -455,11 +455,11 @@ func (cr *ConflictResolver) generateGenericStrategies(conflict Conflict) []Resol
 			"Dependent on reviewer availability and expertise",
 		},
 		Context: map[string]any{
-			"strategy_type": "human_review",
+			"strategy_type":      "human_review",
 			"expertise_required": true,
 		},
 	})
-	
+
 	return strategies
 }
 
@@ -467,14 +467,14 @@ func (cr *ConflictResolver) generateGenericStrategies(conflict Conflict) []Resol
 
 func (cr *ConflictResolver) calculateStrategyConfidence(conflict Conflict, strategy ResolutionStrategy) float64 {
 	baseConfidence := 0.5
-	
+
 	// Adjust based on conflict type and strategy type compatibility
 	if weights, exists := cr.strategyWeights[conflict.Type]; exists {
 		if weight, exists := weights[strategy.Type]; exists {
 			baseConfidence = weight
 		}
 	}
-	
+
 	// Adjust based on conflict severity
 	switch conflict.Severity {
 	case SeverityCritical:
@@ -496,11 +496,11 @@ func (cr *ConflictResolver) calculateStrategyConfidence(conflict Conflict, strat
 	case SeverityInfo:
 		baseConfidence += 0.02 // Small boost for informational conflicts
 	}
-	
+
 	// Adjust based on conflict confidence
 	confidenceBonus := (conflict.Confidence - 0.5) * 0.2
 	baseConfidence += confidenceBonus
-	
+
 	// Ensure confidence is within bounds
 	if baseConfidence > 1.0 {
 		baseConfidence = 1.0
@@ -508,7 +508,7 @@ func (cr *ConflictResolver) calculateStrategyConfidence(conflict Conflict, strat
 	if baseConfidence < 0.0 {
 		baseConfidence = 0.0
 	}
-	
+
 	return baseConfidence
 }
 
@@ -521,7 +521,7 @@ func (cr *ConflictResolver) buildConflictContext(conflict Conflict) ConflictCont
 		BusinessContext:   map[string]any{},
 		TechnicalContext:  conflict.Context,
 	}
-	
+
 	return context
 }
 
@@ -537,7 +537,7 @@ func extractRepository(conflict Conflict) string {
 
 func extractAffectedFiles(conflict Conflict) []string {
 	files := make(map[string]bool)
-	
+
 	// Collect files from all related chunks
 	for _, file := range conflict.PrimaryChunk.Metadata.FilesModified {
 		files[file] = true
@@ -550,18 +550,18 @@ func extractAffectedFiles(conflict Conflict) []string {
 			files[file] = true
 		}
 	}
-	
+
 	result := make([]string, 0, len(files))
 	for file := range files {
 		result = append(result, file)
 	}
-	
+
 	return result
 }
 
 func extractStakeholderImpact(conflict Conflict) map[string]string {
 	impact := make(map[string]string)
-	
+
 	// Determine impact based on conflict type
 	switch conflict.Type {
 	case ConflictTypeArchitectural:
@@ -591,23 +591,23 @@ func extractStakeholderImpact(conflict Conflict) map[string]string {
 	default:
 		impact["team"] = string(SeverityMedium)
 	}
-	
+
 	return impact
 }
 
 // initializeStrategyWeights sets up strategy weights for different conflict types
 func initializeStrategyWeights() map[ConflictType]map[ConflictResolutionType]float64 {
 	weights := make(map[ConflictType]map[ConflictResolutionType]float64)
-	
+
 	weights[ConflictTypeArchitectural] = map[ConflictResolutionType]float64{
-		ResolutionAcceptLatest:   0.7,
-		ResolutionMerge:          0.8,
-		ResolutionContextual:     0.9,
-		ResolutionManualReview:   0.8,
-		ResolutionEvolutionary:   0.6,
-		ResolutionDomain:         0.7,
+		ResolutionAcceptLatest: 0.7,
+		ResolutionMerge:        0.8,
+		ResolutionContextual:   0.9,
+		ResolutionManualReview: 0.8,
+		ResolutionEvolutionary: 0.6,
+		ResolutionDomain:       0.7,
 	}
-	
+
 	weights[ConflictTypeTechnical] = map[ConflictResolutionType]float64{
 		ResolutionAcceptHighest: 0.9,
 		ResolutionEvolutionary:  0.8,
@@ -615,50 +615,56 @@ func initializeStrategyWeights() map[ConflictType]map[ConflictResolutionType]flo
 		ResolutionManualReview:  0.7,
 		ResolutionAcceptLatest:  0.5,
 	}
-	
+
 	weights[ConflictTypeTemporal] = map[ConflictResolutionType]float64{
-		ResolutionAcceptLatest:  0.9,
-		ResolutionManualReview:  0.7,
-		ResolutionContextual:    0.6,
+		ResolutionAcceptLatest: 0.9,
+		ResolutionManualReview: 0.7,
+		ResolutionContextual:   0.6,
 	}
-	
+
 	weights[ConflictTypeOutcome] = map[ConflictResolutionType]float64{
-		ResolutionManualReview:   0.9,
-		ResolutionContextual:     0.8,
+		ResolutionManualReview:  0.9,
+		ResolutionContextual:    0.8,
 		ResolutionAcceptHighest: 0.7,
 	}
-	
+
 	weights[ConflictTypeDecision] = map[ConflictResolutionType]float64{
-		ResolutionContextual:    0.9,
-		ResolutionManualReview:  0.8,
-		ResolutionAcceptLatest:  0.7,
-		ResolutionMerge:         0.6,
+		ResolutionContextual:   0.9,
+		ResolutionManualReview: 0.8,
+		ResolutionAcceptLatest: 0.7,
+		ResolutionMerge:        0.6,
 	}
-	
+
 	weights[ConflictTypeMethodology] = map[ConflictResolutionType]float64{
-		ResolutionDomain:        0.9,
-		ResolutionContextual:    0.8,
-		ResolutionManualReview:  0.7,
+		ResolutionDomain:       0.9,
+		ResolutionContextual:   0.8,
+		ResolutionManualReview: 0.7,
 	}
-	
+
 	weights[ConflictTypePattern] = map[ConflictResolutionType]float64{
-		ResolutionContextual:    0.9,
-		ResolutionMerge:         0.8,
-		ResolutionManualReview:  0.7,
+		ResolutionContextual:   0.9,
+		ResolutionMerge:        0.8,
+		ResolutionManualReview: 0.7,
 	}
-	
+
 	return weights
 }
 
 // generatePatternStrategies generates resolution strategies for pattern conflicts
 func (cr *ConflictResolver) generatePatternStrategies(conflict Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
-	
-	// Strategy 1: Merge patterns
+
+	// Strategy 1: Merge patterns - customize based on conflict severity
+	mergeTitle := "Merge Pattern Information"
+	mergeDesc := "Combine insights from conflicting patterns"
+	if conflict.Severity == SeverityHigh || conflict.Severity == SeverityCritical {
+		mergeDesc = fmt.Sprintf("Carefully merge %s conflict: %s", conflict.Type, conflict.Description)
+	}
+
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionMerge,
-		Title:       "Merge Pattern Information",
-		Description: "Combine insights from conflicting patterns",
+		Title:       mergeTitle,
+		Description: mergeDesc,
 		Rationale:   "Patterns may complement each other or represent different aspects.",
 		Steps: []ResolutionStep{
 			{Order: 1, Action: "analyze", Description: "Analyze both patterns for commonalities", Required: true},
@@ -675,12 +681,18 @@ func (cr *ConflictResolver) generatePatternStrategies(conflict Conflict) []Resol
 			"Could dilute specific insights",
 		},
 	})
-	
-	// Strategy 2: Contextual resolution
+
+	// Strategy 2: Contextual resolution - adapt based on conflict context
+	contextTitle := "Context-Based Pattern Selection"
+	contextDesc := "Choose pattern based on specific context"
+	if len(conflict.ConflictPoints) > 0 {
+		contextDesc = fmt.Sprintf("Resolve conflict on '%s' using context", conflict.ConflictPoints[0].Aspect)
+	}
+
 	strategies = append(strategies, ResolutionStrategy{
 		Type:        ResolutionContextual,
-		Title:       "Context-Based Pattern Selection",
-		Description: "Choose pattern based on specific context",
+		Title:       contextTitle,
+		Description: contextDesc,
 		Rationale:   "Different patterns may apply to different contexts or scenarios.",
 		Steps: []ResolutionStep{
 			{Order: 1, Action: "context", Description: "Identify the specific context of application", Required: true},
@@ -697,6 +709,6 @@ func (cr *ConflictResolver) generatePatternStrategies(conflict Conflict) []Resol
 			"Requires clear context documentation",
 		},
 	})
-	
+
 	return strategies
 }

@@ -339,8 +339,8 @@ func (rs *RelationshipStore) GetByID(ctx context.Context, id string) (*types.Mem
 	// Get point by ID
 	points, err := rs.client.Get(ctx, &qdrant.GetPoints{
 		CollectionName: rs.collectionName,
-		Ids:           []*qdrant.PointId{rs.stringToPointId(id)},
-		WithPayload:   &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
+		Ids:            []*qdrant.PointId{rs.stringToPointId(id)},
+		WithPayload:    &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
 	})
 
 	if err != nil {
@@ -378,14 +378,14 @@ func (rs *RelationshipStore) Delete(ctx context.Context, id string) error {
 // relationshipToPoint converts a MemoryRelationship to Qdrant point
 func (rs *RelationshipStore) relationshipToPoint(relationship types.MemoryRelationship) *qdrant.PointStruct {
 	payload := map[string]*qdrant.Value{
-		"source_chunk_id":    rs.stringToValue(relationship.SourceChunkID),
-		"target_chunk_id":    rs.stringToValue(relationship.TargetChunkID),
-		"relation_type":      rs.stringToValue(string(relationship.RelationType)),
-		"confidence":         rs.float64ToValue(relationship.Confidence),
-		"confidence_source":  rs.stringToValue(string(relationship.ConfidenceSource)),
-		"created_at":         rs.int64ToValue(relationship.CreatedAt.Unix()),
-		"created_by":         rs.stringToValue(relationship.CreatedBy),
-		"validation_count":   rs.int64ToValue(int64(relationship.ValidationCount)),
+		"source_chunk_id":   rs.stringToValue(relationship.SourceChunkID),
+		"target_chunk_id":   rs.stringToValue(relationship.TargetChunkID),
+		"relation_type":     rs.stringToValue(string(relationship.RelationType)),
+		"confidence":        rs.float64ToValue(relationship.Confidence),
+		"confidence_source": rs.stringToValue(string(relationship.ConfidenceSource)),
+		"created_at":        rs.int64ToValue(relationship.CreatedAt.Unix()),
+		"created_by":        rs.stringToValue(relationship.CreatedBy),
+		"validation_count":  rs.int64ToValue(int64(relationship.ValidationCount)),
 	}
 
 	// Add confidence factors
@@ -641,23 +641,42 @@ func (rs *RelationshipStore) determinePathType(chunkIDs []string, relationships 
 		return "unknown"
 	}
 
+	// Check path length characteristics based on chunk count
+	pathLength := len(chunkIDs)
+	if pathLength <= 1 {
+		return "single_node"
+	}
+
 	// Analyze relationship types to determine path type
 	relationTypes := make(map[types.RelationType]int)
 	for _, rel := range relationships {
 		relationTypes[rel.Relationship.RelationType]++
 	}
 
-	// Simple heuristics for path type detection
+	// Enhanced heuristics considering both relationships and path characteristics
 	if relationTypes[types.RelationLedTo] > 0 || relationTypes[types.RelationSolvedBy] > 0 {
+		if pathLength >= 3 {
+			return "complex_problem_to_solution"
+		}
 		return "problem_to_solution"
 	}
 	if relationTypes[types.RelationDependsOn] > 0 || relationTypes[types.RelationEnables] > 0 {
+		if pathLength >= 4 {
+			return "deep_dependency_chain"
+		}
 		return "dependency_chain"
 	}
 	if relationTypes[types.RelationFollowsUp] > 0 || relationTypes[types.RelationPrecedes] > 0 {
+		if pathLength >= 5 {
+			return "long_temporal_sequence"
+		}
 		return "temporal_sequence"
 	}
 
+	// For general paths, classify by length
+	if pathLength >= 4 {
+		return "complex_general"
+	}
 	return "general"
 }
 

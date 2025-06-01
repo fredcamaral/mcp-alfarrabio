@@ -710,6 +710,16 @@ func (le *LearningEngine) inferConversationType(chunks []types.ConversationChunk
 			// These chunk types don't affect the categorization
 		case types.ChunkTypeCodeChange, types.ChunkTypeSessionSummary, types.ChunkTypeAnalysis, types.ChunkTypeVerification:
 			// These chunk types also don't affect the categorization
+		// Task-oriented chunk types
+		case types.ChunkTypeTask:
+			// Tasks start as problems
+			problemCount++
+			// Completed tasks are also solutions
+			if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == "completed" {
+				solutionCount++
+			}
+		case types.ChunkTypeTaskUpdate, types.ChunkTypeTaskProgress:
+			// Updates and progress don't affect categorization but are tracked
 		default:
 			// Unknown chunk types are ignored for categorization
 		}

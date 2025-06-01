@@ -15,7 +15,6 @@
 # Documentation (except essential ones)
 *.md
 !README.md
-docs/
 examples/
 
 # Build artifacts

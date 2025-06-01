@@ -56,15 +56,15 @@ func TestNormalizeRepository(t *testing.T) {
 func TestNormalizeRepositoryWithGitDetection(t *testing.T) {
 	// This test checks that directory names trigger Git detection
 	// The actual Git detection will work in a real Git repository
-	
+
 	// Test with a simple directory name (should attempt Git detection)
 	result := normalizeRepository("simple-name")
-	
+
 	// If we're in a Git repository, it should detect the remote
 	// If not, it should fall back to the original name
-	assert.True(t, 
+	assert.True(t,
 		result == "simple-name" || // fallback when no git remote
-		len(result) > len("simple-name"), // or detected git remote (longer)
+			len(result) > len("simple-name"), // or detected git remote (longer)
 		"should either fallback to original name or detect git remote",
 	)
 }
@@ -72,19 +72,19 @@ func TestNormalizeRepositoryWithGitDetection(t *testing.T) {
 func TestDetectGitRepository(t *testing.T) {
 	// Test the Git detection function
 	result := detectGitRepository()
-	
+
 	// In this repository, we should detect something
 	// The exact result depends on the Git setup
 	if result != "" {
 		// If we detected a repository, it should be a valid format
-		assert.True(t, 
+		assert.True(t,
 			len(result) > 0 && result[0:1] != " " && result[len(result)-1:] != " ",
 			"detected repository should not have leading/trailing whitespace",
 		)
-		
+
 		// Should not contain .git suffix if long enough
 		if len(result) >= 4 {
-			assert.False(t, 
+			assert.False(t,
 				result[len(result)-4:] == ".git",
 				"detected repository should not end with .git",
 			)

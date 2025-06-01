@@ -7,7 +7,7 @@ import (
 	mcp "github.com/fredcamaral/gomcp-sdk"
 )
 
-// registerConsolidatedTools registers the 8 consolidated MCP tools
+// registerConsolidatedTools registers the 9 consolidated MCP tools
 func (ms *MemoryServer) registerConsolidatedTools() {
 	// 1. memory_create - All creation operations
 	ms.mcpServer.AddTool(mcp.NewTool(

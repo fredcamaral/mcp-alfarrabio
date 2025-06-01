@@ -4,11 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/fredcamaral/gomcp-sdk/protocol"
 	"log"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/mcp"
 	"os"
+
+	"github.com/fredcamaral/gomcp-sdk/protocol"
 )
 
 func main() {

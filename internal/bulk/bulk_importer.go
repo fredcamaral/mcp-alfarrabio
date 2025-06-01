@@ -9,6 +9,7 @@ import (
 	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -17,7 +18,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	
+
 	"github.com/google/uuid"
 )
 
@@ -34,45 +35,45 @@ const (
 
 // ImportOptions configures import behavior
 type ImportOptions struct {
-	Format           ImportFormat      `json:"format"`
-	Repository       string            `json:"repository,omitempty"`
-	DefaultSessionID string            `json:"default_session_id,omitempty"`
-	DefaultTags      []string          `json:"default_tags,omitempty"`
-	ChunkingStrategy ChunkingStrategy  `json:"chunking_strategy"`
-	ConflictPolicy   ConflictPolicy    `json:"conflict_policy"`
-	ValidateChunks   bool              `json:"validate_chunks"`
-	Metadata         ImportMetadata    `json:"metadata,omitempty"`
+	Format           ImportFormat     `json:"format"`
+	Repository       string           `json:"repository,omitempty"`
+	DefaultSessionID string           `json:"default_session_id,omitempty"`
+	DefaultTags      []string         `json:"default_tags,omitempty"`
+	ChunkingStrategy ChunkingStrategy `json:"chunking_strategy"`
+	ConflictPolicy   ConflictPolicy   `json:"conflict_policy"`
+	ValidateChunks   bool             `json:"validate_chunks"`
+	Metadata         ImportMetadata   `json:"metadata,omitempty"`
 }
 
 // ChunkingStrategy defines how to chunk imported data
 type ChunkingStrategy string
 
 const (
-	ChunkingAuto             ChunkingStrategy = "auto"
-	ChunkingParagraph        ChunkingStrategy = "paragraph"
-	ChunkingFixedSize        ChunkingStrategy = "fixed_size"
+	ChunkingAuto              ChunkingStrategy = "auto"
+	ChunkingParagraph         ChunkingStrategy = "paragraph"
+	ChunkingFixedSize         ChunkingStrategy = "fixed_size"
 	ChunkingConversationTurns ChunkingStrategy = "conversation_turns"
 )
 
 // ImportMetadata contains metadata about the import
 type ImportMetadata struct {
-	SourceSystem string            `json:"source_system,omitempty"`
-	ImportDate   string            `json:"import_date,omitempty"`
-	Tags         []string          `json:"tags,omitempty"`
+	SourceSystem string                 `json:"source_system,omitempty"`
+	ImportDate   string                 `json:"import_date,omitempty"`
+	Tags         []string               `json:"tags,omitempty"`
 	Custom       map[string]interface{} `json:"custom,omitempty"`
 }
 
 // ImportResult represents the result of an import operation
 type ImportResult struct {
-	TotalItems      int                      `json:"total_items"`
-	ProcessedItems  int                      `json:"processed_items"`
-	SuccessfulItems int                      `json:"successful_items"`
-	FailedItems     int                      `json:"failed_items"`
-	SkippedItems    int                      `json:"skipped_items"`
+	TotalItems      int                       `json:"total_items"`
+	ProcessedItems  int                       `json:"processed_items"`
+	SuccessfulItems int                       `json:"successful_items"`
+	FailedItems     int                       `json:"failed_items"`
+	SkippedItems    int                       `json:"skipped_items"`
 	Chunks          []types.ConversationChunk `json:"chunks"`
-	Errors          []ImportError            `json:"errors,omitempty"`
-	Warnings        []ImportWarning          `json:"warnings,omitempty"`
-	Summary         string                   `json:"summary"`
+	Errors          []ImportError             `json:"errors,omitempty"`
+	Warnings        []ImportWarning           `json:"warnings,omitempty"`
+	Summary         string                    `json:"summary"`
 }
 
 // ImportError represents an error during import
@@ -141,29 +142,29 @@ func (imp *Importer) Import(ctx context.Context, data string, options ImportOpti
 // detectFormat auto-detects the format of the input data
 func (imp *Importer) detectFormat(data string) ImportFormat {
 	data = strings.TrimSpace(data)
-	
+
 	// Check for JSON
 	if strings.HasPrefix(data, "{") || strings.HasPrefix(data, "[") {
 		return FormatJSON
 	}
-	
+
 	// Check for CSV (look for comma-separated values in first line)
 	firstLine := strings.Split(data, "\n")[0]
 	if strings.Count(firstLine, ",") >= 2 && !strings.HasPrefix(data, "#") {
 		return FormatCSV
 	}
-	
+
 	// Check for archive (base64 encoded)
 	if imp.isBase64(data) {
 		return FormatArchive
 	}
-	
+
 	// Default to markdown
 	return FormatMarkdown
 }
 
 // importJSON imports data from JSON format
-func (imp *Importer) importJSON(ctx context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) importJSON(_ context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
 	// Try to parse as array of chunks first
 	var chunks []types.ConversationChunk
 	if err := json.Unmarshal([]byte(data), &chunks); err == nil {
@@ -193,7 +194,7 @@ func (imp *Importer) importJSON(ctx context.Context, data string, options Import
 }
 
 // importMarkdown imports data from markdown format
-func (imp *Importer) importMarkdown(ctx context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) importMarkdown(_ context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
 	chunks, err := imp.parseMarkdown(data, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse markdown: %w", err)
@@ -203,7 +204,7 @@ func (imp *Importer) importMarkdown(ctx context.Context, data string, options Im
 }
 
 // importCSV imports data from CSV format
-func (imp *Importer) importCSV(ctx context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) importCSV(_ context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
 	reader := csv.NewReader(strings.NewReader(data))
 	records, err := reader.ReadAll()
 	if err != nil {
@@ -244,24 +245,24 @@ func (imp *Importer) importArchive(ctx context.Context, data string, options Imp
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode base64 archive: %w", err)
 	}
-	
+
 	// Create a reader from the decoded data
 	reader := bytes.NewReader(archiveData)
-	
+
 	// Try to detect and handle different archive formats
 	if imp.isGzipArchive(archiveData) {
 		return imp.extractAndImportTarGz(ctx, reader, options, result)
 	} else if imp.isZipArchive(archiveData) {
 		return imp.extractAndImportZip(ctx, archiveData, options, result)
 	}
-	
+
 	return nil, fmt.Errorf("unsupported archive format - only tar.gz and zip are supported")
 }
 
 // parseMarkdown parses markdown content into conversation chunks
 func (imp *Importer) parseMarkdown(data string, options ImportOptions) ([]types.ConversationChunk, error) {
 	_ = []types.ConversationChunk{}
-	
+
 	switch options.ChunkingStrategy {
 	case ChunkingParagraph:
 		return imp.chunkByParagraph(data, options)
@@ -339,12 +340,12 @@ func (imp *Importer) chunkByConversationTurns(data string, options ImportOptions
 		if len(match) >= 3 {
 			speaker := match[1]
 			content := match[2]
-			
+
 			// Determine chunk type based on speaker
 			chunkType := types.ChunkTypeDiscussion
-			if strings.Contains(strings.ToLower(speaker), "assistant") || 
-			   strings.Contains(strings.ToLower(speaker), "ai") ||
-			   strings.Contains(strings.ToLower(speaker), "claude") {
+			if strings.Contains(strings.ToLower(speaker), "assistant") ||
+				strings.Contains(strings.ToLower(speaker), "ai") ||
+				strings.Contains(strings.ToLower(speaker), "claude") {
 				chunkType = types.ChunkTypeSolution
 			}
 
@@ -495,32 +496,46 @@ func (imp *Importer) createChunkFromTextWithType(text string, chunkType types.Ch
 
 // convertConversationData converts generic conversation data to chunks
 func (imp *Importer) convertConversationData(data map[string]interface{}, options ImportOptions) ([]types.ConversationChunk, error) {
-	var chunks []types.ConversationChunk
-
-	// Handle different conversation formats
+	// Try messages format first (ChatML or similar)
 	if messages, ok := data["messages"].([]interface{}); ok {
-		// ChatML or similar format
-		for i, msg := range messages {
-			if msgMap, ok := msg.(map[string]interface{}); ok {
-				chunk, err := imp.convertMessageToChunk(msgMap, options, i)
-				if err != nil {
-					return nil, err
-				}
-				chunks = append(chunks, *chunk)
-			}
+		return imp.convertMessagesFormat(messages, options)
+	}
+
+	// Try single content format
+	if content, ok := data["content"].(string); ok {
+		return imp.convertSingleContentFormat(content, options)
+	}
+
+	return nil, fmt.Errorf("unrecognized conversation data format")
+}
+
+// convertMessagesFormat handles message array format
+func (imp *Importer) convertMessagesFormat(messages []interface{}, options ImportOptions) ([]types.ConversationChunk, error) {
+	chunks := make([]types.ConversationChunk, 0, len(messages))
+
+	for i, msg := range messages {
+		msgMap, ok := msg.(map[string]interface{})
+		if !ok {
+			continue // Skip invalid message format
 		}
-	} else if content, ok := data["content"].(string); ok {
-		// Single content item
-		chunk, err := imp.createChunkFromText(content, options, 0)
+
+		chunk, err := imp.convertMessageToChunk(msgMap, options, i)
 		if err != nil {
 			return nil, err
 		}
 		chunks = append(chunks, *chunk)
-	} else {
-		return nil, fmt.Errorf("unrecognized conversation data format")
 	}
 
 	return chunks, nil
+}
+
+// convertSingleContentFormat handles single content string format
+func (imp *Importer) convertSingleContentFormat(content string, options ImportOptions) ([]types.ConversationChunk, error) {
+	chunk, err := imp.createChunkFromText(content, options, 0)
+	if err != nil {
+		return nil, err
+	}
+	return []types.ConversationChunk{*chunk}, nil
 }
 
 // convertMessageToChunk converts a message object to a conversation chunk
@@ -532,7 +547,7 @@ func (imp *Importer) convertMessageToChunk(message map[string]interface{}, optio
 
 	role, _ := message["role"].(string)
 	chunkType := types.ChunkTypeDiscussion
-	
+
 	// Map role to chunk type
 	switch strings.ToLower(role) {
 	case "user", "human":
@@ -549,7 +564,7 @@ func (imp *Importer) convertMessageToChunk(message map[string]interface{}, optio
 // processChunks processes the parsed chunks with validation and conflict resolution
 func (imp *Importer) processChunks(chunks []types.ConversationChunk, options ImportOptions, result *ImportResult) (*ImportResult, error) {
 	result.TotalItems = len(chunks)
-	
+
 	for i, chunk := range chunks {
 		// Validate if requested
 		if options.ValidateChunks {
@@ -580,7 +595,7 @@ func (imp *Importer) processChunks(chunks []types.ConversationChunk, options Imp
 
 	// Generate summary
 	result.Summary = imp.generateImportSummary(result)
-	
+
 	return result, nil
 }
 
@@ -589,7 +604,7 @@ func (imp *Importer) handleConflict(policy ConflictPolicy, result *ImportResult)
 	// This would check for existing chunks with same ID or content
 	// For now, we'll assume no conflicts and just return nil
 	// In a real implementation, this would query the storage to check for duplicates
-	
+
 	switch policy {
 	case ConflictPolicySkip:
 		// Skip if exists (would need to check storage)
@@ -598,9 +613,15 @@ func (imp *Importer) handleConflict(policy ConflictPolicy, result *ImportResult)
 	case ConflictPolicyMerge:
 		// Merge with existing (would need complex merge logic)
 	case ConflictPolicyFail:
-		// Fail on any conflict (would need to check storage)
+		// For now, validate that we have valid chunks to import
+		if len(result.Chunks) == 0 {
+			return fmt.Errorf("no valid chunks to import")
+		}
+		// TODO: Check for actual conflicts in storage
+	default:
+		return fmt.Errorf("unknown conflict policy: %v", policy)
 	}
-	
+
 	return nil
 }
 
@@ -625,31 +646,35 @@ func (imp *Importer) isZipArchive(data []byte) bool {
 }
 
 // extractAndImportTarGz extracts and imports from tar.gz archive
-func (imp *Importer) extractAndImportTarGz(ctx context.Context, reader io.Reader, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) extractAndImportTarGz(_ context.Context, reader io.Reader, options ImportOptions, result *ImportResult) (*ImportResult, error) {
 	gzipReader, err := gzip.NewReader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer gzipReader.Close()
-	
+	defer func() {
+		if closeErr := gzipReader.Close(); closeErr != nil {
+			imp.logger.Printf("Warning: failed to close gzip reader: %v", closeErr)
+		}
+	}()
+
 	tarReader := tar.NewReader(gzipReader)
-	
+
 	allChunks := make([]types.ConversationChunk, 0)
-	
+
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
 			return nil, fmt.Errorf("failed to read tar entry: %w", err)
 		}
-		
+
 		// Skip directories
 		if header.Typeflag == tar.TypeDir {
 			continue
 		}
-		
+
 		// Read file content
 		content, err := io.ReadAll(tarReader)
 		if err != nil {
@@ -660,7 +685,7 @@ func (imp *Importer) extractAndImportTarGz(ctx context.Context, reader io.Reader
 			result.FailedItems++
 			continue
 		}
-		
+
 		// Process the file based on its extension
 		chunks, err := imp.processArchiveFile(header.Name, string(content), options)
 		if err != nil {
@@ -671,30 +696,30 @@ func (imp *Importer) extractAndImportTarGz(ctx context.Context, reader io.Reader
 			result.FailedItems++
 			continue
 		}
-		
+
 		allChunks = append(allChunks, chunks...)
 	}
-	
+
 	result.TotalItems = len(allChunks)
 	return imp.processChunks(allChunks, options, result)
 }
 
 // extractAndImportZip extracts and imports from zip archive
-func (imp *Importer) extractAndImportZip(ctx context.Context, data []byte, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) extractAndImportZip(_ context.Context, data []byte, options ImportOptions, result *ImportResult) (*ImportResult, error) {
 	reader := bytes.NewReader(data)
 	zipReader, err := zip.NewReader(reader, int64(len(data)))
 	if err != nil {
 		return nil, fmt.Errorf("failed to create zip reader: %w", err)
 	}
-	
+
 	allChunks := make([]types.ConversationChunk, 0)
-	
+
 	for _, file := range zipReader.File {
 		// Skip directories
 		if file.FileInfo().IsDir() {
 			continue
 		}
-		
+
 		// Open file
 		fileReader, err := file.Open()
 		if err != nil {
@@ -705,10 +730,12 @@ func (imp *Importer) extractAndImportZip(ctx context.Context, data []byte, optio
 			result.FailedItems++
 			continue
 		}
-		
+
 		// Read content
 		content, err := io.ReadAll(fileReader)
-		fileReader.Close()
+		if closeErr := fileReader.Close(); closeErr != nil {
+			imp.logger.Printf("Warning: failed to close file reader: %v", closeErr)
+		}
 		if err != nil {
 			result.Errors = append(result.Errors, ImportError{
 				Message: fmt.Sprintf("failed to read file %s: %v", file.Name, err),
@@ -717,7 +744,7 @@ func (imp *Importer) extractAndImportZip(ctx context.Context, data []byte, optio
 			result.FailedItems++
 			continue
 		}
-		
+
 		// Process the file
 		chunks, err := imp.processArchiveFile(file.Name, string(content), options)
 		if err != nil {
@@ -728,10 +755,10 @@ func (imp *Importer) extractAndImportZip(ctx context.Context, data []byte, optio
 			result.FailedItems++
 			continue
 		}
-		
+
 		allChunks = append(allChunks, chunks...)
 	}
-	
+
 	result.TotalItems = len(allChunks)
 	return imp.processChunks(allChunks, options, result)
 }
@@ -740,7 +767,7 @@ func (imp *Importer) extractAndImportZip(ctx context.Context, data []byte, optio
 func (imp *Importer) processArchiveFile(filename, content string, options ImportOptions) ([]types.ConversationChunk, error) {
 	// Determine format based on file extension
 	ext := strings.ToLower(filepath.Ext(filename))
-	
+
 	switch ext {
 	case ".json":
 		return imp.parseJSONContent(content, options, filename)
@@ -758,7 +785,7 @@ func (imp *Importer) processArchiveFile(filename, content string, options Import
 }
 
 // parseJSONContent parses JSON content and returns chunks directly
-func (imp *Importer) parseJSONContent(content string, options ImportOptions, filename string) ([]types.ConversationChunk, error) {
+func (imp *Importer) parseJSONContent(content string, _ ImportOptions, filename string) ([]types.ConversationChunk, error) {
 	// Try to parse as array of chunks first
 	var chunks []types.ConversationChunk
 	if err := json.Unmarshal([]byte(content), &chunks); err == nil {
@@ -774,7 +801,7 @@ func (imp *Importer) parseJSONContent(content string, options ImportOptions, fil
 	return nil, fmt.Errorf("failed to parse JSON from file %s", filename)
 }
 
-// parseMarkdownContent parses markdown content and returns chunks directly  
+// parseMarkdownContent parses markdown content and returns chunks directly
 func (imp *Importer) parseMarkdownContent(content string, options ImportOptions, filename string) ([]types.ConversationChunk, error) {
 	// Simple markdown parsing - create a single chunk from the content
 	chunk := types.ConversationChunk{
@@ -788,7 +815,7 @@ func (imp *Importer) parseMarkdownContent(content string, options ImportOptions,
 			Tags:       []string{"archive-import", "file:" + filename},
 		},
 	}
-	
+
 	return []types.ConversationChunk{chunk}, nil
 }
 
@@ -832,7 +859,7 @@ func (imp *Importer) isBase64(s string) bool {
 	if len(s) < 100 {
 		return false
 	}
-	
+
 	validChars := regexp.MustCompile(`^[A-Za-z0-9+/=]+$`)
 	return validChars.MatchString(s) && len(s)%4 == 0
 }

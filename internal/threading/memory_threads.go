@@ -472,6 +472,29 @@ func (tm *ThreadManager) calculatePriority(chunks []types.ConversationChunk) int
 			priority = maxInt(priority, 2) // Medium for verification
 		case types.ChunkTypeQuestion:
 			priority = maxInt(priority, 1) // Base priority for questions
+		// Task-oriented chunk types
+		case types.ChunkTypeTask:
+			// Priority based on task priority and status
+			taskPriority := 3 // Default medium-high
+			if chunk.Metadata.TaskPriority != nil {
+				switch *chunk.Metadata.TaskPriority {
+				case "high":
+					taskPriority = 4
+				case "medium":
+					taskPriority = 3
+				case "low":
+					taskPriority = 2
+				}
+			}
+			// Boost priority for completed tasks
+			if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == "completed" {
+				taskPriority = maxInt(taskPriority, 4)
+			}
+			priority = maxInt(priority, taskPriority)
+		case types.ChunkTypeTaskUpdate:
+			priority = maxInt(priority, 3) // Updates are important
+		case types.ChunkTypeTaskProgress:
+			priority = maxInt(priority, 2) // Progress tracking is medium priority
 		}
 	}
 
@@ -518,7 +541,6 @@ func (tm *ThreadManager) createThreadChain(ctx context.Context, thread *MemoryTh
 	_, err := tm.chainBuilder.CreateChain(ctx, chainName, chainDescription, chunks)
 	return err
 }
-
 
 // Thread grouping functions
 

@@ -55,8 +55,8 @@ func (m *MockQdrantStore) Search(ctx context.Context, query types.MemoryQuery, e
 	}
 
 	results := &types.SearchResults{
-		Results: []types.SearchResult{},
-		Total:   0,
+		Results:   []types.SearchResult{},
+		Total:     0,
 		QueryTime: time.Millisecond * 10,
 	}
 
@@ -104,12 +104,12 @@ func (m *MockQdrantStore) ListByRepository(ctx context.Context, repository strin
 			allChunks = append(allChunks, chunk)
 		}
 	}
-	
+
 	// Sort by timestamp (newest first) to match Qdrant implementation
 	sort.Slice(allChunks, func(i, j int) bool {
 		return allChunks[i].Timestamp.After(allChunks[j].Timestamp)
 	})
-	
+
 	// Apply offset and limit
 	var chunks []types.ConversationChunk
 	if offset < len(allChunks) {
@@ -119,7 +119,7 @@ func (m *MockQdrantStore) ListByRepository(ctx context.Context, repository strin
 		}
 		chunks = allChunks[offset:end]
 	}
-	
+
 	return chunks, nil
 }
 
@@ -311,12 +311,12 @@ func TestVectorStoreInterface(t *testing.T) {
 
 	// Create test chunk
 	chunk := types.ConversationChunk{
-		ID:        "test-chunk-1",
-		SessionID: "test-session",
-		Type:      types.ChunkTypeProblem,
-		Content:   "Test problem content",
-		Summary:   "Test problem",
-		Timestamp: time.Now(),
+		ID:         "test-chunk-1",
+		SessionID:  "test-session",
+		Type:       types.ChunkTypeProblem,
+		Content:    "Test problem content",
+		Summary:    "Test problem",
+		Timestamp:  time.Now(),
 		Embeddings: []float64{0.1, 0.2, 0.3, 0.4},
 		Metadata: types.ChunkMetadata{
 			Repository: "test-repo",
@@ -343,7 +343,7 @@ func TestVectorStoreInterface(t *testing.T) {
 		Limit:      10,
 	}
 	embeddings := []float64{0.1, 0.2, 0.3, 0.4}
-	
+
 	results, err := store.Search(ctx, query, embeddings)
 	require.NoError(t, err)
 	assert.Equal(t, 1, results.Total)
@@ -386,7 +386,7 @@ func TestBatchOperations(t *testing.T) {
 			Content:    "Batch problem 1",
 			Timestamp:  time.Now(),
 			Embeddings: []float64{0.1, 0.2},
-			Metadata:   types.ChunkMetadata{
+			Metadata: types.ChunkMetadata{
 				Repository: "batch-repo",
 				Outcome:    types.OutcomeSuccess,
 				Difficulty: types.DifficultySimple,
@@ -399,7 +399,7 @@ func TestBatchOperations(t *testing.T) {
 			Content:    "Batch solution 1",
 			Timestamp:  time.Now(),
 			Embeddings: []float64{0.3, 0.4},
-			Metadata:   types.ChunkMetadata{
+			Metadata: types.ChunkMetadata{
 				Repository: "batch-repo",
 				Outcome:    types.OutcomeSuccess,
 				Difficulty: types.DifficultySimple,
@@ -447,13 +447,13 @@ func TestNewInterfaceMethods(t *testing.T) {
 		Content:    "New method test",
 		Timestamp:  time.Now(),
 		Embeddings: []float64{0.1, 0.2},
-		Metadata:   types.ChunkMetadata{
+		Metadata: types.ChunkMetadata{
 			Repository: "new-repo",
 			Outcome:    types.OutcomeSuccess,
 			Difficulty: types.DifficultySimple,
 		},
 	}
-	
+
 	err := store.Store(ctx, chunk)
 	require.NoError(t, err)
 
@@ -491,7 +491,7 @@ func TestStatsGeneration(t *testing.T) {
 			Content:    "Problem 1",
 			Timestamp:  time.Now(),
 			Embeddings: []float64{0.1, 0.2},
-			Metadata:   types.ChunkMetadata{
+			Metadata: types.ChunkMetadata{
 				Repository: "repo1",
 				Outcome:    types.OutcomeSuccess,
 				Difficulty: types.DifficultySimple,
@@ -504,7 +504,7 @@ func TestStatsGeneration(t *testing.T) {
 			Content:    "Solution 1",
 			Timestamp:  time.Now(),
 			Embeddings: []float64{0.3, 0.4},
-			Metadata:   types.ChunkMetadata{
+			Metadata: types.ChunkMetadata{
 				Repository: "repo1",
 				Outcome:    types.OutcomeSuccess,
 				Difficulty: types.DifficultySimple,
@@ -517,7 +517,7 @@ func TestStatsGeneration(t *testing.T) {
 			Content:    "Problem 2",
 			Timestamp:  time.Now(),
 			Embeddings: []float64{0.5, 0.6},
-			Metadata:   types.ChunkMetadata{
+			Metadata: types.ChunkMetadata{
 				Repository: "repo2",
 				Outcome:    types.OutcomeSuccess,
 				Difficulty: types.DifficultySimple,
@@ -575,7 +575,7 @@ func TestErrorHandling(t *testing.T) {
 		Content:    "Update test",
 		Timestamp:  time.Now(),
 		Embeddings: []float64{0.1, 0.2},
-		Metadata:   types.ChunkMetadata{
+		Metadata: types.ChunkMetadata{
 			Repository: "test-repo",
 			Outcome:    types.OutcomeSuccess,
 			Difficulty: types.DifficultySimple,
@@ -608,7 +608,7 @@ func TestCleanup(t *testing.T) {
 		Content:    "Old chunk",
 		Timestamp:  time.Now().AddDate(0, 0, -10), // 10 days old
 		Embeddings: []float64{0.1, 0.2},
-		Metadata:   types.ChunkMetadata{
+		Metadata: types.ChunkMetadata{
 			Repository: "old-repo",
 			Outcome:    types.OutcomeSuccess,
 			Difficulty: types.DifficultySimple,
@@ -622,7 +622,7 @@ func TestCleanup(t *testing.T) {
 		Content:    "New chunk",
 		Timestamp:  time.Now(),
 		Embeddings: []float64{0.3, 0.4},
-		Metadata:   types.ChunkMetadata{
+		Metadata: types.ChunkMetadata{
 			Repository: "new-repo",
 			Outcome:    types.OutcomeSuccess,
 			Difficulty: types.DifficultySimple,
@@ -661,7 +661,7 @@ func TestListByRepositoryPagination(t *testing.T) {
 			Content:    fmt.Sprintf("Chunk content %d", i),
 			Timestamp:  time.Now().Add(time.Duration(i) * time.Minute), // Different timestamps
 			Embeddings: []float64{0.1, 0.2},
-			Metadata:   types.ChunkMetadata{
+			Metadata: types.ChunkMetadata{
 				Repository: repository,
 				Outcome:    types.OutcomeSuccess,
 				Difficulty: types.DifficultySimple,
@@ -696,7 +696,7 @@ func TestListByRepositoryPagination(t *testing.T) {
 	for _, chunk := range firstPage {
 		firstPageIDs[chunk.ID] = true
 	}
-	
+
 	for _, chunk := range secondPage {
 		assert.False(t, firstPageIDs[chunk.ID], "Found duplicate chunk ID between pages: %s", chunk.ID)
 	}

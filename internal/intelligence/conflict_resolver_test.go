@@ -226,10 +226,10 @@ func TestConflictResolver_CalculateStrategyConfidence(t *testing.T) {
 	resolver := NewConflictResolver()
 
 	tests := []struct {
-		conflict         Conflict
-		strategy         ResolutionStrategy
-		expectedMinimum  float64
-		name             string
+		conflict        Conflict
+		strategy        ResolutionStrategy
+		expectedMinimum float64
+		name            string
 	}{
 		{
 			conflict: Conflict{
@@ -241,7 +241,7 @@ func TestConflictResolver_CalculateStrategyConfidence(t *testing.T) {
 				Type: ResolutionManualReview,
 			},
 			expectedMinimum: 0.5,
-			name:           "critical_conflict_manual_review",
+			name:            "critical_conflict_manual_review",
 		},
 		{
 			conflict: Conflict{
@@ -253,7 +253,7 @@ func TestConflictResolver_CalculateStrategyConfidence(t *testing.T) {
 				Type: ResolutionAcceptHighest,
 			},
 			expectedMinimum: 0.5,
-			name:           "technical_conflict_benchmarking",
+			name:            "technical_conflict_benchmarking",
 		},
 	}
 

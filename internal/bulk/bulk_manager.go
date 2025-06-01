@@ -23,33 +23,33 @@ const (
 type OperationStatus string
 
 const (
-	StatusPending    OperationStatus = "pending"
-	StatusRunning    OperationStatus = "running"
-	StatusCompleted  OperationStatus = "completed"
-	StatusFailed     OperationStatus = "failed"
-	StatusCancelled  OperationStatus = "cancelled"
+	StatusPending   OperationStatus = "pending"
+	StatusRunning   OperationStatus = "running"
+	StatusCompleted OperationStatus = "completed"
+	StatusFailed    OperationStatus = "failed"
+	StatusCancelled OperationStatus = "cancelled"
 )
 
 // BulkRequest represents a bulk operation request
 type BulkRequest struct {
-	ID          string                     `json:"id"`
-	Operation   Operation                  `json:"operation"`
-	Chunks      []types.ConversationChunk  `json:"chunks,omitempty"`
-	IDs         []string                   `json:"ids,omitempty"` // For delete operations
-	Options     BulkOptions                `json:"options"`
-	CreatedAt   time.Time                  `json:"created_at"`
-	StartedAt   *time.Time                 `json:"started_at,omitempty"`
-	CompletedAt *time.Time                 `json:"completed_at,omitempty"`
+	ID          string                    `json:"id"`
+	Operation   Operation                 `json:"operation"`
+	Chunks      []types.ConversationChunk `json:"chunks,omitempty"`
+	IDs         []string                  `json:"ids,omitempty"` // For delete operations
+	Options     BulkOptions               `json:"options"`
+	CreatedAt   time.Time                 `json:"created_at"`
+	StartedAt   *time.Time                `json:"started_at,omitempty"`
+	CompletedAt *time.Time                `json:"completed_at,omitempty"`
 }
 
 // BulkOptions configures bulk operation behavior
 type BulkOptions struct {
-	BatchSize        int               `json:"batch_size"`         // Number of items per batch
-	MaxConcurrency   int               `json:"max_concurrency"`    // Max concurrent batches
-	ValidateFirst    bool              `json:"validate_first"`     // Validate all items before processing
-	ContinueOnError  bool              `json:"continue_on_error"`  // Continue processing if individual items fail
-	DryRun           bool              `json:"dry_run"`            // Preview operation without executing
-	ConflictPolicy   ConflictPolicy    `json:"conflict_policy"`    // How to handle conflicts
+	BatchSize        int                `json:"batch_size"`        // Number of items per batch
+	MaxConcurrency   int                `json:"max_concurrency"`   // Max concurrent batches
+	ValidateFirst    bool               `json:"validate_first"`    // Validate all items before processing
+	ContinueOnError  bool               `json:"continue_on_error"` // Continue processing if individual items fail
+	DryRun           bool               `json:"dry_run"`           // Preview operation without executing
+	ConflictPolicy   ConflictPolicy     `json:"conflict_policy"`   // How to handle conflicts
 	ProgressCallback func(BulkProgress) `json:"-"`                 // Progress callback function
 }
 
@@ -57,35 +57,35 @@ type BulkOptions struct {
 type ConflictPolicy string
 
 const (
-	ConflictPolicySkip      ConflictPolicy = "skip"       // Skip conflicting items
-	ConflictPolicyOverwrite ConflictPolicy = "overwrite"  // Overwrite existing items
-	ConflictPolicyMerge     ConflictPolicy = "merge"      // Merge with existing items
-	ConflictPolicyFail      ConflictPolicy = "fail"       // Fail the entire operation on conflict
+	ConflictPolicySkip      ConflictPolicy = "skip"      // Skip conflicting items
+	ConflictPolicyOverwrite ConflictPolicy = "overwrite" // Overwrite existing items
+	ConflictPolicyMerge     ConflictPolicy = "merge"     // Merge with existing items
+	ConflictPolicyFail      ConflictPolicy = "fail"      // Fail the entire operation on conflict
 )
 
 // BulkProgress represents the progress of a bulk operation
 type BulkProgress struct {
-	OperationID      string          `json:"operation_id"`
-	Status           OperationStatus `json:"status"`
-	TotalItems       int             `json:"total_items"`
-	ProcessedItems   int             `json:"processed_items"`
-	SuccessfulItems  int             `json:"successful_items"`
-	FailedItems      int             `json:"failed_items"`
-	SkippedItems     int             `json:"skipped_items"`
-	CurrentBatch     int             `json:"current_batch"`
-	TotalBatches     int             `json:"total_batches"`
-	StartTime        time.Time       `json:"start_time"`
-	ElapsedTime      time.Duration   `json:"elapsed_time"`
-	EstimatedTime    time.Duration   `json:"estimated_time"`
-	Errors           []BulkError     `json:"errors,omitempty"`
+	OperationID      string            `json:"operation_id"`
+	Status           OperationStatus   `json:"status"`
+	TotalItems       int               `json:"total_items"`
+	ProcessedItems   int               `json:"processed_items"`
+	SuccessfulItems  int               `json:"successful_items"`
+	FailedItems      int               `json:"failed_items"`
+	SkippedItems     int               `json:"skipped_items"`
+	CurrentBatch     int               `json:"current_batch"`
+	TotalBatches     int               `json:"total_batches"`
+	StartTime        time.Time         `json:"start_time"`
+	ElapsedTime      time.Duration     `json:"elapsed_time"`
+	EstimatedTime    time.Duration     `json:"estimated_time"`
+	Errors           []BulkError       `json:"errors,omitempty"`
 	ValidationErrors []ValidationError `json:"validation_errors,omitempty"`
 }
 
 // BulkError represents an error that occurred during bulk processing
 type BulkError struct {
-	ItemIndex int    `json:"item_index"`
-	ItemID    string `json:"item_id,omitempty"`
-	Error     string `json:"error"`
+	ItemIndex int       `json:"item_index"`
+	ItemID    string    `json:"item_id,omitempty"`
+	Error     string    `json:"error"`
 	Timestamp time.Time `json:"timestamp"`
 }
 
@@ -146,6 +146,15 @@ func (m *Manager) SubmitOperation(ctx context.Context, req BulkRequest) (*BulkPr
 	m.operations[req.ID] = &req
 	m.operationsMux.Unlock()
 
+	// Return initial progress before starting async processing to avoid races
+	initialProgress := &BulkProgress{
+		OperationID:  req.ID,
+		Status:       StatusPending,
+		TotalItems:   m.getTotalItems(req),
+		StartTime:    req.CreatedAt,
+		TotalBatches: m.calculateTotalBatches(req),
+	}
+
 	// Start processing asynchronously
 	go func() {
 		if err := m.processOperation(ctx, req.ID); err != nil {
@@ -153,27 +162,23 @@ func (m *Manager) SubmitOperation(ctx context.Context, req BulkRequest) (*BulkPr
 		}
 	}()
 
-	// Return initial progress
-	return &BulkProgress{
-		OperationID:    req.ID,
-		Status:         StatusPending,
-		TotalItems:     m.getTotalItems(req),
-		StartTime:      req.CreatedAt,
-		TotalBatches:   m.calculateTotalBatches(req),
-	}, nil
+	return initialProgress, nil
 }
 
 // GetProgress returns the current progress of an operation
 func (m *Manager) GetProgress(operationID string) (*BulkProgress, error) {
 	m.operationsMux.RLock()
 	op, exists := m.operations[operationID]
-	m.operationsMux.RUnlock()
-
 	if !exists {
+		m.operationsMux.RUnlock()
 		return nil, fmt.Errorf("operation %s not found", operationID)
 	}
 
-	return m.buildProgress(op), nil
+	// Build progress while holding the read lock to avoid races
+	progress := m.buildProgress(op)
+	m.operationsMux.RUnlock()
+
+	return progress, nil
 }
 
 // CancelOperation cancels a running operation
@@ -196,16 +201,20 @@ func (m *Manager) ListOperations(status *OperationStatus, limit int) ([]*BulkPro
 	m.operationsMux.RLock()
 	defer m.operationsMux.RUnlock()
 
-	var results []*BulkProgress
+	capacity := len(m.operations)
+	if limit > 0 && limit < capacity {
+		capacity = limit
+	}
+	results := make([]*BulkProgress, 0, capacity)
 	for _, op := range m.operations {
 		progress := m.buildProgress(op)
-		
+
 		if status != nil && progress.Status != *status {
 			continue
 		}
 
 		results = append(results, progress)
-		
+
 		if limit > 0 && len(results) >= limit {
 			break
 		}
@@ -217,20 +226,29 @@ func (m *Manager) ListOperations(status *OperationStatus, limit int) ([]*BulkPro
 // processOperation processes a bulk operation
 func (m *Manager) processOperation(ctx context.Context, operationID string) error {
 	m.operationsMux.Lock()
-	op := m.operations[operationID]
+	op, exists := m.operations[operationID]
+	if !exists {
+		m.operationsMux.Unlock()
+		return fmt.Errorf("operation %s not found", operationID)
+	}
 	now := time.Now().UTC()
 	op.StartedAt = &now
 	m.operationsMux.Unlock()
 
 	defer func() {
 		m.operationsMux.Lock()
-		completedAt := time.Now().UTC()
-		op.CompletedAt = &completedAt
-		m.operationsMux.Unlock()
+		defer m.operationsMux.Unlock()
+		if op, exists := m.operations[operationID]; exists {
+			completedAt := time.Now().UTC()
+			op.CompletedAt = &completedAt
+		}
 	}()
 
+	// Build progress under lock to avoid race conditions
+	m.operationsMux.Lock()
 	progress := m.buildProgress(op)
 	progress.Status = StatusRunning
+	m.operationsMux.Unlock()
 
 	// Validation phase
 	if op.Options.ValidateFirst {
@@ -281,11 +299,31 @@ func (m *Manager) validateOperation(op *BulkRequest, progress *BulkProgress) err
 // performDryRun simulates the operation without executing it
 func (m *Manager) performDryRun(op *BulkRequest, progress *BulkProgress) error {
 	m.logger.Printf("Performing dry run for operation %s", op.ID)
-	
+
+	// Basic validation during dry run
+	switch op.Operation {
+	case OperationStore, OperationUpdate:
+		if len(op.Chunks) == 0 {
+			progress.Status = StatusFailed
+			m.notifyProgress(op, progress)
+			return fmt.Errorf("no chunks provided for %s operation", op.Operation)
+		}
+	case OperationDelete:
+		if len(op.IDs) == 0 {
+			progress.Status = StatusFailed
+			m.notifyProgress(op, progress)
+			return fmt.Errorf("no IDs provided for delete operation")
+		}
+	default:
+		progress.Status = StatusFailed
+		m.notifyProgress(op, progress)
+		return fmt.Errorf("unknown operation: %s", op.Operation)
+	}
+
 	progress.Status = StatusCompleted
 	progress.ProcessedItems = progress.TotalItems
 	progress.SuccessfulItems = progress.TotalItems
-	
+
 	m.notifyProgress(op, progress)
 	return nil
 }
@@ -316,7 +354,7 @@ func (m *Manager) executeBulkUpdate(ctx context.Context, op *BulkRequest, progre
 				Error:     err.Error(),
 				Timestamp: time.Now().UTC(),
 			})
-			
+
 			if !op.Options.ContinueOnError {
 				progress.Status = StatusFailed
 				return err
@@ -325,11 +363,11 @@ func (m *Manager) executeBulkUpdate(ctx context.Context, op *BulkRequest, progre
 		} else {
 			progress.SuccessfulItems++
 		}
-		
+
 		progress.ProcessedItems++
 		progress.ElapsedTime = time.Since(progress.StartTime)
 		progress.EstimatedTime = m.estimateRemainingTime(progress)
-		
+
 		m.notifyProgress(op, progress)
 	}
 
@@ -345,7 +383,7 @@ func (m *Manager) executeBulkDelete(ctx context.Context, op *BulkRequest, progre
 
 	// Process batches with concurrency control
 	semaphore := make(chan struct{}, op.Options.MaxConcurrency)
-	
+
 	// Use generic batch processor
 	err := m.processBatchesDelete(ctx, batches, op, progress, semaphore)
 	if err != nil {
@@ -452,15 +490,15 @@ func timePtr(t time.Time) *time.Time {
 
 // BulkOperationRequest represents an external API request for bulk operations
 type BulkOperationRequest struct {
-	Operation      string                     `json:"operation"`
-	Chunks         []types.ConversationChunk  `json:"chunks,omitempty"`
-	IDs            []string                   `json:"ids,omitempty"`
-	BatchSize      int                        `json:"batch_size,omitempty"`
-	MaxConcurrency int                        `json:"max_concurrency,omitempty"`
-	ValidateFirst  bool                       `json:"validate_first,omitempty"`
+	Operation       string                    `json:"operation"`
+	Chunks          []types.ConversationChunk `json:"chunks,omitempty"`
+	IDs             []string                  `json:"ids,omitempty"`
+	BatchSize       int                       `json:"batch_size,omitempty"`
+	MaxConcurrency  int                       `json:"max_concurrency,omitempty"`
+	ValidateFirst   bool                      `json:"validate_first,omitempty"`
 	ContinueOnError bool                      `json:"continue_on_error,omitempty"`
-	DryRun         bool                       `json:"dry_run,omitempty"`
-	ConflictPolicy string                     `json:"conflict_policy,omitempty"`
+	DryRun          bool                      `json:"dry_run,omitempty"`
+	ConflictPolicy  string                    `json:"conflict_policy,omitempty"`
 }
 
 // ToBulkRequest converts an external request to internal BulkRequest
@@ -496,21 +534,21 @@ func (req *BulkOperationRequest) ToBulkRequest() (BulkRequest, error) {
 // processBatchesStore processes batches for store operations with concurrency control
 func (m *Manager) processBatchesStore(ctx context.Context, batches [][]types.ConversationChunk, op *BulkRequest, progress *BulkProgress, semaphore chan struct{}) error {
 	var wg sync.WaitGroup
-	
+
 	for i, batch := range batches {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case semaphore <- struct{}{}: // Acquire semaphore
 		}
-		
+
 		wg.Add(1)
 		go func(batchIndex int, chunks []types.ConversationChunk) {
 			defer func() {
 				<-semaphore // Release semaphore
 				wg.Done()
 			}()
-			
+
 			for j, chunk := range chunks {
 				if err := m.storage.Store(ctx, chunk); err != nil {
 					progress.Errors = append(progress.Errors, BulkError{
@@ -519,7 +557,7 @@ func (m *Manager) processBatchesStore(ctx context.Context, batches [][]types.Con
 						Error:     err.Error(),
 						Timestamp: time.Now().UTC(),
 					})
-					
+
 					if !op.Options.ContinueOnError {
 						progress.Status = StatusFailed
 						return
@@ -528,19 +566,19 @@ func (m *Manager) processBatchesStore(ctx context.Context, batches [][]types.Con
 				} else {
 					progress.SuccessfulItems++
 				}
-				
+
 				progress.ProcessedItems++
 				progress.ElapsedTime = time.Since(progress.StartTime)
 				progress.EstimatedTime = m.estimateRemainingTime(progress)
 				progress.CurrentBatch = batchIndex + 1
-				
+
 				m.notifyProgress(op, progress)
 			}
 		}(i, batch)
 	}
-	
+
 	wg.Wait()
-	
+
 	progress.Status = StatusCompleted
 	m.notifyProgress(op, progress)
 	return nil
@@ -549,21 +587,21 @@ func (m *Manager) processBatchesStore(ctx context.Context, batches [][]types.Con
 // processBatchesDelete processes batches for delete operations with concurrency control
 func (m *Manager) processBatchesDelete(ctx context.Context, batches [][]string, op *BulkRequest, progress *BulkProgress, semaphore chan struct{}) error {
 	var wg sync.WaitGroup
-	
+
 	for i, batch := range batches {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		case semaphore <- struct{}{}: // Acquire semaphore
 		}
-		
+
 		wg.Add(1)
 		go func(batchIndex int, ids []string) {
 			defer func() {
 				<-semaphore // Release semaphore
 				wg.Done()
 			}()
-			
+
 			for j, id := range ids {
 				if err := m.storage.Delete(ctx, id); err != nil {
 					progress.Errors = append(progress.Errors, BulkError{
@@ -572,7 +610,7 @@ func (m *Manager) processBatchesDelete(ctx context.Context, batches [][]string, 
 						Error:     err.Error(),
 						Timestamp: time.Now().UTC(),
 					})
-					
+
 					if !op.Options.ContinueOnError {
 						progress.Status = StatusFailed
 						return
@@ -581,19 +619,19 @@ func (m *Manager) processBatchesDelete(ctx context.Context, batches [][]string, 
 				} else {
 					progress.SuccessfulItems++
 				}
-				
+
 				progress.ProcessedItems++
 				progress.ElapsedTime = time.Since(progress.StartTime)
 				progress.EstimatedTime = m.estimateRemainingTime(progress)
 				progress.CurrentBatch = batchIndex + 1
-				
+
 				m.notifyProgress(op, progress)
 			}
 		}(i, batch)
 	}
-	
+
 	wg.Wait()
-	
+
 	progress.Status = StatusCompleted
 	m.notifyProgress(op, progress)
 	return nil

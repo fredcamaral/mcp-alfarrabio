@@ -35,25 +35,25 @@ type MigrationStats struct {
 
 // MigrationTool handles the migration from ChromaDB to Qdrant
 type MigrationTool struct {
-	inputPath      string
-	qdrantStore    storage.VectorStore
-	backupDir      string
-	dryRun         bool
-	validateOnly   bool
-	isJSONExport   bool
-	stats          *MigrationStats
+	inputPath    string
+	qdrantStore  storage.VectorStore
+	backupDir    string
+	dryRun       bool
+	validateOnly bool
+	isJSONExport bool
+	stats        *MigrationStats
 }
 
 func main() {
 	var (
-		chromaDBPath   = flag.String("chroma-path", "", "Path to ChromaDB data directory")
-		chromaExport   = flag.String("chroma-export", "", "Path to ChromaDB JSON export file")
-		_ = flag.String("config", "configs/dev/config.yaml", "Path to configuration file (unused - uses env vars)")
-		backupDir      = flag.String("backup-dir", "./migration-backup", "Directory for migration backups")
-		dryRun         = flag.Bool("dry-run", false, "Perform dry run without writing to Qdrant")
-		validateOnly   = flag.Bool("validate-only", false, "Only validate existing data, don't migrate")
-		force          = flag.Bool("force", false, "Force migration even if target collection exists")
-		verbose        = flag.Bool("verbose", false, "Enable verbose logging")
+		chromaDBPath = flag.String("chroma-path", "", "Path to ChromaDB data directory")
+		chromaExport = flag.String("chroma-export", "", "Path to ChromaDB JSON export file")
+		_            = flag.String("config", "configs/dev/config.yaml", "Path to configuration file (unused - uses env vars)")
+		backupDir    = flag.String("backup-dir", "./migration-backup", "Directory for migration backups")
+		dryRun       = flag.Bool("dry-run", false, "Perform dry run without writing to Qdrant")
+		validateOnly = flag.Bool("validate-only", false, "Only validate existing data, don't migrate")
+		force        = flag.Bool("force", false, "Force migration even if target collection exists")
+		verbose      = flag.Bool("verbose", false, "Enable verbose logging")
 	)
 	flag.Parse()
 
@@ -85,7 +85,7 @@ func main() {
 	if *chromaExport != "" {
 		inputPath = *chromaExport
 	}
-	
+
 	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
 		log.Fatalf("Input path does not exist: %s", inputPath)
 	}
@@ -109,19 +109,19 @@ func main() {
 func NewMigrationTool(inputPath string, cfg *config.Config, backupDir string, dryRun, validateOnly, isJSONExport bool) (*MigrationTool, error) {
 	// Create Qdrant store
 	qdrantStore := storage.NewQdrantStore(&cfg.Qdrant)
-	
+
 	// Create backup directory
 	if err := os.MkdirAll(backupDir, backupDirPermission); err != nil {
 		return nil, fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
 	return &MigrationTool{
-		inputPath:      inputPath,
-		qdrantStore:    qdrantStore,
-		backupDir:      backupDir,
-		dryRun:         dryRun,
-		validateOnly:   validateOnly,
-		isJSONExport:   isJSONExport,
+		inputPath:    inputPath,
+		qdrantStore:  qdrantStore,
+		backupDir:    backupDir,
+		dryRun:       dryRun,
+		validateOnly: validateOnly,
+		isJSONExport: isJSONExport,
 		stats: &MigrationStats{
 			StartTime: time.Now(),
 		},
@@ -219,7 +219,7 @@ func (mt *MigrationTool) readJSONExport() ([]types.ConversationChunk, error) {
 	}
 
 	log.Printf("Loaded chunks from JSON export: count=%d", len(exportData.Chunks))
-	
+
 	if exportData.Metadata != nil {
 		if stats, ok := exportData.Metadata["stats"].(map[string]interface{}); ok {
 			log.Printf("Export metadata: original_stats=%v", stats)
@@ -252,7 +252,7 @@ func (mt *MigrationTool) readDirectChromaDB(ctx context.Context) ([]types.Conver
 	log.Printf("RECOMMENDED: Use the JSON export approach instead:")
 	log.Printf("1. Run: python scripts/export_chromadb.py /path/to/chromadb")
 	log.Printf("2. Then: go run cmd/migrate/main.go -chroma-export=chromadb_export.json")
-	
+
 	return []types.ConversationChunk{}, nil
 }
 
@@ -267,7 +267,7 @@ func (mt *MigrationTool) migrateInBatches(ctx context.Context, chunks []types.Co
 		}
 
 		batch := chunks[i:end]
-		
+
 		if mt.dryRun {
 			log.Printf("DRY RUN: Would migrate batch: batch=%d, chunks=%d", mt.stats.BatchesMigrated+1, len(batch))
 			mt.stats.MigratedChunks += len(batch)
@@ -281,7 +281,7 @@ func (mt *MigrationTool) migrateInBatches(ctx context.Context, chunks []types.Co
 		}
 
 		mt.stats.BatchesMigrated++
-		
+
 		// Progress update
 		progress := float64(mt.stats.MigratedChunks+mt.stats.FailedChunks) / float64(mt.stats.TotalChunks) * 100
 		log.Printf("Migration progress: %.1f%%, migrated=%d, failed=%d, remaining=%d",
@@ -392,14 +392,14 @@ func (mt *MigrationTool) checkTargetCollection(ctx context.Context) error {
 func (mt *MigrationTool) createPreMigrationBackup(ctx context.Context) error {
 	_ = ctx // unused in placeholder implementation
 	backupPath := filepath.Join(mt.backupDir, fmt.Sprintf("pre_migration_%s.tar.gz", time.Now().Format("20060102_150405")))
-	
+
 	log.Printf("Creating pre-migration backup: path=%s", backupPath)
-	
+
 	// Create the backup directory with secure permissions
 	if err := os.MkdirAll(mt.backupDir, 0750); err != nil {
 		return fmt.Errorf("failed to create backup directory: %w", err)
 	}
-	
+
 	// This would use the backup manager to create a backup
 	// For now, just create a placeholder file with secure path handling
 	placeholderPath := filepath.Clean(backupPath + ".placeholder")
@@ -412,7 +412,7 @@ func (mt *MigrationTool) createPreMigrationBackup(ctx context.Context) error {
 			log.Printf("Failed to close backup file: %v", closeErr)
 		}
 	}()
-	
+
 	return nil
 }
 
@@ -427,15 +427,15 @@ func (mt *MigrationTool) PrintResults() {
 	fmt.Printf("Batches processed: %d\n", mt.stats.BatchesMigrated)
 	fmt.Printf("Duration: %v\n", mt.stats.Duration)
 	fmt.Printf("Validation passed: %v\n", mt.stats.ValidationPassed)
-	
+
 	if mt.dryRun {
 		fmt.Println("\nNOTE: This was a dry run. No data was actually migrated.")
 	}
-	
+
 	if mt.stats.FailedChunks > 0 {
 		fmt.Printf("\nWARNING: %d chunks failed to migrate. Check logs for details.\n", mt.stats.FailedChunks)
 	}
-	
+
 	if mt.stats.ValidationPassed && mt.stats.FailedChunks == 0 && !mt.dryRun {
 		fmt.Println("\n✅ Migration completed successfully!")
 	}

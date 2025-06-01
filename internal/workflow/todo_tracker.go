@@ -182,6 +182,11 @@ func (tt *TodoTracker) buildTodoJourneyContent(session *TodoSession, todo TodoIt
 	return content.String()
 }
 
+// GetOrCreateSession retrieves or creates a new todo session (exported)
+func (tt *TodoTracker) GetOrCreateSession(sessionID, repository string) *TodoSession {
+	return tt.getOrCreateSession(sessionID, repository)
+}
+
 // getOrCreateSession retrieves or creates a new todo session
 func (tt *TodoTracker) getOrCreateSession(sessionID, repository string) *TodoSession {
 	if session, exists := tt.activeSessions[sessionID]; exists {
@@ -408,6 +413,11 @@ func (tt *TodoTracker) buildSessionSummaryContent(session *TodoSession) string {
 	content.WriteString(fmt.Sprintf("- **Files Changed**: %d\n", len(session.FilesChanged)))
 
 	return content.String()
+}
+
+// GetActiveSessions returns all active sessions
+func (tt *TodoTracker) GetActiveSessions() map[string]*TodoSession {
+	return tt.activeSessions
 }
 
 // assessSessionDifficulty assesses overall session difficulty

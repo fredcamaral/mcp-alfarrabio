@@ -42,10 +42,10 @@ jobs:
         run: go test -v -coverprofile=coverage.txt -covermode=atomic ./...
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v6
         with:
-          version: v1.64.8
-          args: --timeout=3m
+          version: v2.3.0
+          args: --timeout=3m --config=.golangci.yml
 
       - name: Integration tests
         run: |

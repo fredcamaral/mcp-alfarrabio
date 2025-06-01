@@ -32,20 +32,20 @@ func NewRelationshipDetector(storage StorageInterface) *RelationshipDetector {
 
 // DetectionConfig configures the relationship detection process
 type DetectionConfig struct {
-	MinConfidence           float64               `json:"min_confidence"`
-	MaxTimeDistance         time.Duration         `json:"max_time_distance"`
-	SemanticSimilarityThreshold float64           `json:"semantic_similarity_threshold"`
-	EnabledDetectors        []string              `json:"enabled_detectors"`
-	RelationshipConfidence  map[types.RelationType]float64 `json:"relationship_confidence"`
+	MinConfidence               float64                        `json:"min_confidence"`
+	MaxTimeDistance             time.Duration                  `json:"max_time_distance"`
+	SemanticSimilarityThreshold float64                        `json:"semantic_similarity_threshold"`
+	EnabledDetectors            []string                       `json:"enabled_detectors"`
+	RelationshipConfidence      map[types.RelationType]float64 `json:"relationship_confidence"`
 }
 
 // DefaultDetectionConfig returns a sensible default configuration
 func DefaultDetectionConfig() *DetectionConfig {
 	return &DetectionConfig{
-		MinConfidence:           0.6,
-		MaxTimeDistance:         24 * time.Hour,
+		MinConfidence:               0.6,
+		MaxTimeDistance:             24 * time.Hour,
 		SemanticSimilarityThreshold: 0.7,
-		EnabledDetectors:        []string{"temporal", "causal", "reference", "problem_solution"},
+		EnabledDetectors:            []string{"temporal", "causal", "reference", "problem_solution"},
 		RelationshipConfidence: map[types.RelationType]float64{
 			types.RelationLedTo:      0.7,
 			types.RelationSolvedBy:   0.8,
@@ -121,11 +121,11 @@ func (rd *RelationshipDetector) AutoDetectAndStore(ctx context.Context, chunk *t
 
 	// Store detected relationships
 	for _, relationship := range result.RelationshipsDetected {
-		_, err := rd.storage.StoreRelationship(ctx, 
-			relationship.SourceChunkID, 
-			relationship.TargetChunkID, 
-			relationship.RelationType, 
-			relationship.Confidence, 
+		_, err := rd.storage.StoreRelationship(ctx,
+			relationship.SourceChunkID,
+			relationship.TargetChunkID,
+			relationship.RelationType,
+			relationship.Confidence,
 			types.ConfidenceAuto,
 		)
 		if err != nil {
@@ -138,12 +138,19 @@ func (rd *RelationshipDetector) AutoDetectAndStore(ctx context.Context, chunk *t
 
 // findCandidateChunks finds chunks that could potentially have relationships with the given chunk
 func (rd *RelationshipDetector) findCandidateChunks(ctx context.Context, chunk *types.ConversationChunk, config *DetectionConfig) ([]*types.ConversationChunk, error) {
+	if chunk == nil {
+		return nil, fmt.Errorf("chunk cannot be nil")
+	}
+
 	candidates := make([]*types.ConversationChunk, 0)
+	var lastErr error
 
 	// Get chunks from the same session
 	if chunk.SessionID != "" {
 		sessionCandidates, err := rd.getSessionChunks(ctx, chunk.SessionID, chunk.ID)
-		if err == nil {
+		if err != nil {
+			lastErr = err // Store error but continue
+		} else {
 			candidates = append(candidates, sessionCandidates...)
 		}
 	}
@@ -151,15 +158,22 @@ func (rd *RelationshipDetector) findCandidateChunks(ctx context.Context, chunk *
 	// Get recent chunks from the same repository
 	if chunk.Metadata.Repository != "" {
 		repoCandidates, err := rd.getRecentRepositoryChunks(ctx, chunk.Metadata.Repository, chunk.ID, config.MaxTimeDistance)
-		if err == nil {
+		if err != nil {
+			lastErr = err // Store error but continue
+		} else {
 			candidates = append(candidates, repoCandidates...)
 		}
+	}
+
+	// If we have no candidates and there was an error, return the error
+	if len(candidates) == 0 && lastErr != nil {
+		return nil, fmt.Errorf("failed to find candidate chunks: %w", lastErr)
 	}
 
 	// Remove duplicates and the chunk itself
 	seen := make(map[string]bool)
 	seen[chunk.ID] = true
-	
+
 	uniqueCandidates := make([]*types.ConversationChunk, 0)
 	for _, candidate := range candidates {
 		if !seen[candidate.ID] {
@@ -178,7 +192,7 @@ func (rd *RelationshipDetector) getSessionChunks(ctx context.Context, sessionID,
 	if err != nil {
 		return nil, fmt.Errorf("failed to get session chunks: %w", err)
 	}
-	
+
 	// Filter out the excluded chunk and convert to pointer slice
 	filtered := make([]*types.ConversationChunk, 0, len(sessionChunks))
 	for i := range sessionChunks {
@@ -186,7 +200,7 @@ func (rd *RelationshipDetector) getSessionChunks(ctx context.Context, sessionID,
 			filtered = append(filtered, &sessionChunks[i])
 		}
 	}
-	
+
 	return filtered, nil
 }
 
@@ -197,7 +211,7 @@ func (rd *RelationshipDetector) getRecentRepositoryChunks(ctx context.Context, r
 	if err != nil {
 		return nil, fmt.Errorf("failed to get repository chunks: %w", err)
 	}
-	
+
 	// Filter by age and exclude the current chunk
 	cutoff := time.Now().Add(-maxAge)
 	filtered := make([]*types.ConversationChunk, 0)
@@ -207,7 +221,7 @@ func (rd *RelationshipDetector) getRecentRepositoryChunks(ctx context.Context, r
 			filtered = append(filtered, chunk)
 		}
 	}
-	
+
 	return filtered, nil
 }
 
@@ -222,7 +236,7 @@ func (rd *RelationshipDetector) detectTemporalRelationships(chunk *types.Convers
 		// If chunks are close in time and in the same session
 		if timeDiff <= config.MaxTimeDistance && chunk.SessionID == candidate.SessionID {
 			confidence := rd.calculateTemporalConfidence(timeDiff, config.MaxTimeDistance)
-			
+
 			var relationType types.RelationType
 			if chunk.Timestamp.After(candidate.Timestamp) {
 				relationType = types.RelationFollowsUp
@@ -272,7 +286,7 @@ func (rd *RelationshipDetector) detectCausalRelationships(chunk *types.Conversat
 			// Check if chunk content references the candidate
 			if pattern.pattern.MatchString(chunk.Content) && rd.contentReferences(chunk.Content, candidate) {
 				confidence := pattern.confidence
-				
+
 				if baseConfidence, exists := config.RelationshipConfidence[pattern.relation]; exists {
 					confidence *= baseConfidence
 				}
@@ -309,7 +323,7 @@ func (rd *RelationshipDetector) detectReferenceRelationships(chunk *types.Conver
 
 	for _, candidate := range candidates {
 		referenceScore := 0.0
-		
+
 		for _, pattern := range referencePatterns {
 			if pattern.MatchString(chunk.Content) && rd.contentReferences(chunk.Content, candidate) {
 				referenceScore += 0.2
@@ -351,44 +365,73 @@ func (rd *RelationshipDetector) detectReferenceRelationships(chunk *types.Conver
 
 // detectProblemSolutionRelationships detects problem-solution pairs
 func (rd *RelationshipDetector) detectProblemSolutionRelationships(chunk *types.ConversationChunk, candidates []*types.ConversationChunk, config *DetectionConfig, result *DetectionResult) {
-	if chunk.Type == types.ChunkTypeSolution {
-		// Look for related problems
-		for _, candidate := range candidates {
-			if candidate.Type == types.ChunkTypeProblem && 
-			   chunk.SessionID == candidate.SessionID &&
-			   chunk.Timestamp.After(candidate.Timestamp) {
-				
-				// Calculate relevance based on content similarity and time proximity
-				contentSim := rd.calculateContentSimilarity(chunk.Content, candidate.Content)
-				timeDiff := chunk.Timestamp.Sub(candidate.Timestamp)
-				timeScore := rd.calculateTemporalConfidence(timeDiff, config.MaxTimeDistance)
-				
-				confidence := (contentSim * 0.7) + (timeScore * 0.3)
-				
-				if baseConfidence, exists := config.RelationshipConfidence[types.RelationSolvedBy]; exists {
-					confidence *= baseConfidence
-				}
+	if chunk.Type != types.ChunkTypeSolution {
+		return
+	}
 
-				if confidence >= config.MinConfidence {
-					rel := types.MemoryRelationship{
-						SourceChunkID:    candidate.ID,
-						TargetChunkID:    chunk.ID,
-						RelationType:     types.RelationSolvedBy,
-						Confidence:       confidence,
-						ConfidenceSource: types.ConfidenceAuto,
-						ConfidenceFactors: types.ConfidenceFactors{
-							SemanticSimilarity:  &contentSim,
-							TemporalProximity:   &timeScore,
-						},
-						CreatedAt: time.Now().UTC(),
-					}
-
-					result.RelationshipsDetected = append(result.RelationshipsDetected, rel)
-					result.DetectionMethods[rel.ID] = append(result.DetectionMethods[rel.ID], "problem_solution")
-				}
-			}
+	// Look for related problems
+	for _, candidate := range candidates {
+		relationship := rd.evaluateProblemSolutionPair(chunk, candidate, config)
+		if relationship != nil {
+			result.RelationshipsDetected = append(result.RelationshipsDetected, *relationship)
 		}
 	}
+}
+
+// evaluateProblemSolutionPair evaluates if a candidate problem relates to a solution
+func (rd *RelationshipDetector) evaluateProblemSolutionPair(solution *types.ConversationChunk, candidate *types.ConversationChunk, config *DetectionConfig) *types.MemoryRelationship {
+	// Check basic criteria
+	if !rd.isProblemSolutionCandidate(solution, candidate) {
+		return nil
+	}
+
+	// Calculate confidence
+	confidence := rd.calculateProblemSolutionConfidence(solution, candidate, config)
+	if confidence < config.MinConfidence {
+		return nil
+	}
+
+	// Create relationship
+	contentSim := rd.calculateContentSimilarity(solution.Content, candidate.Content)
+	timeDiff := solution.Timestamp.Sub(candidate.Timestamp)
+	timeScore := rd.calculateTemporalConfidence(timeDiff, config.MaxTimeDistance)
+
+	return &types.MemoryRelationship{
+		SourceChunkID:    candidate.ID,
+		TargetChunkID:    solution.ID,
+		RelationType:     types.RelationSolvedBy,
+		Confidence:       confidence,
+		ConfidenceSource: types.ConfidenceAuto,
+		ConfidenceFactors: types.ConfidenceFactors{
+			SemanticSimilarity: &contentSim,
+			TemporalProximity:  &timeScore,
+		},
+		CreatedAt: time.Now().UTC(),
+	}
+}
+
+// isProblemSolutionCandidate checks if a candidate problem could relate to a solution
+func (rd *RelationshipDetector) isProblemSolutionCandidate(solution *types.ConversationChunk, candidate *types.ConversationChunk) bool {
+	return candidate.Type == types.ChunkTypeProblem &&
+		solution.SessionID == candidate.SessionID &&
+		solution.Timestamp.After(candidate.Timestamp)
+}
+
+// calculateProblemSolutionConfidence calculates confidence for problem-solution relationship
+func (rd *RelationshipDetector) calculateProblemSolutionConfidence(solution *types.ConversationChunk, problem *types.ConversationChunk, config *DetectionConfig) float64 {
+	// Calculate relevance based on content similarity and time proximity
+	contentSim := rd.calculateContentSimilarity(solution.Content, problem.Content)
+	timeDiff := solution.Timestamp.Sub(problem.Timestamp)
+	timeScore := rd.calculateTemporalConfidence(timeDiff, config.MaxTimeDistance)
+
+	confidence := (contentSim * 0.7) + (timeScore * 0.3)
+
+	// Apply base confidence multiplier if configured
+	if baseConfidence, exists := config.RelationshipConfidence[types.RelationSolvedBy]; exists {
+		confidence *= baseConfidence
+	}
+
+	return confidence
 }
 
 // Helper methods
@@ -405,7 +448,7 @@ func (rd *RelationshipDetector) calculateTemporalConfidence(timeDiff, maxTime ti
 // contentReferences checks if content references another chunk
 func (rd *RelationshipDetector) contentReferences(content string, candidate *types.ConversationChunk) bool {
 	content = strings.ToLower(content)
-	
+
 	// Check for ID reference
 	if strings.Contains(content, strings.ToLower(candidate.ID)) {
 		return true
@@ -472,7 +515,7 @@ func (rd *RelationshipDetector) extractWords(content string) []string {
 
 	wordRegex := regexp.MustCompile(`\b[a-zA-Z]{3,}\b`)
 	matches := wordRegex.FindAllString(content, -1)
-	
+
 	var words []string
 	for _, word := range matches {
 		word = strings.ToLower(word)
@@ -480,6 +523,6 @@ func (rd *RelationshipDetector) extractWords(content string) []string {
 			words = append(words, word)
 		}
 	}
-	
+
 	return words
 }

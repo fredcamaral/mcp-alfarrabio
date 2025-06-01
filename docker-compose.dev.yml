@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   mcp-memory-server:
     build:
@@ -13,6 +11,8 @@ services:
       - ./pkg:/app/pkg:ro
       - ./go.mod:/app/go.mod:ro
       - ./go.sum:/app/go.sum:ro
+      # Mount documentation for get_documentation tool
+      - ./docs:/app/docs:ro
       # Data volumes
       - mcp_memory_data:/app/data
       - mcp_memory_logs:/app/logs
@@ -34,7 +34,6 @@ services:
       - MCP_MEMORY_METRICS_ENABLED=true
       - MCP_MEMORY_METRICS_PORT=9090
       - OPENAI_API_KEY=${OPENAI_API_KEY}
-      - CLAUDE_API_KEY=${CLAUDE_API_KEY}
     depends_on:
       - mcp-qdrant
     networks:

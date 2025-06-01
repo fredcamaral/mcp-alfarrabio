@@ -33,7 +33,7 @@ func (p *PatternStorageAdapter) StorePattern(ctx context.Context, pattern intell
 			Tags:       []string{"pattern", string(pattern.Type)},
 		},
 		// Note: Patterns don't have embeddings in the current implementation
-		Embeddings: []float64{}, 
+		Embeddings: []float64{},
 	}
 
 	return p.store.Store(ctx, chunk)

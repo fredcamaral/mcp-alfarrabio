@@ -98,14 +98,14 @@ type QueryOptimizer struct {
 	optimizationRules map[string]*QueryOptimizationRule
 	queryStats        map[string]*QueryStatistics
 	planStore         map[string]*QueryPlan
-	
+
 	// Synchronization
-	rulesMutex  sync.RWMutex
-	statsMutex  sync.RWMutex
-	plansMutex  sync.RWMutex
-	
+	rulesMutex sync.RWMutex
+	statsMutex sync.RWMutex
+	plansMutex sync.RWMutex
+
 	// Configuration
-	enabled                  bool
+	enabled                 bool
 	maxPlanCacheSize        int
 	planCacheTTL            time.Duration
 	statisticsRetention     time.Duration
@@ -113,12 +113,12 @@ type QueryOptimizer struct {
 	parallelismThreshold    int
 	optimizationInterval    time.Duration
 	adaptiveLearningEnabled bool
-	
+
 	// Analytics
-	totalOptimizations    int64
+	totalOptimizations      int64
 	successfulOptimizations int64
-	avgOptimizationTime   time.Duration
-	lastOptimization      time.Time
+	avgOptimizationTime     time.Duration
+	lastOptimization        time.Time
 }
 
 // QueryExecutionContext provides context for query execution
@@ -143,8 +143,8 @@ func NewQueryOptimizer(cacheConfig CacheConfig) *QueryOptimizer {
 		optimizationRules: make(map[string]*QueryOptimizationRule),
 		queryStats:        make(map[string]*QueryStatistics),
 		planStore:         make(map[string]*QueryPlan),
-		
-		enabled:                  true,
+
+		enabled:                 true,
 		maxPlanCacheSize:        getEnvInt("MCP_MEMORY_QUERY_PLAN_CACHE_SIZE", 5000),
 		planCacheTTL:            getEnvDurationMinutes("MCP_MEMORY_QUERY_PLAN_TTL_MINUTES", 60),
 		statisticsRetention:     getEnvDurationMinutes("MCP_MEMORY_QUERY_STATS_RETENTION_MINUTES", 1440), // 24 hours
@@ -152,7 +152,7 @@ func NewQueryOptimizer(cacheConfig CacheConfig) *QueryOptimizer {
 		parallelismThreshold:    getEnvInt("MCP_MEMORY_QUERY_PARALLELISM_THRESHOLD", 4),
 		optimizationInterval:    getEnvDurationMinutes("MCP_MEMORY_OPTIMIZATION_INTERVAL_MINUTES", 10),
 		adaptiveLearningEnabled: getEnvBool("MCP_MEMORY_ADAPTIVE_LEARNING_ENABLED", true),
-		
+
 		totalOptimizations:      0,
 		successfulOptimizations: 0,
 		lastOptimization:        time.Now(),
@@ -166,7 +166,7 @@ func (qo *QueryOptimizer) OptimizeQuery(ctx context.Context, query string, query
 	}
 
 	queryHash := qo.hashQuery(query)
-	
+
 	// Check for cached plan first
 	if cachedPlan := qo.getCachedPlan(queryHash); cachedPlan != nil {
 		qo.recordPlanUsage(cachedPlan)
@@ -181,15 +181,15 @@ func (qo *QueryOptimizer) OptimizeQuery(ctx context.Context, query string, query
 
 	// Cache the plan
 	qo.cachePlan(plan)
-	
+
 	// Update statistics
 	qo.updateOptimizationStats(true)
-	
+
 	return plan, nil
 }
 
 // generateOptimizedPlan creates an optimized query plan using rules and heuristics
-func (qo *QueryOptimizer) generateOptimizedPlan(ctx context.Context, query string, queryType QueryType, queryHash string, execCtx QueryExecutionContext) (*QueryPlan, error) {
+func (qo *QueryOptimizer) generateOptimizedPlan(_ context.Context, query string, queryType QueryType, queryHash string, execCtx QueryExecutionContext) (*QueryPlan, error) {
 	startTime := time.Now()
 	defer func() {
 		qo.avgOptimizationTime = time.Since(startTime)
@@ -216,17 +216,17 @@ func (qo *QueryOptimizer) generateOptimizedPlan(ctx context.Context, query strin
 
 	// Apply optimization rules
 	qo.applyOptimizationRules(plan, query, execCtx)
-	
+
 	// Generate execution steps
 	steps := qo.generateExecutionSteps(query, queryType, execCtx)
 	plan.Steps = steps
-	
+
 	// Calculate estimated cost
 	plan.EstimatedCost = qo.calculatePlanCost(plan)
-	
+
 	// Determine index hints
 	plan.IndexHints = qo.generateIndexHints(query, queryType)
-	
+
 	// Set optimization parameters
 	plan.Parameters = qo.generateOptimizationParameters(queryType, execCtx)
 
@@ -236,7 +236,7 @@ func (qo *QueryOptimizer) generateOptimizedPlan(ctx context.Context, query strin
 // generateExecutionSteps creates optimized execution steps for the query
 func (qo *QueryOptimizer) generateExecutionSteps(query string, queryType QueryType, execCtx QueryExecutionContext) []QueryStep {
 	var steps []QueryStep
-	
+
 	switch queryType {
 	case QueryTypeVector:
 		steps = qo.generateVectorSearchSteps(query, execCtx)
@@ -253,7 +253,7 @@ func (qo *QueryOptimizer) generateExecutionSteps(query string, queryType QueryTy
 	default:
 		steps = qo.generateGenericSteps(query, execCtx)
 	}
-	
+
 	return qo.optimizeStepOrder(steps)
 }
 
@@ -303,7 +303,7 @@ func (qo *QueryOptimizer) generateVectorSearchSteps(query string, execCtx QueryE
 			CanCache:    false,
 		},
 	}
-	
+
 	return steps
 }
 
@@ -343,7 +343,7 @@ func (qo *QueryOptimizer) generateTextSearchSteps(query string, execCtx QueryExe
 			CanCache:    false,
 		},
 	}
-	
+
 	return steps
 }
 
@@ -383,7 +383,7 @@ func (qo *QueryOptimizer) generateFilterSteps(query string, execCtx QueryExecuti
 			CacheKey:    fmt.Sprintf("filter_result:%s", qo.hashQuery(query)),
 		},
 	}
-	
+
 	return steps
 }
 
@@ -423,7 +423,7 @@ func (qo *QueryOptimizer) generateAggregationSteps(query string, execCtx QueryEx
 			CacheKey:    fmt.Sprintf("agg_result:%s", qo.hashQuery(query)),
 		},
 	}
-	
+
 	return steps
 }
 
@@ -431,7 +431,7 @@ func (qo *QueryOptimizer) generateAggregationSteps(query string, execCtx QueryEx
 func (qo *QueryOptimizer) generateHybridSearchSteps(query string, execCtx QueryExecutionContext) []QueryStep {
 	vectorSteps := qo.generateVectorSearchSteps(query, execCtx)
 	textSteps := qo.generateTextSearchSteps(query, execCtx)
-	
+
 	// Add fusion step
 	fusionStep := QueryStep{
 		ID:          generateID(),
@@ -447,12 +447,12 @@ func (qo *QueryOptimizer) generateHybridSearchSteps(query string, execCtx QueryE
 		DependsOn: []string{},
 		CanCache:  false,
 	}
-	
+
 	steps := make([]QueryStep, 0, len(vectorSteps)+len(textSteps)+1)
 	steps = append(steps, vectorSteps...)
 	steps = append(steps, textSteps...)
 	steps = append(steps, fusionStep)
-	
+
 	return steps
 }
 
@@ -492,12 +492,29 @@ func (qo *QueryOptimizer) generateJoinSteps(query string, execCtx QueryExecution
 			CacheKey:    fmt.Sprintf("join_result:%s", qo.hashQuery(query)),
 		},
 	}
-	
+
 	return steps
 }
 
 // generateGenericSteps creates basic steps for unknown query types
-func (qo *QueryOptimizer) generateGenericSteps(query string, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateGenericSteps(_ string, execCtx QueryExecutionContext) []QueryStep {
+	// Use context timeout if available, otherwise default to 30s
+	timeout := "30s"
+	if execCtx.Timeout > 0 {
+		timeout = execCtx.Timeout.String()
+	}
+
+	parameters := map[string]interface{}{
+		"timeout":    timeout,
+		"query_id":   execCtx.QueryID,
+		"session_id": execCtx.SessionID,
+	}
+
+	// Add repository context if available
+	if execCtx.Repository != "" {
+		parameters["repository"] = execCtx.Repository
+	}
+
 	return []QueryStep{
 		{
 			ID:          generateID(),
@@ -505,7 +522,7 @@ func (qo *QueryOptimizer) generateGenericSteps(query string, execCtx QueryExecut
 			Operation:   "generic_query_execution",
 			Cost:        10.0,
 			Parallelism: 1,
-			Parameters:  map[string]interface{}{"timeout": "30s"},
+			Parameters:  parameters,
 			DependsOn:   []string{},
 			CanCache:    false,
 		},
@@ -527,11 +544,11 @@ func (qo *QueryOptimizer) optimizeStepOrder(steps []QueryStep) []QueryStep {
 				return false
 			}
 		}
-		
+
 		// Otherwise, sort by cost
 		return steps[i].Cost < steps[j].Cost
 	})
-	
+
 	return steps
 }
 
@@ -539,12 +556,12 @@ func (qo *QueryOptimizer) optimizeStepOrder(steps []QueryStep) []QueryStep {
 func (qo *QueryOptimizer) applyOptimizationRules(plan *QueryPlan, query string, execCtx QueryExecutionContext) {
 	qo.rulesMutex.RLock()
 	defer qo.rulesMutex.RUnlock()
-	
+
 	for _, rule := range qo.optimizationRules {
 		if !rule.Enabled {
 			continue
 		}
-		
+
 		if qo.ruleMatches(rule, query, plan.QueryType, execCtx) {
 			qo.applyRule(plan, rule)
 			rule.LastApplied = time.Now()
@@ -558,7 +575,7 @@ func (qo *QueryOptimizer) ruleMatches(rule *QueryOptimizationRule, query string,
 	if rule.Pattern != "" && !strings.Contains(query, rule.Pattern) {
 		return false
 	}
-	
+
 	// Check conditions
 	switch rule.Condition {
 	case "vector_query":
@@ -602,23 +619,23 @@ func (qo *QueryOptimizer) applyRule(plan *QueryPlan, rule *QueryOptimizationRule
 func (qo *QueryOptimizer) RecordQueryExecution(queryHash string, duration time.Duration, success bool, errorMsg string) {
 	qo.statsMutex.Lock()
 	defer qo.statsMutex.Unlock()
-	
+
 	stats, exists := qo.queryStats[queryHash]
 	if !exists {
 		stats = &QueryStatistics{
-			QueryHash:       queryHash,
-			LatencyHistory:  make([]float64, 0),
-			ErrorPatterns:   make([]string, 0),
-			MinLatency:      duration,
-			MaxLatency:      duration,
+			QueryHash:      queryHash,
+			LatencyHistory: make([]float64, 0),
+			ErrorPatterns:  make([]string, 0),
+			MinLatency:     duration,
+			MaxLatency:     duration,
 		}
 		qo.queryStats[queryHash] = stats
 	}
-	
+
 	stats.TotalExecutions++
 	stats.LastExecuted = time.Now()
 	stats.TotalLatency += duration
-	
+
 	if success {
 		stats.SuccessfulRuns++
 	} else {
@@ -627,16 +644,16 @@ func (qo *QueryOptimizer) RecordQueryExecution(queryHash string, duration time.D
 			stats.ErrorPatterns = append(stats.ErrorPatterns, errorMsg)
 		}
 	}
-	
+
 	// Update latency statistics
 	latencyMs := float64(duration) / float64(time.Millisecond)
 	stats.LatencyHistory = append(stats.LatencyHistory, latencyMs)
-	
+
 	// Keep only recent history
 	if len(stats.LatencyHistory) > 1000 {
 		stats.LatencyHistory = stats.LatencyHistory[len(stats.LatencyHistory)-500:]
 	}
-	
+
 	// Update min/max/avg latencies
 	if duration < stats.MinLatency {
 		stats.MinLatency = duration
@@ -647,7 +664,7 @@ func (qo *QueryOptimizer) RecordQueryExecution(queryHash string, duration time.D
 	if stats.TotalExecutions > 0 {
 		stats.AvgLatency = stats.TotalLatency / time.Duration(stats.TotalExecutions)
 	}
-	
+
 	// Calculate percentiles
 	qo.updatePercentiles(stats)
 }
@@ -657,16 +674,16 @@ func (qo *QueryOptimizer) updatePercentiles(stats *QueryStatistics) {
 	if len(stats.LatencyHistory) == 0 {
 		return
 	}
-	
+
 	// Sort latency history
 	sorted := make([]float64, len(stats.LatencyHistory))
 	copy(sorted, stats.LatencyHistory)
 	sort.Float64s(sorted)
-	
+
 	// Calculate percentiles
 	p95Index := int(0.95 * float64(len(sorted)))
 	p99Index := int(0.99 * float64(len(sorted)))
-	
+
 	if p95Index < len(sorted) {
 		stats.P95Latency = time.Duration(sorted[p95Index]) * time.Millisecond
 	}
@@ -679,27 +696,27 @@ func (qo *QueryOptimizer) updatePercentiles(stats *QueryStatistics) {
 func (qo *QueryOptimizer) GetQueryStatistics() map[string]*QueryStatistics {
 	qo.statsMutex.RLock()
 	defer qo.statsMutex.RUnlock()
-	
+
 	result := make(map[string]*QueryStatistics)
 	for k, v := range qo.queryStats {
 		result[k] = v
 	}
-	
+
 	return result
 }
 
 // GetOptimizationSuggestions provides optimization suggestions based on query patterns
 func (qo *QueryOptimizer) GetOptimizationSuggestions() []map[string]interface{} {
 	suggestions := []map[string]interface{}{}
-	
+
 	qo.statsMutex.RLock()
 	defer qo.statsMutex.RUnlock()
-	
+
 	for queryHash, stats := range qo.queryStats {
 		if stats.TotalExecutions < 10 {
 			continue // Need more data for meaningful suggestions
 		}
-		
+
 		// High latency queries
 		if stats.AvgLatency > 5*time.Second {
 			suggestions = append(suggestions, map[string]interface{}{
@@ -710,7 +727,7 @@ func (qo *QueryOptimizer) GetOptimizationSuggestions() []map[string]interface{} 
 				"priority":    "high",
 			})
 		}
-		
+
 		// Low success rate queries
 		successRate := float64(stats.SuccessfulRuns) / float64(stats.TotalExecutions)
 		if successRate < 0.9 {
@@ -722,19 +739,19 @@ func (qo *QueryOptimizer) GetOptimizationSuggestions() []map[string]interface{} 
 				"priority":     "medium",
 			})
 		}
-		
+
 		// Frequently executed queries that could benefit from caching
 		if stats.TotalExecutions > 100 && stats.CacheHits == 0 {
 			suggestions = append(suggestions, map[string]interface{}{
-				"type":        "cache_candidate",
-				"query_hash":  queryHash,
-				"executions":  stats.TotalExecutions,
-				"suggestion":  "Enable caching for this frequently executed query",
-				"priority":    "medium",
+				"type":       "cache_candidate",
+				"query_hash": queryHash,
+				"executions": stats.TotalExecutions,
+				"suggestion": "Enable caching for this frequently executed query",
+				"priority":   "medium",
 			})
 		}
 	}
-	
+
 	return suggestions
 }
 
@@ -756,7 +773,7 @@ func (qo *QueryOptimizer) getCachedPlan(queryHash string) *QueryPlan {
 
 func (qo *QueryOptimizer) cachePlan(plan *QueryPlan) {
 	qo.planCache.Set(plan.QueryHash, plan)
-	
+
 	qo.plansMutex.Lock()
 	qo.planStore[plan.QueryHash] = plan
 	qo.plansMutex.Unlock()
@@ -833,9 +850,9 @@ func (qo *QueryOptimizer) calculatePlanCost(plan *QueryPlan) float64 {
 	return totalCost
 }
 
-func (qo *QueryOptimizer) generateIndexHints(query string, queryType QueryType) []string {
+func (qo *QueryOptimizer) generateIndexHints(_ string, queryType QueryType) []string {
 	hints := []string{}
-	
+
 	switch queryType {
 	case QueryTypeVector:
 		hints = append(hints, "use_vector_index", "hnsw_ef_search_128")
@@ -850,32 +867,32 @@ func (qo *QueryOptimizer) generateIndexHints(query string, queryType QueryType) 
 	case QueryTypeAggregation:
 		hints = append(hints, "use_aggregation_index", "enable_columnar_scan")
 	}
-	
+
 	return hints
 }
 
 func (qo *QueryOptimizer) generateOptimizationParameters(queryType QueryType, execCtx QueryExecutionContext) map[string]interface{} {
 	params := make(map[string]interface{})
-	
+
 	params["query_type"] = string(queryType)
 	params["priority"] = execCtx.Priority
 	params["timeout"] = execCtx.Timeout.String()
 	params["parallelism_enabled"] = execCtx.Priority > 5
 	params["caching_enabled"] = true
-	
+
 	return params
 }
 
 func (qo *QueryOptimizer) generateOptimizationTag(queryType QueryType, execCtx QueryExecutionContext) string {
 	tag := string(queryType)
-	
+
 	if execCtx.Priority > 8 {
 		tag += "_high_priority"
 	}
 	if execCtx.Repository != "" {
 		tag += "_repo_scoped"
 	}
-	
+
 	return tag
 }
 
@@ -900,7 +917,7 @@ func getEnvBool(key string, defaultValue bool) bool {
 func (qo *QueryOptimizer) AddOptimizationRule(rule QueryOptimizationRule) {
 	qo.rulesMutex.Lock()
 	defer qo.rulesMutex.Unlock()
-	
+
 	rule.Enabled = true
 	qo.optimizationRules[rule.ID] = &rule
 }
@@ -909,7 +926,7 @@ func (qo *QueryOptimizer) AddOptimizationRule(rule QueryOptimizationRule) {
 func (qo *QueryOptimizer) GetOptimizationReport() map[string]interface{} {
 	qo.statsMutex.RLock()
 	defer qo.statsMutex.RUnlock()
-	
+
 	report := map[string]interface{}{
 		"total_optimizations":      qo.totalOptimizations,
 		"successful_optimizations": qo.successfulOptimizations,
@@ -920,10 +937,10 @@ func (qo *QueryOptimizer) GetOptimizationReport() map[string]interface{} {
 		"total_queries_tracked":    len(qo.queryStats),
 		"optimization_suggestions": qo.GetOptimizationSuggestions(),
 	}
-	
+
 	if qo.totalOptimizations > 0 {
 		report["success_rate"] = float64(qo.successfulOptimizations) / float64(qo.totalOptimizations)
 	}
-	
+
 	return report
 }

@@ -53,16 +53,16 @@ type ExportOptions struct {
 
 // ExportFilter defines filtering criteria for export
 type ExportFilter struct {
-	Repository    *string              `json:"repository,omitempty"`
-	SessionIDs    []string             `json:"session_ids,omitempty"`
-	ChunkTypes    []types.ChunkType    `json:"chunk_types,omitempty"`
-	DateRange     *ExportDateRange     `json:"date_range,omitempty"`
-	Tags          []string             `json:"tags,omitempty"`
-	Outcomes      []types.Outcome      `json:"outcomes,omitempty"`
-	Difficulties  []types.Difficulty   `json:"difficulties,omitempty"`
-	MinRelevance  *float64             `json:"min_relevance,omitempty"`
-	SearchQuery   *string              `json:"search_query,omitempty"`
-	ContentFilter *string              `json:"content_filter,omitempty"` // Regex pattern
+	Repository    *string            `json:"repository,omitempty"`
+	SessionIDs    []string           `json:"session_ids,omitempty"`
+	ChunkTypes    []types.ChunkType  `json:"chunk_types,omitempty"`
+	DateRange     *ExportDateRange   `json:"date_range,omitempty"`
+	Tags          []string           `json:"tags,omitempty"`
+	Outcomes      []types.Outcome    `json:"outcomes,omitempty"`
+	Difficulties  []types.Difficulty `json:"difficulties,omitempty"`
+	MinRelevance  *float64           `json:"min_relevance,omitempty"`
+	SearchQuery   *string            `json:"search_query,omitempty"`
+	ContentFilter *string            `json:"content_filter,omitempty"` // Regex pattern
 }
 
 // ExportDateRange defines a date range for filtering
@@ -97,14 +97,14 @@ type ExportResult struct {
 
 // ExportMeta contains metadata about the export
 type ExportMeta struct {
-	ExportID      string            `json:"export_id"`
-	Repository    string            `json:"repository,omitempty"`
-	SourceSystem  string            `json:"source_system"`
-	Version       string            `json:"version"`
-	TotalSessions int               `json:"total_sessions"`
-	DateRange     *ExportDateRange  `json:"date_range,omitempty"`
-	ChunkTypes    map[string]int    `json:"chunk_types"`
-	Tags          map[string]int    `json:"tags"`
+	ExportID      string                 `json:"export_id"`
+	Repository    string                 `json:"repository,omitempty"`
+	SourceSystem  string                 `json:"source_system"`
+	Version       string                 `json:"version"`
+	TotalSessions int                    `json:"total_sessions"`
+	DateRange     *ExportDateRange       `json:"date_range,omitempty"`
+	ChunkTypes    map[string]int         `json:"chunk_types"`
+	Tags          map[string]int         `json:"tags"`
 	Custom        map[string]interface{} `json:"custom,omitempty"`
 }
 
@@ -151,7 +151,7 @@ func (exp *Exporter) Export(ctx context.Context, options ExportOptions) (*Export
 	case ExportFormatJSON:
 		data, dataSize, err = exp.exportJSON(chunks, options)
 	case ExportFormatMarkdown:
-		data, dataSize, err = exp.exportMarkdown(chunks, options)
+		data, dataSize = exp.exportMarkdown(chunks, options)
 	case ExportFormatCSV:
 		data, dataSize, err = exp.exportCSV(chunks, options)
 	case ExportFormatArchive:
@@ -321,7 +321,7 @@ func (exp *Exporter) sortChunks(chunks []types.ConversationChunk, sorting Export
 
 	sort.Slice(chunks, func(i, j int) bool {
 		var less bool
-		
+
 		switch sorting.Field {
 		case "timestamp":
 			less = chunks[i].Timestamp.Before(chunks[j].Timestamp)
@@ -389,7 +389,7 @@ func (exp *Exporter) exportJSON(chunks []types.ConversationChunk, options Export
 }
 
 // exportMarkdown exports chunks as markdown
-func (exp *Exporter) exportMarkdown(chunks []types.ConversationChunk, options ExportOptions) (string, int64, error) {
+func (exp *Exporter) exportMarkdown(chunks []types.ConversationChunk, options ExportOptions) (string, int64) {
 	var builder strings.Builder
 
 	// Write header
@@ -406,18 +406,18 @@ func (exp *Exporter) exportMarkdown(chunks []types.ConversationChunk, options Ex
 	// Write sessions
 	for sessionID, sessionChunks := range sessionChunks {
 		builder.WriteString(fmt.Sprintf("## Session: %s\n\n", sessionID))
-		
+
 		for _, chunk := range sessionChunks {
-			builder.WriteString(fmt.Sprintf("### %s - %s\n", 
+			builder.WriteString(fmt.Sprintf("### %s - %s\n",
 				chunk.Type, chunk.Timestamp.Format("2006-01-02 15:04:05")))
-			
+
 			if chunk.Summary != "" {
 				builder.WriteString(fmt.Sprintf("**Summary:** %s\n\n", chunk.Summary))
 			}
-			
+
 			builder.WriteString(chunk.Content)
 			builder.WriteString("\n\n")
-			
+
 			if options.IncludeMetadata {
 				builder.WriteString("**Metadata:**\n")
 				builder.WriteString(fmt.Sprintf("- Repository: %s\n", chunk.Metadata.Repository))
@@ -428,13 +428,13 @@ func (exp *Exporter) exportMarkdown(chunks []types.ConversationChunk, options Ex
 				}
 				builder.WriteString("\n")
 			}
-			
+
 			builder.WriteString("---\n\n")
 		}
 	}
 
 	data := builder.String()
-	return data, int64(len(data)), nil
+	return data, int64(len(data))
 }
 
 // exportCSV exports chunks as CSV
@@ -447,11 +447,11 @@ func (exp *Exporter) exportCSV(chunks []types.ConversationChunk, options ExportO
 		"id", "session_id", "timestamp", "type", "content", "summary",
 		"repository", "outcome", "difficulty", "tags",
 	}
-	
+
 	if options.IncludeMetadata {
 		header = append(header, "branch", "files_modified", "tools_used")
 	}
-	
+
 	if err := writer.Write(header); err != nil {
 		return "", 0, err
 	}
@@ -470,7 +470,7 @@ func (exp *Exporter) exportCSV(chunks []types.ConversationChunk, options ExportO
 			string(chunk.Metadata.Difficulty),
 			strings.Join(chunk.Metadata.Tags, ";"),
 		}
-		
+
 		if options.IncludeMetadata {
 			record = append(record,
 				chunk.Metadata.Branch,
@@ -478,7 +478,7 @@ func (exp *Exporter) exportCSV(chunks []types.ConversationChunk, options ExportO
 				strings.Join(chunk.Metadata.ToolsUsed, ";"),
 			)
 		}
-		
+
 		if err := writer.Write(record); err != nil {
 			return "", 0, err
 		}
@@ -496,7 +496,7 @@ func (exp *Exporter) exportCSV(chunks []types.ConversationChunk, options ExportO
 // exportArchive exports chunks as a compressed archive
 func (exp *Exporter) exportArchive(chunks []types.ConversationChunk, options ExportOptions, metadata ExportMeta) (string, int64, error) {
 	var buffer bytes.Buffer
-	
+
 	// Create tar writer
 	tarWriter := tar.NewWriter(&buffer)
 	defer func() { _ = tarWriter.Close() }()
@@ -506,7 +506,7 @@ func (exp *Exporter) exportArchive(chunks []types.ConversationChunk, options Exp
 	if err != nil {
 		return "", 0, err
 	}
-	
+
 	if err := exp.addFileToTar(tarWriter, "metadata.json", metadataJSON); err != nil {
 		return "", 0, err
 	}
@@ -516,17 +516,14 @@ func (exp *Exporter) exportArchive(chunks []types.ConversationChunk, options Exp
 	if err != nil {
 		return "", 0, err
 	}
-	
+
 	if err := exp.addFileToTar(tarWriter, "chunks.json", chunksJSON); err != nil {
 		return "", 0, err
 	}
 
 	// Add chunks as markdown for human readability
-	markdownData, _, err := exp.exportMarkdown(chunks, options)
-	if err != nil {
-		return "", 0, err
-	}
-	
+	markdownData, _ := exp.exportMarkdown(chunks, options)
+
 	if err := exp.addFileToTar(tarWriter, "export.md", []byte(markdownData)); err != nil {
 		return "", 0, err
 	}
@@ -544,16 +541,16 @@ func (exp *Exporter) exportArchive(chunks []types.ConversationChunk, options Exp
 // addFileToTar adds a file to the tar archive
 func (exp *Exporter) addFileToTar(tarWriter *tar.Writer, filename string, data []byte) error {
 	header := &tar.Header{
-		Name: filename,
-		Size: int64(len(data)),
-		Mode: 0644,
+		Name:    filename,
+		Size:    int64(len(data)),
+		Mode:    0644,
 		ModTime: time.Now(),
 	}
-	
+
 	if err := tarWriter.WriteHeader(header); err != nil {
 		return err
 	}
-	
+
 	_, err := tarWriter.Write(data)
 	return err
 }
@@ -576,15 +573,15 @@ func (exp *Exporter) compressData(data string, compression CompressionType) (str
 func (exp *Exporter) compressGzip(data string) (string, int64, error) {
 	var buffer bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buffer)
-	
+
 	if _, err := gzipWriter.Write([]byte(data)); err != nil {
 		return "", 0, err
 	}
-	
+
 	if err := gzipWriter.Close(); err != nil {
 		return "", 0, err
 	}
-	
+
 	compressed := base64.StdEncoding.EncodeToString(buffer.Bytes())
 	return compressed, int64(len(compressed)), nil
 }
@@ -593,20 +590,20 @@ func (exp *Exporter) compressGzip(data string) (string, int64, error) {
 func (exp *Exporter) compressZip(data string) (string, int64, error) {
 	var buffer bytes.Buffer
 	zipWriter := zip.NewWriter(&buffer)
-	
+
 	writer, err := zipWriter.Create("export.txt")
 	if err != nil {
 		return "", 0, err
 	}
-	
+
 	if _, err := writer.Write([]byte(data)); err != nil {
 		return "", 0, err
 	}
-	
+
 	if err := zipWriter.Close(); err != nil {
 		return "", 0, err
 	}
-	
+
 	compressed := base64.StdEncoding.EncodeToString(buffer.Bytes())
 	return compressed, int64(len(compressed)), nil
 }
@@ -614,7 +611,7 @@ func (exp *Exporter) compressZip(data string) (string, int64, error) {
 // prepareChunksForExport prepares chunks for export by filtering out unwanted fields
 func (exp *Exporter) prepareChunksForExport(chunks []types.ConversationChunk, options ExportOptions) []map[string]interface{} {
 	exportChunks := make([]map[string]interface{}, len(chunks))
-	
+
 	for i, chunk := range chunks {
 		exportChunk := map[string]interface{}{
 			"id":         chunk.ID,
@@ -624,22 +621,22 @@ func (exp *Exporter) prepareChunksForExport(chunks []types.ConversationChunk, op
 			"content":    chunk.Content,
 			"summary":    chunk.Summary,
 		}
-		
+
 		if options.IncludeMetadata {
 			exportChunk["metadata"] = chunk.Metadata
 		}
-		
+
 		if options.IncludeVectors && len(chunk.Embeddings) > 0 {
 			exportChunk["embeddings"] = chunk.Embeddings
 		}
-		
+
 		if options.IncludeRelations && len(chunk.RelatedChunks) > 0 {
 			exportChunk["related_chunks"] = chunk.RelatedChunks
 		}
-		
+
 		exportChunks[i] = exportChunk
 	}
-	
+
 	return exportChunks
 }
 
@@ -656,11 +653,11 @@ func (exp *Exporter) generateMetadata(chunks []types.ConversationChunk) ExportMe
 	// Collect statistics
 	sessions := make(map[string]bool)
 	var earliest, latest time.Time
-	
+
 	for i, chunk := range chunks {
 		// Session tracking
 		sessions[chunk.SessionID] = true
-		
+
 		// Date range
 		if i == 0 {
 			earliest = chunk.Timestamp
@@ -673,29 +670,29 @@ func (exp *Exporter) generateMetadata(chunks []types.ConversationChunk) ExportMe
 				latest = chunk.Timestamp
 			}
 		}
-		
+
 		// Chunk types
 		metadata.ChunkTypes[string(chunk.Type)]++
-		
+
 		// Tags
 		for _, tag := range chunk.Metadata.Tags {
 			metadata.Tags[tag]++
 		}
-		
+
 		// Repository (use first non-empty)
 		if metadata.Repository == "" && chunk.Metadata.Repository != "" {
 			metadata.Repository = chunk.Metadata.Repository
 		}
 	}
-	
+
 	metadata.TotalSessions = len(sessions)
-	
+
 	if len(chunks) > 0 {
 		metadata.DateRange = &ExportDateRange{
 			Start: &earliest,
 			End:   &latest,
 		}
 	}
-	
+
 	return metadata
 }

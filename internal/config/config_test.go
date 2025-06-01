@@ -249,19 +249,19 @@ func TestConfig_Validate(t *testing.T) {
 func TestLoadConfig_WithEnvVars(t *testing.T) {
 	// Set up environment variables
 	envVars := map[string]string{
-		"MCP_MEMORY_PORT":          "9090",
-		"MCP_MEMORY_HOST":          "0.0.0.0",
-		"QDRANT_HOST":              "custom",
-		"QDRANT_PORT":              "6333",
-		"QDRANT_COLLECTION":        "custom_memory",
-		"QDRANT_CONTAINER_NAME":    "custom-qdrant",
-		"QDRANT_VOLUME_PATH":       "/custom/data",
-		"OPENAI_API_KEY":           "test-api-key",
-		"OPENAI_EMBEDDING_MODEL":   "text-embedding-3-small",
-		"RETENTION_DAYS":           "30",
-		"MCP_MEMORY_LOG_LEVEL":     "debug",
-		"MCP_MEMORY_LOG_FORMAT":    "text",
-		"MCP_MEMORY_LOG_FILE":      "/var/log/memory.log",
+		"MCP_MEMORY_PORT":        "9090",
+		"MCP_MEMORY_HOST":        "0.0.0.0",
+		"QDRANT_HOST":            "custom",
+		"QDRANT_PORT":            "6333",
+		"QDRANT_COLLECTION":      "custom_memory",
+		"QDRANT_CONTAINER_NAME":  "custom-qdrant",
+		"QDRANT_VOLUME_PATH":     "/custom/data",
+		"OPENAI_API_KEY":         "test-api-key",
+		"OPENAI_EMBEDDING_MODEL": "text-embedding-3-small",
+		"RETENTION_DAYS":         "30",
+		"MCP_MEMORY_LOG_LEVEL":   "debug",
+		"MCP_MEMORY_LOG_FORMAT":  "text",
+		"MCP_MEMORY_LOG_FILE":    "/var/log/memory.log",
 	}
 
 	// Set environment variables

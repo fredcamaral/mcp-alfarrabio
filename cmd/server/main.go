@@ -6,10 +6,6 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/fredcamaral/gomcp-sdk/protocol"
-	"github.com/fredcamaral/gomcp-sdk/server"
-	"github.com/fredcamaral/gomcp-sdk/transport"
-	"github.com/gorilla/websocket"
 	"log"
 	"mcp-memory/internal/config"
 	"mcp-memory/internal/mcp"
@@ -18,6 +14,11 @@ import (
 	"strings"
 	"syscall"
 	"time"
+
+	"github.com/fredcamaral/gomcp-sdk/protocol"
+	"github.com/fredcamaral/gomcp-sdk/server"
+	"github.com/fredcamaral/gomcp-sdk/transport"
+	"github.com/gorilla/websocket"
 )
 
 func main() {

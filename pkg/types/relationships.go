@@ -13,8 +13,8 @@ type RelationType string
 
 const (
 	// Causal relationships
-	RelationLedTo    RelationType = "led_to"     // Problem led to solution
-	RelationSolvedBy RelationType = "solved_by"  // Problem solved by solution
+	RelationLedTo    RelationType = "led_to"    // Problem led to solution
+	RelationSolvedBy RelationType = "solved_by" // Problem solved by solution
 
 	// Dependency relationships
 	RelationDependsOn RelationType = "depends_on" // Feature depends on another
@@ -24,10 +24,10 @@ const (
 	RelationConflictsWith RelationType = "conflicts_with" // Decisions conflict
 	RelationSupersedes    RelationType = "supersedes"     // New decision supersedes old
 
-	// Contextual relationships  
-	RelationRelatedTo RelationType = "related_to"  // General relation
-	RelationFollowsUp RelationType = "follows_up"  // Follow-up discussion
-	RelationPrecedes  RelationType = "precedes"    // Temporal precedence
+	// Contextual relationships
+	RelationRelatedTo RelationType = "related_to" // General relation
+	RelationFollowsUp RelationType = "follows_up" // Follow-up discussion
+	RelationPrecedes  RelationType = "precedes"   // Temporal precedence
 
 	// Learning relationships
 	RelationLearnedFrom RelationType = "learned_from" // Knowledge derived from
@@ -93,8 +93,8 @@ func (rt RelationType) IsSymmetric() bool {
 	case RelationConflictsWith, RelationRelatedTo:
 		return true
 	case RelationLedTo, RelationSolvedBy, RelationDependsOn, RelationEnables,
-		 RelationSupersedes, RelationFollowsUp, RelationPrecedes, RelationLearnedFrom,
-		 RelationTeaches, RelationExemplifes, RelationReferencesBy, RelationReferences:
+		RelationSupersedes, RelationFollowsUp, RelationPrecedes, RelationLearnedFrom,
+		RelationTeaches, RelationExemplifes, RelationReferencesBy, RelationReferences:
 		return false
 	}
 	return false
@@ -104,10 +104,10 @@ func (rt RelationType) IsSymmetric() bool {
 type ConfidenceSource string
 
 const (
-	ConfidenceExplicit ConfidenceSource = "explicit"  // User explicitly stated
-	ConfidenceInferred ConfidenceSource = "inferred"  // AI inferred from context
-	ConfidenceDerived  ConfidenceSource = "derived"   // Calculated from other data
-	ConfidenceAuto     ConfidenceSource = "auto"      // Automatically detected
+	ConfidenceExplicit ConfidenceSource = "explicit" // User explicitly stated
+	ConfidenceInferred ConfidenceSource = "inferred" // AI inferred from context
+	ConfidenceDerived  ConfidenceSource = "derived"  // Calculated from other data
+	ConfidenceAuto     ConfidenceSource = "auto"     // Automatically detected
 )
 
 // Valid returns true if the confidence source is valid
@@ -123,18 +123,18 @@ func (cs ConfidenceSource) Valid() bool {
 
 // MemoryRelationship represents a relationship between memory chunks
 type MemoryRelationship struct {
-	ID               string            `json:"id"`
-	SourceChunkID    string            `json:"source_chunk_id"`
-	TargetChunkID    string            `json:"target_chunk_id"`
-	RelationType     RelationType      `json:"relation_type"`
-	Confidence       float64           `json:"confidence"`        // 0.0-1.0
-	ConfidenceSource ConfidenceSource  `json:"confidence_source"` 
-	ConfidenceFactors ConfidenceFactors `json:"confidence_factors,omitempty"`
-	Metadata         map[string]interface{} `json:"metadata,omitempty"`
-	CreatedAt        time.Time         `json:"created_at"`
-	CreatedBy        string            `json:"created_by,omitempty"`   // User/system that created
-	LastValidated    *time.Time        `json:"last_validated,omitempty"`
-	ValidationCount  int               `json:"validation_count"`
+	ID                string                 `json:"id"`
+	SourceChunkID     string                 `json:"source_chunk_id"`
+	TargetChunkID     string                 `json:"target_chunk_id"`
+	RelationType      RelationType           `json:"relation_type"`
+	Confidence        float64                `json:"confidence"` // 0.0-1.0
+	ConfidenceSource  ConfidenceSource       `json:"confidence_source"`
+	ConfidenceFactors ConfidenceFactors      `json:"confidence_factors,omitempty"`
+	Metadata          map[string]interface{} `json:"metadata,omitempty"`
+	CreatedAt         time.Time              `json:"created_at"`
+	CreatedBy         string                 `json:"created_by,omitempty"` // User/system that created
+	LastValidated     *time.Time             `json:"last_validated,omitempty"`
+	ValidationCount   int                    `json:"validation_count"`
 }
 
 // NewMemoryRelationship creates a new memory relationship
@@ -159,16 +159,16 @@ func NewMemoryRelationship(sourceID, targetID string, relationType RelationType,
 	}
 
 	return &MemoryRelationship{
-		ID:               uuid.New().String(),
-		SourceChunkID:    sourceID,
-		TargetChunkID:    targetID,
-		RelationType:     relationType,
-		Confidence:       confidence,
-		ConfidenceSource: source,
+		ID:                uuid.New().String(),
+		SourceChunkID:     sourceID,
+		TargetChunkID:     targetID,
+		RelationType:      relationType,
+		Confidence:        confidence,
+		ConfidenceSource:  source,
 		ConfidenceFactors: ConfidenceFactors{},
-		Metadata:         make(map[string]interface{}),
-		CreatedAt:        time.Now().UTC(),
-		ValidationCount:  0,
+		Metadata:          make(map[string]interface{}),
+		CreatedAt:         time.Now().UTC(),
+		ValidationCount:   0,
 	}, nil
 }
 
@@ -221,15 +221,15 @@ func (mr *MemoryRelationship) UpdateConfidence(newConfidence float64, factors Co
 
 // RelationshipQuery represents a query for finding relationships
 type RelationshipQuery struct {
-	ChunkID        string         `json:"chunk_id"`
-	RelationTypes  []RelationType `json:"relation_types,omitempty"`
-	Direction      string         `json:"direction"`         // "incoming", "outgoing", "both"
-	MinConfidence  float64        `json:"min_confidence"`    // 0.0-1.0
-	MaxDepth       int            `json:"max_depth"`         // For graph traversal
-	IncludeChunks  bool           `json:"include_chunks"`    // Include full chunk data
-	SortBy         string         `json:"sort_by"`           // "confidence", "created_at", "validation_count"
-	SortOrder      string         `json:"sort_order"`        // "asc", "desc"
-	Limit          int            `json:"limit,omitempty"`
+	ChunkID       string         `json:"chunk_id"`
+	RelationTypes []RelationType `json:"relation_types,omitempty"`
+	Direction     string         `json:"direction"`      // "incoming", "outgoing", "both"
+	MinConfidence float64        `json:"min_confidence"` // 0.0-1.0
+	MaxDepth      int            `json:"max_depth"`      // For graph traversal
+	IncludeChunks bool           `json:"include_chunks"` // Include full chunk data
+	SortBy        string         `json:"sort_by"`        // "confidence", "created_at", "validation_count"
+	SortOrder     string         `json:"sort_order"`     // "asc", "desc"
+	Limit         int            `json:"limit,omitempty"`
 }
 
 // NewRelationshipQuery creates a new relationship query with defaults
@@ -279,9 +279,9 @@ func (rq *RelationshipQuery) Validate() error {
 
 // RelationshipResult represents a relationship with optional chunk data
 type RelationshipResult struct {
-	Relationship MemoryRelationship  `json:"relationship"`
-	SourceChunk  *ConversationChunk  `json:"source_chunk,omitempty"`
-	TargetChunk  *ConversationChunk  `json:"target_chunk,omitempty"`
+	Relationship MemoryRelationship `json:"relationship"`
+	SourceChunk  *ConversationChunk `json:"source_chunk,omitempty"`
+	TargetChunk  *ConversationChunk `json:"target_chunk,omitempty"`
 }
 
 // GraphTraversalResult represents the result of graph traversal
@@ -293,18 +293,18 @@ type GraphTraversalResult struct {
 
 // GraphPath represents a path through the knowledge graph
 type GraphPath struct {
-	ChunkIDs []string  `json:"chunk_ids"`
-	Score    float64   `json:"score"`     // Combined confidence score
-	Depth    int       `json:"depth"`
-	PathType string    `json:"path_type"` // e.g., "problem_to_solution"
+	ChunkIDs []string `json:"chunk_ids"`
+	Score    float64  `json:"score"` // Combined confidence score
+	Depth    int      `json:"depth"`
+	PathType string   `json:"path_type"` // e.g., "problem_to_solution"
 }
 
 // GraphNode represents a node in the knowledge graph
 type GraphNode struct {
-	ChunkID string              `json:"chunk_id"`
-	Chunk   *ConversationChunk  `json:"chunk,omitempty"`
-	Degree  int                 `json:"degree"`     // Number of connections
-	Centrality float64          `json:"centrality"` // Importance in graph
+	ChunkID    string             `json:"chunk_id"`
+	Chunk      *ConversationChunk `json:"chunk,omitempty"`
+	Degree     int                `json:"degree"`     // Number of connections
+	Centrality float64            `json:"centrality"` // Importance in graph
 }
 
 // GraphEdge represents an edge in the knowledge graph

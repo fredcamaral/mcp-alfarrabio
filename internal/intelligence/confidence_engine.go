@@ -2,8 +2,9 @@ package intelligence
 
 import (
 	"context"
-	"mcp-memory/pkg/types"
+	"fmt"
 	"math"
+	"mcp-memory/pkg/types"
 	"strings"
 	"time"
 )
@@ -32,18 +33,18 @@ func NewConfidenceEngine(storage StorageInterface) *ConfidenceEngine {
 // ConfidenceConfig configures confidence calculation parameters
 type ConfidenceConfig struct {
 	// Weights for different factors (should sum to 1.0)
-	UserCertaintyWeight      float64 `json:"user_certainty_weight"`
-	ConsistencyWeight        float64 `json:"consistency_weight"`
-	CorroborationWeight      float64 `json:"corroboration_weight"`
-	SemanticSimilarityWeight float64 `json:"semantic_similarity_weight"`
-	TemporalProximityWeight  float64 `json:"temporal_proximity_weight"`
+	UserCertaintyWeight       float64 `json:"user_certainty_weight"`
+	ConsistencyWeight         float64 `json:"consistency_weight"`
+	CorroborationWeight       float64 `json:"corroboration_weight"`
+	SemanticSimilarityWeight  float64 `json:"semantic_similarity_weight"`
+	TemporalProximityWeight   float64 `json:"temporal_proximity_weight"`
 	ContextualRelevanceWeight float64 `json:"contextual_relevance_weight"`
-	
+
 	// Thresholds
-	MinCorroborationCount    int     `json:"min_corroboration_count"`
-	MaxTemporalDistance      time.Duration `json:"max_temporal_distance"`
-	MinSemanticSimilarity    float64 `json:"min_semantic_similarity"`
-	DecayRate                float64 `json:"decay_rate"` // How much confidence decays over time
+	MinCorroborationCount int           `json:"min_corroboration_count"`
+	MaxTemporalDistance   time.Duration `json:"max_temporal_distance"`
+	MinSemanticSimilarity float64       `json:"min_semantic_similarity"`
+	DecayRate             float64       `json:"decay_rate"` // How much confidence decays over time
 }
 
 // DefaultConfidenceConfig returns a sensible default configuration
@@ -55,11 +56,11 @@ func DefaultConfidenceConfig() *ConfidenceConfig {
 		SemanticSimilarityWeight:  0.15,
 		TemporalProximityWeight:   0.05,
 		ContextualRelevanceWeight: 0.05,
-		
-		MinCorroborationCount:     1,
-		MaxTemporalDistance:       7 * 24 * time.Hour, // 7 days
-		MinSemanticSimilarity:     0.3,
-		DecayRate:                 0.1, // 10% decay per month
+
+		MinCorroborationCount: 1,
+		MaxTemporalDistance:   7 * 24 * time.Hour, // 7 days
+		MinSemanticSimilarity: 0.3,
+		DecayRate:             0.1, // 10% decay per month
 	}
 }
 
@@ -135,7 +136,7 @@ func (ce *ConfidenceEngine) CalculateChunkConfidence(ctx context.Context, chunk 
 		Factors:         factors,
 		ValidationCount: 0,
 	}
-	
+
 	now := time.Now().UTC()
 	confidence.LastUpdated = &now
 
@@ -170,7 +171,15 @@ func (ce *ConfidenceEngine) CalculateQualityMetrics(ctx context.Context, chunk *
 // Helper methods for confidence calculation
 
 // calculateConsistencyScore measures how consistent this chunk is with similar memories
-func (ce *ConfidenceEngine) calculateConsistencyScore(ctx context.Context, chunk *types.ConversationChunk) (float64, error) {
+func (ce *ConfidenceEngine) calculateConsistencyScore(_ context.Context, chunk *types.ConversationChunk) (float64, error) {
+	// Validate input
+	if chunk == nil {
+		return 0, fmt.Errorf("chunk cannot be nil")
+	}
+	if len(chunk.Content) == 0 {
+		return 0, fmt.Errorf("chunk content cannot be empty")
+	}
+
 	// Find similar chunks to compare against
 	query := types.NewMemoryQuery(chunk.Content[:min(100, len(chunk.Content))])
 	query.Repository = &chunk.Metadata.Repository
@@ -194,86 +203,94 @@ func (ce *ConfidenceEngine) calculateConsistencyScore(ctx context.Context, chunk
 }
 
 // calculateCorroborationScore counts supporting memories and converts to score
-func (ce *ConfidenceEngine) calculateCorroborationScore(ctx context.Context, chunk *types.ConversationChunk, config *ConfidenceConfig) (int, float64) {
+func (ce *ConfidenceEngine) calculateCorroborationScore(_ context.Context, chunk *types.ConversationChunk, config *ConfidenceConfig) (int, float64) {
 	// Count related chunks in the same session or repository
 	count := 0
-	
+
 	// Count by tags overlap
 	if len(chunk.Metadata.Tags) > 0 {
 		count += len(chunk.Metadata.Tags) // Simple heuristic
 	}
-	
+
 	// Count by session context
 	if chunk.SessionID != "" {
 		count += 2 // Assume some session context
 	}
-	
+
 	// Convert count to score (0.0-1.0)
-	score := float64(count) / float64(config.MinCorroborationCount + 3)
+	score := float64(count) / float64(config.MinCorroborationCount+3)
 	return count, math.Min(1.0, score)
 }
 
 // calculateSemanticSimilarityScore measures semantic similarity with related content
-func (ce *ConfidenceEngine) calculateSemanticSimilarityScore(ctx context.Context, chunk *types.ConversationChunk) (float64, error) {
+func (ce *ConfidenceEngine) calculateSemanticSimilarityScore(_ context.Context, chunk *types.ConversationChunk) (float64, error) {
+	// Validate input
+	if chunk == nil {
+		return 0, fmt.Errorf("chunk cannot be nil")
+	}
+	if len(chunk.Content) == 0 {
+		return 0, fmt.Errorf("chunk content cannot be empty")
+	}
+
 	// This would need embeddings service integration
 	// For now, return a score based on content characteristics
-	
+
 	score := 0.5 // Base score
-	
+
 	// Boost for detailed content
 	if len(chunk.Content) > 200 {
 		score += 0.2
 	}
-	
+
 	// Boost for structured content (code, error messages, etc.)
 	if strings.Contains(chunk.Content, "```") || strings.Contains(chunk.Content, "error:") {
 		score += 0.2
 	}
-	
+
 	// Boost for having a summary
 	if chunk.Summary != "" && len(chunk.Summary) > 20 {
 		score += 0.1
 	}
-	
+
 	return math.Min(1.0, score), nil
 }
 
 // calculateTemporalProximityScore gives higher scores to recent memories
 func (ce *ConfidenceEngine) calculateTemporalProximityScore(chunk *types.ConversationChunk, config *ConfidenceConfig) float64 {
 	timeSince := time.Since(chunk.Timestamp)
-	
+
 	if timeSince < 0 {
 		return 1.0 // Future timestamp, give full score
 	}
-	
+
 	if timeSince > config.MaxTemporalDistance {
 		return 0.1 // Very old, minimal score
 	}
-	
+
 	// Linear decay within the max distance
 	ratio := float64(timeSince) / float64(config.MaxTemporalDistance)
 	return 1.0 - ratio
 }
 
 // calculateContextualRelevanceScore measures relevance to current context
-func (ce *ConfidenceEngine) calculateContextualRelevanceScore(ctx context.Context, chunk *types.ConversationChunk) float64 {
+func (ce *ConfidenceEngine) calculateContextualRelevanceScore(_ context.Context, chunk *types.ConversationChunk) float64 {
 	score := 0.5 // Base score
-	
+
 	// Boost for having repository context
 	if chunk.Metadata.Repository != "" && chunk.Metadata.Repository != "_global" {
 		score += 0.3
 	}
-	
+
 	// Boost for having file modifications
 	if len(chunk.Metadata.FilesModified) > 0 {
 		score += 0.1
 	}
-	
+
 	// Boost for having tools used
 	if len(chunk.Metadata.ToolsUsed) > 0 {
 		score += 0.1
 	}
-	
+
 	return math.Min(1.0, score)
 }
 
@@ -289,7 +306,7 @@ func (ce *ConfidenceEngine) applyTimeDecay(score float64, timestamp time.Time, d
 // calculateCompletenessScore measures how complete the memory is
 func (ce *ConfidenceEngine) calculateCompletenessScore(chunk *types.ConversationChunk) float64 {
 	score := 0.0
-	
+
 	// Content length score
 	if len(chunk.Content) > 100 {
 		score += 0.3
@@ -297,12 +314,12 @@ func (ce *ConfidenceEngine) calculateCompletenessScore(chunk *types.Conversation
 	if len(chunk.Content) > 500 {
 		score += 0.2
 	}
-	
+
 	// Has summary
 	if chunk.Summary != "" {
 		score += 0.2
 	}
-	
+
 	// Has metadata
 	if len(chunk.Metadata.Tags) > 0 {
 		score += 0.1
@@ -313,40 +330,40 @@ func (ce *ConfidenceEngine) calculateCompletenessScore(chunk *types.Conversation
 	if len(chunk.Metadata.ToolsUsed) > 0 {
 		score += 0.1
 	}
-	
+
 	return math.Min(1.0, score)
 }
 
 // calculateClarityScore measures how clear and unambiguous the memory is
 func (ce *ConfidenceEngine) calculateClarityScore(chunk *types.ConversationChunk) float64 {
 	score := 0.5 // Base score
-	
+
 	// Boost for structured content
 	if strings.Contains(chunk.Content, "```") {
 		score += 0.2
 	}
-	
+
 	// Boost for clear problem/solution structure
 	lowerContent := strings.ToLower(chunk.Content)
 	if strings.Contains(lowerContent, "problem:") || strings.Contains(lowerContent, "solution:") {
 		score += 0.2
 	}
-	
+
 	// Boost for having outcome
 	if chunk.Metadata.Outcome == types.OutcomeSuccess {
 		score += 0.1
 	}
-	
+
 	return math.Min(1.0, score)
 }
 
 // calculateRelevanceDecay measures how much relevance has decayed
 func (ce *ConfidenceEngine) calculateRelevanceDecay(chunk *types.ConversationChunk) float64 {
 	daysSince := time.Since(chunk.Timestamp).Hours() / 24
-	
+
 	// Technology-specific decay rates
 	techDecayRate := 0.001 // Default: 0.1% per day
-	
+
 	// Faster decay for rapidly changing tech
 	lowerContent := strings.ToLower(chunk.Content)
 	if strings.Contains(lowerContent, "npm") || strings.Contains(lowerContent, "node") {
@@ -355,7 +372,7 @@ func (ce *ConfidenceEngine) calculateRelevanceDecay(chunk *types.ConversationChu
 	if strings.Contains(lowerContent, "kubernetes") || strings.Contains(lowerContent, "docker") {
 		techDecayRate = 0.002 // 0.2% per day for container tech
 	}
-	
+
 	decay := daysSince * techDecayRate
 	return math.Min(1.0, decay)
 }
@@ -363,7 +380,7 @@ func (ce *ConfidenceEngine) calculateRelevanceDecay(chunk *types.ConversationChu
 // calculateFreshnessScore measures how fresh and current the memory is
 func (ce *ConfidenceEngine) calculateFreshnessScore(chunk *types.ConversationChunk) float64 {
 	daysSince := time.Since(chunk.Timestamp).Hours() / 24
-	
+
 	if daysSince < 1 {
 		return 1.0 // Very fresh
 	}
@@ -379,7 +396,7 @@ func (ce *ConfidenceEngine) calculateFreshnessScore(chunk *types.ConversationChu
 	if daysSince < 365 {
 		return 0.3 // Old
 	}
-	
+
 	return 0.1 // Very old
 }
 
@@ -387,19 +404,19 @@ func (ce *ConfidenceEngine) calculateFreshnessScore(chunk *types.ConversationChu
 func (ce *ConfidenceEngine) calculateUsageScore(chunk *types.ConversationChunk) float64 {
 	// This would require usage tracking in the storage layer
 	// For now, return a default based on chunk characteristics
-	
+
 	score := 0.5 // Base score
-	
+
 	// Boost for successful outcomes (likely to be referenced)
 	if chunk.Metadata.Outcome == types.OutcomeSuccess {
 		score += 0.3
 	}
-	
+
 	// Boost for problem/solution chunks (highly reusable)
 	if chunk.Type == types.ChunkTypeSolution || chunk.Type == types.ChunkTypeProblem {
 		score += 0.2
 	}
-	
+
 	return math.Min(1.0, score)
 }
 

@@ -9,9 +9,10 @@ import (
 	"testing"
 	"time"
 
+	"mcp-memory/pkg/types"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"mcp-memory/pkg/types"
 )
 
 // MockVectorStorage implements VectorStorage for testing

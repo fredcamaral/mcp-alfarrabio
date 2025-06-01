@@ -17,10 +17,10 @@ const (
 
 // Time periods
 const (
-	TimeframWeek    = "week"
-	TimeframeMonth  = "month"
+	TimeframWeek     = "week"
+	TimeframeMonth   = "month"
 	TimeframeQuarter = "quarter"
-	TimeframeAll    = "all"
+	TimeframeAll     = "all"
 )
 
 // Source types
@@ -43,12 +43,16 @@ const (
 	ChunkTypeAnalysis             ChunkType = "analysis"
 	ChunkTypeVerification         ChunkType = "verification"
 	ChunkTypeQuestion             ChunkType = "question"
+	// Task-oriented chunk types
+	ChunkTypeTask         ChunkType = "task"
+	ChunkTypeTaskUpdate   ChunkType = "task_update"
+	ChunkTypeTaskProgress ChunkType = "task_progress"
 )
 
 // Valid returns true if the chunk type is valid
 func (ct ChunkType) Valid() bool {
 	switch ct {
-	case ChunkTypeProblem, ChunkTypeSolution, ChunkTypeCodeChange, ChunkTypeDiscussion, ChunkTypeArchitectureDecision, ChunkTypeSessionSummary, ChunkTypeAnalysis, ChunkTypeVerification, ChunkTypeQuestion:
+	case ChunkTypeProblem, ChunkTypeSolution, ChunkTypeCodeChange, ChunkTypeDiscussion, ChunkTypeArchitectureDecision, ChunkTypeSessionSummary, ChunkTypeAnalysis, ChunkTypeVerification, ChunkTypeQuestion, ChunkTypeTask, ChunkTypeTaskUpdate, ChunkTypeTaskProgress:
 		return true
 	}
 	return false
@@ -64,10 +68,31 @@ const (
 	OutcomeAbandoned  Outcome = "abandoned"
 )
 
+// TaskStatus represents the status of a task-oriented chunk
+type TaskStatus string
+
+const (
+	TaskStatusTodo       TaskStatus = "todo"
+	TaskStatusInProgress TaskStatus = "in_progress"
+	TaskStatusCompleted  TaskStatus = "completed"
+	TaskStatusBlocked    TaskStatus = "blocked"
+	TaskStatusCancelled  TaskStatus = "cancelled"
+	TaskStatusOnHold     TaskStatus = "on_hold"
+)
+
 // Valid returns true if the outcome is valid
 func (o Outcome) Valid() bool {
 	switch o {
 	case OutcomeSuccess, OutcomeInProgress, OutcomeFailed, OutcomeAbandoned:
+		return true
+	}
+	return false
+}
+
+// Valid returns true if the task status is valid
+func (ts TaskStatus) Valid() bool {
+	switch ts {
+	case TaskStatusTodo, TaskStatusInProgress, TaskStatusCompleted, TaskStatusBlocked, TaskStatusCancelled, TaskStatusOnHold:
 		return true
 	}
 	return false
@@ -139,10 +164,20 @@ type ChunkMetadata struct {
 	Difficulty       Difficulty             `json:"difficulty"`
 	TimeSpent        *int                   `json:"time_spent,omitempty"` // minutes
 	ExtendedMetadata map[string]interface{} `json:"extended_metadata,omitempty"`
-	
+
 	// Enhanced confidence and quality metrics
-	Confidence       *ConfidenceMetrics     `json:"confidence,omitempty"`
-	Quality          *QualityMetrics        `json:"quality,omitempty"`
+	Confidence *ConfidenceMetrics `json:"confidence,omitempty"`
+	Quality    *QualityMetrics    `json:"quality,omitempty"`
+
+	// Task-specific metadata (only populated for task-oriented chunks)
+	TaskStatus       *TaskStatus `json:"task_status,omitempty"`
+	TaskPriority     *string     `json:"task_priority,omitempty"` // high, medium, low
+	TaskDueDate      *time.Time  `json:"task_due_date,omitempty"`
+	TaskAssignee     *string     `json:"task_assignee,omitempty"`
+	TaskDependencies []string    `json:"task_dependencies,omitempty"` // IDs of chunks this task depends on
+	TaskBlocks       []string    `json:"task_blocks,omitempty"`       // IDs of chunks this task blocks
+	TaskEstimate     *int        `json:"task_estimate,omitempty"`     // estimated time in minutes
+	TaskProgress     *int        `json:"task_progress,omitempty"`     // percentage 0-100
 }
 
 // Validate checks if the metadata is valid
@@ -156,6 +191,26 @@ func (cm *ChunkMetadata) Validate() error {
 	if cm.TimeSpent != nil && *cm.TimeSpent < 0 {
 		return fmt.Errorf("time spent cannot be negative")
 	}
+
+	// Task-specific validation
+	if cm.TaskStatus != nil && !cm.TaskStatus.Valid() {
+		return fmt.Errorf("invalid task status: %s", *cm.TaskStatus)
+	}
+	if cm.TaskProgress != nil && (*cm.TaskProgress < 0 || *cm.TaskProgress > 100) {
+		return fmt.Errorf("task progress must be between 0 and 100")
+	}
+	if cm.TaskEstimate != nil && *cm.TaskEstimate < 0 {
+		return fmt.Errorf("task estimate cannot be negative")
+	}
+	if cm.TaskPriority != nil {
+		switch *cm.TaskPriority {
+		case PriorityHigh, PriorityMedium, PriorityLow:
+			// Valid priority
+		default:
+			return fmt.Errorf("invalid task priority: %s", *cm.TaskPriority)
+		}
+	}
+
 	return nil
 }
 
@@ -309,7 +364,7 @@ type TodoItem struct {
 // ConfidenceFactors represents factors that influenced confidence calculation
 type ConfidenceFactors struct {
 	UserCertainty       *float64 `json:"user_certainty,omitempty"`       // 0.0-1.0
-	ConsistencyScore    *float64 `json:"consistency_score,omitempty"`    // 0.0-1.0  
+	ConsistencyScore    *float64 `json:"consistency_score,omitempty"`    // 0.0-1.0
 	CorroborationCount  *int     `json:"corroboration_count,omitempty"`  // Number of supporting memories
 	SemanticSimilarity  *float64 `json:"semantic_similarity,omitempty"`  // 0.0-1.0
 	TemporalProximity   *float64 `json:"temporal_proximity,omitempty"`   // 0.0-1.0
@@ -318,22 +373,22 @@ type ConfidenceFactors struct {
 
 // ConfidenceMetrics represents confidence information for a memory chunk
 type ConfidenceMetrics struct {
-	Score            float64           `json:"score"`             // 0.0 to 1.0
-	Source           string            `json:"source"`            // explicit, inferred, derived, auto
-	Factors          ConfidenceFactors `json:"factors,omitempty"`
-	LastUpdated      *time.Time        `json:"last_updated,omitempty"`
-	ValidationCount  int               `json:"validation_count"`
+	Score           float64           `json:"score"`  // 0.0 to 1.0
+	Source          string            `json:"source"` // explicit, inferred, derived, auto
+	Factors         ConfidenceFactors `json:"factors,omitempty"`
+	LastUpdated     *time.Time        `json:"last_updated,omitempty"`
+	ValidationCount int               `json:"validation_count"`
 }
 
-// QualityMetrics represents quality metrics for a memory chunk  
+// QualityMetrics represents quality metrics for a memory chunk
 type QualityMetrics struct {
-	Completeness    float64   `json:"completeness"`     // How complete is this memory (0.0-1.0)
-	Clarity         float64   `json:"clarity"`          // How clear/unambiguous (0.0-1.0)
-	RelevanceDecay  float64   `json:"relevance_decay"`  // How much relevance has decayed (0.0-1.0)
-	FreshnessScore  float64   `json:"freshness_score"`  // How fresh/current (0.0-1.0)
-	UsageScore      float64   `json:"usage_score"`      // Based on access patterns (0.0-1.0)
-	OverallQuality  float64   `json:"overall_quality"`  // Weighted combination (0.0-1.0)
-	LastCalculated  *time.Time `json:"last_calculated,omitempty"`
+	Completeness   float64    `json:"completeness"`    // How complete is this memory (0.0-1.0)
+	Clarity        float64    `json:"clarity"`         // How clear/unambiguous (0.0-1.0)
+	RelevanceDecay float64    `json:"relevance_decay"` // How much relevance has decayed (0.0-1.0)
+	FreshnessScore float64    `json:"freshness_score"` // How fresh/current (0.0-1.0)
+	UsageScore     float64    `json:"usage_score"`     // Based on access patterns (0.0-1.0)
+	OverallQuality float64    `json:"overall_quality"` // Weighted combination (0.0-1.0)
+	LastCalculated *time.Time `json:"last_calculated,omitempty"`
 }
 
 // CalculateOverallQuality calculates the overall quality score
@@ -352,7 +407,7 @@ func (qm *QualityMetrics) CalculateOverallQuality() {
 		weights["relevance_decay"]*(1.0-qm.RelevanceDecay) + // Invert decay
 		weights["freshness_score"]*qm.FreshnessScore +
 		weights["usage_score"]*qm.UsageScore)
-		
+
 	now := time.Now().UTC()
 	qm.LastCalculated = &now
 }
