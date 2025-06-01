@@ -6629,31 +6629,15 @@ func generateHealthRecommendations(completionRate, effectiveness, accessibility,
 
 // Helper functions for threading
 
-// getChunkByID retrieves a single chunk by ID (simplified implementation)
+// getChunkByID retrieves a single chunk by ID using the direct GetByID method
 func (ms *MemoryServer) getChunkByID(ctx context.Context, chunkID string) (*types.ConversationChunk, error) {
-	// This is a simplified implementation. In a real system, you'd want a direct GetChunk method
-	// For now, we'll use a search with very broad criteria and filter by ID
-
-	// Create a broad search query
-	query := types.NewMemoryQuery("*")
-	query.Repository = nil // Search all repositories
-	query.Limit = 100
-
-	// Use empty embeddings for broad search
-	embeddings := make([]float64, 1536) // Default embedding size
-	results, err := ms.container.GetVectorStore().Search(ctx, *query, embeddings)
+	// Use the direct GetByID method from the vector store interface
+	chunk, err := ms.container.GetVectorStore().GetByID(ctx, chunkID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to search for chunk: %w", err)
+		return nil, fmt.Errorf("chunk not found: %s - %w", chunkID, err)
 	}
-
-	// Find the chunk with matching ID
-	for _, result := range results.Results {
-		if result.Chunk.ID == chunkID {
-			return &result.Chunk, nil
-		}
-	}
-
-	return nil, fmt.Errorf("chunk not found: %s", chunkID)
+	
+	return chunk, nil
 }
 
 // getChunksForThread retrieves all chunks for a thread
