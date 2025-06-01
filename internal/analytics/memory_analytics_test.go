@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -202,27 +203,27 @@ func (m *MockStore) BatchDelete(ctx context.Context, ids []string) (*storage.Bat
 
 // Relationship management methods (required by VectorStore interface)
 func (m *MockStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
-	return nil, nil
+	return nil, errors.New("not implemented in mock")
 }
 
 func (m *MockStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
-	return nil, nil
+	return nil, errors.New("not implemented in mock")
 }
 
 func (m *MockStore) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) {
-	return nil, nil
+	return nil, errors.New("not implemented in mock")
 }
 
 func (m *MockStore) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error {
-	return nil
+	return errors.New("not implemented in mock")
 }
 
 func (m *MockStore) DeleteRelationship(ctx context.Context, relationshipID string) error {
-	return nil
+	return errors.New("not implemented in mock")
 }
 
 func (m *MockStore) GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error) {
-	return nil, nil
+	return nil, errors.New("not implemented in mock")
 }
 
 func TestMemoryAnalytics_RecordAccess(t *testing.T) {

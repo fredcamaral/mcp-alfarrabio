@@ -141,7 +141,7 @@ func (exp *Exporter) Export(ctx context.Context, options ExportOptions) (*Export
 	chunks = exp.paginateChunks(chunks, options.Pagination)
 
 	// Generate metadata
-	metadata := exp.generateMetadata(chunks, options)
+	metadata := exp.generateMetadata(chunks)
 
 	// Export based on format
 	var data string
@@ -644,7 +644,7 @@ func (exp *Exporter) prepareChunksForExport(chunks []types.ConversationChunk, op
 }
 
 // generateMetadata generates export metadata
-func (exp *Exporter) generateMetadata(chunks []types.ConversationChunk, options ExportOptions) ExportMeta {
+func (exp *Exporter) generateMetadata(chunks []types.ConversationChunk) ExportMeta {
 	metadata := ExportMeta{
 		ExportID:     fmt.Sprintf("export_%d", time.Now().Unix()),
 		SourceSystem: "mcp-memory",

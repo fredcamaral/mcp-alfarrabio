@@ -17,6 +17,8 @@ type RelationshipDetector struct {
 // StorageInterface defines the interface for storage operations needed by the detector
 type StorageInterface interface {
 	GetByID(ctx context.Context, id string) (*types.ConversationChunk, error)
+	ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error)
+	ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error)
 	StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error)
 	GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error)
 }
@@ -171,16 +173,42 @@ func (rd *RelationshipDetector) findCandidateChunks(ctx context.Context, chunk *
 
 // getSessionChunks retrieves other chunks from the same session
 func (rd *RelationshipDetector) getSessionChunks(ctx context.Context, sessionID, excludeID string) ([]*types.ConversationChunk, error) {
-	// This would need to be implemented based on the storage interface
-	// For now, return empty slice
-	return []*types.ConversationChunk{}, nil
+	// Get all chunks from the session
+	sessionChunks, err := rd.storage.ListBySession(ctx, sessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get session chunks: %w", err)
+	}
+	
+	// Filter out the excluded chunk and convert to pointer slice
+	filtered := make([]*types.ConversationChunk, 0, len(sessionChunks))
+	for i := range sessionChunks {
+		if sessionChunks[i].ID != excludeID {
+			filtered = append(filtered, &sessionChunks[i])
+		}
+	}
+	
+	return filtered, nil
 }
 
 // getRecentRepositoryChunks retrieves recent chunks from the same repository
 func (rd *RelationshipDetector) getRecentRepositoryChunks(ctx context.Context, repository, excludeID string, maxAge time.Duration) ([]*types.ConversationChunk, error) {
-	// This would need to be implemented based on the storage interface
-	// For now, return empty slice
-	return []*types.ConversationChunk{}, nil
+	// Get chunks from the repository (limit to recent ones)
+	repoChunks, err := rd.storage.ListByRepository(ctx, repository, 100, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repository chunks: %w", err)
+	}
+	
+	// Filter by age and exclude the current chunk
+	cutoff := time.Now().Add(-maxAge)
+	filtered := make([]*types.ConversationChunk, 0)
+	for i := range repoChunks {
+		chunk := &repoChunks[i]
+		if chunk.ID != excludeID && chunk.Timestamp.After(cutoff) {
+			filtered = append(filtered, chunk)
+		}
+	}
+	
+	return filtered, nil
 }
 
 // detectTemporalRelationships detects relationships based on time proximity

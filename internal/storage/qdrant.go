@@ -57,10 +57,11 @@ func (qs *QdrantStore) Initialize(ctx context.Context) error {
 
 	// Create Qdrant client
 	client, err := qdrant.NewClient(&qdrant.Config{
-		Host:   qs.config.Host,
-		Port:   qs.config.Port,
-		APIKey: qs.config.APIKey,
-		UseTLS: qs.config.UseTLS,
+		Host:                   qs.config.Host,
+		Port:                   qs.config.Port,
+		APIKey:                 qs.config.APIKey,
+		UseTLS:                 qs.config.UseTLS,
+		SkipCompatibilityCheck: true, // Skip version compatibility warnings
 	})
 	if err != nil {
 		qs.metrics.ConnectionStatus = connectionStatusError

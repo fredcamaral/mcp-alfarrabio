@@ -575,8 +575,3 @@ func (am *AliasManager) removePersistedAlias(ctx context.Context, aliasID string
 	// This would remove the alias from persistent storage
 	return nil
 }
-
-func (am *AliasManager) loadPersistedAliases(ctx context.Context) error {
-	// This would load aliases from persistent storage on startup
-	return nil
-}

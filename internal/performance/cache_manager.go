@@ -3,7 +3,6 @@ package performance
 import (
 	"context"
 	"encoding/json"
-	"hash/fnv"
 	"sync"
 	"time"
 )
@@ -1200,12 +1199,6 @@ func estimateSize(value interface{}) int64 {
 	default:
 		return 64 // Default estimate
 	}
-}
-
-func hashString(s string) uint32 {
-	h := fnv.New32a()
-	_, _ = h.Write([]byte(s)) // hash.Hash.Write never returns an error
-	return h.Sum32()
 }
 
 func getEnvInt64(key string, defaultValue int64) int64 {

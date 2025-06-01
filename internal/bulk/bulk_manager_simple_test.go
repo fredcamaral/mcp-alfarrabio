@@ -2,6 +2,7 @@ package bulk
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -44,26 +45,26 @@ func (s *SimpleMockStorage) BatchDelete(ctx context.Context, ids []string) (*sto
 func (s *SimpleMockStorage) Initialize(ctx context.Context) error { return nil }
 func (s *SimpleMockStorage) Store(ctx context.Context, chunk types.ConversationChunk) error { return nil }
 func (s *SimpleMockStorage) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) { return &types.SearchResults{}, nil }
-func (s *SimpleMockStorage) GetByID(ctx context.Context, id string) (*types.ConversationChunk, error) { return nil, nil }
-func (s *SimpleMockStorage) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) { return nil, nil }
-func (s *SimpleMockStorage) ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error) { return nil, nil }
+func (s *SimpleMockStorage) GetByID(ctx context.Context, id string) (*types.ConversationChunk, error) { return nil, errors.New("not found") }
+func (s *SimpleMockStorage) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) { return []types.ConversationChunk{}, nil }
+func (s *SimpleMockStorage) ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error) { return []types.ConversationChunk{}, nil }
 func (s *SimpleMockStorage) Delete(ctx context.Context, id string) error { return nil }
 func (s *SimpleMockStorage) Update(ctx context.Context, chunk types.ConversationChunk) error { return nil }
 func (s *SimpleMockStorage) HealthCheck(ctx context.Context) error { return nil }
-func (s *SimpleMockStorage) GetStats(ctx context.Context) (*storage.StoreStats, error) { return nil, nil }
+func (s *SimpleMockStorage) GetStats(ctx context.Context) (*storage.StoreStats, error) { return &storage.StoreStats{}, nil }
 func (s *SimpleMockStorage) Cleanup(ctx context.Context, retentionDays int) (int, error) { return 0, nil }
 func (s *SimpleMockStorage) Close() error { return nil }
-func (s *SimpleMockStorage) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) { return nil, nil }
+func (s *SimpleMockStorage) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) { return []types.ConversationChunk{}, nil }
 func (s *SimpleMockStorage) DeleteCollection(ctx context.Context, collection string) error { return nil }
-func (s *SimpleMockStorage) ListCollections(ctx context.Context) ([]string, error) { return nil, nil }
-func (s *SimpleMockStorage) FindSimilar(ctx context.Context, content string, chunkType *types.ChunkType, limit int) ([]types.ConversationChunk, error) { return nil, nil }
+func (s *SimpleMockStorage) ListCollections(ctx context.Context) ([]string, error) { return []string{}, nil }
+func (s *SimpleMockStorage) FindSimilar(ctx context.Context, content string, chunkType *types.ChunkType, limit int) ([]types.ConversationChunk, error) { return []types.ConversationChunk{}, nil }
 func (s *SimpleMockStorage) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error { return nil }
-func (s *SimpleMockStorage) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) { return nil, nil }
-func (s *SimpleMockStorage) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) { return nil, nil }
-func (s *SimpleMockStorage) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) { return nil, nil }
+func (s *SimpleMockStorage) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) { return nil, errors.New("not implemented") }
+func (s *SimpleMockStorage) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) { return []types.RelationshipResult{}, nil }
+func (s *SimpleMockStorage) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) { return &types.GraphTraversalResult{}, nil }
 func (s *SimpleMockStorage) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error { return nil }
 func (s *SimpleMockStorage) DeleteRelationship(ctx context.Context, relationshipID string) error { return nil }
-func (s *SimpleMockStorage) GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error) { return nil, nil }
+func (s *SimpleMockStorage) GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error) { return nil, errors.New("not found") }
 
 func TestBulkManager_NewManager(t *testing.T) {
 	storage := NewSimpleMockStorage()

@@ -1,15 +1,24 @@
 package bulk
 
 import (
+	"archive/tar"
+	"archive/zip"
+	"bytes"
+	"compress/gzip"
 	"context"
+	"encoding/base64"
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"mcp-memory/pkg/types"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
+	
+	"github.com/google/uuid"
 )
 
 // ImportFormat represents the format of the import data
@@ -230,9 +239,23 @@ func (imp *Importer) importCSV(ctx context.Context, data string, options ImportO
 
 // importArchive imports data from archive format (base64 encoded tar.gz or zip)
 func (imp *Importer) importArchive(ctx context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
-	// This would handle archive imports - implementation depends on specific archive format
-	// For now, return an error indicating it's not implemented
-	return nil, fmt.Errorf("archive import not yet implemented")
+	// Decode base64 data
+	archiveData, err := base64.StdEncoding.DecodeString(data)
+	if err != nil {
+		return nil, fmt.Errorf("failed to decode base64 archive: %w", err)
+	}
+	
+	// Create a reader from the decoded data
+	reader := bytes.NewReader(archiveData)
+	
+	// Try to detect and handle different archive formats
+	if imp.isGzipArchive(archiveData) {
+		return imp.extractAndImportTarGz(ctx, reader, options, result)
+	} else if imp.isZipArchive(archiveData) {
+		return imp.extractAndImportZip(ctx, archiveData, options, result)
+	}
+	
+	return nil, fmt.Errorf("unsupported archive format - only tar.gz and zip are supported")
 }
 
 // parseMarkdown parses markdown content into conversation chunks
@@ -541,7 +564,7 @@ func (imp *Importer) processChunks(chunks []types.ConversationChunk, options Imp
 		}
 
 		// Handle conflicts based on policy
-		if err := imp.handleConflict(chunk, options.ConflictPolicy, result); err != nil {
+		if err := imp.handleConflict(options.ConflictPolicy, result); err != nil {
 			result.Errors = append(result.Errors, ImportError{
 				Item:    i,
 				Message: fmt.Sprintf("conflict resolution failed: %v", err),
@@ -562,7 +585,7 @@ func (imp *Importer) processChunks(chunks []types.ConversationChunk, options Imp
 }
 
 // handleConflict handles conflicts based on the specified policy
-func (imp *Importer) handleConflict(chunk types.ConversationChunk, policy ConflictPolicy, result *ImportResult) error {
+func (imp *Importer) handleConflict(policy ConflictPolicy, result *ImportResult) error {
 	// This would check for existing chunks with same ID or content
 	// For now, we'll assume no conflicts and just return nil
 	// In a real implementation, this would query the storage to check for duplicates
@@ -589,6 +612,212 @@ func (imp *Importer) generateSummary(content string) string {
 		summary = summary[:100] + "..."
 	}
 	return strings.ReplaceAll(summary, "\n", " ")
+}
+
+// isGzipArchive checks if the data is a gzip archive
+func (imp *Importer) isGzipArchive(data []byte) bool {
+	return len(data) >= 2 && data[0] == 0x1f && data[1] == 0x8b
+}
+
+// isZipArchive checks if the data is a zip archive
+func (imp *Importer) isZipArchive(data []byte) bool {
+	return len(data) >= 4 && data[0] == 0x50 && data[1] == 0x4b && data[2] == 0x03 && data[3] == 0x04
+}
+
+// extractAndImportTarGz extracts and imports from tar.gz archive
+func (imp *Importer) extractAndImportTarGz(ctx context.Context, reader io.Reader, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+	gzipReader, err := gzip.NewReader(reader)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
+	}
+	defer gzipReader.Close()
+	
+	tarReader := tar.NewReader(gzipReader)
+	
+	allChunks := make([]types.ConversationChunk, 0)
+	
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, fmt.Errorf("failed to read tar entry: %w", err)
+		}
+		
+		// Skip directories
+		if header.Typeflag == tar.TypeDir {
+			continue
+		}
+		
+		// Read file content
+		content, err := io.ReadAll(tarReader)
+		if err != nil {
+			result.Errors = append(result.Errors, ImportError{
+				Message: fmt.Sprintf("failed to read file %s: %v", header.Name, err),
+				Data:    header.Name,
+			})
+			result.FailedItems++
+			continue
+		}
+		
+		// Process the file based on its extension
+		chunks, err := imp.processArchiveFile(header.Name, string(content), options)
+		if err != nil {
+			result.Errors = append(result.Errors, ImportError{
+				Message: fmt.Sprintf("failed to process file %s: %v", header.Name, err),
+				Data:    header.Name,
+			})
+			result.FailedItems++
+			continue
+		}
+		
+		allChunks = append(allChunks, chunks...)
+	}
+	
+	result.TotalItems = len(allChunks)
+	return imp.processChunks(allChunks, options, result)
+}
+
+// extractAndImportZip extracts and imports from zip archive
+func (imp *Importer) extractAndImportZip(ctx context.Context, data []byte, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+	reader := bytes.NewReader(data)
+	zipReader, err := zip.NewReader(reader, int64(len(data)))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create zip reader: %w", err)
+	}
+	
+	allChunks := make([]types.ConversationChunk, 0)
+	
+	for _, file := range zipReader.File {
+		// Skip directories
+		if file.FileInfo().IsDir() {
+			continue
+		}
+		
+		// Open file
+		fileReader, err := file.Open()
+		if err != nil {
+			result.Errors = append(result.Errors, ImportError{
+				Message: fmt.Sprintf("failed to open file %s: %v", file.Name, err),
+				Data:    file.Name,
+			})
+			result.FailedItems++
+			continue
+		}
+		
+		// Read content
+		content, err := io.ReadAll(fileReader)
+		fileReader.Close()
+		if err != nil {
+			result.Errors = append(result.Errors, ImportError{
+				Message: fmt.Sprintf("failed to read file %s: %v", file.Name, err),
+				Data:    file.Name,
+			})
+			result.FailedItems++
+			continue
+		}
+		
+		// Process the file
+		chunks, err := imp.processArchiveFile(file.Name, string(content), options)
+		if err != nil {
+			result.Errors = append(result.Errors, ImportError{
+				Message: fmt.Sprintf("failed to process file %s: %v", file.Name, err),
+				Data:    file.Name,
+			})
+			result.FailedItems++
+			continue
+		}
+		
+		allChunks = append(allChunks, chunks...)
+	}
+	
+	result.TotalItems = len(allChunks)
+	return imp.processChunks(allChunks, options, result)
+}
+
+// processArchiveFile processes a single file from an archive
+func (imp *Importer) processArchiveFile(filename, content string, options ImportOptions) ([]types.ConversationChunk, error) {
+	// Determine format based on file extension
+	ext := strings.ToLower(filepath.Ext(filename))
+	
+	switch ext {
+	case ".json":
+		return imp.parseJSONContent(content, options, filename)
+	case ".md", ".markdown":
+		return imp.parseMarkdownContent(content, options, filename)
+	case ".csv":
+		return imp.parseCSVContent(content, options, filename)
+	case ".txt":
+		// Treat as markdown for simplicity
+		return imp.parseMarkdownContent(content, options, filename)
+	default:
+		// Skip unsupported file types
+		return []types.ConversationChunk{}, nil
+	}
+}
+
+// parseJSONContent parses JSON content and returns chunks directly
+func (imp *Importer) parseJSONContent(content string, options ImportOptions, filename string) ([]types.ConversationChunk, error) {
+	// Try to parse as array of chunks first
+	var chunks []types.ConversationChunk
+	if err := json.Unmarshal([]byte(content), &chunks); err == nil {
+		return chunks, nil
+	}
+
+	// Try to parse as single chunk
+	var chunk types.ConversationChunk
+	if err := json.Unmarshal([]byte(content), &chunk); err == nil {
+		return []types.ConversationChunk{chunk}, nil
+	}
+
+	return nil, fmt.Errorf("failed to parse JSON from file %s", filename)
+}
+
+// parseMarkdownContent parses markdown content and returns chunks directly  
+func (imp *Importer) parseMarkdownContent(content string, options ImportOptions, filename string) ([]types.ConversationChunk, error) {
+	// Simple markdown parsing - create a single chunk from the content
+	chunk := types.ConversationChunk{
+		ID:        uuid.New().String(),
+		SessionID: options.DefaultSessionID,
+		Content:   content,
+		Type:      types.ChunkTypeDiscussion,
+		Timestamp: time.Now(),
+		Metadata: types.ChunkMetadata{
+			Repository: options.Repository,
+			Tags:       []string{"archive-import", "file:" + filename},
+		},
+	}
+	
+	return []types.ConversationChunk{chunk}, nil
+}
+
+// parseCSVContent parses CSV content and returns chunks directly
+func (imp *Importer) parseCSVContent(content string, options ImportOptions, filename string) ([]types.ConversationChunk, error) {
+	reader := csv.NewReader(strings.NewReader(content))
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse CSV from file %s: %w", filename, err)
+	}
+
+	if len(records) == 0 {
+		return []types.ConversationChunk{}, nil
+	}
+
+	// Parse header and records
+	header := records[0]
+	chunks := make([]types.ConversationChunk, 0, len(records)-1)
+
+	for i, record := range records[1:] {
+		chunk, err := imp.parseCSVRecord(header, record, options, i+1)
+		if err != nil {
+			// Skip invalid records but continue processing
+			continue
+		}
+		chunks = append(chunks, *chunk)
+	}
+
+	return chunks, nil
 }
 
 // generateImportSummary generates a summary of the import operation

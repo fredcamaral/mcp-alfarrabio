@@ -3654,59 +3654,70 @@ func (ms *MemoryServer) handleMemoryConflicts(ctx context.Context, params map[st
 	return result, nil
 }
 
-// handleMemoryResolveConflicts provides detailed resolution strategies for specific conflicts
-func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	logging.Info("MCP TOOL: memory_resolve_conflicts called", "params", params)
+// conflictResolutionConfig holds configuration for conflict resolution
+type conflictResolutionConfig struct {
+	ConflictIDs          []string
+	Repository           string
+	MaxStrategies        int
+	IncludeDetailedSteps bool
+	PreferredTypes       []string
+}
+
+// parseConflictResolutionParams extracts and validates parameters for conflict resolution
+func (ms *MemoryServer) parseConflictResolutionParams(params map[string]interface{}) (*conflictResolutionConfig, error) {
+	config := &conflictResolutionConfig{
+		MaxStrategies:        3,
+		IncludeDetailedSteps: true,
+	}
 
 	// Extract conflict IDs
-	conflictIDs := []string{}
 	if ids, ok := params["conflict_ids"].([]interface{}); ok {
 		for _, id := range ids {
 			if idStr, ok := id.(string); ok {
-				conflictIDs = append(conflictIDs, idStr)
+				config.ConflictIDs = append(config.ConflictIDs, idStr)
 			}
 		}
 	}
 
-	if len(conflictIDs) == 0 {
+	if len(config.ConflictIDs) == 0 {
 		return nil, fmt.Errorf("conflict_ids parameter is required and must be a non-empty array")
 	}
 
-	repository := ""
 	if repo, ok := params["repository"].(string); ok {
-		repository = repo
+		config.Repository = repo
 	}
 
-	maxStrategies := 3
 	if max, ok := params["max_strategies"].(float64); ok {
-		maxStrategies = int(max)
+		config.MaxStrategies = int(max)
 	}
 
-	includeDetailedSteps := true
 	if include, ok := params["include_detailed_steps"].(bool); ok {
-		includeDetailedSteps = include
+		config.IncludeDetailedSteps = include
 	}
 
-	preferredTypes := []string{}
 	if types, ok := params["strategy_types"].([]interface{}); ok {
 		for _, t := range types {
 			if typeStr, ok := t.(string); ok {
-				preferredTypes = append(preferredTypes, typeStr)
+				config.PreferredTypes = append(config.PreferredTypes, typeStr)
 			}
 		}
 	}
 
-	// First, run conflict detection to get current conflicts
+	return config, nil
+}
+
+// getRequestedConflicts retrieves conflicts matching the specified IDs
+func (ms *MemoryServer) getRequestedConflicts(ctx context.Context, conflictIDs []string, repository string) ([]intelligence.Conflict, int, error) {
 	timeframe := types.TimeframeMonth
 	chunks, err := ms.getChunksForTimeframe(ctx, repository, timeframe)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
+		return nil, 0, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
 	}
 
 	conflictDetector := intelligence.NewConflictDetector()
 	conflictResult, err := conflictDetector.DetectConflicts(ctx, chunks)
 	if err != nil {
-		return nil, fmt.Errorf("failed to detect conflicts: %w", err)
+		return nil, 0, fmt.Errorf("failed to detect conflicts: %w", err)
 	}
 
 	// Filter conflicts to only those requested
@@ -3720,42 +3731,33 @@ func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params
 		}
 	}
 
-	if len(requestedConflicts) == 0 {
-		return map[string]interface{}{
-			"message": "No conflicts found with the specified IDs",
-			"conflict_ids_requested": conflictIDs,
-			"total_current_conflicts": len(conflictResult.Conflicts),
-		}, nil
-	}
+	return requestedConflicts, len(conflictResult.Conflicts), nil
+}
 
-	// Generate resolution recommendations
+// generateConflictRecommendations creates and customizes resolution recommendations
+func (ms *MemoryServer) generateConflictRecommendations(ctx context.Context, conflicts []intelligence.Conflict, config *conflictResolutionConfig) ([]intelligence.ResolutionRecommendation, error) {
 	conflictResolver := intelligence.NewConflictResolver()
-	recommendations, err := conflictResolver.ResolveConflicts(ctx, requestedConflicts)
+	recommendations, err := conflictResolver.ResolveConflicts(ctx, conflicts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate resolution recommendations: %w", err)
 	}
 
-	// Filter and customize strategies based on preferences
+	// Customize recommendations based on config
+	ms.customizeRecommendations(recommendations, config)
+	return recommendations, nil
+}
+
+// customizeRecommendations applies filtering and customization to recommendations
+func (ms *MemoryServer) customizeRecommendations(recommendations []intelligence.ResolutionRecommendation, config *conflictResolutionConfig) {
 	for i := range recommendations {
 		// Filter by preferred types if specified
-		if len(preferredTypes) > 0 {
-			filteredStrategies := []intelligence.ResolutionStrategy{}
-			for _, strategy := range recommendations[i].Strategies {
-				for _, prefType := range preferredTypes {
-					if string(strategy.Type) == prefType {
-						filteredStrategies = append(filteredStrategies, strategy)
-						break
-					}
-				}
-			}
-			if len(filteredStrategies) > 0 {
-				recommendations[i].Strategies = filteredStrategies
-			}
+		if len(config.PreferredTypes) > 0 {
+			recommendations[i].Strategies = ms.filterStrategiesByType(recommendations[i].Strategies, config.PreferredTypes)
 		}
 
 		// Limit number of strategies
-		if len(recommendations[i].Strategies) > maxStrategies {
-			recommendations[i].Strategies = recommendations[i].Strategies[:maxStrategies]
+		if len(recommendations[i].Strategies) > config.MaxStrategies {
+			recommendations[i].Strategies = recommendations[i].Strategies[:config.MaxStrategies]
 		}
 
 		// Update recommended strategy
@@ -3764,58 +3766,123 @@ func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params
 		}
 
 		// Remove detailed steps if not requested
-		if !includeDetailedSteps {
+		if !config.IncludeDetailedSteps {
 			for j := range recommendations[i].Strategies {
 				recommendations[i].Strategies[j].Steps = []intelligence.ResolutionStep{}
 			}
 		}
 	}
+}
 
-	// Build response
-	result := map[string]interface{}{
-		"repository":           repository,
-		"conflict_ids_requested": conflictIDs,
-		"conflicts_found":      len(requestedConflicts),
-		"recommendations":      recommendations,
-		"analysis_timestamp":   time.Now().Format(time.RFC3339),
-		"include_detailed_steps": includeDetailedSteps,
-		"max_strategies_per_conflict": maxStrategies,
+// filterStrategiesByType filters strategies based on preferred types
+func (ms *MemoryServer) filterStrategiesByType(strategies []intelligence.ResolutionStrategy, preferredTypes []string) []intelligence.ResolutionStrategy {
+	filteredStrategies := []intelligence.ResolutionStrategy{}
+	for _, strategy := range strategies {
+		for _, prefType := range preferredTypes {
+			if string(strategy.Type) == prefType {
+				filteredStrategies = append(filteredStrategies, strategy)
+				break
+			}
+		}
+	}
+	if len(filteredStrategies) > 0 {
+		return filteredStrategies
+	}
+	return strategies // Return original if no matches found
+}
 
-		"summary": map[string]interface{}{
-			"total_recommendations": len(recommendations),
-			"avg_strategies_per_conflict": func() float64 {
-				if len(recommendations) == 0 {
-					return 0.0
-				}
-				total := 0
-				for _, rec := range recommendations {
-					total += len(rec.Strategies)
-				}
-				return float64(total) / float64(len(recommendations))
-			}(),
-			"strategy_distribution": func() map[string]int {
-				dist := map[string]int{}
-				for _, rec := range recommendations {
-					for _, strategy := range rec.Strategies {
-						dist[string(strategy.Type)]++
-					}
-				}
-				return dist
-			}(),
-			"conflicts_by_severity": func() map[string]int {
-				severity := map[string]int{}
-				for _, conflict := range requestedConflicts {
-					severity[string(conflict.Severity)]++
-				}
-				return severity
-			}(),
-		},
+// buildConflictResolutionResponse constructs the final response for conflict resolution
+func (ms *MemoryServer) buildConflictResolutionResponse(config *conflictResolutionConfig, conflicts []intelligence.Conflict, recommendations []intelligence.ResolutionRecommendation) map[string]interface{} {
+	return map[string]interface{}{
+		"repository":                     config.Repository,
+		"conflict_ids_requested":         config.ConflictIDs,
+		"conflicts_found":                len(conflicts),
+		"recommendations":                recommendations,
+		"analysis_timestamp":             time.Now().Format(time.RFC3339),
+		"include_detailed_steps":         config.IncludeDetailedSteps,
+		"max_strategies_per_conflict":    config.MaxStrategies,
+		"summary":                        ms.buildConflictSummary(recommendations, conflicts),
+		"next_steps":                     ms.generateConflictResolutionNextSteps(recommendations),
+	}
+}
 
-		"next_steps": ms.generateConflictResolutionNextSteps(recommendations),
+// buildConflictSummary creates summary statistics for the conflict resolution
+func (ms *MemoryServer) buildConflictSummary(recommendations []intelligence.ResolutionRecommendation, conflicts []intelligence.Conflict) map[string]interface{} {
+	return map[string]interface{}{
+		"total_recommendations":      len(recommendations),
+		"avg_strategies_per_conflict": ms.calculateAvgStrategies(recommendations),
+		"strategy_distribution":       ms.calculateStrategyDistribution(recommendations),
+		"conflicts_by_severity":       ms.calculateSeverityDistribution(conflicts),
+	}
+}
+
+// calculateAvgStrategies calculates average strategies per conflict
+func (ms *MemoryServer) calculateAvgStrategies(recommendations []intelligence.ResolutionRecommendation) float64 {
+	if len(recommendations) == 0 {
+		return 0.0
+	}
+	total := 0
+	for _, rec := range recommendations {
+		total += len(rec.Strategies)
+	}
+	return float64(total) / float64(len(recommendations))
+}
+
+// calculateStrategyDistribution builds distribution of strategy types
+func (ms *MemoryServer) calculateStrategyDistribution(recommendations []intelligence.ResolutionRecommendation) map[string]int {
+	dist := map[string]int{}
+	for _, rec := range recommendations {
+		for _, strategy := range rec.Strategies {
+			dist[string(strategy.Type)]++
+		}
+	}
+	return dist
+}
+
+// calculateSeverityDistribution builds distribution of conflict severities
+func (ms *MemoryServer) calculateSeverityDistribution(conflicts []intelligence.Conflict) map[string]int {
+	severity := map[string]int{}
+	for _, conflict := range conflicts {
+		severity[string(conflict.Severity)]++
+	}
+	return severity
+}
+
+// handleMemoryResolveConflicts provides detailed resolution strategies for specific conflicts
+func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_resolve_conflicts called", "params", params)
+
+	// Parse parameters
+	config, err := ms.parseConflictResolutionParams(params)
+	if err != nil {
+		return nil, err
 	}
 
+	// Get conflicts for the specified IDs
+	requestedConflicts, totalConflicts, err := ms.getRequestedConflicts(ctx, config.ConflictIDs, config.Repository)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(requestedConflicts) == 0 {
+		return map[string]interface{}{
+			"message": "No conflicts found with the specified IDs",
+			"conflict_ids_requested": config.ConflictIDs,
+			"total_current_conflicts": totalConflicts,
+		}, nil
+	}
+
+	// Generate and customize recommendations
+	recommendations, err := ms.generateConflictRecommendations(ctx, requestedConflicts, config)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build final response
+	result := ms.buildConflictResolutionResponse(config, requestedConflicts, recommendations)
+
 	logging.Info("memory_resolve_conflicts completed", 
-		"repository", repository, 
+		"repository", config.Repository, 
 		"conflicts_processed", len(requestedConflicts),
 		"recommendations_generated", len(recommendations))
 	return result, nil
@@ -7199,11 +7266,8 @@ func (ms *MemoryServer) handleBulkImport(ctx context.Context, params map[string]
 	}, nil
 }
 
-// handleBulkExport exports memories to various formats
-func (ms *MemoryServer) handleBulkExport(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	logging.Info("MCP TOOL: memory_bulk_export called", "params", params)
-
-	// Build export options
+// parseBulkExportOptions extracts and validates export options from parameters
+func (ms *MemoryServer) parseBulkExportOptions(params map[string]interface{}) (bulk.ExportOptions, error) {
 	options := bulk.ExportOptions{
 		Format:          bulk.ExportFormatJSON,
 		Compression:     bulk.CompressionNone,
@@ -7213,7 +7277,7 @@ func (ms *MemoryServer) handleBulkExport(ctx context.Context, params map[string]
 		PrettyPrint:     true,
 	}
 
-	// Optional parameters
+	// Parse basic options
 	if format, ok := params["format"].(string); ok {
 		options.Format = bulk.ExportFormat(format)
 	}
@@ -7233,91 +7297,135 @@ func (ms *MemoryServer) handleBulkExport(ctx context.Context, params map[string]
 		options.PrettyPrint = prettyPrint
 	}
 
-	// Parse filter options
-	if filterInterface, ok := params["filter"].(map[string]interface{}); ok {
-		filter := bulk.ExportFilter{}
-		
-		if repo, ok := filterInterface["repository"].(string); ok {
-			filter.Repository = &repo
-		}
-		if sessionIDs, ok := filterInterface["session_ids"].([]interface{}); ok {
-			filter.SessionIDs = make([]string, len(sessionIDs))
-			for i, id := range sessionIDs {
-				if idStr, ok := id.(string); ok {
-					filter.SessionIDs[i] = idStr
-				}
-			}
-		}
-		if chunkTypes, ok := filterInterface["chunk_types"].([]interface{}); ok {
-			filter.ChunkTypes = make([]types.ChunkType, len(chunkTypes))
-			for i, ct := range chunkTypes {
-				if ctStr, ok := ct.(string); ok {
-					filter.ChunkTypes[i] = types.ChunkType(ctStr)
-				}
-			}
-		}
-		if tags, ok := filterInterface["tags"].([]interface{}); ok {
-			filter.Tags = make([]string, len(tags))
-			for i, tag := range tags {
-				if tagStr, ok := tag.(string); ok {
-					filter.Tags[i] = tagStr
-				}
-			}
-		}
-		if contentFilter, ok := filterInterface["content_filter"].(string); ok {
-			filter.ContentFilter = &contentFilter
-		}
-		
-		// Parse date range
-		if dateRange, ok := filterInterface["date_range"].(map[string]interface{}); ok {
-			dr := &bulk.ExportDateRange{}
-			if start, ok := dateRange["start"].(string); ok {
-				if startTime, err := time.Parse(time.RFC3339, start); err == nil {
-					dr.Start = &startTime
-				}
-			}
-			if end, ok := dateRange["end"].(string); ok {
-				if endTime, err := time.Parse(time.RFC3339, end); err == nil {
-					dr.End = &endTime
-				}
-			}
-			filter.DateRange = dr
-		}
-		
-		options.Filter = filter
+	// Parse complex options
+	if err := ms.parseExportFilter(params, &options); err != nil {
+		return options, err
+	}
+	ms.parseExportSorting(params, &options)
+	ms.parseExportPagination(params, &options)
+
+	return options, nil
+}
+
+// parseExportFilter parses filter options for export
+func (ms *MemoryServer) parseExportFilter(params map[string]interface{}, options *bulk.ExportOptions) error {
+	filterInterface, ok := params["filter"].(map[string]interface{})
+	if !ok {
+		return nil
 	}
 
-	// Parse sorting options
-	if sortInterface, ok := params["sorting"].(map[string]interface{}); ok {
-		sorting := bulk.ExportSorting{}
-		if field, ok := sortInterface["field"].(string); ok {
-			sorting.Field = field
-		}
-		if order, ok := sortInterface["order"].(string); ok {
-			sorting.Order = order
-		}
-		options.Sorting = sorting
+	filter := bulk.ExportFilter{}
+	
+	if repo, ok := filterInterface["repository"].(string); ok {
+		filter.Repository = &repo
 	}
 
-	// Parse pagination options
-	if paginationInterface, ok := params["pagination"].(map[string]interface{}); ok {
-		pagination := bulk.ExportPagination{}
-		if limit, ok := paginationInterface["limit"].(float64); ok {
-			pagination.Limit = int(limit)
+	if err := ms.parseExportFilterArrays(filterInterface, &filter); err != nil {
+		return err
+	}
+	
+	if contentFilter, ok := filterInterface["content_filter"].(string); ok {
+		filter.ContentFilter = &contentFilter
+	}
+	
+	if err := ms.parseExportDateRange(filterInterface, &filter); err != nil {
+		return err
+	}
+	
+	options.Filter = filter
+	return nil
+}
+
+// parseExportFilterArrays parses array fields in export filter
+func (ms *MemoryServer) parseExportFilterArrays(filterInterface map[string]interface{}, filter *bulk.ExportFilter) error {
+	if sessionIDs, ok := filterInterface["session_ids"].([]interface{}); ok {
+		filter.SessionIDs = make([]string, len(sessionIDs))
+		for i, id := range sessionIDs {
+			if idStr, ok := id.(string); ok {
+				filter.SessionIDs[i] = idStr
+			}
 		}
-		if offset, ok := paginationInterface["offset"].(float64); ok {
-			pagination.Offset = int(offset)
-		}
-		options.Pagination = pagination
 	}
 
-	// Export data
-	result, err := ms.bulkExporter.Export(ctx, options)
-	if err != nil {
-		return nil, fmt.Errorf("export failed: %w", err)
+	if chunkTypes, ok := filterInterface["chunk_types"].([]interface{}); ok {
+		filter.ChunkTypes = make([]types.ChunkType, len(chunkTypes))
+		for i, ct := range chunkTypes {
+			if ctStr, ok := ct.(string); ok {
+				filter.ChunkTypes[i] = types.ChunkType(ctStr)
+			}
+		}
 	}
 
-	logging.Info("memory_bulk_export completed successfully", "exported_items", result.ExportedItems)
+	if tags, ok := filterInterface["tags"].([]interface{}); ok {
+		filter.Tags = make([]string, len(tags))
+		for i, tag := range tags {
+			if tagStr, ok := tag.(string); ok {
+				filter.Tags[i] = tagStr
+			}
+		}
+	}
+
+	return nil
+}
+
+// parseExportDateRange parses date range for export filter
+func (ms *MemoryServer) parseExportDateRange(filterInterface map[string]interface{}, filter *bulk.ExportFilter) error {
+	dateRange, ok := filterInterface["date_range"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	dr := &bulk.ExportDateRange{}
+	if start, ok := dateRange["start"].(string); ok {
+		if startTime, err := time.Parse(time.RFC3339, start); err == nil {
+			dr.Start = &startTime
+		}
+	}
+	if end, ok := dateRange["end"].(string); ok {
+		if endTime, err := time.Parse(time.RFC3339, end); err == nil {
+			dr.End = &endTime
+		}
+	}
+	filter.DateRange = dr
+	return nil
+}
+
+// parseExportSorting parses sorting options for export
+func (ms *MemoryServer) parseExportSorting(params map[string]interface{}, options *bulk.ExportOptions) {
+	sortInterface, ok := params["sorting"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	sorting := bulk.ExportSorting{}
+	if field, ok := sortInterface["field"].(string); ok {
+		sorting.Field = field
+	}
+	if order, ok := sortInterface["order"].(string); ok {
+		sorting.Order = order
+	}
+	options.Sorting = sorting
+}
+
+// parseExportPagination parses pagination options for export
+func (ms *MemoryServer) parseExportPagination(params map[string]interface{}, options *bulk.ExportOptions) {
+	paginationInterface, ok := params["pagination"].(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	pagination := bulk.ExportPagination{}
+	if limit, ok := paginationInterface["limit"].(float64); ok {
+		pagination.Limit = int(limit)
+	}
+	if offset, ok := paginationInterface["offset"].(float64); ok {
+		pagination.Offset = int(offset)
+	}
+	options.Pagination = pagination
+}
+
+// buildExportResponse constructs the response for bulk export
+func (ms *MemoryServer) buildExportResponse(result *bulk.ExportResult) map[string]interface{} {
 	return map[string]interface{}{
 		"format":         string(result.Format),
 		"total_items":    result.TotalItems,
@@ -7327,13 +7435,40 @@ func (ms *MemoryServer) handleBulkExport(ctx context.Context, params map[string]
 		"metadata":       result.Metadata,
 		"warnings":       result.Warnings,
 		"generated_at":   result.GeneratedAt.Format(time.RFC3339),
-	}, nil
+	}
 }
 
-// handleCreateAlias creates a memory alias
-func (ms *MemoryServer) handleCreateAlias(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	logging.Info("MCP TOOL: memory_create_alias called", "params", params)
+// handleBulkExport exports memories to various formats
+func (ms *MemoryServer) handleBulkExport(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_bulk_export called", "params", params)
 
+	// Parse export options
+	options, err := ms.parseBulkExportOptions(params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Export data
+	result, err := ms.bulkExporter.Export(ctx, options)
+	if err != nil {
+		return nil, fmt.Errorf("export failed: %w", err)
+	}
+
+	logging.Info("memory_bulk_export completed successfully", "exported_items", result.ExportedItems)
+	return ms.buildExportResponse(result), nil
+}
+
+// aliasParams holds parsed parameters for alias creation
+type aliasParams struct {
+	Name        string
+	Type        string
+	Description string
+	Target      map[string]interface{}
+	Metadata    map[string]interface{}
+}
+
+// parseAliasParams extracts and validates alias creation parameters
+func (ms *MemoryServer) parseAliasParams(params map[string]interface{}) (*aliasParams, error) {
 	// Required parameters
 	name, ok := params["name"].(string)
 	if !ok || name == "" {
@@ -7350,18 +7485,49 @@ func (ms *MemoryServer) handleCreateAlias(ctx context.Context, params map[string
 		return nil, fmt.Errorf("target parameter is required")
 	}
 
-	// Build alias
-	alias := bulk.Alias{
-		Name: name,
-		Type: bulk.AliasType(aliasType),
+	result := &aliasParams{
+		Name:   name,
+		Type:   aliasType,
+		Target: targetInterface,
 	}
 
-	// Optional description
+	// Optional parameters
 	if desc, ok := params["description"].(string); ok {
-		alias.Description = desc
+		result.Description = desc
+	}
+
+	if metadataInterface, ok := params["metadata"].(map[string]interface{}); ok {
+		result.Metadata = metadataInterface
+	}
+
+	return result, nil
+}
+
+// buildAliasFromParams constructs an Alias from parsed parameters
+func (ms *MemoryServer) buildAliasFromParams(params *aliasParams) (bulk.Alias, error) {
+	alias := bulk.Alias{
+		Name:        params.Name,
+		Type:        bulk.AliasType(params.Type),
+		Description: params.Description,
 	}
 
 	// Parse target
+	target, err := ms.parseAliasTarget(params.Target)
+	if err != nil {
+		return alias, err
+	}
+	alias.Target = target
+
+	// Parse metadata if provided
+	if params.Metadata != nil {
+		alias.Metadata = ms.parseAliasMetadata(params.Metadata)
+	}
+
+	return alias, nil
+}
+
+// parseAliasTarget parses the target configuration for an alias
+func (ms *MemoryServer) parseAliasTarget(targetInterface map[string]interface{}) (bulk.AliasTarget, error) {
 	target := bulk.AliasTarget{}
 	if targetType, ok := targetInterface["type"].(string); ok {
 		target.Type = bulk.TargetType(targetType)
@@ -7369,83 +7535,142 @@ func (ms *MemoryServer) handleCreateAlias(ctx context.Context, params map[string
 
 	switch target.Type {
 	case bulk.TargetTypeChunks:
-		if chunkIDs, ok := targetInterface["chunk_ids"].([]interface{}); ok {
-			target.ChunkIDs = make([]string, len(chunkIDs))
-			for i, id := range chunkIDs {
-				if idStr, ok := id.(string); ok {
-					target.ChunkIDs[i] = idStr
-				}
-			}
-		}
-
+		target.ChunkIDs = ms.parseChunkIDs(targetInterface)
 	case bulk.TargetTypeQuery:
-		if queryInterface, ok := targetInterface["query"].(map[string]interface{}); ok {
-			queryTarget := &bulk.QueryTarget{}
-			if query, ok := queryInterface["query"].(string); ok {
-				queryTarget.Query = query
-			}
-			if repo, ok := queryInterface["repository"].(string); ok {
-				queryTarget.Repository = &repo
-			}
-			if maxResults, ok := queryInterface["max_results"].(float64); ok {
-				queryTarget.MaxResults = int(maxResults)
-			}
-			target.Query = queryTarget
-		}
-
+		target.Query = ms.parseQueryTarget(targetInterface)
 	case bulk.TargetTypeFilter:
-		if filterInterface, ok := targetInterface["filter"].(map[string]interface{}); ok {
-			filterTarget := &bulk.FilterTarget{}
-			if repo, ok := filterInterface["repository"].(string); ok {
-				filterTarget.Repository = &repo
-			}
-			target.Filter = filterTarget
-		}
-
+		target.Filter = ms.parseFilterTarget(targetInterface)
 	case bulk.TargetTypeCollection:
-		if collectionInterface, ok := targetInterface["collection"].(map[string]interface{}); ok {
-			collectionTarget := &bulk.CollectionTarget{}
-			if collectionName, ok := collectionInterface["name"].(string); ok {
-				collectionTarget.Name = collectionName
-			}
-			if desc, ok := collectionInterface["description"].(string); ok {
-				collectionTarget.Description = desc
-			}
-			if chunkIDs, ok := collectionInterface["chunk_ids"].([]interface{}); ok {
-				collectionTarget.ChunkIDs = make([]string, len(chunkIDs))
-				for i, id := range chunkIDs {
-					if idStr, ok := id.(string); ok {
-						collectionTarget.ChunkIDs[i] = idStr
-					}
-				}
-			}
-			target.Collection = collectionTarget
-		}
+		target.Collection = ms.parseCollectionTarget(targetInterface)
 	}
 
-	alias.Target = target
+	return target, nil
+}
 
-	// Parse metadata
-	if metadataInterface, ok := params["metadata"].(map[string]interface{}); ok {
-		metadata := bulk.AliasMetadata{}
-		if repo, ok := metadataInterface["repository"].(string); ok {
-			metadata.Repository = repo
+// parseChunkIDs extracts chunk IDs from target configuration
+func (ms *MemoryServer) parseChunkIDs(targetInterface map[string]interface{}) []string {
+	chunkIDs, ok := targetInterface["chunk_ids"].([]interface{})
+	if !ok {
+		return nil
+	}
+
+	result := make([]string, 0, len(chunkIDs))
+	for _, id := range chunkIDs {
+		if idStr, ok := id.(string); ok {
+			result = append(result, idStr)
 		}
-		if tags, ok := metadataInterface["tags"].([]interface{}); ok {
-			metadata.Tags = make([]string, len(tags))
-			for i, tag := range tags {
-				if tagStr, ok := tag.(string); ok {
-					metadata.Tags[i] = tagStr
-				}
+	}
+	return result
+}
+
+// parseQueryTarget parses query target configuration
+func (ms *MemoryServer) parseQueryTarget(targetInterface map[string]interface{}) *bulk.QueryTarget {
+	queryInterface, ok := targetInterface["query"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	queryTarget := &bulk.QueryTarget{}
+	if query, ok := queryInterface["query"].(string); ok {
+		queryTarget.Query = query
+	}
+	if repo, ok := queryInterface["repository"].(string); ok {
+		queryTarget.Repository = &repo
+	}
+	if maxResults, ok := queryInterface["max_results"].(float64); ok {
+		queryTarget.MaxResults = int(maxResults)
+	}
+	return queryTarget
+}
+
+// parseFilterTarget parses filter target configuration
+func (ms *MemoryServer) parseFilterTarget(targetInterface map[string]interface{}) *bulk.FilterTarget {
+	filterInterface, ok := targetInterface["filter"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	filterTarget := &bulk.FilterTarget{}
+	if repo, ok := filterInterface["repository"].(string); ok {
+		filterTarget.Repository = &repo
+	}
+	return filterTarget
+}
+
+// parseCollectionTarget parses collection target configuration
+func (ms *MemoryServer) parseCollectionTarget(targetInterface map[string]interface{}) *bulk.CollectionTarget {
+	collectionInterface, ok := targetInterface["collection"].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	collectionTarget := &bulk.CollectionTarget{}
+	if collectionName, ok := collectionInterface["name"].(string); ok {
+		collectionTarget.Name = collectionName
+	}
+	if desc, ok := collectionInterface["description"].(string); ok {
+		collectionTarget.Description = desc
+	}
+	if chunkIDs, ok := collectionInterface["chunk_ids"].([]interface{}); ok {
+		collectionTarget.ChunkIDs = make([]string, len(chunkIDs))
+		for i, id := range chunkIDs {
+			if idStr, ok := id.(string); ok {
+				collectionTarget.ChunkIDs[i] = idStr
 			}
 		}
-		if isPublic, ok := metadataInterface["is_public"].(bool); ok {
-			metadata.IsPublic = isPublic
+	}
+	return collectionTarget
+}
+
+// parseAliasMetadata parses metadata configuration for an alias
+func (ms *MemoryServer) parseAliasMetadata(metadataInterface map[string]interface{}) bulk.AliasMetadata {
+	metadata := bulk.AliasMetadata{}
+	if repo, ok := metadataInterface["repository"].(string); ok {
+		metadata.Repository = repo
+	}
+	if tags, ok := metadataInterface["tags"].([]interface{}); ok {
+		metadata.Tags = make([]string, len(tags))
+		for i, tag := range tags {
+			if tagStr, ok := tag.(string); ok {
+				metadata.Tags[i] = tagStr
+			}
 		}
-		if isFavorite, ok := metadataInterface["is_favorite"].(bool); ok {
-			metadata.IsFavorite = isFavorite
-		}
-		alias.Metadata = metadata
+	}
+	if isPublic, ok := metadataInterface["is_public"].(bool); ok {
+		metadata.IsPublic = isPublic
+	}
+	if isFavorite, ok := metadataInterface["is_favorite"].(bool); ok {
+		metadata.IsFavorite = isFavorite
+	}
+	return metadata
+}
+
+// buildAliasResponse constructs the response for alias creation
+func (ms *MemoryServer) buildAliasResponse(createdAlias *bulk.Alias) map[string]interface{} {
+	return map[string]interface{}{
+		"id":          createdAlias.ID,
+		"name":        createdAlias.Name,
+		"type":        string(createdAlias.Type),
+		"description": createdAlias.Description,
+		"created_at":  createdAlias.CreatedAt.Format(time.RFC3339),
+		"message":     fmt.Sprintf("Alias '%s' created successfully", createdAlias.Name),
+	}
+}
+
+// handleCreateAlias creates a memory alias
+func (ms *MemoryServer) handleCreateAlias(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_create_alias called", "params", params)
+
+	// Parse and validate parameters
+	aliasParams, err := ms.parseAliasParams(params)
+	if err != nil {
+		return nil, err
+	}
+
+	// Build alias from parameters
+	alias, err := ms.buildAliasFromParams(aliasParams)
+	if err != nil {
+		return nil, err
 	}
 
 	// Create alias
@@ -7455,14 +7680,7 @@ func (ms *MemoryServer) handleCreateAlias(ctx context.Context, params map[string
 	}
 
 	logging.Info("memory_create_alias completed successfully", "alias_id", createdAlias.ID, "name", createdAlias.Name)
-	return map[string]interface{}{
-		"id":          createdAlias.ID,
-		"name":        createdAlias.Name,
-		"type":        string(createdAlias.Type),
-		"description": createdAlias.Description,
-		"created_at":  createdAlias.CreatedAt.Format(time.RFC3339),
-		"message":     fmt.Sprintf("Alias '%s' created successfully", createdAlias.Name),
-	}, nil
+	return ms.buildAliasResponse(createdAlias), nil
 }
 
 // handleResolveAlias resolves an alias reference

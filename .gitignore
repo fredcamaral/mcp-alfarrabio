@@ -55,12 +55,8 @@ audit_logs/
 /dist/
 /tmp/
 
-# Air hot reload temp files
+# AI
 tmp/
 *.tmp
-PLAN.md
-vector-memory-mcp-design.md
 .claude/
-internal/storage/chroma-go/
-ROADMAP.md
-.golangci.yml.cache
+CLAUDE.md
