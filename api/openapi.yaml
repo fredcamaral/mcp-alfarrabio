@@ -4,13 +4,13 @@ info:
   description: |
     The MCP Memory Server provides intelligent memory management for AI assistants,
     enabling them to store, search, and retrieve contextual information across conversations.
-  version: 1.0.0
+  version: VERSION_PLACEHOLDER
   contact:
     name: MCP Memory Team
-    url: https://github.com/fredcamaral/mcp-memory
+    url: https://github.com/LerianStudio/mcp-memory
   license:
-    name: MIT
-    url: https://opensource.org/licenses/MIT
+    name: Apache-2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
 
 servers:
   - url: http://localhost:8080

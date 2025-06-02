@@ -62,11 +62,11 @@ ENV GO111MODULE=on \
 LABEL \
     org.opencontainers.image.title="Claude Vector Memory MCP Server (Development)" \
     org.opencontainers.image.description="Development version with hot reload for MCP memory server" \
-    org.opencontainers.image.version="1.0.0-dev" \
+    org.opencontainers.image.version="VERSION_PLACEHOLDER-dev" \
     org.opencontainers.image.vendor="fredcamaral" \
-    org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.source="https://github.com/fredcamaral/mcp-memory" \
-    org.opencontainers.image.documentation="https://github.com/fredcamaral/mcp-memory/blob/main/README.md"
+    org.opencontainers.image.licenses="Apache-2.0" \
+    org.opencontainers.image.source="https://github.com/LerianStudio/mcp-memory" \
+    org.opencontainers.image.documentation="https://github.com/LerianStudio/mcp-memory/blob/main/README.md"
 
 # Command to run Air for development hot reload
 CMD ["air", "-c", ".air.toml"]

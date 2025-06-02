@@ -953,7 +953,7 @@ func (pm *PerformanceMonitor) RunBenchmark(benchmarkID string) (*BenchmarkResult
 		Metrics:     make(map[string]float64),
 		Success:     true,
 		Environment: make(map[string]string),
-		Version:     "1.0.0",
+		Version:     "VERSION_PLACEHOLDER",
 	}
 
 	// Collect system metrics during benchmark

@@ -81,7 +81,7 @@ func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
 
 	// Create MCP server
 	serverName := getEnv("SERVICE_NAME", "claude-memory")
-	serverVersion := getEnv("SERVICE_VERSION", "1.0.0")
+	serverVersion := getEnv("SERVICE_VERSION", "VERSION_PLACEHOLDER")
 	mcpServer := mcp.NewServer(serverName, serverVersion)
 	memServer.mcpServer = mcpServer
 	memServer.registerTools()
@@ -9959,7 +9959,7 @@ func parseMaxAge(maxAge string) (time.Time, error) {
 // discoverRepositories discovers available repositories from the vector store
 func (ms *MemoryServer) discoverRepositories(ctx context.Context) []string {
 	repoSet := make(map[string]bool)
-	
+
 	// Get chunks from global and try to discover repositories
 	globalChunks, err := ms.container.GetVectorStore().ListByRepository(ctx, "_global", 1000, 0)
 	if err == nil {
@@ -9969,10 +9969,10 @@ func (ms *MemoryServer) discoverRepositories(ctx context.Context) []string {
 			}
 		}
 	}
-	
+
 	// Also try common repository patterns to discover more repos
 	commonRepos := []string{
-		"github.com/fredcamaral/mcp-memory",
+		"github.com/LerianStudio/mcp-memory",
 		"github.com/lerianstudio/midaz",
 		"github.com/LerianStudio/lib-commons",
 	}
@@ -9982,7 +9982,7 @@ func (ms *MemoryServer) discoverRepositories(ctx context.Context) []string {
 			repoSet[repo] = true
 		}
 	}
-	
+
 	repositories := make([]string, 0, len(repoSet))
 	for repo := range repoSet {
 		repositories = append(repositories, repo)

@@ -339,7 +339,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 7. memory_transfer - Data transfer operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_transfer",
-		"Handle data transfer operations. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; export_project requires repository+session_id; import_context requires data+repository+session_id; continuity requires repository.",
+		"Handle data transfer operations with pagination support. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; export_project requires repository+session_id (optional: limit, offset, format, include_vectors); import_context requires data+repository+session_id; continuity requires repository.",
 		mcp.ObjectSchema("Memory transfer parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -368,6 +368,30 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					"data": map[string]interface{}{
 						"type":        "string",
 						"description": "Data to import (required for import_context)",
+					},
+					"limit": map[string]interface{}{
+						"type":        "number",
+						"description": "Page size for export_project (default: 100, max: 500) - Controls how many chunks to export per request",
+						"minimum":     1,
+						"maximum":     500,
+						"default":     100,
+					},
+					"offset": map[string]interface{}{
+						"type":        "number",
+						"description": "Starting position for export_project pagination (default: 0) - Use with limit for paginated exports",
+						"minimum":     0,
+						"default":     0,
+					},
+					"format": map[string]interface{}{
+						"type":        "string",
+						"description": "Export format for export_project: 'json' (default), 'markdown', or 'archive'",
+						"enum":        []string{"json", "markdown", "archive"},
+						"default":     "json",
+					},
+					"include_vectors": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Include embedding vectors in export_project output (default: false) - Warning: significantly increases response size",
+						"default":     false,
 					},
 				},
 			},

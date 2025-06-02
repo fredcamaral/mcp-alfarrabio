@@ -35,7 +35,7 @@ MCP-Memory is a Go-based implementation of the Model Context Protocol (MCP) with
 
 ### Reporting Bugs
 
-Before creating bug reports, please check [existing issues](https://github.com/fredcamaral/mcp-memory/issues) as you might find out that you don't need to create one. When you are creating a bug report, please include as many details as possible:
+Before creating bug reports, please check [existing issues](https://github.com/LerianStudio/mcp-memory/issues) as you might find out that you don't need to create one. When you are creating a bug report, please include as many details as possible:
 
 **Bug Report Template:**
 ```markdown
@@ -62,7 +62,7 @@ Add any other context about the problem here.
 
 ### Suggesting Enhancements
 
-Enhancement suggestions are tracked as [GitHub issues](https://github.com/fredcamaral/mcp-memory/issues). Create an issue and provide:
+Enhancement suggestions are tracked as [GitHub issues](https://github.com/LerianStudio/mcp-memory/issues). Create an issue and provide:
 
 - **Use a clear and descriptive title**
 - **Provide a step-by-step description** of the suggested enhancement
@@ -74,8 +74,8 @@ Enhancement suggestions are tracked as [GitHub issues](https://github.com/fredca
 
 Unsure where to begin? You can start by looking through these issues:
 
-- [Beginner issues](https://github.com/fredcamaral/mcp-memory/labels/good%20first%20issue) - issues which should only require a few lines of code
-- [Help wanted issues](https://github.com/fredcamaral/mcp-memory/labels/help%20wanted) - issues which should be a bit more involved
+- [Beginner issues](https://github.com/LerianStudio/mcp-memory/labels/good%20first%20issue) - issues which should only require a few lines of code
+- [Help wanted issues](https://github.com/LerianStudio/mcp-memory/labels/help%20wanted) - issues which should be a bit more involved
 
 ### Pull Requests
 
@@ -96,7 +96,7 @@ git clone https://github.com/YOUR_USERNAME/mcp-memory.git
 cd mcp-memory
 
 # Add upstream remote
-git remote add upstream https://github.com/fredcamaral/mcp-memory.git
+git remote add upstream https://github.com/LerianStudio/mcp-memory.git
 
 # Install dependencies
 go mod download

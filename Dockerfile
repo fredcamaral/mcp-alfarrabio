@@ -86,11 +86,11 @@ EXPOSE 9080 8081 8082
 LABEL \
     org.opencontainers.image.title="Claude Vector Memory MCP Server" \
     org.opencontainers.image.description="Intelligent conversation memory server for Claude MCP" \
-    org.opencontainers.image.version="1.0.0" \
+    org.opencontainers.image.version="VERSION_PLACEHOLDER" \
     org.opencontainers.image.vendor="fredcamaral" \
-    org.opencontainers.image.licenses="MIT" \
-    org.opencontainers.image.source="https://github.com/fredcamaral/mcp-memory" \
-    org.opencontainers.image.documentation="https://github.com/fredcamaral/mcp-memory/blob/main/README.md"
+    org.opencontainers.image.licenses="Apache-2.0" \
+    org.opencontainers.image.source="https://github.com/LerianStudio/mcp-memory" \
+    org.opencontainers.image.documentation="https://github.com/LerianStudio/mcp-memory/blob/main/README.md"
 
 # Volumes should be defined in docker-compose or k8s manifests
 

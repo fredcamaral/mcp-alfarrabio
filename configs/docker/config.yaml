@@ -37,7 +37,7 @@ logging:
   structured: true
   fields:
     service: "mcp-memory-server"
-    version: "1.0.0"
+    version: "VERSION_PLACEHOLDER"
     environment: "docker"
 
 storage:

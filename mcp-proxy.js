@@ -132,7 +132,7 @@ function sendHttpRequest(request, retryCount = 0) {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData),
-        'User-Agent': 'mcp-proxy/1.0.0'
+        'User-Agent': 'mcp-proxy/VERSION_PLACEHOLDER'
       },
       timeout: CONFIG.server.timeout
     };

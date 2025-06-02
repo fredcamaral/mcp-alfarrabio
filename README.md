@@ -9,7 +9,7 @@ Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any M
 ### Step 1: Start the Server
 
 ```bash
-git clone https://github.com/fredcamaral/mcp-memory.git
+git clone https://github.com/LerianStudio/mcp-memory.git
 cd mcp-memory
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
@@ -415,4 +415,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 Start with the [Quick Start](#-quick-start-5-minutes) above and choose your preferred [protocol option](#-mcp-protocol-options).
 
-**Questions?** [Open an issue](https://github.com/fredcamaral/mcp-memory/issues) or check our [documentation](docs/README.md).
+**Questions?** [Open an issue](https://github.com/LerianStudio/mcp-memory/issues) or check our [documentation](docs/README.md).

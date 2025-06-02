@@ -1,0 +1,264 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.2.3)'
+        required: true
+        type: string
+
+env:
+  GO_VERSION: '1.24'
+  NODE_VERSION: '20'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+      id-token: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Determine version
+        id: version
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            VERSION="${{ github.event.inputs.version }}"
+          else
+            VERSION=${GITHUB_REF#refs/tags/}
+          fi
+          
+          # Remove 'v' prefix if present for semantic versioning
+          CLEAN_VERSION=${VERSION#v}
+          
+          echo "version=${VERSION}" >> $GITHUB_OUTPUT
+          echo "clean_version=${CLEAN_VERSION}" >> $GITHUB_OUTPUT
+          echo "Release version: ${VERSION}"
+          echo "Clean version: ${CLEAN_VERSION}"
+
+      - name: Validate version format
+        run: |
+          VERSION="${{ steps.version.outputs.clean_version }}"
+          if [[ ! $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9.-]+)?$ ]]; then
+            echo "Invalid version format: $VERSION"
+            echo "Expected format: X.Y.Z or X.Y.Z-suffix"
+            exit 1
+          fi
+
+      - name: Replace version placeholders
+        run: |
+          VERSION="${{ steps.version.outputs.clean_version }}"
+          echo "Replacing VERSION_PLACEHOLDER with $VERSION in all files..."
+          
+          # Files to update with version
+          FILES=(
+            "Dockerfile"
+            "Dockerfile.dev"
+            "api/openapi.yaml"
+            "internal/mcp/server.go"
+            "configs/docker/config.yaml"
+            "configs/production/config.yaml"
+            "internal/monitoring/performance_monitor.go"
+            "mcp-proxy.js"
+          )
+          
+          for file in "${FILES[@]}"; do
+            if [[ -f "$file" ]]; then
+              echo "Updating $file..."
+              sed -i "s/VERSION_PLACEHOLDER/$VERSION/g" "$file"
+              # Verify replacement worked
+              if grep -q "VERSION_PLACEHOLDER" "$file"; then
+                echo "Warning: VERSION_PLACEHOLDER still found in $file"
+              else
+                echo "✓ Successfully updated $file"
+              fi
+            else
+              echo "Warning: File $file not found"
+            fi
+          done
+
+      - name: Verify version replacements
+        run: |
+          echo "Checking for any remaining VERSION_PLACEHOLDER occurrences..."
+          if grep -r "VERSION_PLACEHOLDER" --exclude-dir=.git --exclude="*.yml" --exclude="*.yaml" .; then
+            echo "Warning: VERSION_PLACEHOLDER still found in some files"
+          else
+            echo "✓ All VERSION_PLACEHOLDER occurrences have been replaced"
+          fi
+
+      - name: Run tests
+        run: |
+          go mod download
+          go test -v -race -coverprofile=coverage.txt ./...
+
+      - name: Build binaries
+        run: |
+          VERSION="${{ steps.version.outputs.clean_version }}"
+          
+          # Build for multiple platforms
+          PLATFORMS=(
+            "linux/amd64"
+            "linux/arm64"
+            "darwin/amd64"
+            "darwin/arm64"
+            "windows/amd64"
+          )
+          
+          mkdir -p dist
+          
+          for platform in "${PLATFORMS[@]}"; do
+            IFS='/' read -r GOOS GOARCH <<< "$platform"
+            
+            output_name="mcp-memory-server-${VERSION}-${GOOS}-${GOARCH}"
+            if [[ "$GOOS" == "windows" ]]; then
+              output_name="${output_name}.exe"
+            fi
+            
+            echo "Building for $GOOS/$GOARCH..."
+            
+            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build \
+              -ldflags="-w -s -X main.version=${VERSION} -extldflags '-static'" \
+              -a -installsuffix cgo \
+              -o "dist/${output_name}" \
+              ./cmd/server
+            
+            # Create checksums
+            if [[ "$GOOS" == "windows" ]]; then
+              sha256sum "dist/${output_name}" > "dist/${output_name}.sha256"
+            else
+              shasum -a 256 "dist/${output_name}" > "dist/${output_name}.sha256"
+            fi
+          done
+          
+          # List built artifacts
+          ls -la dist/
+
+      - name: Build Docker images
+        run: |
+          VERSION="${{ steps.version.outputs.clean_version }}"
+          
+          # Build production image
+          docker build -t mcp-memory:${VERSION} .
+          docker build -t mcp-memory:latest .
+          
+          # Build development image
+          docker build -f Dockerfile.dev -t mcp-memory:${VERSION}-dev .
+          docker build -f Dockerfile.dev -t mcp-memory:dev .
+          
+          # Save images as tar files for release
+          docker save mcp-memory:${VERSION} | gzip > dist/mcp-memory-${VERSION}.tar.gz
+          docker save mcp-memory:${VERSION}-dev | gzip > dist/mcp-memory-${VERSION}-dev.tar.gz
+
+      - name: Generate changelog
+        id: changelog
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          
+          # Create changelog from git commits
+          echo "## Changes in ${VERSION}" > CHANGELOG.md
+          echo "" >> CHANGELOG.md
+          
+          # Get commits since last tag
+          LAST_TAG=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [[ -n "$LAST_TAG" ]]; then
+            echo "### Commits since ${LAST_TAG}:" >> CHANGELOG.md
+            git log ${LAST_TAG}..HEAD --pretty=format:"- %s (%h)" --no-merges >> CHANGELOG.md
+          else
+            echo "### All commits:" >> CHANGELOG.md
+            git log --pretty=format:"- %s (%h)" --no-merges >> CHANGELOG.md
+          fi
+          
+          echo "" >> CHANGELOG.md
+          echo "### Files changed in this release:" >> CHANGELOG.md
+          echo "- Updated version to ${VERSION} across all configuration files" >> CHANGELOG.md
+          echo "- Built binaries for Linux, macOS, and Windows (amd64 and arm64)" >> CHANGELOG.md
+          echo "- Docker images for production and development" >> CHANGELOG.md
+          
+          cat CHANGELOG.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: Release ${{ steps.version.outputs.version }}
+          body_path: CHANGELOG.md
+          files: |
+            dist/*
+          draft: false
+          prerelease: ${{ contains(steps.version.outputs.version, '-') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Push Docker images to GHCR
+        if: github.event_name == 'push'
+        run: |
+          VERSION="${{ steps.version.outputs.clean_version }}"
+          
+          # Tag and push production images
+          docker tag mcp-memory:${VERSION} ghcr.io/lerianstudio/mcp-memory:${VERSION}
+          docker tag mcp-memory:latest ghcr.io/lerianstudio/mcp-memory:latest
+          
+          docker push ghcr.io/lerianstudio/mcp-memory:${VERSION}
+          docker push ghcr.io/lerianstudio/mcp-memory:latest
+          
+          # Tag and push development images
+          docker tag mcp-memory:${VERSION}-dev ghcr.io/lerianstudio/mcp-memory:${VERSION}-dev
+          docker tag mcp-memory:dev ghcr.io/lerianstudio/mcp-memory:dev
+          
+          docker push ghcr.io/lerianstudio/mcp-memory:${VERSION}-dev
+          docker push ghcr.io/lerianstudio/mcp-memory:dev
+
+      - name: Update package versions
+        if: github.event_name == 'push'
+        run: |
+          VERSION="${{ steps.version.outputs.clean_version }}"
+          
+          # Update go.mod if needed (for version tags)
+          if [[ -f "go.mod" ]]; then
+            echo "Go module version updated to ${VERSION}"
+          fi
+          
+          # Update web-ui package.json if it exists
+          if [[ -f "web-ui/package.json" ]]; then
+            cd web-ui
+            npm version ${VERSION} --no-git-tag-version
+            echo "Updated web-ui package.json to version ${VERSION}"
+            cd ..
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          # Clean up Docker images to save space
+          docker system prune -f
+          
+          # Restore original files (revert version changes)
+          git checkout -- Dockerfile Dockerfile.dev api/openapi.yaml internal/mcp/server.go configs/ internal/monitoring/performance_monitor.go mcp-proxy.js || true
