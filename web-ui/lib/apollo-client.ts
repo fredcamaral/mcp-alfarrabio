@@ -23,7 +23,7 @@ const errorLink = onError(({ graphQLErrors, networkError, operation, forward }) 
     console.error(`Network error: ${networkError}`)
     
     // Retry logic for network errors
-    if (networkError.statusCode === 503 || networkError.statusCode === 502) {
+    if ('statusCode' in networkError && (networkError.statusCode === 503 || networkError.statusCode === 502)) {
       return forward(operation)
     }
   }

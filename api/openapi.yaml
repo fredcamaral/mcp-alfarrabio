@@ -2,12 +2,88 @@ openapi: 3.0.3
 info:
   title: MCP Memory Server API
   description: |
-    The MCP Memory Server provides intelligent memory management for AI assistants,
-    enabling them to store, search, and retrieve contextual information across conversations.
-  version: VERSION_PLACEHOLDER
+    Multi-protocol API for the MCP Memory Server providing intelligent memory management for AI assistants.
+    
+    ## Supported Protocols
+    
+    ### 1. MCP over stdio
+    For Claude Desktop and VS Code integration:
+    ```bash
+    mcp-memory-server --mode=stdio
+    ```
+    
+    ### 2. MCP over HTTP
+    For web applications and HTTP clients:
+    ```bash
+    curl -X POST http://localhost:9080/mcp \
+      -H "Content-Type: application/json" \
+      -H "X-API-Key: your-api-key" \
+      -d '{"jsonrpc":"2.0","method":"tools/call","id":"1","params":{"name":"memory_read","arguments":{"operation":"search","options":{"repository":"github.com/user/repo","query":"authentication"}}}}'
+    ```
+    
+    ### 3. WebSocket
+    For real-time applications:
+    ```javascript
+    const ws = new WebSocket('ws://localhost:9080/ws');
+    ws.send(JSON.stringify({
+      jsonrpc: "2.0",
+      method: "tools/call",
+      id: "1",
+      params: {
+        name: "memory_read",
+        arguments: {
+          operation: "search",
+          options: {
+            repository: "github.com/user/repo",
+            query: "authentication"
+          }
+        }
+      }
+    }));
+    ```
+    
+    ### 4. GraphQL
+    For complex queries and relationships:
+    ```graphql
+    query SearchMemories($input: MemoryQueryInput!) {
+      search(input: $input) {
+        chunks {
+          chunk {
+            id
+            content
+            summary
+            type
+            tags
+          }
+          score
+        }
+      }
+    }
+    ```
+    
+    ## Authentication
+    **REQUIRED**: All HTTP, WebSocket, and GraphQL endpoints require API key authentication.
+    stdio transport does not require authentication (process isolation).
+    
+    Use the `X-API-Key` header for authentication:
+    ```
+    X-API-Key: your-secret-api-key
+    ```
+    
+    ## Rate Limiting
+    **Current Limits**:
+    - 100 requests per minute per IP address
+    - 200 burst capacity
+    - Rate limit headers included in responses
+    
+    ## Error Handling
+    All APIs use standardized error format with semantic error codes for consistent client handling.
+    
+  version: "2.0.0"
   contact:
     name: MCP Memory Team
     url: https://github.com/LerianStudio/mcp-memory
+    email: support@lerian.studio
   license:
     name: Apache-2.0
     url: https://www.apache.org/licenses/LICENSE-2.0
@@ -53,8 +129,18 @@ paths:
                 $ref: '#/components/schemas/StoreChunkResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_search:
     post:
@@ -78,8 +164,18 @@ paths:
                 $ref: '#/components/schemas/SearchResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_get_context:
     post:
@@ -103,8 +199,18 @@ paths:
                 $ref: '#/components/schemas/ContextResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_find_similar:
     post:
@@ -128,8 +234,18 @@ paths:
                 $ref: '#/components/schemas/FindSimilarResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_store_decision:
     post:
@@ -153,8 +269,18 @@ paths:
                 $ref: '#/components/schemas/StoreDecisionResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_get_patterns:
     post:
@@ -178,8 +304,18 @@ paths:
                 $ref: '#/components/schemas/PatternsResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_suggest_related:
     post:
@@ -203,8 +339,18 @@ paths:
                 $ref: '#/components/schemas/SuggestRelatedResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_export_project:
     post:
@@ -228,8 +374,18 @@ paths:
                 $ref: '#/components/schemas/ExportProjectResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_import_context:
     post:
@@ -253,8 +409,18 @@ paths:
                 $ref: '#/components/schemas/ImportContextResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '429':
+          $ref: '#/components/responses/RateLimited'
         '500':
           $ref: '#/components/responses/InternalError'
+        '503':
+          $ref: '#/components/responses/ServiceUnavailable'
 
   /mcp/tools/memory_health:
     post:
@@ -884,6 +1050,99 @@ components:
             average_embedding_size:
               type: number
 
+    # Standardized Error Schemas
+    StandardError:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          $ref: '#/components/schemas/ErrorDetails'
+          
+    ErrorDetails:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          description: Semantic error code for programmatic handling
+          enum:
+            - UNAUTHORIZED
+            - FORBIDDEN
+            - INVALID_API_KEY
+            - VALIDATION_ERROR
+            - REQUIRED_FIELD
+            - INVALID_FORMAT
+            - INVALID_VALUE
+            - NOT_FOUND
+            - ALREADY_EXISTS
+            - CONFLICT
+            - RATE_LIMITED
+            - QUOTA_EXCEEDED
+            - INTERNAL_ERROR
+            - SERVICE_UNAVAILABLE
+            - TIMEOUT
+            - DATABASE_ERROR
+            - EMBEDDING_ERROR
+            - INVALID_REPOSITORY
+            - INVALID_SESSION
+            - REPOSITORY_NOT_FOUND
+          example: "VALIDATION_ERROR"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Repository parameter is required"
+        details:
+          type: object
+          description: Additional error context (varies by error type)
+          additionalProperties: true
+        protocol:
+          type: string
+          description: Protocol that generated the error
+          enum: ["json-rpc", "http", "graphql", "websocket"]
+          example: "http"
+        trace_id:
+          type: string
+          description: Unique identifier for error tracking and debugging
+          example: "trace_1640995200123456"
+          
+    ValidationDetail:
+      type: object
+      properties:
+        field:
+          type: string
+          description: Field that failed validation
+          example: "repository"
+        reason:
+          type: string
+          description: Validation failure reason
+          example: "missing_required_field"
+        value:
+          description: Value that failed validation (optional)
+          
+    RateLimitDetail:
+      type: object
+      properties:
+        limit:
+          type: integer
+          description: Rate limit threshold
+          example: 100
+        window:
+          type: string
+          description: Rate limit time window
+          example: "1m"
+        retry_after:
+          type: integer
+          description: Seconds to wait before retrying
+          example: 60
+        remaining:
+          type: integer
+          description: Remaining requests in current window
+          example: 0
+          
+    # Legacy Error Schema (for backward compatibility)
     Error:
       type: object
       required:
@@ -892,7 +1151,7 @@ components:
       properties:
         error:
           type: string
-          description: Error type
+          description: Error type (legacy format)
         message:
           type: string
           description: Human-readable error message
@@ -902,29 +1161,226 @@ components:
 
   responses:
     BadRequest:
-      description: Bad request - invalid parameters
+      description: Bad request - validation error
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: '#/components/schemas/StandardError'
+          examples:
+            validation_error:
+              summary: Field validation error
+              value:
+                error:
+                  code: "VALIDATION_ERROR"
+                  message: "Validation failed for field 'content': field is required"
+                  details:
+                    field: "content"
+                    reason: "missing_required_field"
+                  protocol: "http"
+                  trace_id: "trace_1640995200123456"
+            required_field:
+              summary: Missing required field
+              value:
+                error:
+                  code: "REQUIRED_FIELD"
+                  message: "Required field 'repository' is missing"
+                  details:
+                    field: "repository"
+                    reason: "missing_required_field"
+                  protocol: "http"
+                  trace_id: "trace_1640995200234567"
+            invalid_format:
+              summary: Invalid field format
+              value:
+                error:
+                  code: "INVALID_FORMAT"
+                  message: "Repository must be 'global' or valid URL format"
+                  details:
+                    field: "repository"
+                    reason: "invalid_format"
+                    value: "invalid-repo"
+                  protocol: "http"
+                  trace_id: "trace_1640995200345678"
+
+    Unauthorized:
+      description: Authentication required
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardError'
+          examples:
+            missing_api_key:
+              summary: Missing API key
+              value:
+                error:
+                  code: "UNAUTHORIZED"
+                  message: "Authentication required"
+                  details:
+                    reason: "missing_api_key"
+                  protocol: "http"
+                  trace_id: "trace_1640995200456789"
+            invalid_api_key:
+              summary: Invalid API key
+              value:
+                error:
+                  code: "INVALID_API_KEY"
+                  message: "Invalid API key provided"
+                  details:
+                    reason: "key_not_found"
+                  protocol: "http"
+                  trace_id: "trace_1640995200567890"
+
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardError'
           example:
-            error: "validation_error"
-            message: "content is required"
-            details:
-              field: "content"
-              reason: "missing_required_field"
+            error:
+              code: "FORBIDDEN"
+              message: "Access denied to repository"
+              details:
+                repository: "github.com/private/repo"
+                reason: "insufficient_permissions"
+              protocol: "http"
+              trace_id: "trace_1640995200678901"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardError'
+          examples:
+            chunk_not_found:
+              summary: Chunk not found
+              value:
+                error:
+                  code: "NOT_FOUND"
+                  message: "Chunk not found"
+                  details:
+                    chunk_id: "550e8400-e29b-41d4-a716-446655440000"
+                  protocol: "http"
+                  trace_id: "trace_1640995200789012"
+            repository_not_found:
+              summary: Repository not found
+              value:
+                error:
+                  code: "REPOSITORY_NOT_FOUND"
+                  message: "Repository not found"
+                  details:
+                    repository: "github.com/nonexistent/repo"
+                  protocol: "http"
+                  trace_id: "trace_1640995200890123"
+
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardError'
+          example:
+            error:
+              code: "CONFLICT"
+              message: "Resource already exists"
+              details:
+                resource_type: "chunk"
+                existing_id: "550e8400-e29b-41d4-a716-446655440000"
+              protocol: "http"
+              trace_id: "trace_1640995200901234"
+
+    RateLimited:
+      description: Rate limit exceeded
+      headers:
+        Retry-After:
+          schema:
+            type: integer
+          description: Seconds to wait before retrying
+        X-RateLimit-Limit:
+          schema:
+            type: integer
+          description: Request limit per time window
+        X-RateLimit-Remaining:
+          schema:
+            type: integer
+          description: Remaining requests in current window
+        X-RateLimit-Reset:
+          schema:
+            type: integer
+          description: Unix timestamp when rate limit resets
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardError'
+          example:
+            error:
+              code: "RATE_LIMITED"
+              message: "Rate limit exceeded: 100 requests per 1m"
+              details:
+                limit: 100
+                window: "1m"
+                retry_after: 60
+                remaining: 0
+              protocol: "http"
+              trace_id: "trace_1640995201012345"
 
     InternalError:
       description: Internal server error
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/Error'
+            $ref: '#/components/schemas/StandardError'
+          examples:
+            general_error:
+              summary: General internal error
+              value:
+                error:
+                  code: "INTERNAL_ERROR"
+                  message: "Internal server error occurred"
+                  details:
+                    timestamp: "2024-01-15T10:30:00Z"
+                  protocol: "http"
+                  trace_id: "trace_1640995201123456"
+            database_error:
+              summary: Database error
+              value:
+                error:
+                  code: "DATABASE_ERROR"
+                  message: "Database operation failed: search operation"
+                  details:
+                    operation: "search"
+                    error: "connection timeout"
+                  protocol: "http"
+                  trace_id: "trace_1640995201234567"
+            embedding_error:
+              summary: Embedding service error
+              value:
+                error:
+                  code: "EMBEDDING_ERROR"
+                  message: "Embedding service failed: generate embeddings"
+                  details:
+                    operation: "generate_embeddings"
+                    service: "openai_embeddings"
+                    error: "API key quota exceeded"
+                  protocol: "http"
+                  trace_id: "trace_1640995201345678"
+
+    ServiceUnavailable:
+      description: Service temporarily unavailable
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/StandardError'
           example:
-            error: "internal_error"
-            message: "Failed to process request"
-            details:
-              reason: "database_connection_failed"
+            error:
+              code: "SERVICE_UNAVAILABLE"
+              message: "Service temporarily unavailable"
+              details:
+                reason: "maintenance_mode"
+                estimated_recovery: "2024-01-15T11:00:00Z"
+              protocol: "http"
+              trace_id: "trace_1640995201456789"
 
   securitySchemes:
     BearerAuth:

@@ -8,7 +8,9 @@ import (
 	"fmt"
 	"log"
 	"mcp-memory/internal/config"
+	mcpgraphql "mcp-memory/internal/graphql"
 	"mcp-memory/internal/mcp"
+	mcpwebsocket "mcp-memory/internal/websocket"
 	"net/http"
 	"os/signal"
 	"strings"
@@ -19,6 +21,8 @@ import (
 	"github.com/fredcamaral/gomcp-sdk/server"
 	"github.com/fredcamaral/gomcp-sdk/transport"
 	"github.com/gorilla/websocket"
+	"github.com/graphql-go/handler"
+	"github.com/google/uuid"
 )
 
 func main() {
@@ -97,6 +101,79 @@ func main() {
 func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string) error {
 	// Create HTTP handler that processes MCP requests
 	mux := http.NewServeMux()
+
+	// Create WebSocket hub for real-time updates
+	wsHub := mcpwebsocket.NewHub()
+	go wsHub.Run(ctx)
+
+	// Create memory server instance to access DI container
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		return fmt.Errorf("failed to load config for GraphQL: %w", err)
+	}
+
+	memoryServer, err := mcp.NewMemoryServer(cfg)
+	if err != nil {
+		return fmt.Errorf("failed to create memory server for GraphQL: %w", err)
+	}
+
+	// Initialize memory server
+	if err := memoryServer.Start(ctx); err != nil {
+		return fmt.Errorf("failed to start memory server for GraphQL: %w", err)
+	}
+
+	// Set the WebSocket hub in the memory server for broadcasting
+	memoryServer.SetWebSocketHub(wsHub)
+
+	// Create GraphQL schema using the DI container
+	container := memoryServer.GetContainer()
+	schema, err := mcpgraphql.NewSchema(container)
+	if err != nil {
+		log.Printf("Warning: Failed to create GraphQL schema: %v", err)
+		// Add a fallback GraphQL endpoint
+		mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			w.Header().Set("Content-Type", "application/json")
+			
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			
+			w.WriteHeader(http.StatusServiceUnavailable)
+			json.NewEncoder(w).Encode(map[string]string{
+				"error": "GraphQL service unavailable",
+				"message": fmt.Sprintf("Schema creation failed: %v", err),
+			})
+		})
+	} else {
+		// Create GraphQL handler with the schema
+		graphqlSchema := schema.GetSchema()
+		h := handler.New(&handler.Config{
+			Schema:     &graphqlSchema,
+			Pretty:     true,
+			GraphiQL:   true,
+			Playground: true,
+		})
+
+		// Add GraphQL endpoint with CORS
+		mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
+			// CORS headers
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+			
+			if r.Method == "OPTIONS" {
+				w.WriteHeader(http.StatusOK)
+				return
+			}
+			
+			// Delegate to GraphQL handler
+			h.ServeHTTP(w, r)
+		})
+	}
 
 	// Handle MCP-over-HTTP requests
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
@@ -214,7 +291,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		},
 	}
 
-	// WebSocket endpoint for bidirectional MCP communication
+	// WebSocket endpoint for real-time memory updates
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		// Check if it's a WebSocket upgrade request
 		if !strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") ||
@@ -229,49 +306,23 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 			log.Printf("WebSocket upgrade failed: %v", err)
 			return
 		}
-		defer func() {
-			if closeErr := conn.Close(); closeErr != nil {
-				log.Printf("Failed to close WebSocket connection: %v", closeErr)
-			}
-		}()
 
-		log.Printf("WebSocket connection established from %s", r.RemoteAddr)
+		// Get client preferences from query parameters
+		repository := r.URL.Query().Get("repository")
+		sessionID := r.URL.Query().Get("session_id")
+		
+		// Create a new client
+		clientID := uuid.New().String()
+		client := mcpwebsocket.NewClient(clientID, conn, wsHub, repository, sessionID)
 
-		// Send initial connection message
-		welcomeMsg := map[string]interface{}{
-			"type":      "connected",
-			"server":    "mcp-memory",
-			"protocol":  "websocket",
-			"timestamp": time.Now().UTC().Format(time.RFC3339),
-		}
-		if err := conn.WriteJSON(welcomeMsg); err != nil {
-			log.Printf("Failed to send welcome message: %v", err)
-			return
-		}
+		// Register client with hub
+		wsHub.RegisterClient(client)
 
-		// Handle WebSocket messages
-		for {
-			var req protocol.JSONRPCRequest
-			if err := conn.ReadJSON(&req); err != nil {
-				if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-					log.Printf("WebSocket error: %v", err)
-				}
-				break
-			}
+		// Start goroutines for reading and writing
+		go client.WritePump(ctx)
+		go client.ReadPump(ctx)
 
-			log.Printf("Received WebSocket MCP request: %s", req.Method)
-
-			// Process MCP request
-			resp := mcpServer.HandleRequest(r.Context(), &req)
-
-			// Send response back via WebSocket
-			if err := conn.WriteJSON(resp); err != nil {
-				log.Printf("Failed to send WebSocket response: %v", err)
-				break
-			}
-		}
-
-		log.Printf("WebSocket connection closed for %s", r.RemoteAddr)
+		log.Printf("WebSocket client %s connected from %s", clientID, r.RemoteAddr)
 	})
 
 	// Health check endpoint
@@ -295,6 +346,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		log.Printf("🔗 MCP endpoint: http://localhost%s/mcp", addr)
 		log.Printf("📡 SSE endpoint: http://localhost%s/sse", addr)
 		log.Printf("🔌 WebSocket endpoint: ws://localhost%s/ws", addr)
+		log.Printf("🎨 GraphQL endpoint: http://localhost%s/graphql", addr)
 		log.Printf("💚 Health check: http://localhost%s/health", addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)

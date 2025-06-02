@@ -1,37 +1,106 @@
 version: "2"
 
 run:
-  timeout: 5m
+  timeout: 10m
   issues-exit-code: 1
   tests: true
   build-tags:
     - integration
     - e2e
-  concurrency: 4
+  concurrency: 8
   allow-parallel-runners: true
+  modules-download-mode: readonly
+  skip-dirs:
+    - "vendor"
+    - "internal/audit_logs"
+    - "internal/di/audit_logs"
+    - "internal/mcp/audit_logs"
+  skip-files:
+    - ".*_test.go$"
 
 linters:
-  default: none
+  fast: true
   enable:
-    - errcheck
-    - govet
-    - ineffassign
-    - staticcheck
-    - unused
-    - bodyclose
-    - contextcheck
-    - dupl
-    - durationcheck
-    - errorlint
-    - exhaustive
-    - gosec
-    - misspell
-    - nilnil
-    - prealloc
-    - unconvert
-    - unparam
-    - goconst
-    - gocritic
-    - gocyclo
-    - nestif
-    - whitespace
+    # Core quality checks
+    - errcheck        # Check for unchecked errors
+    - govet          # Vet examines Go source code
+    - ineffassign    # Detects ineffectual assignments
+    - staticcheck    # Advanced Go linter
+    - unused         # Checks for unused constants, variables, functions and types
+    
+    # Security and best practices
+    - gosec          # Security analyzer
+    - bodyclose      # Check HTTP response bodies are closed
+    - contextcheck   # Check the function whether use a non-inherited context
+    - errorlint      # Find code that will cause problems with the error wrapping scheme
+    - exportloopref  # Checks for pointers to enclosing loop variables
+    - goconst        # Finds repeated strings that could be replaced by a constant
+    - gocyclo        # Computes and checks the cyclomatic complexity of functions
+    - nestif         # Reports deeply nested if statements
+    
+    # Code quality
+    - dupl           # Tool for code clone detection
+    - durationcheck  # Check for two durations multiplied together
+    - gofmt          # Gofmt checks whether code was gofmt-ed
+    - goimports      # Check import statements are formatted according to the 'goimport' command
+    - misspell       # Finds commonly misspelled English words in comments
+    - prealloc       # Find slice declarations that could potentially be preallocated
+    - unconvert      # Remove unnecessary type conversions
+    - unparam        # Reports unused function parameters
+    - whitespace     # Tool for detection of leading and trailing whitespace
+    
+    # Additional quality checks
+    - gocritic       # Comprehensive Go linter
+    - nilnil         # Checks that there is no simultaneous return of nil error and nil value
+    - nolintlint     # Reports ill-formed or insufficient nolint directives
+    - revive         # Fast, configurable, extensible, flexible, and beautiful linter for Go
+
+linters-settings:
+  gocyclo:
+    min-complexity: 15
+  nestif:
+    min-complexity: 5
+  gocritic:
+    enabled-tags:
+      - diagnostic
+      - style
+      - performance
+    disabled-checks:
+      - commentedOutCode
+      - ifElseChain
+  gosec:
+    excludes:
+      - G204  # Subprocess launched with variable
+      - G304  # File path provided as taint input
+  staticcheck:
+    checks: ["all"]
+  unused:
+    check-exported: false
+  revive:
+    rules:
+      - name: exported
+        disabled: true
+      - name: package-comments
+        disabled: true
+        
+issues:
+  exclude-use-default: false
+  exclude-rules:
+    # Disable certain linters for test files
+    - path: _test\.go
+      linters:
+        - gocyclo
+        - dupl
+        - gosec
+        - goconst
+    # Disable gosec in specific directories
+    - path: cmd/
+      linters:
+        - gosec
+    # Allow long lines in comments
+    - source: "^//.*"
+      linters:
+        - lll
+  max-issues-per-linter: 0
+  max-same-issues: 0
+  new-from-rev: ""

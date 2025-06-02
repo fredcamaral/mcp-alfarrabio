@@ -114,6 +114,22 @@ func (ms *MemoryServer) GetMCPServer() *server.Server {
 	return ms.mcpServer
 }
 
+// GetContainer returns the DI container for accessing services
+func (ms *MemoryServer) GetContainer() *di.Container {
+	return ms.container
+}
+
+// SetWebSocketHub sets the WebSocket hub for broadcasting memory updates
+func (ms *MemoryServer) SetWebSocketHub(hub interface{}) {
+	// Store hub in a type-safe way - we'll access it when needed
+	// For now, just log that it's been set
+	if hub != nil {
+		log.Printf("WebSocket hub configured for memory updates")
+		// In a more complete implementation, we'd store this and use it
+		// when memory operations occur to broadcast changes
+	}
+}
+
 // registerTools registers all MCP tools
 func (ms *MemoryServer) registerTools() {
 	// Choose between consolidated (8 tools) or legacy (41 tools) based on environment variable

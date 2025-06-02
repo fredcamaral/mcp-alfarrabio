@@ -208,7 +208,7 @@ export const {
 export default memoriesSlice.reducer
 
 // Selectors
-export const selectAllMemories = (state: { memories: MemoriesState }) => state.memories.memories
+export const selectMemories = (state: { memories: MemoriesState }) => state.memories.memories
 export const selectSelectedMemory = (state: { memories: MemoriesState }) => state.memories.selectedMemory
 export const selectSelectedMemoryId = (state: { memories: MemoriesState }) => state.memories.selectedMemoryId
 export const selectSearchResults = (state: { memories: MemoriesState }) => state.memories.searchResults

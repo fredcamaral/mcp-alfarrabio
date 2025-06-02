@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useAppSelector, useAppDispatch } from '@/store/store'
 import { 
-  selectAllMemories, 
+  selectMemories, 
   selectSelectedMemoryIds,
   selectMemoriesLoading,
   selectViewMode,
@@ -27,7 +27,7 @@ import {
 import {
   List,
   Grid3X3,
-  Timeline,
+  Clock as Timeline,
   MoreHorizontal,
   Eye,
   Link,
@@ -44,7 +44,7 @@ interface MemoryListProps {
 
 export function MemoryList({ className }: MemoryListProps) {
   const dispatch = useAppDispatch()
-  const memories = useAppSelector(selectAllMemories)
+  const memories = useAppSelector(selectMemories)
   const selectedIds = useAppSelector(selectSelectedMemoryIds)
   const isLoading = useAppSelector(selectMemoriesLoading)
   const viewMode = useAppSelector(selectViewMode)
@@ -116,13 +116,13 @@ export function MemoryList({ className }: MemoryListProps) {
                   </span>
                   <Badge 
                     variant="outline" 
-                    className={cn("text-xs", getConfidenceColor(memory.confidence || 0))}
+                    className={cn("text-xs", getConfidenceColor(memory.metadata.confidence?.score || 0))}
                   >
                     {memory.type.replace('_', ' ')}
                   </Badge>
-                  {memory.confidence && (
+                  {memory.metadata.confidence && (
                     <Badge variant="secondary" className="text-xs">
-                      {formatConfidence(memory.confidence)}
+                      {formatConfidence(memory.metadata.confidence.score)}
                     </Badge>
                   )}
                 </div>
@@ -137,10 +137,10 @@ export function MemoryList({ className }: MemoryListProps) {
                     <span>{formatDate(memory.timestamp)}</span>
                   </div>
                   
-                  {memory.repository && (
+                  {memory.metadata.repository && (
                     <div className="flex items-center space-x-1">
                       <GitBranch className="h-3 w-3" />
-                      <span>{memory.repository}</span>
+                      <span>{memory.metadata.repository}</span>
                     </div>
                   )}
                   
@@ -188,16 +188,16 @@ export function MemoryList({ className }: MemoryListProps) {
         </CardHeader>
         
         <CardContent className="pt-0">
-          {memory.tags && memory.tags.length > 0 && (
+          {memory.metadata.tags && memory.metadata.tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mb-3">
-              {memory.tags.slice(0, 3).map((tag) => (
+              {memory.metadata.tags.slice(0, 3).map((tag) => (
                 <Badge key={tag} variant="secondary" className="text-xs">
                   {tag}
                 </Badge>
               ))}
-              {memory.tags.length > 3 && (
+              {memory.metadata.tags.length > 3 && (
                 <Badge variant="secondary" className="text-xs">
-                  +{memory.tags.length - 3} more
+                  +{memory.metadata.tags.length - 3} more
                 </Badge>
               )}
             </div>

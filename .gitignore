@@ -71,3 +71,12 @@ CLAUDE.md
 
 # External documentation copies
 docs/tmp/
+
+# Next.js build artifacts
+web-ui/.next/
+web-ui/out/
+web-ui/.env.local
+web-ui/.env.*.local
+web-ui/node_modules/
+web-ui/.package-lock.json
+web-ui/package-lock.json
