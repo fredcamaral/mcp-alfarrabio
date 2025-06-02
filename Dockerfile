@@ -74,9 +74,6 @@ COPY --chown=mcpuser:mcpuser configs/docker/ /app/config/
 # Copy MCP proxy for stdio <> HTTP bridging
 COPY --chown=mcpuser:mcpuser mcp-proxy.js /app/
 
-# Copy documentation for get_documentation tool
-COPY --chown=mcpuser:mcpuser docs/ /app/docs/
-
 # Switch to non-root user
 USER mcpuser
 

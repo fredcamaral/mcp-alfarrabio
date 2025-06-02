@@ -38,9 +38,6 @@ COPY --chown=mcpuser:mcpuser configs/dev/ /app/config/
 COPY --chown=mcpuser:mcpuser .air.toml /app/
 COPY --chown=mcpuser:mcpuser mcp-proxy.js /app/
 
-# Copy documentation for get_documentation tool (same as production)
-COPY --chown=mcpuser:mcpuser docs/ /app/docs/
-
 # Switch to non-root user
 USER mcpuser
 
