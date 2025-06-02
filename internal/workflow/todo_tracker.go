@@ -40,7 +40,7 @@ type TodoSession struct {
 
 // TodoTracker monitors and analyzes todo-driven workflows
 type TodoTracker struct {
-	activeSessions map[string]*TodoSession
+	activeSessions map[string]*TodoSession // key format: "repository::sessionID"
 	completedWork  []types.ConversationChunk
 }
 
@@ -50,6 +50,14 @@ func NewTodoTracker() *TodoTracker {
 		activeSessions: make(map[string]*TodoSession),
 		completedWork:  make([]types.ConversationChunk, 0),
 	}
+}
+
+// createSessionKey creates a composite key for multi-tenant session isolation
+func (tt *TodoTracker) createSessionKey(repository, sessionID string) string {
+	if repository == "" {
+		repository = "unknown"
+	}
+	return repository + "::" + sessionID
 }
 
 // ProcessTodoWrite handles a TodoWrite operation from Claude
@@ -81,8 +89,9 @@ func (tt *TodoTracker) ProcessTodoWrite(ctx context.Context, sessionID, reposito
 }
 
 // ProcessToolUsage tracks tool usage during todo work
-func (tt *TodoTracker) ProcessToolUsage(sessionID string, toolName string, context map[string]interface{}) {
-	if session, exists := tt.activeSessions[sessionID]; exists {
+func (tt *TodoTracker) ProcessToolUsage(sessionID, repository, toolName string, context map[string]interface{}) {
+	key := tt.createSessionKey(repository, sessionID)
+	if session, exists := tt.activeSessions[key]; exists {
 		// Add tool to used tools list
 		for _, used := range session.ToolsUsed {
 			if used == toolName {
@@ -189,7 +198,8 @@ func (tt *TodoTracker) GetOrCreateSession(sessionID, repository string) *TodoSes
 
 // getOrCreateSession retrieves or creates a new todo session
 func (tt *TodoTracker) getOrCreateSession(sessionID, repository string) *TodoSession {
-	if session, exists := tt.activeSessions[sessionID]; exists {
+	key := tt.createSessionKey(repository, sessionID)
+	if session, exists := tt.activeSessions[key]; exists {
 		return session
 	}
 
@@ -204,7 +214,7 @@ func (tt *TodoTracker) getOrCreateSession(sessionID, repository string) *TodoSes
 		Status:       types.OutcomeInProgress,
 	}
 
-	tt.activeSessions[sessionID] = session
+	tt.activeSessions[key] = session
 	return session
 }
 
@@ -333,15 +343,17 @@ func (tt *TodoTracker) GetCompletedWork() []types.ConversationChunk {
 	return tt.completedWork
 }
 
-// GetActiveSession returns the current session if it exists
-func (tt *TodoTracker) GetActiveSession(sessionID string) (*TodoSession, bool) {
-	session, exists := tt.activeSessions[sessionID]
+// GetActiveSession returns the current session if it exists (requires repository for multi-tenant isolation)
+func (tt *TodoTracker) GetActiveSession(sessionID, repository string) (*TodoSession, bool) {
+	key := tt.createSessionKey(repository, sessionID)
+	session, exists := tt.activeSessions[key]
 	return session, exists
 }
 
 // EndSession marks a session as complete
-func (tt *TodoTracker) EndSession(sessionID string, outcome types.Outcome) {
-	if session, exists := tt.activeSessions[sessionID]; exists {
+func (tt *TodoTracker) EndSession(sessionID, repository string, outcome types.Outcome) {
+	key := tt.createSessionKey(repository, sessionID)
+	if session, exists := tt.activeSessions[key]; exists {
 		now := time.Now()
 		session.EndTime = &now
 		session.Status = outcome
@@ -353,7 +365,7 @@ func (tt *TodoTracker) EndSession(sessionID string, outcome types.Outcome) {
 		}
 
 		// Remove from active sessions
-		delete(tt.activeSessions, sessionID)
+		delete(tt.activeSessions, key)
 	}
 }
 
@@ -418,6 +430,17 @@ func (tt *TodoTracker) buildSessionSummaryContent(session *TodoSession) string {
 // GetActiveSessions returns all active sessions
 func (tt *TodoTracker) GetActiveSessions() map[string]*TodoSession {
 	return tt.activeSessions
+}
+
+// GetActiveSessionsByRepository returns active sessions filtered by repository
+func (tt *TodoTracker) GetActiveSessionsByRepository(repository string) map[string]*TodoSession {
+	filteredSessions := make(map[string]*TodoSession)
+	for key, session := range tt.activeSessions {
+		if session.Repository == repository {
+			filteredSessions[key] = session
+		}
+	}
+	return filteredSessions
 }
 
 // assessSessionDifficulty assesses overall session difficulty

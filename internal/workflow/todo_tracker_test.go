@@ -40,7 +40,7 @@ func TestTodoTracker_ProcessTodoWrite(t *testing.T) {
 		err := tracker.ProcessTodoWrite(ctx, sessionID, repository, todos)
 		require.NoError(t, err)
 
-		session, exists := tracker.GetActiveSession(sessionID)
+		session, exists := tracker.GetActiveSession(sessionID, repository)
 		assert.True(t, exists)
 		assert.Equal(t, sessionID, session.SessionID)
 		assert.Equal(t, repository, session.Repository)
@@ -88,31 +88,31 @@ func TestTodoTracker_ProcessToolUsage(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("tracks tool usage", func(t *testing.T) {
-		tracker.ProcessToolUsage(sessionID, "Bash", map[string]interface{}{
+		tracker.ProcessToolUsage(sessionID, repository, "Bash", map[string]interface{}{
 			"command": "ls -la",
 		})
 
-		session, exists := tracker.GetActiveSession(sessionID)
+		session, exists := tracker.GetActiveSession(sessionID, repository)
 		require.True(t, exists)
 		assert.Contains(t, session.ToolsUsed, "Bash")
 	})
 
 	t.Run("extracts file information", func(t *testing.T) {
-		tracker.ProcessToolUsage(sessionID, "Edit", map[string]interface{}{
+		tracker.ProcessToolUsage(sessionID, repository, "Edit", map[string]interface{}{
 			"file_path": "/path/to/file.go",
 		})
 
-		session, exists := tracker.GetActiveSession(sessionID)
+		session, exists := tracker.GetActiveSession(sessionID, repository)
 		require.True(t, exists)
 		assert.Contains(t, session.FilesChanged, "/path/to/file.go")
 	})
 
 	t.Run("ignores non-existent session", func(t *testing.T) {
 		// Should not panic
-		tracker.ProcessToolUsage("non-existent", "Read", map[string]interface{}{})
+		tracker.ProcessToolUsage("non-existent", testRepo, "Read", map[string]interface{}{})
 
 		// Session should not be created
-		_, exists := tracker.GetActiveSession("non-existent")
+		_, exists := tracker.GetActiveSession("non-existent", testRepo)
 		assert.False(t, exists)
 	})
 }
@@ -234,15 +234,15 @@ func TestTodoTracker_EndSession(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add some tool usage
-	tracker.ProcessToolUsage(sessionID, "Edit", map[string]interface{}{
+	tracker.ProcessToolUsage(sessionID, repository, "Edit", map[string]interface{}{
 		"file_path": "test.go",
 	})
 
 	// End session successfully
-	tracker.EndSession(sessionID, types.OutcomeSuccess)
+	tracker.EndSession(sessionID, repository, types.OutcomeSuccess)
 
 	// Session should be removed from active
-	_, exists := tracker.GetActiveSession(sessionID)
+	_, exists := tracker.GetActiveSession(sessionID, repository)
 	assert.False(t, exists)
 
 	// Should have created session summary

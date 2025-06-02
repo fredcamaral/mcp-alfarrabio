@@ -277,15 +277,17 @@ Add to your Continue configuration:
 
 ### 🛠️ Available Memory Tools
 
-Once configured, your AI gets 41 powerful memory tools:
+Once configured, your AI gets 9 powerful consolidated memory tools:
 
-- `memory_store_chunk` - Save important conversations
-- `memory_search` - Find similar past contexts  
-- `memory_get_context` - Get project overview
-- `memory_get_patterns` - Identify recurring themes
-- `memory_health_dashboard` - System monitoring
-- `memory_decay_management` - Smart archiving
-- ...and many more!
+- `memory_create` - Store conversations, decisions, and create memory structures
+- `memory_read` - Search, find patterns, and retrieve context across projects  
+- `memory_update` - Refresh memories and manage relationships
+- `memory_delete` - Remove outdated or bulk delete memories
+- `memory_intelligence` - AI-powered insights and pattern suggestions
+- `memory_transfer` - Export/import contexts across projects
+- `memory_tasks` - Track workflows and todo management
+- `memory_analyze` - Cross-repo patterns and health monitoring
+- `memory_system` - Health checks and system documentation
 
 ---
 

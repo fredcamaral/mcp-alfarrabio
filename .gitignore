@@ -47,16 +47,27 @@ Thumbs.db
 # Logs
 *.log
 
-# Audit logs
-internal/mcp/audit_logs/
+# Audit logs (all development audit logs)
+**/audit_logs/
 audit_logs/
 
 # Local development
 /dist/
 /tmp/
 
-# AI
+# AI development artifacts
 tmp/
 *.tmp
 .claude/
 CLAUDE.md
+
+# Development backup files
+*.bak
+*.backup
+*.bak2
+
+# Marketing prototypes (should be in separate repo)
+/lp/
+
+# External documentation copies
+docs/tmp/

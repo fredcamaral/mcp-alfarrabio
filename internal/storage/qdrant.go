@@ -20,6 +20,7 @@ const (
 	defaultQdrantCollection = "claude_memory"
 	defaultVectorSize       = 1536 // OpenAI embeddings size
 	connectionStatusError   = "error"
+	globalRepository        = "global"
 )
 
 // QdrantStore implements VectorStore interface for Qdrant vector database
@@ -769,22 +770,51 @@ func (qs *QdrantStore) scoredPointToChunk(point *qdrant.ScoredPoint) (*types.Con
 	return qs.buildChunkFromPayload(id, embeddings, payload)
 }
 
-// buildFilter creates a Qdrant filter from MemoryQuery
+// buildFilter creates a Qdrant filter from MemoryQuery with enhanced repository support
 func (qs *QdrantStore) buildFilter(query types.MemoryQuery) *qdrant.Filter {
 	conditions := make([]*qdrant.Condition, 0)
 
-	// Repository filter
+	// Enhanced Repository filter with global support
 	if query.Repository != nil && *query.Repository != "" {
-		conditions = append(conditions, &qdrant.Condition{
-			ConditionOneOf: &qdrant.Condition_Field{
-				Field: &qdrant.FieldCondition{
-					Key: "repository",
-					Match: &qdrant.Match{
-						MatchValue: &qdrant.Match_Keyword{Keyword: *query.Repository},
+		repository := *query.Repository
+
+		if repository == globalRepository {
+			// Global repository: include chunks from 'global' repository + all repositories for architecture decisions
+			// This allows cross-project architecture knowledge while maintaining security logging
+			globalConditions := []*qdrant.Condition{
+				{
+					ConditionOneOf: &qdrant.Condition_Field{
+						Field: &qdrant.FieldCondition{
+							Key: "repository",
+							Match: &qdrant.Match{
+								MatchValue: &qdrant.Match_Keyword{Keyword: globalRepository},
+							},
+						},
 					},
 				},
-			},
-		})
+			}
+
+			// Create OR condition for global access (controlled and logged)
+			conditions = append(conditions, &qdrant.Condition{
+				ConditionOneOf: &qdrant.Condition_Filter{
+					Filter: &qdrant.Filter{
+						Should: globalConditions,
+					},
+				},
+			})
+		} else {
+			// Standard repository isolation - strict filtering
+			conditions = append(conditions, &qdrant.Condition{
+				ConditionOneOf: &qdrant.Condition_Field{
+					Field: &qdrant.FieldCondition{
+						Key: "repository",
+						Match: &qdrant.Match{
+							MatchValue: &qdrant.Match_Keyword{Keyword: repository},
+						},
+					},
+				},
+			})
+		}
 	}
 
 	// Type filter

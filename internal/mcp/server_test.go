@@ -152,7 +152,7 @@ func TestMemoryServer_HandleStoreChunk_InvalidInput(t *testing.T) {
 	})
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "content is required")
+	assert.Contains(t, err.Error(), "content parameter is required")
 
 	// Test with missing session_id
 	result, err = server.handleStoreChunk(ctx, map[string]interface{}{
@@ -160,7 +160,7 @@ func TestMemoryServer_HandleStoreChunk_InvalidInput(t *testing.T) {
 	})
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "session_id is required")
+	assert.Contains(t, err.Error(), "session_id parameter is required")
 }
 
 func TestMemoryServer_HandleSearch_InvalidInput(t *testing.T) {
@@ -192,5 +192,5 @@ func TestMemoryServer_HandleSearch_InvalidInput(t *testing.T) {
 	result, err := server.handleSearch(ctx, map[string]interface{}{})
 	assert.Error(t, err)
 	assert.Nil(t, result)
-	assert.Contains(t, err.Error(), "query is required")
+	assert.Contains(t, err.Error(), "query parameter is required")
 }

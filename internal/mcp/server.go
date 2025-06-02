@@ -30,6 +30,7 @@ import (
 	mcp "github.com/fredcamaral/gomcp-sdk"
 	"github.com/fredcamaral/gomcp-sdk/protocol"
 	"github.com/fredcamaral/gomcp-sdk/server"
+	"github.com/google/uuid"
 )
 
 // String constants for repeated values
@@ -1330,13 +1331,13 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 	content, ok := params["content"].(string)
 	if !ok || content == "" {
 		logging.Error("memory_store_chunk failed: missing content parameter")
-		return nil, fmt.Errorf("content is required")
+		return nil, fmt.Errorf("content parameter is required and must be non-empty string. Example: {\"content\": \"Fixed authentication bug by updating JWT validation\", \"session_id\": \"auth-fix-session\"}")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_store_chunk failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, fmt.Errorf("session_id parameter is required and must be non-empty string. Use descriptive session IDs. Example: {\"session_id\": \"bug-fix-2024\", \"content\": \"Solution details\"}")
 	}
 
 	// Validate and normalize session ID for proper isolation
@@ -1347,16 +1348,20 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 	// Build metadata from parameters
 	metadata := ms.buildMetadataFromParams(params)
 
+	// Create repository-scoped session ID for multi-tenant isolation
+	repositoryScopedSessionID := ms.createRepositoryScopedSessionID(metadata.Repository, sessionID)
+	logging.Info("Created repository-scoped session", "original_session", sessionID, "scoped_session", repositoryScopedSessionID, "repository", metadata.Repository)
+
 	// Add extended metadata with context detection
 	if err := ms.addContextMetadata(&metadata, params); err != nil {
 		logging.Warn("Failed to add context metadata", "error", err)
 	}
 
-	// Create and store chunk
-	logging.Info("Creating conversation chunk", "session_id", sessionID)
-	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, sessionID, content, metadata)
+	// Create and store chunk with repository-scoped session ID
+	logging.Info("Creating conversation chunk", "session_id", repositoryScopedSessionID)
+	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, repositoryScopedSessionID, content, metadata)
 	if err != nil {
-		logging.Error("Failed to create chunk", "error", err, "session_id", sessionID)
+		logging.Error("Failed to create chunk", "error", err, "session_id", repositoryScopedSessionID)
 		return nil, fmt.Errorf("failed to create chunk: %w", err)
 	}
 	logging.Info("Chunk created successfully", "chunk_id", chunk.ID, "type", chunk.Type)
@@ -1450,7 +1455,7 @@ func (ms *MemoryServer) handleSearch(ctx context.Context, params map[string]inte
 	query, ok := params["query"].(string)
 	if !ok || query == "" {
 		logging.Error("memory_search failed: missing query parameter")
-		return nil, fmt.Errorf("query is required")
+		return nil, fmt.Errorf("query parameter is required and must be non-empty string. Use specific search terms. Example: {\"query\": \"authentication bug fix\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	logging.Info("Processing search query", "query", query)
@@ -1708,7 +1713,7 @@ func (ms *MemoryServer) handleGetContext(ctx context.Context, params map[string]
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_get_context failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, fmt.Errorf("repository parameter is required and must be non-empty string. Use full repository URLs. Example: {\"repository\": \"github.com/user/project\", \"recent_days\": 7}")
 	}
 
 	recentDays := 7
@@ -2199,8 +2204,12 @@ func (ms *MemoryServer) handleStoreDecision(ctx context.Context, params map[stri
 		metadata.ExtendedMetadata["rationale_text"] = rationale
 	}
 
-	// Create and store chunk
-	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, sessionID, content, metadata)
+	// Create repository-scoped session ID for multi-tenant isolation
+	repositoryScopedSessionID := ms.createRepositoryScopedSessionID(metadata.Repository, sessionID)
+	logging.Info("Created repository-scoped session for decision", "original_session", sessionID, "scoped_session", repositoryScopedSessionID, "repository", metadata.Repository)
+
+	// Create and store chunk with repository-scoped session ID
+	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, repositoryScopedSessionID, content, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create decision chunk: %w", err)
 	}
@@ -2386,7 +2395,7 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]p
 		resultJSON, _ := json.Marshal(result)
 		return []protocol.Content{protocol.NewContent(string(resultJSON))}, nil
 
-	case "global":
+	case GlobalRepository:
 		if len(parts) < 4 || parts[3] != "insights" {
 			return nil, fmt.Errorf("invalid global resource")
 		}
@@ -3277,9 +3286,16 @@ func (ms *MemoryServer) handleImportContext(ctx context.Context, params map[stri
 		return nil, fmt.Errorf("unsupported source type: %s", source)
 	}
 
-	// Store imported chunks
+	// Create repository-scoped session ID for imported chunks
+	repositoryScopedSessionID := ms.createRepositoryScopedSessionID(repository, sessionID)
+	logging.Info("Created repository-scoped session for import", "original_session", sessionID, "scoped_session", repositoryScopedSessionID, "repository", repository)
+
+	// Store imported chunks with repository-scoped session ID
 	storedCount := 0
 	for _, chunk := range importedChunks {
+		// Set repository-scoped session ID for multi-tenant isolation
+		chunk.SessionID = repositoryScopedSessionID
+
 		// Generate embedding for the chunk
 		embedding, err := ms.container.GetEmbeddingService().GenerateEmbedding(ctx, chunk.Content)
 		if err != nil {
@@ -4656,8 +4672,12 @@ func (ms *MemoryServer) handleMemoryContinuity(ctx context.Context, params map[s
 	var targetChunks []types.ConversationChunk
 
 	if sessionID != "" {
-		targetChunks = ms.filterChunksBySession(chunks, sessionID)
+		// Create repository-scoped session ID for filtering
+		repositoryScopedSessionID := ms.createRepositoryScopedSessionID(repository, sessionID)
+		logging.Info("Filtering by repository-scoped session", "original_session", sessionID, "scoped_session", repositoryScopedSessionID, "repository", repository)
+		targetChunks = ms.filterChunksBySession(chunks, repositoryScopedSessionID)
 	} else if len(chunks) > 0 {
+		// findMostRecentSessionID now returns repository-scoped session ID
 		sessionID = ms.findMostRecentSessionID(chunks)
 		targetChunks = ms.filterChunksBySession(chunks, sessionID)
 	}
@@ -5483,7 +5503,16 @@ func (ms *MemoryServer) handleGetThreads(ctx context.Context, params map[string]
 	}
 
 	if sessionID, ok := params["session_id"].(string); ok && sessionID != "" {
-		filters.SessionID = &sessionID
+		// Create repository-scoped session ID if repository is specified
+		if filters.Repository != nil {
+			repositoryScopedSessionID := ms.createRepositoryScopedSessionID(*filters.Repository, sessionID)
+			logging.Info("Using repository-scoped session for thread filtering", "original_session", sessionID, "scoped_session", repositoryScopedSessionID, "repository", *filters.Repository)
+			filters.SessionID = &repositoryScopedSessionID
+		} else {
+			// If no repository filter, use the sessionID as-is (less secure but backwards compatible)
+			logging.Warn("Thread filtering by sessionID without repository filter - potential cross-tenant access", "session_id", sessionID)
+			filters.SessionID = &sessionID
+		}
 	}
 
 	includeSummary := false
@@ -6636,7 +6665,7 @@ func (ms *MemoryServer) getChunkByID(ctx context.Context, chunkID string) (*type
 	if err != nil {
 		return nil, fmt.Errorf("chunk not found: %s - %w", chunkID, err)
 	}
-	
+
 	return chunk, nil
 }
 
@@ -7077,33 +7106,48 @@ func (ms *MemoryServer) searchRelatedRepositories(ctx context.Context, relaxedQu
 	return nil, fmt.Errorf("no results found in related repositories")
 }
 
-// filterChunksBySession filters chunks by the given session ID
+// filterChunksBySession filters chunks by the given session ID (supports both regular and composite session IDs)
 func (ms *MemoryServer) filterChunksBySession(chunks []types.ConversationChunk, sessionID string) []types.ConversationChunk {
 	var filtered []types.ConversationChunk
 	for _, chunk := range chunks {
+		// Support both direct match and repository-scoped matching
 		if chunk.SessionID == sessionID {
 			filtered = append(filtered, chunk)
+		} else if strings.Contains(sessionID, "::") {
+			// For composite sessionID, also check if chunk's sessionID matches the session part
+			expectedSession := ms.extractSessionFromComposite(sessionID)
+			expectedRepo := ms.extractRepositoryFromComposite(sessionID)
+			if chunk.SessionID == expectedSession && chunk.Metadata.Repository == expectedRepo {
+				filtered = append(filtered, chunk)
+			}
 		}
 	}
 	return filtered
 }
 
 // findMostRecentSessionID finds the session ID with the most recent timestamp
+// Returns repository-scoped session ID when chunks have repository information
 func (ms *MemoryServer) findMostRecentSessionID(chunks []types.ConversationChunk) string {
 	if len(chunks) == 0 {
 		return ""
 	}
 
 	latestSessionID := chunks[0].SessionID
+	latestRepository := chunks[0].Metadata.Repository
 	latestTime := chunks[0].Timestamp
 
 	for _, chunk := range chunks {
 		if chunk.Timestamp.After(latestTime) {
 			latestTime = chunk.Timestamp
 			latestSessionID = chunk.SessionID
+			latestRepository = chunk.Metadata.Repository
 		}
 	}
 
+	// Return repository-scoped session ID for better isolation
+	if latestRepository != "" {
+		return ms.createRepositoryScopedSessionID(latestRepository, latestSessionID)
+	}
 	return latestSessionID
 }
 
@@ -7195,16 +7239,43 @@ func (ms *MemoryServer) storeCleanupResult(ctx context.Context, content string) 
 	}
 }
 
+// createRepositoryScopedSessionID creates a composite session key for multi-tenant isolation
+func (ms *MemoryServer) createRepositoryScopedSessionID(repository, sessionID string) string {
+	if repository == "" {
+		repository = "unknown"
+	}
+	// Use the same pattern as TodoTracker for consistency
+	return repository + "::" + sessionID
+}
+
+// extractSessionFromComposite extracts the original sessionID from a composite key
+func (ms *MemoryServer) extractSessionFromComposite(compositeSessionID string) string {
+	parts := strings.Split(compositeSessionID, "::")
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+	return compositeSessionID // Return as-is if not composite
+}
+
+// extractRepositoryFromComposite extracts the repository from a composite key
+func (ms *MemoryServer) extractRepositoryFromComposite(compositeSessionID string) string {
+	parts := strings.Split(compositeSessionID, "::")
+	if len(parts) >= 2 {
+		return parts[0]
+	}
+	return "unknown" // Default for non-composite keys
+}
+
 // validateAndNormalizeSessionID ensures proper session isolation and prevents cross-contamination
 func (ms *MemoryServer) validateAndNormalizeSessionID(sessionID string) string {
 	// Remove any whitespace and normalize
 	sessionID = strings.TrimSpace(sessionID)
 
-	// Validate session ID format (alphanumeric, hyphens, underscores only)
-	validSessionPattern := regexp.MustCompile(`^[a-zA-Z0-9_-]+$`)
+	// Validate session ID format (alphanumeric, hyphens, underscores, colons for composite keys)
+	validSessionPattern := regexp.MustCompile(`^[a-zA-Z0-9_:-]+$`)
 	if !validSessionPattern.MatchString(sessionID) {
 		// Generate a safe session ID if invalid
-		safeID := regexp.MustCompile(`[^a-zA-Z0-9_-]`).ReplaceAllString(sessionID, "_")
+		safeID := regexp.MustCompile(`[^a-zA-Z0-9_:-]`).ReplaceAllString(sessionID, "_")
 		if safeID == "" {
 			safeID = fmt.Sprintf("session_%d", time.Now().Unix())
 		}
@@ -7212,17 +7283,25 @@ func (ms *MemoryServer) validateAndNormalizeSessionID(sessionID string) string {
 		return safeID
 	}
 
-	// Ensure session ID is not too long (max 100 chars for database compatibility)
-	if len(sessionID) > 100 {
-		sessionID = sessionID[:100]
-		logging.Warn("Session ID truncated to 100 characters", "session_id", sessionID)
+	// Ensure session ID is not too long (max 200 chars for composite keys)
+	if len(sessionID) > 200 {
+		sessionID = sessionID[:200]
+		logging.Warn("Session ID truncated to 200 characters", "session_id", sessionID)
 	}
 
 	// Add timestamp suffix if session seems too generic (helps with isolation)
+	originalSessionID := ms.extractSessionFromComposite(sessionID)
 	genericSessions := []string{"session", "test", "demo", "example", VALUE_DEFAULT}
 	for _, generic := range genericSessions {
-		if strings.ToLower(sessionID) == generic {
-			sessionID = fmt.Sprintf("%s_%d", sessionID, time.Now().Unix())
+		if strings.ToLower(originalSessionID) == generic {
+			// For composite keys, rebuild with timestamped session part
+			if strings.Contains(sessionID, "::") {
+				repository := ms.extractRepositoryFromComposite(sessionID)
+				timestampedSession := fmt.Sprintf("%s_%d", originalSessionID, time.Now().Unix())
+				sessionID = ms.createRepositoryScopedSessionID(repository, timestampedSession)
+			} else {
+				sessionID = fmt.Sprintf("%s_%d", sessionID, time.Now().Unix())
+			}
 			logging.Info("Added timestamp to generic session ID", "session_id", sessionID)
 			break
 		}
@@ -7272,6 +7351,12 @@ func (ms *MemoryServer) handleMarkRefreshed(ctx context.Context, params map[stri
 	if !ok || chunkID == "" {
 		logging.Error("memory_mark_refreshed failed: missing chunk_id parameter")
 		return nil, fmt.Errorf("chunk_id parameter is required")
+	}
+
+	// Validate UUID format
+	if _, err := uuid.Parse(chunkID); err != nil {
+		logging.Error("memory_mark_refreshed failed: invalid chunk_id format", "chunk_id", chunkID, "error", err)
+		return nil, fmt.Errorf("invalid chunk_id format: expected UUID, got '%s'. Note: chunk IDs are UUIDs, not todo IDs", chunkID)
 	}
 
 	validationNotes := ""
@@ -8154,6 +8239,272 @@ func (ms *MemoryServer) handleBulkExport(ctx context.Context, params map[string]
 
 	logging.Info("memory_bulk_export completed successfully", "exported_items", result.ExportedItems)
 	return ms.buildExportResponse(result), nil
+}
+
+// handleSecureBulkDelete securely deletes multiple memories with repository validation
+func (ms *MemoryServer) handleSecureBulkDelete(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_secure_bulk_delete called", "params", params, "repository", repository)
+
+	// Parse IDs to delete
+	idsInterface, ok := params["ids"]
+	if !ok {
+		return nil, fmt.Errorf("ids parameter is required for bulk delete. Example: {\"ids\": [\"chunk-id-1\", \"chunk-id-2\"], \"repository\": \"github.com/user/repo\"}")
+	}
+
+	idsSlice, ok := idsInterface.([]interface{})
+	if !ok {
+		return nil, fmt.Errorf("ids parameter must be an array of strings. Example: {\"ids\": [\"chunk-id-1\", \"chunk-id-2\"], \"repository\": \"github.com/user/repo\"}")
+	}
+
+	if len(idsSlice) == 0 {
+		return map[string]interface{}{
+			"status":         "success",
+			"deleted_count":  0,
+			"verified_count": 0,
+			"rejected_count": 0,
+			"message":        "No IDs provided for deletion",
+		}, nil
+	}
+
+	// Convert to string slice and validate ownership
+	validIds := []string{}
+	rejectedIds := []string{}
+
+	vectorStore := ms.container.GetVectorStore()
+
+	for _, idInterface := range idsSlice {
+		id, ok := idInterface.(string)
+		if !ok {
+			rejectedIds = append(rejectedIds, fmt.Sprintf("invalid_id_%v", idInterface))
+			continue
+		}
+
+		// SECURITY: Verify chunk belongs to the specified repository before deletion
+		chunk, err := vectorStore.GetByID(ctx, id)
+		if err != nil {
+			logging.Warn("Chunk not found during secure delete validation", "id", id, "error", err)
+			rejectedIds = append(rejectedIds, id)
+			continue
+		}
+
+		// Verify repository ownership - CRITICAL SECURITY CHECK
+		if chunk.Metadata.Repository != repository {
+			logging.Warn("SECURITY: Attempted cross-repository deletion blocked",
+				"chunk_id", id,
+				"chunk_repository", chunk.Metadata.Repository,
+				"requested_repository", repository)
+			rejectedIds = append(rejectedIds, id)
+			continue
+		}
+
+		validIds = append(validIds, id)
+	}
+
+	// Only delete chunks that belong to the specified repository
+	deletedCount := 0
+	for _, id := range validIds {
+		err := vectorStore.Delete(ctx, id)
+		if err != nil {
+			logging.Error("Failed to delete chunk", "id", id, "error", err)
+			rejectedIds = append(rejectedIds, id)
+		} else {
+			deletedCount++
+		}
+	}
+
+	result := map[string]interface{}{
+		"status":          "success",
+		"repository":      repository,
+		"total_requested": len(idsSlice),
+		"verified_count":  len(validIds),
+		"deleted_count":   deletedCount,
+		"rejected_count":  len(rejectedIds),
+	}
+
+	if len(rejectedIds) > 0 {
+		result["rejected_ids"] = rejectedIds
+		result["security_note"] = "Some deletions were rejected due to repository ownership validation"
+	}
+
+	logging.Info("Secure bulk delete completed",
+		"repository", repository,
+		"deleted", deletedCount,
+		"rejected", len(rejectedIds),
+		"total", len(idsSlice))
+
+	return result, nil
+}
+
+// handleSecureSearch performs repository-scoped search without progressive fallback
+func (ms *MemoryServer) handleSecureSearch(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_secure_search called", "params", params, "repository", repository)
+
+	// Parse search query
+	query, ok := params["query"].(string)
+	if !ok || query == "" {
+		return nil, fmt.Errorf("query parameter is required for search. Example: {\"query\": \"authentication bug fix\", \"repository\": \"github.com/user/repo\"}")
+	}
+
+	// Create memory query with strict repository isolation
+	memQuery := types.MemoryQuery{
+		Query: query,
+		Limit: 10, // Default limit
+	}
+
+	// SECURITY: Always enforce repository isolation (no fallback)
+	if repository != GlobalRepository {
+		memQuery.Repository = &repository
+	}
+
+	// Parse optional parameters
+	if limit, ok := params["limit"].(float64); ok && limit > 0 {
+		memQuery.Limit = int(limit)
+	}
+
+	if minRelevance, ok := params["min_relevance"].(float64); ok && minRelevance > 0 {
+		memQuery.MinRelevanceScore = minRelevance
+	} else {
+		memQuery.MinRelevanceScore = 0.5 // Default relevance threshold
+	}
+
+	// Parse type filters if provided
+	if typesInterface, ok := params["types"].([]interface{}); ok {
+		chunkTypes := make([]types.ChunkType, 0, len(typesInterface))
+		for _, typeInterface := range typesInterface {
+			if typeStr, ok := typeInterface.(string); ok {
+				chunkTypes = append(chunkTypes, types.ChunkType(typeStr))
+			}
+		}
+		memQuery.Types = chunkTypes
+	}
+
+	// Parse recency filter
+	if recency, ok := params["recency"].(string); ok {
+		memQuery.Recency = types.Recency(recency)
+	}
+
+	// Generate embeddings for the query
+	embeddingService := ms.container.GetEmbeddingService()
+	embeddings, err := embeddingService.GenerateEmbedding(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate embeddings: %w", err)
+	}
+
+	// Perform SECURE search (no progressive fallback that breaks repository isolation)
+	vectorStore := ms.container.GetVectorStore()
+	results, err := vectorStore.Search(ctx, memQuery, embeddings)
+	if err != nil {
+		return nil, fmt.Errorf("search failed: %w", err)
+	}
+
+	// Build response
+	response := map[string]interface{}{
+		"status":        "success",
+		"repository":    repository,
+		"query":         query,
+		"total":         results.Total,
+		"results":       results.Results,
+		"query_time":    results.QueryTime.Milliseconds(),
+		"security_note": "Repository-scoped search with no cross-tenant fallback",
+	}
+
+	if repository == GlobalRepository {
+		response["scope"] = GlobalRepository
+		response["security_note"] = "Global search across all repositories for architecture decisions"
+	}
+
+	logging.Info("Secure search completed",
+		"repository", repository,
+		"query", query,
+		"results_count", results.Total,
+		"query_time_ms", results.QueryTime.Milliseconds())
+
+	return response, nil
+}
+
+// handleSecureFindSimilar performs repository-scoped similarity search
+func (ms *MemoryServer) handleSecureFindSimilar(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_secure_find_similar called", "params", params, "repository", repository)
+
+	// Parse problem description
+	problem, ok := params["problem"].(string)
+	if !ok || problem == "" {
+		return nil, fmt.Errorf("problem parameter is required for find_similar. Example: {\"problem\": \"authentication timeout error\", \"repository\": \"github.com/user/repo\"}")
+	}
+
+	// Use the secure search with problem as query
+	searchParams := map[string]interface{}{
+		"query":         problem,
+		"limit":         5,   // Default for similarity search
+		"min_relevance": 0.7, // Higher threshold for similarity
+	}
+
+	// Copy additional parameters
+	if limit, ok := params["limit"]; ok {
+		searchParams["limit"] = limit
+	}
+	if chunkType, ok := params["chunk_type"].(string); ok {
+		searchParams["types"] = []string{chunkType}
+	}
+
+	return ms.handleSecureSearch(ctx, searchParams, repository)
+}
+
+// handleSecureSearchExplained performs repository-scoped search with explanations
+func (ms *MemoryServer) handleSecureSearchExplained(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("MCP TOOL: memory_secure_search_explained called", "params", params, "repository", repository)
+
+	// Perform secure search first
+	result, err := ms.handleSecureSearch(ctx, params, repository)
+	if err != nil {
+		return nil, err
+	}
+
+	// Add explanation to the result
+	if resultMap, ok := result.(map[string]interface{}); ok {
+		resultMap["explanation"] = map[string]interface{}{
+			"search_strategy":   "Repository-scoped search with strict isolation",
+			"fallback_disabled": "Progressive search fallback disabled for security",
+			"repository_scope":  repository,
+		}
+		if repository == GlobalRepository {
+			resultMap["explanation"].(map[string]interface{})["scope_note"] = "Global search enabled for cross-project architecture decisions"
+		}
+	}
+
+	return result, nil
+}
+
+// Placeholder secure handlers for other operations
+func (ms *MemoryServer) handleSecureGetPatterns(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	// For now, delegate to existing handler but add repository logging
+	logging.Info("Secure get patterns", "repository", repository)
+	return ms.handleGetPatterns(ctx, params)
+}
+
+func (ms *MemoryServer) handleSecureGetRelationships(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("Secure get relationships", "repository", repository)
+	return ms.handleGetRelationships(ctx, params)
+}
+
+func (ms *MemoryServer) handleSecureTraverseGraph(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("Secure traverse graph", "repository", repository)
+	return ms.handleTraverseGraph(ctx, params)
+}
+
+func (ms *MemoryServer) handleSecureGetThreads(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("Secure get threads", "repository", repository)
+	return ms.handleGetThreads(ctx, params)
+}
+
+func (ms *MemoryServer) handleSecureResolveAlias(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("Secure resolve alias", "repository", repository)
+	return ms.handleResolveAlias(ctx, params)
+}
+
+func (ms *MemoryServer) handleSecureListAliases(ctx context.Context, params map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("Secure list aliases", "repository", repository)
+	return ms.handleListAliases(ctx, params)
 }
 
 // aliasParams holds parsed parameters for alias creation
@@ -9150,12 +9501,12 @@ func extractStringArray(param interface{}) []string {
 func (ms *MemoryServer) handleTodoWrite(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		sessionID = VALUE_DEFAULT
+		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"todos\": [...]}")
 	}
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		repository = VALUE_UNKNOWN
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"todos\": [...]}")
 	}
 
 	todosRaw, ok := args["todos"]
@@ -9188,14 +9539,21 @@ func (ms *MemoryServer) handleTodoRead(ctx context.Context, args map[string]inte
 	_ = ctx // Context unused but required by handler interface
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		sessionID = VALUE_DEFAULT
+		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
-	session, exists := ms.todoTracker.GetActiveSession(sessionID)
+	repository, ok := args["repository"].(string)
+	if !ok {
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
+	}
+
+	session, exists := ms.todoTracker.GetActiveSession(sessionID, repository)
 	if !exists {
 		return map[string]interface{}{
 			"todos":          []workflow.TodoItem{},
 			"session_exists": false,
+			"repository":     repository,
+			"session_id":     sessionID,
 		}, nil
 	}
 
@@ -9215,12 +9573,17 @@ func (ms *MemoryServer) handleTodoUpdate(ctx context.Context, args map[string]in
 	_ = ctx // Context unused but required by handler interface
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		sessionID = VALUE_DEFAULT
+		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"tool_name\": \"Edit\"}")
+	}
+
+	repository, ok := args["repository"].(string)
+	if !ok {
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"tool_name\": \"Edit\"}")
 	}
 
 	toolName, ok := args["tool_name"].(string)
 	if !ok {
-		return nil, fmt.Errorf("tool_name parameter is required")
+		return nil, fmt.Errorf("tool_name parameter is required. Example: {\"tool_name\": \"Edit\", \"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	toolContext, ok := args["tool_context"].(map[string]interface{})
@@ -9228,11 +9591,11 @@ func (ms *MemoryServer) handleTodoUpdate(ctx context.Context, args map[string]in
 		toolContext = make(map[string]interface{})
 	}
 
-	ms.todoTracker.ProcessToolUsage(sessionID, toolName, toolContext)
+	ms.todoTracker.ProcessToolUsage(sessionID, repository, toolName, toolContext)
 
 	return map[string]interface{}{
 		STATUS_SUCCESS: true,
-		"message":      fmt.Sprintf("Updated session %s with tool usage: %s", sessionID, toolName),
+		"message":      fmt.Sprintf("Updated session %s in repository %s with tool usage: %s", sessionID, repository, toolName),
 	}, nil
 }
 
@@ -9241,12 +9604,12 @@ func (ms *MemoryServer) handleSessionCreate(ctx context.Context, args map[string
 	_ = ctx // Context unused but required by handler interface
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		repository = VALUE_UNKNOWN
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
 	}
 
 	// Create session by accessing it (auto-created in TodoTracker)
@@ -9266,7 +9629,12 @@ func (ms *MemoryServer) handleSessionEnd(ctx context.Context, args map[string]in
 	_ = ctx // Context unused but required by handler interface
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
+	}
+
+	repository, ok := args["repository"].(string)
+	if !ok {
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
 	}
 
 	outcomeStr, ok := args["outcome"].(string)
@@ -9286,24 +9654,30 @@ func (ms *MemoryServer) handleSessionEnd(ctx context.Context, args map[string]in
 		outcome = types.OutcomeSuccess
 	}
 
-	ms.todoTracker.EndSession(sessionID, outcome)
+	ms.todoTracker.EndSession(sessionID, repository, outcome)
 
 	return map[string]interface{}{
 		STATUS_SUCCESS: true,
-		"message":      fmt.Sprintf("Session %s ended with outcome: %s", sessionID, outcomeStr),
+		"message":      fmt.Sprintf("Session %s in repository %s ended with outcome: %s", sessionID, repository, outcomeStr),
 	}, nil
 }
 
-// handleSessionList lists active sessions
+// handleSessionList lists active sessions filtered by repository
 func (ms *MemoryServer) handleSessionList(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	_ = ctx  // Context unused but required by handler interface
-	_ = args // Args unused but required by handler interface
-	// Get active sessions from todoTracker
-	sessions := ms.todoTracker.GetActiveSessions()
+	_ = ctx // Context unused but required by handler interface
+
+	repository, ok := args["repository"].(string)
+	if !ok {
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"}")
+	}
+
+	// Get active sessions filtered by repository
+	sessions := ms.todoTracker.GetActiveSessionsByRepository(repository)
 
 	return map[string]interface{}{
-		"sessions": sessions,
-		"count":    len(sessions),
+		"sessions":   sessions,
+		"count":      len(sessions),
+		"repository": repository,
 	}, nil
 }
 
@@ -9312,12 +9686,17 @@ func (ms *MemoryServer) handleWorkflowAnalyze(ctx context.Context, args map[stri
 	_ = ctx // Context unused but required by handler interface
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required")
+		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
-	session, exists := ms.todoTracker.GetActiveSession(sessionID)
+	repository, ok := args["repository"].(string)
+	if !ok {
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
+	}
+
+	session, exists := ms.todoTracker.GetActiveSession(sessionID, repository)
 	if !exists {
-		return nil, fmt.Errorf("session %s not found", sessionID)
+		return nil, fmt.Errorf("session %s in repository %s not found", sessionID, repository)
 	}
 
 	// Basic workflow analysis
@@ -9426,3 +9805,5 @@ func (ms *MemoryServer) handleGetDocumentation(ctx context.Context, args map[str
 		"timestamp": time.Now().Format(time.RFC3339),
 	}, nil
 }
+
+// AI-friendly error helpers are implemented inline for better MCP client guidance

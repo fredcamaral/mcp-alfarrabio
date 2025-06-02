@@ -42,6 +42,9 @@ const (
 	PatternExploration   PatternType = "exploration"   // Glob → Read → Grep → Read
 	PatternConfiguration PatternType = "configuration" // Read config → Edit → Test
 	PatternDebug         PatternType = "debug"         // Error → Search → Read → Fix
+	
+	// Repository constants
+	UnknownRepository = "unknown"
 )
 
 // SuccessPattern represents a proven successful pattern
@@ -97,7 +100,7 @@ func (pa *PatternAnalyzer) StartSequence(sessionID, repository, problemType stri
 func (pa *PatternAnalyzer) RecordToolUsage(tool string, context map[string]interface{}, success bool) {
 	if pa.currentSequence == nil {
 		// Auto-start sequence if none exists
-		pa.StartSequence("auto", "unknown", "unknown")
+		pa.StartSequence("auto", UnknownRepository, UnknownRepository)
 	}
 
 	usage := ToolUsage{
@@ -316,7 +319,7 @@ func (pa *PatternAnalyzer) detectContextSwitch(usage ToolUsage) {
 	currentRepo := pa.currentSequence.Repository
 
 	// Check for repository change
-	if lastSequence.Repository != currentRepo && currentRepo != "unknown" {
+	if lastSequence.Repository != currentRepo && currentRepo != UnknownRepository {
 		contextSwitch := ContextSwitch{
 			Timestamp:   usage.Timestamp,
 			FromRepo:    lastSequence.Repository,
@@ -365,7 +368,7 @@ func (pa *PatternAnalyzer) extractSequenceTags(sequence ToolSequence) []string {
 	tags = append(tags, string(sequence.Outcome))
 
 	// Add repository tag
-	if sequence.Repository != "unknown" {
+	if sequence.Repository != UnknownRepository {
 		tags = append(tags, fmt.Sprintf("repo-%s", sequence.Repository))
 	}
 

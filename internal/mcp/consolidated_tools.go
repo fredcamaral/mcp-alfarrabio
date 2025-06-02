@@ -3,8 +3,15 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"mcp-memory/internal/logging"
+	"strings"
 
 	mcp "github.com/fredcamaral/gomcp-sdk"
+)
+
+// Constants for repository handling
+const (
+	GlobalRepository = "global"
 )
 
 // registerConsolidatedTools registers the 9 consolidated MCP tools
@@ -12,7 +19,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 1. memory_create - All creation operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_create",
-		"Handle all memory creation operations. REQUIRED fields vary by operation: store_chunk/store_decision require session_id; create_thread requires name+description+chunk_ids; create_relationship requires source_chunk_id+target_chunk_id+relation_type.",
+		"Handle all memory creation operations. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; store_chunk/store_decision require session_id+repository; create_thread requires name+description+chunk_ids+repository; create_relationship requires source_chunk_id+target_chunk_id+relation_type+repository. Use repository='global' for cross-project architecture decisions.",
 		mcp.ObjectSchema("Memory creation parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -30,9 +37,13 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields vary: store_chunk/store_decision require session_id; create_thread requires name+description+chunk_ids; create_relationship requires source_chunk_id+target_chunk_id+relation_type",
+				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations; store_chunk/store_decision require session_id+repository; create_thread requires name+description+chunk_ids+repository; create_relationship requires source_chunk_id+target_chunk_id+relation_type+repository",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-project architecture decisions and knowledge.",
+					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
 						"description": "Session ID (required for store_chunk, store_decision, import_context)",
@@ -78,10 +89,6 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 						"type":        "string",
 						"description": "Data to import (required for import_context)",
 					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository URL (required for import_context) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc.",
-					},
 				},
 			},
 		}, []string{"operation", "options"}),
@@ -90,7 +97,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 2. memory_read - All read/query operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_read",
-		"Handle all memory read operations. REQUIRED fields: search requires query; get_context requires repository; find_similar requires problem; get_relationships requires chunk_id; search_multi_repo requires query+session_id.",
+		"Handle all memory read operations. REQUIRED fields: repository parameter is mandatory for ALL operations for multi-tenant isolation; search requires query+repository; get_context requires repository; find_similar requires problem+repository; get_relationships requires chunk_id+repository; search_multi_repo requires query+session_id+repository.",
 		mcp.ObjectSchema("Memory read parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -109,7 +116,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: search requires query; get_context requires repository; find_similar requires problem; get_relationships requires chunk_id; search_multi_repo requires query+session_id",
+				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; search requires query+repository; get_context requires repository; find_similar requires problem+repository; get_relationships requires chunk_id+repository; search_multi_repo requires query+session_id+repository",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"query": map[string]interface{}{
@@ -118,7 +125,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					},
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (required for get_context) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc.",
+						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-project architecture decisions.",
 					},
 					"problem": map[string]interface{}{
 						"type":        "string",
@@ -152,7 +159,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 3. memory_update - All update operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_update",
-		"Handle all memory update operations including thread updates, relationship updates, refreshing memories, and conflict resolution.",
+		"Handle all memory update operations including thread updates, relationship updates, refreshing memories, and conflict resolution. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation.",
 		mcp.ObjectSchema("Memory update parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -170,9 +177,13 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: update_thread requires thread_id; update_relationship requires relationship_id; mark_refreshed requires chunk_id+validation_notes; decay_management requires repository+session_id+action",
+				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations; update_thread requires thread_id+repository; update_relationship requires relationship_id+repository; mark_refreshed requires chunk_id+validation_notes+repository; decay_management requires repository+session_id+action",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-project architecture updates.",
+					},
 					"thread_id": map[string]interface{}{
 						"type":        "string",
 						"description": "Thread ID (required for update_thread)",
@@ -188,10 +199,6 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					"validation_notes": map[string]interface{}{
 						"type":        "string",
 						"description": "Validation notes (required for mark_refreshed)",
-					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository URL (required for decay_management) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -218,7 +225,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 4. memory_delete - All deletion operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_delete",
-		"Handle all memory deletion operations including bulk deletions and filtered deletions.",
+		"Handle all memory deletion operations including bulk deletions and filtered deletions. REQUIRED fields: repository parameter is mandatory for ALL operations to prevent cross-tenant data deletion.",
 		mcp.ObjectSchema("Memory delete parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -233,13 +240,17 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: bulk_delete requires ids array",
+				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations; bulk_delete requires ids array + repository",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"ids": map[string]interface{}{
 						"type":        "array",
 						"description": "Array of IDs to delete (required for bulk_delete)",
 						"items":       map[string]interface{}{"type": "string"},
+					},
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Repository URL (REQUIRED for ALL delete operations for security and multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc.",
 					},
 				},
 			},
@@ -249,7 +260,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 5. memory_analyze - All analysis operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_analyze",
-		"Handle memory analysis operations. REQUIRED fields: health_dashboard requires repository+session_id; cross_repo_patterns requires session_id; find_similar_repositories requires repository+session_id.",
+		"Handle memory analysis operations. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; health_dashboard requires repository+session_id; cross_repo_patterns requires session_id+repository; find_similar_repositories requires repository+session_id.",
 		mcp.ObjectSchema("Memory analysis parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -267,12 +278,12 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: health_dashboard requires repository+session_id; cross_repo_patterns requires session_id; find_similar_repositories requires repository+session_id",
+				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; health_dashboard requires repository+session_id; cross_repo_patterns requires session_id+repository; find_similar_repositories requires repository+session_id",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (required for health_dashboard, find_similar_repositories, check_freshness, detect_threads) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc.",
+						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-repository insights and architecture analysis.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -286,7 +297,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 6. memory_intelligence - AI-powered operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_intelligence",
-		"Handle AI-powered operations. REQUIRED fields: suggest_related requires current_context+session_id; auto_insights requires repository+session_id; pattern_prediction requires context+repository+session_id.",
+		"Handle AI-powered operations. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; suggest_related requires current_context+session_id+repository; auto_insights requires repository+session_id; pattern_prediction requires context+repository+session_id.",
 		mcp.ObjectSchema("Memory intelligence parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -301,9 +312,13 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: suggest_related requires current_context+session_id; auto_insights requires repository+session_id; pattern_prediction requires context+repository+session_id",
+				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; suggest_related requires current_context+session_id+repository; auto_insights requires repository+session_id; pattern_prediction requires context+repository+session_id",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-repository AI insights and architecture patterns.",
+					},
 					"current_context": map[string]interface{}{
 						"type":        "string",
 						"description": "Current context (required for suggest_related)",
@@ -311,10 +326,6 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					"session_id": map[string]interface{}{
 						"type":        "string",
 						"description": "Session ID (required for suggest_related, auto_insights, pattern_prediction)",
-					},
-					"repository": map[string]interface{}{
-						"type":        "string",
-						"description": "Repository URL (required for auto_insights, pattern_prediction) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc.",
 					},
 					"context": map[string]interface{}{
 						"type":        "string",
@@ -328,7 +339,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 7. memory_transfer - Data transfer operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_transfer",
-		"Handle data transfer operations. REQUIRED fields: export_project requires repository+session_id; import_context requires data+repository+session_id; continuity requires repository.",
+		"Handle data transfer operations. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; export_project requires repository+session_id; import_context requires data+repository+session_id; continuity requires repository.",
 		mcp.ObjectSchema("Memory transfer parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -343,12 +354,12 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: export_project requires repository+session_id; import_context requires data+repository+session_id; continuity requires repository",
+				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; export_project requires repository+session_id; import_context requires data+repository+session_id; continuity requires repository",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (required for export_project, import_context, continuity) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc.",
+						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-repository data transfer and architecture continuity.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
@@ -384,7 +395,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: todo_write requires todos array; session_create requires session_id; session_end requires session_id; workflow_analyze requires session_id; todo_update requires tool_name",
+				"description":          "Operation-specific parameters. REQUIRED fields: ALL operations require repository for multi-tenant isolation; todo_write requires todos array + session_id + repository; session_create requires session_id + repository; session_end requires session_id + repository; workflow_analyze requires session_id + repository; todo_update requires tool_name + session_id + repository",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"todos": map[string]interface{}{
@@ -393,7 +404,11 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Session ID (required for session_create, session_end, workflow_analyze)",
+						"description": "Session ID (required for session_create, session_end, workflow_analyze, todo_write, todo_read, todo_update)",
+					},
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation). Example: 'github.com/user/repo'",
 					},
 					"tool_name": map[string]interface{}{
 						"type":        "string",
@@ -407,7 +422,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 9. memory_system - System operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_system",
-		"Handle system-level memory operations including health checks, status reports, and citation management.",
+		"Handle system-level memory operations including health checks, status reports, and citation management. REQUIRED fields: repository parameter for status operations; health checks are global by default.",
 		mcp.ObjectSchema("Memory system parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -422,12 +437,12 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: status requires repository; generate_citations requires query+chunk_ids; create_inline_citation requires text+response_id",
+				"description":          "Operation-specific parameters. REQUIRED fields: status requires repository; generate_citations requires query+chunk_ids+repository; create_inline_citation requires text+response_id; health checks are global by default",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (required for status) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc.",
+						"description": "Repository URL (required for status and citation operations) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Optional for health checks (defaults to global system health).",
 					},
 					"query": map[string]interface{}{
 						"type":        "string",
@@ -458,12 +473,23 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 func (ms *MemoryServer) handleMemoryCreate(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"store_chunk\", \"options\": {\"content\": \"Bug fix summary\", \"session_id\": \"session-123\", \"repository\": \"github.com/user/repo\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"content\": \"text\", \"session_id\": \"session-123\", \"repository\": \"github.com/user/repo\"}")
+	}
+
+	// SECURITY: Repository parameter is MANDATORY for all create operations
+	repository, ok := options["repository"].(string)
+	if !ok || repository == "" {
+		return nil, fmt.Errorf("repository parameter is required for all create operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"content\": \"content-text\", \"session_id\": \"session-123\"} or use \"global\" for cross-project architecture decisions")
+	}
+
+	// Allow global storage for architecture decisions but log for security monitoring
+	if repository == GlobalRepository {
+		logging.Info("GLOBAL STORAGE: Cross-project create operation requested", "operation", operation, "options", options)
 	}
 
 	switch operation {
@@ -484,7 +510,8 @@ func (ms *MemoryServer) handleMemoryCreate(ctx context.Context, args map[string]
 	case "bulk_import":
 		return ms.handleBulkImport(ctx, options)
 	default:
-		return nil, fmt.Errorf("unsupported create operation: %s", operation)
+		validOps := []string{"store_chunk", "store_decision", "create_thread", "create_alias", "create_relationship", "auto_detect_relationships", "import_context", "bulk_import"}
+		return nil, fmt.Errorf("unsupported create operation '%s'. Valid operations: %s. Example: {\"operation\": \"store_chunk\", \"options\": {\"repository\": \"github.com/user/repo\", \"content\": \"Fixed authentication bug\", \"session_id\": \"session-123\"}}", operation, strings.Join(validOps, ", "))
 	}
 }
 
@@ -492,41 +519,53 @@ func (ms *MemoryServer) handleMemoryCreate(ctx context.Context, args map[string]
 func (ms *MemoryServer) handleMemoryRead(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"search\", \"options\": {\"query\": \"how to fix build errors\", \"repository\": \"github.com/user/repo\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"query\": \"search term\", \"repository\": \"github.com/user/repo\"}")
+	}
+
+	// SECURITY: Repository parameter is MANDATORY for all read operations for multi-tenant isolation
+	repository, ok := options["repository"].(string)
+	if !ok || repository == "" {
+		return nil, fmt.Errorf("repository parameter is required for all read operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\"} or use \"global\" for cross-project architecture decisions")
+	}
+
+	// Allow global access for cross-project architecture decisions but log for security monitoring
+	if repository == GlobalRepository {
+		logging.Info("GLOBAL ACCESS: Cross-project read operation requested", "operation", operation, "options", options)
 	}
 
 	switch operation {
 	case "search":
-		return ms.handleSearch(ctx, options)
+		return ms.handleSecureSearch(ctx, options, repository)
 	case "get_context":
 		return ms.handleGetContext(ctx, options)
 	case "find_similar":
-		return ms.handleFindSimilar(ctx, options)
+		return ms.handleSecureFindSimilar(ctx, options, repository)
 	case "get_patterns":
-		return ms.handleGetPatterns(ctx, options)
+		return ms.handleSecureGetPatterns(ctx, options, repository)
 	case "get_relationships":
-		return ms.handleGetRelationships(ctx, options)
+		return ms.handleSecureGetRelationships(ctx, options, repository)
 	case "traverse_graph":
-		return ms.handleTraverseGraph(ctx, options)
+		return ms.handleSecureTraverseGraph(ctx, options, repository)
 	case "get_threads":
-		return ms.handleGetThreads(ctx, options)
+		return ms.handleSecureGetThreads(ctx, options, repository)
 	case "search_explained":
-		return ms.handleSearchExplained(ctx, options)
+		return ms.handleSecureSearchExplained(ctx, options, repository)
 	case "search_multi_repo":
 		return ms.handleSearchMultiRepo(ctx, options)
 	case "resolve_alias":
-		return ms.handleResolveAlias(ctx, options)
+		return ms.handleSecureResolveAlias(ctx, options, repository)
 	case "list_aliases":
-		return ms.handleListAliases(ctx, options)
+		return ms.handleSecureListAliases(ctx, options, repository)
 	case "get_bulk_progress":
 		return ms.handleGetBulkProgress(ctx, options)
 	default:
-		return nil, fmt.Errorf("unsupported read operation: %s", operation)
+		validOps := []string{"search", "get_context", "find_similar", "get_patterns", "get_relationships", "traverse_graph", "get_threads", "search_explained", "search_multi_repo", "resolve_alias", "list_aliases", "get_bulk_progress"}
+		return nil, fmt.Errorf("unsupported read operation '%s'. Valid operations: %s. Example: {\"operation\": \"search\", \"options\": {\"repository\": \"github.com/user/repo\", \"query\": \"authentication issues\"}}", operation, strings.Join(validOps, ", "))
 	}
 }
 
@@ -570,31 +609,32 @@ func (ms *MemoryServer) handleMemoryUpdate(ctx context.Context, args map[string]
 func (ms *MemoryServer) handleMemoryDelete(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-id-1\"]}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, fmt.Errorf("options parameter is required. Must contain repository for security. Example: {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-id-1\", \"chunk-id-2\"]}")
+	}
+
+	// SECURITY: Repository parameter is MANDATORY for all delete operations
+	repository, ok := options["repository"].(string)
+	if !ok || repository == "" {
+		return nil, fmt.Errorf("repository parameter is required for all delete operations for multi-tenant security. Example: {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-ids-to-delete\"]}")
 	}
 
 	switch operation {
 	case "bulk_delete":
-		// Create a modified options map for bulk delete
-		bulkOptions := make(map[string]interface{})
-		for k, v := range options {
-			bulkOptions[k] = v
-		}
-		bulkOptions["operation"] = "delete"
-		return ms.handleBulkOperation(ctx, bulkOptions)
+		return ms.handleSecureBulkDelete(ctx, options, repository)
 	case "delete_expired":
-		// Future implementation
-		return nil, fmt.Errorf("delete_expired not yet implemented")
+		// Future implementation with repository scoping
+		return nil, fmt.Errorf("delete_expired operation not yet implemented. Alternative: Use memory_read with repository filter to find expired chunks, then memory_delete with bulk_delete operation. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"expired-chunk-ids\"]}}")
 	case "delete_by_filter":
-		// Future implementation
-		return nil, fmt.Errorf("delete_by_filter not yet implemented")
+		// Future implementation with repository scoping
+		return nil, fmt.Errorf("delete_by_filter operation not yet implemented. Alternative: Use memory_read with repository filter to search for matching chunks, then memory_delete with bulk_delete operation. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"filtered-chunk-ids\"]}}")
 	default:
-		return nil, fmt.Errorf("unsupported delete operation: %s", operation)
+		validOps := []string{"bulk_delete", "delete_expired", "delete_by_filter"}
+		return nil, fmt.Errorf("unsupported delete operation '%s'. Valid operations: %s. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-ids\"]}}", operation, strings.Join(validOps, ", "))
 	}
 }
 
@@ -602,12 +642,23 @@ func (ms *MemoryServer) handleMemoryDelete(ctx context.Context, args map[string]
 func (ms *MemoryServer) handleMemoryAnalyze(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"health_dashboard\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+	}
+
+	// SECURITY: Repository parameter is MANDATORY for all analyze operations
+	repository, ok := options["repository"].(string)
+	if !ok || repository == "" {
+		return nil, fmt.Errorf("repository parameter is required for all analyze operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository architecture analysis")
+	}
+
+	// Allow global analysis for cross-repository insights but log for security monitoring
+	if repository == GlobalRepository {
+		logging.Info("GLOBAL ANALYSIS: Cross-repository analyze operation requested", "operation", operation, "options", options)
 	}
 
 	switch operation {
@@ -626,7 +677,8 @@ func (ms *MemoryServer) handleMemoryAnalyze(ctx context.Context, args map[string
 	case "detect_threads":
 		return ms.handleDetectThreads(ctx, options)
 	default:
-		return nil, fmt.Errorf("unsupported analyze operation: %s", operation)
+		validOps := []string{"cross_repo_patterns", "find_similar_repositories", "cross_repo_insights", "detect_conflicts", "health_dashboard", "check_freshness", "detect_threads"}
+		return nil, fmt.Errorf("unsupported analyze operation '%s'. Valid operations: %s. Example: {\"operation\": \"health_dashboard\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}", operation, strings.Join(validOps, ", "))
 	}
 }
 
@@ -634,12 +686,23 @@ func (ms *MemoryServer) handleMemoryAnalyze(ctx context.Context, args map[string
 func (ms *MemoryServer) handleMemoryIntelligence(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"auto_insights\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+	}
+
+	// SECURITY: Repository parameter is MANDATORY for all intelligence operations
+	repository, ok := options["repository"].(string)
+	if !ok || repository == "" {
+		return nil, fmt.Errorf("repository parameter is required for all intelligence operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository AI insights and architecture patterns")
+	}
+
+	// Allow global intelligence for cross-repository insights but log for security monitoring
+	if repository == GlobalRepository {
+		logging.Info("GLOBAL INTELLIGENCE: Cross-repository AI operation requested", "operation", operation, "options", options)
 	}
 
 	switch operation {
@@ -650,7 +713,8 @@ func (ms *MemoryServer) handleMemoryIntelligence(ctx context.Context, args map[s
 	case "pattern_prediction":
 		return ms.handlePatternPrediction(ctx, options)
 	default:
-		return nil, fmt.Errorf("unsupported intelligence operation: %s", operation)
+		validOps := []string{"suggest_related", "auto_insights", "pattern_prediction"}
+		return nil, fmt.Errorf("unsupported intelligence operation '%s'. Valid operations: %s. Example: {\"operation\": \"auto_insights\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}", operation, strings.Join(validOps, ", "))
 	}
 }
 
@@ -658,12 +722,12 @@ func (ms *MemoryServer) handleMemoryIntelligence(ctx context.Context, args map[s
 func (ms *MemoryServer) handleMemoryTasks(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"todo_write\", \"options\": {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"todos\": [...]}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, fmt.Errorf("options parameter is required. Must contain session_id and repository for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	switch operation {
@@ -692,12 +756,23 @@ func (ms *MemoryServer) handleMemoryTasks(ctx context.Context, args map[string]i
 func (ms *MemoryServer) handleMemoryTransfer(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"export_project\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+	}
+
+	// SECURITY: Repository parameter is MANDATORY for all transfer operations
+	repository, ok := options["repository"].(string)
+	if !ok || repository == "" {
+		return nil, fmt.Errorf("repository parameter is required for all transfer operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository data transfer and architecture continuity")
+	}
+
+	// Allow global transfer for cross-repository continuity but log for security monitoring
+	if repository == GlobalRepository {
+		logging.Info("GLOBAL TRANSFER: Cross-repository transfer operation requested", "operation", operation, "options", options)
 	}
 
 	switch operation {
@@ -710,7 +785,8 @@ func (ms *MemoryServer) handleMemoryTransfer(ctx context.Context, args map[strin
 	case "import_context":
 		return ms.handleImportContext(ctx, options)
 	default:
-		return nil, fmt.Errorf("unsupported transfer operation: %s", operation)
+		validOps := []string{"export_project", "bulk_export", "continuity", "import_context"}
+		return nil, fmt.Errorf("unsupported transfer operation '%s'. Valid operations: %s. Example: {\"operation\": \"export_project\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}", operation, strings.Join(validOps, ", "))
 	}
 }
 
@@ -718,7 +794,7 @@ func (ms *MemoryServer) handleMemoryTransfer(ctx context.Context, args map[strin
 func (ms *MemoryServer) handleMemorySystem(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
@@ -727,18 +803,42 @@ func (ms *MemoryServer) handleMemorySystem(ctx context.Context, args map[string]
 		options = make(map[string]interface{})
 	}
 
+	// Repository parameter requirements vary by operation
+	repository, hasRepo := options["repository"].(string)
+
 	switch operation {
 	case OperationHealth:
+		// Health checks are global by default but can be repository-specific
+		if hasRepo && repository != "" {
+			logging.Info("Repository-specific health check requested", "repository", repository)
+		} else {
+			logging.Info("Global system health check requested")
+		}
 		return ms.handleHealth(ctx, options)
 	case OperationStatus:
+		// Status operations require repository for multi-tenant isolation
+		if !hasRepo || repository == "" {
+			return nil, fmt.Errorf("repository parameter is required for status operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"}")
+		}
 		return ms.handleMemoryStatus(ctx, options)
 	case "generate_citations":
+		// Citations require repository for proper scoping
+		if !hasRepo || repository == "" {
+			return nil, fmt.Errorf("repository parameter is required for citation generation for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\", \"chunk_ids\": [\"id1\", \"id2\"]}")
+		}
 		return ms.handleGenerateCitations(ctx, options)
 	case "create_inline_citation":
+		// Inline citations are repository-agnostic but logged for monitoring
+		if hasRepo && repository != "" {
+			logging.Info("Repository-specific inline citation requested", "repository", repository)
+		}
 		return ms.handleCreateInlineCitation(ctx, options)
 	case "get_documentation":
+		// Documentation is global by nature
+		logging.Info("Global documentation request")
 		return ms.handleGetDocumentation(ctx, options)
 	default:
-		return nil, fmt.Errorf("unsupported system operation: %s", operation)
+		validOps := []string{"health", "status", "generate_citations", "create_inline_citation", "get_documentation"}
+		return nil, fmt.Errorf("unsupported system operation '%s'. Valid operations: %s. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}", operation, strings.Join(validOps, ", "))
 	}
 }
