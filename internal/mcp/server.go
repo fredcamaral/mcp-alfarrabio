@@ -3117,10 +3117,31 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 		includeVectors = include
 	}
 
-	// Get all chunks for the repository
-	chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 10000, 0) // Large limit for export
+	// Pagination support to handle large exports
+	limit := 100 // Default page size to stay under token limits
+	if l, exists := params["limit"].(float64); exists {
+		limit = int(l)
+		if limit > 500 { // Max limit to prevent token overflow
+			limit = 500
+		}
+	}
+
+	offset := 0
+	if o, exists := params["offset"].(float64); exists {
+		offset = int(o)
+	}
+
+	// Get chunks for the repository with pagination
+	chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve repository data: %w", err)
+	}
+
+	// Get total count for pagination info
+	totalChunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 10000, 0)
+	totalCount := len(totalChunks)
+	if err != nil {
+		totalCount = -1 // Unknown if we can't fetch
 	}
 
 	switch format {
@@ -3128,9 +3149,16 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 		exportData := map[string]interface{}{
 			"repository":      repository,
 			"export_date":     time.Now().Format(time.RFC3339),
-			"total_chunks":    len(chunks),
+			"total_chunks":    totalCount,
+			"chunks_in_page":  len(chunks),
 			"include_vectors": includeVectors,
-			"chunks":          chunks,
+			"pagination": map[string]interface{}{
+				"limit":       limit,
+				"offset":      offset,
+				"has_more":    offset+len(chunks) < totalCount,
+				"next_offset": offset + len(chunks),
+			},
+			"chunks": chunks,
 		}
 
 		// Remove vector data if not requested
@@ -3146,19 +3174,27 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 		}
 
 		return map[string]interface{}{
-			"format":     "json",
-			"data":       string(exportJSON),
-			"size_bytes": len(exportJSON),
-			"chunks":     len(chunks),
-			"repository": repository,
-			"session_id": sessionID,
+			"format":       "json",
+			"data":         string(exportJSON),
+			"size_bytes":   len(exportJSON),
+			"chunks":       len(chunks),
+			"total_chunks": totalCount,
+			"repository":   repository,
+			"session_id":   sessionID,
+			"pagination": map[string]interface{}{
+				"limit":       limit,
+				"offset":      offset,
+				"has_more":    offset+len(chunks) < totalCount,
+				"next_offset": offset + len(chunks),
+			},
 		}, nil
 
 	case "markdown":
 		var markdown strings.Builder
 		markdown.WriteString(fmt.Sprintf("# Memory Export: %s\n\n", repository))
 		markdown.WriteString(fmt.Sprintf("**Export Date:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
-		markdown.WriteString(fmt.Sprintf("**Total Chunks:** %d\n\n", len(chunks)))
+		markdown.WriteString(fmt.Sprintf("**Total Chunks:** %d\n", totalCount))
+		markdown.WriteString(fmt.Sprintf("**Chunks in Page:** %d (offset: %d, limit: %d)\n\n", len(chunks), offset, limit))
 
 		for _, chunk := range chunks {
 			markdown.WriteString(fmt.Sprintf("## %s\n\n", chunk.Summary))
@@ -3176,12 +3212,19 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 
 		markdownData := markdown.String()
 		return map[string]interface{}{
-			"format":     "markdown",
-			"data":       markdownData,
-			"size_bytes": len(markdownData),
-			"chunks":     len(chunks),
-			"repository": repository,
-			"session_id": sessionID,
+			"format":       "markdown",
+			"data":         markdownData,
+			"size_bytes":   len(markdownData),
+			"chunks":       len(chunks),
+			"total_chunks": totalCount,
+			"repository":   repository,
+			"session_id":   sessionID,
+			"pagination": map[string]interface{}{
+				"limit":       limit,
+				"offset":      offset,
+				"has_more":    offset+len(chunks) < totalCount,
+				"next_offset": offset + len(chunks),
+			},
 		}, nil
 
 	case "archive":
@@ -3522,7 +3565,11 @@ func (ms *MemoryServer) handleMemoryLink(ctx context.Context, params map[string]
 
 	relationType := types.RelationType(relationTypeStr)
 	if !relationType.Valid() {
-		return nil, fmt.Errorf("invalid relation type: %s", relationTypeStr)
+		validTypes := make([]string, 0, len(types.AllValidRelationTypes()))
+		for _, vt := range types.AllValidRelationTypes() {
+			validTypes = append(validTypes, string(vt))
+		}
+		return nil, fmt.Errorf("invalid relation type: %s. Valid types are: %v", relationTypeStr, validTypes)
 	}
 
 	confidence := 0.8 // default
@@ -5770,6 +5817,11 @@ func (ms *MemoryServer) handleAnalyzeCrossRepoPatterns(ctx context.Context, para
 				repositories = append(repositories, repo)
 			}
 		}
+	}
+
+	// If no repositories specified, get all repositories from vector store
+	if len(repositories) == 0 {
+		repositories = ms.discoverRepositories(ctx)
 	}
 
 	var techStacks []string
@@ -9804,6 +9856,138 @@ func (ms *MemoryServer) handleGetDocumentation(ctx context.Context, args map[str
 		"length":    content.Len(),
 		"timestamp": time.Now().Format(time.RFC3339),
 	}, nil
+}
+
+// handleDeleteExpired deletes expired chunks from a repository
+func (ms *MemoryServer) handleDeleteExpired(ctx context.Context, options map[string]interface{}, repository string) (interface{}, error) {
+	logging.Info("MCP TOOL: handleDeleteExpired called", "repository", repository, "options", options)
+
+	// Parse expiration criteria
+	maxAge := "30d" // Default: delete chunks older than 30 days
+	if age, exists := options["max_age"].(string); exists {
+		maxAge = age
+	}
+
+	cutoffTime, err := parseMaxAge(maxAge)
+	if err != nil {
+		return nil, fmt.Errorf("invalid max_age format: %s. Use formats like '30d', '7d', '24h', '1h'", maxAge)
+	}
+
+	// Get all chunks for the repository
+	chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 10000, 0)
+	if err != nil {
+		return nil, fmt.Errorf("failed to retrieve repository chunks: %w", err)
+	}
+
+	// Find expired chunks
+	var expiredIDs []string
+	for _, chunk := range chunks {
+		if chunk.Timestamp.Before(cutoffTime) {
+			expiredIDs = append(expiredIDs, chunk.ID)
+		}
+	}
+
+	if len(expiredIDs) == 0 {
+		return map[string]interface{}{
+			"repository":    repository,
+			"cutoff_time":   cutoffTime.Format(time.RFC3339),
+			"max_age":       maxAge,
+			"deleted_count": 0,
+			"total_chunks":  len(chunks),
+			"message":       "No expired chunks found",
+		}, nil
+	}
+
+	// Delete expired chunks using existing secure bulk delete
+	deleteResult, err := ms.handleSecureBulkDelete(ctx, map[string]interface{}{
+		"ids": expiredIDs,
+	}, repository)
+	if err != nil {
+		return nil, fmt.Errorf("failed to delete expired chunks: %w", err)
+	}
+
+	// Extract delete count from result
+	deleteCount := 0
+	if result, ok := deleteResult.(map[string]interface{}); ok {
+		if count, ok := result["deleted_count"].(int); ok {
+			deleteCount = count
+		}
+	}
+
+	return map[string]interface{}{
+		"repository":    repository,
+		"cutoff_time":   cutoffTime.Format(time.RFC3339),
+		"max_age":       maxAge,
+		"deleted_count": deleteCount,
+		"total_chunks":  len(chunks),
+		"expired_found": len(expiredIDs),
+		"message":       fmt.Sprintf("Successfully deleted %d expired chunks (older than %s)", deleteCount, maxAge),
+	}, nil
+}
+
+// parseMaxAge parses duration strings like "30d", "7d", "24h", "1h"
+func parseMaxAge(maxAge string) (time.Time, error) {
+	now := time.Now()
+
+	if strings.HasSuffix(maxAge, "d") {
+		days, err := strconv.Atoi(strings.TrimSuffix(maxAge, "d"))
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid days format: %s", maxAge)
+		}
+		return now.AddDate(0, 0, -days), nil
+	}
+
+	if strings.HasSuffix(maxAge, "h") {
+		hours, err := strconv.Atoi(strings.TrimSuffix(maxAge, "h"))
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid hours format: %s", maxAge)
+		}
+		return now.Add(-time.Duration(hours) * time.Hour), nil
+	}
+
+	if strings.HasSuffix(maxAge, "m") {
+		minutes, err := strconv.Atoi(strings.TrimSuffix(maxAge, "m"))
+		if err != nil {
+			return time.Time{}, fmt.Errorf("invalid minutes format: %s", maxAge)
+		}
+		return now.Add(-time.Duration(minutes) * time.Minute), nil
+	}
+
+	return time.Time{}, fmt.Errorf("unsupported time format: %s. Use formats like '30d', '7d', '24h', '1h'", maxAge)
+}
+
+// discoverRepositories discovers available repositories from the vector store
+func (ms *MemoryServer) discoverRepositories(ctx context.Context) []string {
+	repoSet := make(map[string]bool)
+	
+	// Get chunks from global and try to discover repositories
+	globalChunks, err := ms.container.GetVectorStore().ListByRepository(ctx, "_global", 1000, 0)
+	if err == nil {
+		for _, chunk := range globalChunks {
+			if chunk.Metadata.Repository != "" && chunk.Metadata.Repository != "_global" {
+				repoSet[chunk.Metadata.Repository] = true
+			}
+		}
+	}
+	
+	// Also try common repository patterns to discover more repos
+	commonRepos := []string{
+		"github.com/fredcamaral/mcp-memory",
+		"github.com/lerianstudio/midaz",
+		"github.com/LerianStudio/lib-commons",
+	}
+	for _, repo := range commonRepos {
+		chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repo, 10, 0)
+		if err == nil && len(chunks) > 0 {
+			repoSet[repo] = true
+		}
+	}
+	
+	repositories := make([]string, 0, len(repoSet))
+	for repo := range repoSet {
+		repositories = append(repositories, repo)
+	}
+	return repositories
 }
 
 // AI-friendly error helpers are implemented inline for better MCP client guidance

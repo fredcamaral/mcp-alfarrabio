@@ -17,8 +17,9 @@ const (
 	RelationSolvedBy RelationType = "solved_by" // Problem solved by solution
 
 	// Dependency relationships
-	RelationDependsOn RelationType = "depends_on" // Feature depends on another
-	RelationEnables   RelationType = "enables"    // Decision enables feature
+	RelationDependsOn  RelationType = "depends_on" // Feature depends on another
+	RelationEnables    RelationType = "enables"    // Decision enables feature
+	RelationImplements RelationType = "implements" // Implementation of design/spec
 
 	// Conflict relationships
 	RelationConflictsWith RelationType = "conflicts_with" // Decisions conflict
@@ -39,14 +40,22 @@ const (
 	RelationReferences   RelationType = "references"    // Chunk references another
 )
 
-// Valid returns true if the relation type is valid
-func (rt RelationType) Valid() bool {
-	switch rt {
-	case RelationLedTo, RelationSolvedBy, RelationDependsOn, RelationEnables,
+// AllValidRelationTypes returns all valid relation types
+func AllValidRelationTypes() []RelationType {
+	return []RelationType{
+		RelationLedTo, RelationSolvedBy, RelationDependsOn, RelationEnables, RelationImplements,
 		RelationConflictsWith, RelationSupersedes, RelationRelatedTo, RelationFollowsUp,
 		RelationPrecedes, RelationLearnedFrom, RelationTeaches, RelationExemplifes,
-		RelationReferencesBy, RelationReferences:
-		return true
+		RelationReferencesBy, RelationReferences,
+	}
+}
+
+// Valid returns true if the relation type is valid
+func (rt RelationType) Valid() bool {
+	for _, validType := range AllValidRelationTypes() {
+		if rt == validType {
+			return true
+		}
 	}
 	return false
 }
@@ -62,6 +71,8 @@ func (rt RelationType) GetInverse() RelationType {
 		return RelationEnables
 	case RelationEnables:
 		return RelationDependsOn
+	case RelationImplements:
+		return RelationImplements // No direct inverse
 	case RelationConflictsWith:
 		return RelationConflictsWith // Symmetric
 	case RelationSupersedes:
@@ -92,7 +103,7 @@ func (rt RelationType) IsSymmetric() bool {
 	switch rt {
 	case RelationConflictsWith, RelationRelatedTo:
 		return true
-	case RelationLedTo, RelationSolvedBy, RelationDependsOn, RelationEnables,
+	case RelationLedTo, RelationSolvedBy, RelationDependsOn, RelationEnables, RelationImplements,
 		RelationSupersedes, RelationFollowsUp, RelationPrecedes, RelationLearnedFrom,
 		RelationTeaches, RelationExemplifes, RelationReferencesBy, RelationReferences:
 		return false

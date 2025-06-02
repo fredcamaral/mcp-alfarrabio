@@ -70,7 +70,7 @@ func validateTaskParams(params map[string]interface{}) error {
 		if !ok {
 			return fmt.Errorf("due_date must be a string")
 		}
-		
+
 		// Simple validation - should be ISO format (at least YYYY-MM-DD)
 		if len(dueDateStr) < 10 {
 			return fmt.Errorf("invalid due_date format: expected ISO format")
@@ -101,7 +101,7 @@ func TestTaskParameterValidation(t *testing.T) {
 			errorMsg:    "title parameter is required",
 		},
 		{
-			name: "missing_description", 
+			name: "missing_description",
 			params: map[string]interface{}{
 				"title":      "Test task",
 				"session_id": "test-session-4",
@@ -169,7 +169,7 @@ func TestTaskParameterValidation(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			// Test parameter validation logic directly without external services
 			err := validateTaskParams(tt.params)
-			
+
 			if tt.expectError {
 				assert.Error(t, err, "Expected error for test case: %s", tt.name)
 				if tt.errorMsg != "" {

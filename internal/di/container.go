@@ -113,6 +113,11 @@ func (c *Container) initializeServices() {
 	// Initialize relationship manager
 	c.RelationshipManager = relationships.NewManager()
 
+	// Initialize chain components
+	c.ChainStore = chains.NewInMemoryChainStore()
+	chainAnalyzer := chains.NewDefaultChainAnalyzer(c.EmbeddingService)
+	c.ChainBuilder = chains.NewChainBuilder(c.ChainStore, chainAnalyzer)
+
 	// Initialize threading components
 	c.ThreadStore = threading.NewInMemoryThreadStore()
 	c.ThreadManager = threading.NewThreadManager(c.ChainBuilder, c.RelationshipManager, c.ThreadStore)

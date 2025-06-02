@@ -627,8 +627,7 @@ func (ms *MemoryServer) handleMemoryDelete(ctx context.Context, args map[string]
 	case "bulk_delete":
 		return ms.handleSecureBulkDelete(ctx, options, repository)
 	case "delete_expired":
-		// Future implementation with repository scoping
-		return nil, fmt.Errorf("delete_expired operation not yet implemented. Alternative: Use memory_read with repository filter to find expired chunks, then memory_delete with bulk_delete operation. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"expired-chunk-ids\"]}}")
+		return ms.handleDeleteExpired(ctx, options, repository)
 	case "delete_by_filter":
 		// Future implementation with repository scoping
 		return nil, fmt.Errorf("delete_by_filter operation not yet implemented. Alternative: Use memory_read with repository filter to search for matching chunks, then memory_delete with bulk_delete operation. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"filtered-chunk-ids\"]}}")

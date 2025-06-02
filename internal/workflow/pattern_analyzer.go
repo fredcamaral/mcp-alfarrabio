@@ -42,7 +42,7 @@ const (
 	PatternExploration   PatternType = "exploration"   // Glob → Read → Grep → Read
 	PatternConfiguration PatternType = "configuration" // Read config → Edit → Test
 	PatternDebug         PatternType = "debug"         // Error → Search → Read → Fix
-	
+
 	// Repository constants
 	UnknownRepository = "unknown"
 )
