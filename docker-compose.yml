@@ -24,8 +24,8 @@ services:
   mcp-memory-full:
     build:
       context: .
-      dockerfile: Dockerfile.full
-    container_name: mcp-memory-full
+      dockerfile: Dockerfile
+    container_name: mcp-memory-server
     restart: unless-stopped
     depends_on:
       - qdrant
@@ -81,99 +81,6 @@ services:
       start_period: 40s
     networks:
       - mcp_network
-
-  # Separate WebUI service (alternative deployment option)
-  mcp-webui:
-    build:
-      context: ./web-ui
-      dockerfile: ../Dockerfile.webui
-    container_name: mcp-webui
-    restart: unless-stopped
-    depends_on:
-      - mcp-memory-server
-    ports:
-      - "${WEBUI_PORT:-3000}:3000"
-    environment:
-      - NEXT_PUBLIC_API_URL=http://mcp-memory-server:9080
-      - NEXT_PUBLIC_GRAPHQL_URL=http://mcp-memory-server:9080/graphql
-      - NEXT_PUBLIC_WS_URL=ws://mcp-memory-server:9080/ws
-      - NODE_ENV=production
-    networks:
-      - mcp_network
-    profiles:
-      - webui-separate  # Optional separate WebUI deployment
-
-  # Backend-only MCP Memory Server (for separate WebUI deployment)
-  mcp-memory-server:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: mcp-memory-server
-    restart: unless-stopped
-    depends_on:
-      - qdrant
-    ports:
-      - "${MCP_HOST_PORT:-9080}:9080"    # Main MCP API port
-      - "${MCP_HEALTH_PORT:-9081}:8081"  # Health check port
-      - "${MCP_METRICS_PORT:-9082}:8082" # Metrics port (optional)
-    environment:
-      - MCP_MEMORY_DATA_DIR=/app/data
-      - MCP_MEMORY_CONFIG_DIR=/app/config
-      - MCP_MEMORY_LOG_LEVEL=${MCP_MEMORY_LOG_LEVEL:-info}
-      - MCP_MEMORY_HTTP_PORT=9080
-      - MCP_MEMORY_HEALTH_PORT=8081
-      - MCP_MEMORY_METRICS_PORT=8082
-      # Qdrant vector database configuration
-      - MCP_MEMORY_STORAGE_PROVIDER=qdrant
-      - MCP_MEMORY_QDRANT_HOST=qdrant
-      - MCP_MEMORY_QDRANT_PORT=6334
-      - MCP_MEMORY_QDRANT_COLLECTION=${QDRANT_COLLECTION:-claude_memory}
-      - MCP_MEMORY_VECTOR_DIM=${MCP_MEMORY_EMBEDDING_DIMENSION:-1536}
-      # SQLite storage
-      - MCP_MEMORY_DB_TYPE=sqlite
-      - MCP_MEMORY_DB_PATH=${SQLITE_DB_PATH:-/app/data/memory.db}
-      # Security and backup settings
-      - MCP_MEMORY_ENCRYPTION_ENABLED=true
-      - MCP_MEMORY_BACKUP_ENABLED=true
-      - MCP_MEMORY_BACKUP_INTERVAL=${MCP_MEMORY_BACKUP_INTERVAL_HOURS:-24}h
-      - MCP_MEMORY_ACCESS_CONTROL_ENABLED=true
-      # OpenAI API configuration
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-    volumes:
-      - mcp_data:/app/data
-      - mcp_logs:/app/logs
-      - mcp_backups:/app/backups
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9080/health"]
-      interval: ${HEALTH_CHECK_INTERVAL:-30s}
-      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
-      retries: ${HEALTH_CHECK_RETRIES:-3}
-      start_period: 40s
-    networks:
-      - mcp_network
-    profiles:
-      - webui-separate  # Only used with separate WebUI deployment
-
-  # Auto-updater sidecar (optional - use --profile auto-update)
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: mcp-auto-updater
-    restart: unless-stopped
-    environment:
-      - WATCHTOWER_CLEANUP=true
-      - WATCHTOWER_POLL_INTERVAL=3600  # Check hourly
-      - WATCHTOWER_INCLUDE_STOPPED=true
-      - WATCHTOWER_REVIVE_STOPPED=false
-      - WATCHTOWER_SCOPE=mcp-memory-full  # Watch the integrated container
-      - WATCHTOWER_NOTIFICATIONS_LEVEL=info
-      - WATCHTOWER_ROLLING_RESTART=true
-      - WATCHTOWER_WARN_ON_HEAD_FAILURE=never
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
-    networks:
-      - mcp_network
-    profiles:
-      - auto-update  # Optional profile
 
 # Networks
 networks:

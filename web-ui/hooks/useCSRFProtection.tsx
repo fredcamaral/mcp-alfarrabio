@@ -6,7 +6,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react'
-import { CSRFManager } from '@/lib/csrf'
+import { CSRFManager } from '@/lib/csrf-client'
 
 interface UseCSRFProtectionOptions {
   autoFetch?: boolean

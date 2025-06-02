@@ -70,9 +70,9 @@ export function useWebSocket(options: WebSocketOptions): UseWebSocketReturn {
   const [messageQueue, setMessageQueue] = useState<any[]>([])
 
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<number | null>(null)
-  const heartbeatTimeoutRef = useRef<number | null>(null)
-  const heartbeatIntervalRef = useRef<number | null>(null)
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | number | null>(null)
+  const heartbeatTimeoutRef = useRef<NodeJS.Timeout | number | null>(null)
+  const heartbeatIntervalRef = useRef<NodeJS.Timeout | number | null>(null)
   const isManuallyClosedRef = useRef(false)
 
   const clearTimeouts = useCallback(() => {

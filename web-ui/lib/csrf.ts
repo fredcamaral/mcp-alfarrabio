@@ -1,7 +1,7 @@
 /**
- * CSRF Protection Utilities
+ * CSRF Protection Server-side Utilities
  * 
- * Provides CSRF token generation, validation, and form protection for the WebUI.
+ * Provides server-side CSRF token generation, validation, and form protection for the WebUI.
  * Uses cryptographically secure random tokens with double-submit cookie pattern.
  */
 
@@ -125,116 +125,6 @@ export function csrfProtection(handler: (req: NextRequest) => Promise<NextRespon
   }
 }
 
-/**
- * Client-side CSRF token management
- */
-export class CSRFManager {
-  private static token: string | null = null
-  private static listeners: Set<(token: string | null) => void> = new Set()
-
-  /**
-   * Get the current CSRF token
-   */
-  static getToken(): string | null {
-    return this.token
-  }
-
-  /**
-   * Set the CSRF token
-   */
-  static setToken(token: string | null): void {
-    this.token = token
-    this.listeners.forEach(listener => listener(token))
-  }
-
-  /**
-   * Fetch CSRF token from server
-   */
-  static async fetchToken(): Promise<string | null> {
-    try {
-      const response = await fetch('/api/csrf-token', {
-        method: 'GET',
-        credentials: 'include'
-      })
-
-      if (response.ok) {
-        const data = await response.json()
-        this.setToken(data.token)
-        return data.token
-      }
-    } catch (error) {
-      console.error('Failed to fetch CSRF token:', error)
-    }
-
-    return null
-  }
-
-  /**
-   * Add listener for token changes
-   */
-  static addListener(listener: (token: string | null) => void): () => void {
-    this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
-  }
-
-  /**
-   * Get headers with CSRF token
-   */
-  static getHeaders(additionalHeaders: Record<string, string> = {}): Record<string, string> {
-    const headers: Record<string, string> = {
-      ...additionalHeaders
-    }
-
-    if (this.token) {
-      headers[CSRF_HEADER_NAME] = this.token
-    }
-
-    return headers
-  }
-
-  /**
-   * Make a protected request with CSRF token
-   */
-  static async request(url: string, options: RequestInit = {}): Promise<Response> {
-    const token = this.getToken() || await this.fetchToken()
-    
-    if (!token) {
-      throw new Error('No CSRF token available')
-    }
-
-    const headers = this.getHeaders(options.headers as Record<string, string> || {})
-
-    return fetch(url, {
-      ...options,
-      credentials: 'include',
-      headers
-    })
-  }
-}
-
-/**
- * Form data helper that includes CSRF token
- */
-export function createProtectedFormData(data: Record<string, any>): FormData {
-  const formData = new FormData()
-  const token = CSRFManager.getToken()
-
-  if (token) {
-    formData.append(CSRF_TOKEN_NAME, token)
-  }
-
-  Object.entries(data).forEach(([key, value]) => {
-    if (value !== null && value !== undefined) {
-      if (value instanceof File || value instanceof Blob) {
-        formData.append(key, value)
-      } else {
-        formData.append(key, String(value))
-      }
-    }
-  })
-
-  return formData
-}
 
 /**
  * Extract CSRF token from form data (server-side)

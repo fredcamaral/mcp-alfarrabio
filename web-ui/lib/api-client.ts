@@ -5,7 +5,7 @@
  * Handles authentication, error handling, request/response transformation, and typing.
  */
 
-import { CSRFManager } from './csrf'
+import { CSRFManager } from './csrf-client'
 import { handleError } from './error-handling'
 
 const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9080'
