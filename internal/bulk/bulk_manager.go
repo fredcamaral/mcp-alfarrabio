@@ -126,20 +126,20 @@ type Manager struct {
 }
 
 // NewManager creates a new bulk operations manager
-func NewManager(storage storage.VectorStore, logger *log.Logger) *Manager {
+func NewManager(vectorStore storage.VectorStore, logger *log.Logger) *Manager {
 	if logger == nil {
 		logger = log.New(log.Writer(), "[BulkManager] ", log.LstdFlags)
 	}
 
 	return &Manager{
-		storage:    storage,
+		storage:    vectorStore,
 		operations: make(map[string]*Request),
 		logger:     logger,
 	}
 }
 
 // SubmitOperation submits a new bulk operation
-func (m *Manager) SubmitOperation(ctx context.Context, req Request) (*Progress, error) {
+func (m *Manager) SubmitOperation(ctx context.Context, req *Request) (*Progress, error) {
 	// Set defaults
 	if req.Options.BatchSize <= 0 {
 		req.Options.BatchSize = 50
@@ -157,7 +157,7 @@ func (m *Manager) SubmitOperation(ctx context.Context, req Request) (*Progress, 
 
 	// Store operation
 	m.operationsMux.Lock()
-	m.operations[req.ID] = &req
+	m.operations[req.ID] = req
 	m.operationsMux.Unlock()
 
 	// Return initial progress before starting async processing to avoid races
@@ -293,7 +293,8 @@ func (m *Manager) processOperation(ctx context.Context, operationID string) erro
 
 // validateOperation validates all items in the operation
 func (m *Manager) validateOperation(op *Request, progress *Progress) error {
-	for i, chunk := range op.Chunks {
+	for i := range op.Chunks {
+		chunk := &op.Chunks[i]
 		if err := chunk.Validate(); err != nil {
 			progress.ValidationErrors = append(progress.ValidationErrors, ValidationError{
 				ItemIndex: i,
@@ -360,8 +361,9 @@ func (m *Manager) executeBulkStore(ctx context.Context, op *Request, progress *P
 // executeBulkUpdate executes a bulk update operation
 func (m *Manager) executeBulkUpdate(ctx context.Context, op *Request, progress *Progress) error {
 	// Similar to store but uses Update method
-	for i, chunk := range op.Chunks {
-		if err := m.storage.Update(ctx, chunk); err != nil {
+	for i := range op.Chunks {
+		chunk := &op.Chunks[i]
+		if err := m.storage.Update(ctx, *chunk); err != nil {
 			progress.Errors = append(progress.Errors, Error{
 				ItemIndex: i,
 				ItemID:    chunk.ID,
@@ -408,7 +410,7 @@ func (m *Manager) executeBulkDelete(ctx context.Context, op *Request, progress *
 
 // Helper methods
 
-func (m *Manager) getTotalItems(req Request) int {
+func (m *Manager) getTotalItems(req *Request) int {
 	switch req.Operation {
 	case OperationStore, OperationUpdate:
 		return len(req.Chunks)
@@ -419,7 +421,7 @@ func (m *Manager) getTotalItems(req Request) int {
 	}
 }
 
-func (m *Manager) calculateTotalBatches(req Request) int {
+func (m *Manager) calculateTotalBatches(req *Request) int {
 	totalItems := m.getTotalItems(req)
 	batchSize := req.Options.BatchSize
 	if batchSize <= 0 {
@@ -464,8 +466,8 @@ func (m *Manager) buildProgress(op *Request) *Progress {
 	progress := &Progress{
 		OperationID:  op.ID,
 		Status:       status,
-		TotalItems:   m.getTotalItems(*op),
-		TotalBatches: m.calculateTotalBatches(*op),
+		TotalItems:   m.getTotalItems(op),
+		TotalBatches: m.calculateTotalBatches(op),
 		StartTime:    op.CreatedAt,
 	}
 
@@ -563,8 +565,9 @@ func (m *Manager) processBatchesStore(ctx context.Context, batches [][]types.Con
 				wg.Done()
 			}()
 
-			for j, chunk := range chunks {
-				if err := m.storage.Store(ctx, chunk); err != nil {
+			for j := range chunks {
+				chunk := &chunks[j]
+				if err := m.storage.Store(ctx, *chunk); err != nil {
 					progress.Errors = append(progress.Errors, Error{
 						ItemIndex: batchIndex*op.Options.BatchSize + j,
 						ItemID:    chunk.ID,

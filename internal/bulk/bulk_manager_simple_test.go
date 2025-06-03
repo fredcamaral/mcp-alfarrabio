@@ -23,8 +23,9 @@ func NewSimpleMockStorage() *SimpleMockStorage {
 
 func (s *SimpleMockStorage) BatchStore(_ context.Context, chunks []types.ConversationChunk) (*storage.BatchResult, error) {
 	success := 0
-	for _, chunk := range chunks {
-		s.chunks[chunk.ID] = chunk
+	for i := range chunks {
+		chunk := &chunks[i]
+		s.chunks[chunk.ID] = *chunk
 		success++
 	}
 	return &storage.BatchResult{Success: success, Failed: 0}, nil
@@ -52,7 +53,7 @@ func (s *SimpleMockStorage) Search(_ context.Context, _ types.MemoryQuery, _ []f
 func (s *SimpleMockStorage) GetByID(_ context.Context, _ string) (*types.ConversationChunk, error) {
 	return nil, errors.New("not found")
 }
-func (s *SimpleMockStorage) ListByRepository(_ context.Context, _ string, _ int, _ int) ([]types.ConversationChunk, error) {
+func (s *SimpleMockStorage) ListByRepository(_ context.Context, _ string, _, _ int) ([]types.ConversationChunk, error) {
 	return []types.ConversationChunk{}, nil
 }
 func (s *SimpleMockStorage) ListBySession(_ context.Context, _ string) ([]types.ConversationChunk, error) {
@@ -105,8 +106,8 @@ func (s *SimpleMockStorage) GetRelationshipByID(_ context.Context, _ string) (*t
 }
 
 func TestBulkManager_NewManager(t *testing.T) {
-	storage := NewSimpleMockStorage()
-	manager := NewManager(storage, nil)
+	vectorStore := NewSimpleMockStorage()
+	manager := NewManager(vectorStore, nil)
 
 	if manager == nil {
 		t.Fatal("NewManager returned nil")
@@ -115,8 +116,8 @@ func TestBulkManager_NewManager(t *testing.T) {
 
 func TestBulkManager_SubmitStoreOperation(t *testing.T) {
 	ctx := context.Background()
-	storage := NewSimpleMockStorage()
-	manager := NewManager(storage, nil)
+	vectorStore := NewSimpleMockStorage()
+	manager := NewManager(vectorStore, nil)
 
 	chunks := []types.ConversationChunk{
 		{
@@ -138,7 +139,7 @@ func TestBulkManager_SubmitStoreOperation(t *testing.T) {
 		},
 	}
 
-	progress, err := manager.SubmitOperation(ctx, request)
+	progress, err := manager.SubmitOperation(ctx, &request)
 	if err != nil {
 		t.Fatalf("SubmitOperation failed: %v", err)
 	}
@@ -154,8 +155,8 @@ func TestBulkManager_SubmitStoreOperation(t *testing.T) {
 
 func TestBulkManager_GetProgress(t *testing.T) {
 	ctx := context.Background()
-	storage := NewSimpleMockStorage()
-	manager := NewManager(storage, nil)
+	vectorStore := NewSimpleMockStorage()
+	manager := NewManager(vectorStore, nil)
 
 	chunks := []types.ConversationChunk{
 		{
@@ -177,7 +178,7 @@ func TestBulkManager_GetProgress(t *testing.T) {
 		},
 	}
 
-	progress, err := manager.SubmitOperation(ctx, request)
+	progress, err := manager.SubmitOperation(ctx, &request)
 	if err != nil {
 		t.Fatalf("SubmitOperation failed: %v", err)
 	}
@@ -194,8 +195,8 @@ func TestBulkManager_GetProgress(t *testing.T) {
 }
 
 func TestBulkManager_ListOperations(t *testing.T) {
-	storage := NewSimpleMockStorage()
-	manager := NewManager(storage, nil)
+	vectorStore := NewSimpleMockStorage()
+	manager := NewManager(vectorStore, nil)
 
 	operations, err := manager.ListOperations(nil, 10)
 	if err != nil {
@@ -210,8 +211,8 @@ func TestBulkManager_ListOperations(t *testing.T) {
 // Benchmark for bulk store performance
 func BenchmarkBulkManager_SubmitStoreOperation(b *testing.B) {
 	ctx := context.Background()
-	storage := NewSimpleMockStorage()
-	manager := NewManager(storage, nil)
+	vectorStore := NewSimpleMockStorage()
+	manager := NewManager(vectorStore, nil)
 
 	chunks := []types.ConversationChunk{
 		{
@@ -236,7 +237,7 @@ func BenchmarkBulkManager_SubmitStoreOperation(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		_, err := manager.SubmitOperation(ctx, request)
+		_, err := manager.SubmitOperation(ctx, &request)
 		if err != nil {
 			b.Fatalf("SubmitOperation failed: %v", err)
 		}

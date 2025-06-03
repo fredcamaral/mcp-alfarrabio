@@ -119,7 +119,7 @@ func NewImporter(logger *log.Logger) *Importer {
 }
 
 // Import imports data from the provided source
-func (imp *Importer) Import(ctx context.Context, data string, options ImportOptions) (*ImportResult, error) {
+func (imp *Importer) Import(ctx context.Context, data string, options *ImportOptions) (*ImportResult, error) {
 	result := &ImportResult{
 		Chunks: make([]types.ConversationChunk, 0),
 	}
@@ -173,7 +173,7 @@ func (imp *Importer) detectFormat(data string) ImportFormat {
 }
 
 // importJSON imports data from JSON format
-func (imp *Importer) importJSON(_ context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) importJSON(_ context.Context, data string, options *ImportOptions, result *ImportResult) (*ImportResult, error) {
 	// Try to parse as array of chunks first
 	var chunks []types.ConversationChunk
 	if err := json.Unmarshal([]byte(data), &chunks); err == nil {
@@ -203,7 +203,7 @@ func (imp *Importer) importJSON(_ context.Context, data string, options ImportOp
 }
 
 // importMarkdown imports data from markdown format
-func (imp *Importer) importMarkdown(_ context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) importMarkdown(_ context.Context, data string, options *ImportOptions, result *ImportResult) (*ImportResult, error) {
 	chunks, err := imp.parseMarkdown(data, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse markdown: %w", err)
@@ -213,7 +213,7 @@ func (imp *Importer) importMarkdown(_ context.Context, data string, options Impo
 }
 
 // importCSV imports data from CSV format
-func (imp *Importer) importCSV(_ context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) importCSV(_ context.Context, data string, options *ImportOptions, result *ImportResult) (*ImportResult, error) {
 	reader := csv.NewReader(strings.NewReader(data))
 	records, err := reader.ReadAll()
 	if err != nil {
@@ -248,7 +248,7 @@ func (imp *Importer) importCSV(_ context.Context, data string, options ImportOpt
 }
 
 // importArchive imports data from archive format (base64 encoded tar.gz or zip)
-func (imp *Importer) importArchive(ctx context.Context, data string, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) importArchive(ctx context.Context, data string, options *ImportOptions, result *ImportResult) (*ImportResult, error) {
 	// Decode base64 data
 	archiveData, err := base64.StdEncoding.DecodeString(data)
 	if err != nil {
@@ -269,7 +269,7 @@ func (imp *Importer) importArchive(ctx context.Context, data string, options Imp
 }
 
 // parseMarkdown parses markdown content into conversation chunks
-func (imp *Importer) parseMarkdown(data string, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) parseMarkdown(data string, options *ImportOptions) ([]types.ConversationChunk, error) {
 	_ = []types.ConversationChunk{}
 
 	switch options.ChunkingStrategy {
@@ -287,7 +287,7 @@ func (imp *Importer) parseMarkdown(data string, options ImportOptions) ([]types.
 }
 
 // chunkByParagraph splits markdown into chunks by paragraphs
-func (imp *Importer) chunkByParagraph(data string, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) chunkByParagraph(data string, options *ImportOptions) ([]types.ConversationChunk, error) {
 	paragraphs := strings.Split(data, "\n\n")
 	chunks := make([]types.ConversationChunk, 0, len(paragraphs))
 
@@ -308,7 +308,7 @@ func (imp *Importer) chunkByParagraph(data string, options ImportOptions) ([]typ
 }
 
 // chunkByFixedSize splits content into fixed-size chunks
-func (imp *Importer) chunkByFixedSize(data string, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) chunkByFixedSize(data string, options *ImportOptions) ([]types.ConversationChunk, error) {
 	const maxChunkSize = 2000 // characters
 	chunks := make([]types.ConversationChunk, 0)
 
@@ -330,7 +330,7 @@ func (imp *Importer) chunkByFixedSize(data string, options ImportOptions) ([]typ
 }
 
 // chunkByConversationTurns splits content by conversation turns (user/assistant pattern)
-func (imp *Importer) chunkByConversationTurns(data string, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) chunkByConversationTurns(data string, options *ImportOptions) ([]types.ConversationChunk, error) {
 	// Look for patterns like "User:", "Assistant:", "Human:", "AI:", etc.
 	turnPattern := regexp.MustCompile(`(?m)^(User|Assistant|Human|AI|Claude):\s*(.*)`)
 	matches := turnPattern.FindAllStringSubmatch(data, -1)
@@ -370,7 +370,7 @@ func (imp *Importer) chunkByConversationTurns(data string, options ImportOptions
 }
 
 // chunkMarkdownAuto automatically detects the best chunking strategy for markdown
-func (imp *Importer) chunkMarkdownAuto(data string, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) chunkMarkdownAuto(data string, options *ImportOptions) ([]types.ConversationChunk, error) {
 	// Check if it looks like a conversation
 	turnPattern := regexp.MustCompile(`(?m)^(User|Assistant|Human|AI|Claude):\s*`)
 	if turnPattern.MatchString(data) {
@@ -388,7 +388,7 @@ func (imp *Importer) chunkMarkdownAuto(data string, options ImportOptions) ([]ty
 }
 
 // parseCSVRecord parses a single CSV record into a conversation chunk
-func (imp *Importer) parseCSVRecord(header []string, record []string, options ImportOptions, lineNum int) (*types.ConversationChunk, error) {
+func (imp *Importer) parseCSVRecord(header, record []string, options *ImportOptions, lineNum int) (*types.ConversationChunk, error) {
 	if len(record) != len(header) {
 		return nil, fmt.Errorf("record length mismatch: expected %d fields, got %d", len(header), len(record))
 	}
@@ -467,12 +467,12 @@ func (imp *Importer) parseCSVRecord(header []string, record []string, options Im
 }
 
 // createChunkFromText creates a conversation chunk from raw text
-func (imp *Importer) createChunkFromText(text string, options ImportOptions, index int) (*types.ConversationChunk, error) {
+func (imp *Importer) createChunkFromText(text string, options *ImportOptions, index int) (*types.ConversationChunk, error) {
 	return imp.createChunkFromTextWithType(text, types.ChunkTypeDiscussion, options, index)
 }
 
 // createChunkFromTextWithType creates a conversation chunk from raw text with specified type
-func (imp *Importer) createChunkFromTextWithType(text string, chunkType types.ChunkType, options ImportOptions, index int) (*types.ConversationChunk, error) {
+func (imp *Importer) createChunkFromTextWithType(text string, chunkType types.ChunkType, options *ImportOptions, index int) (*types.ConversationChunk, error) {
 	sessionID := options.DefaultSessionID
 	if sessionID == "" {
 		sessionID = "imported_session"
@@ -504,7 +504,7 @@ func (imp *Importer) createChunkFromTextWithType(text string, chunkType types.Ch
 }
 
 // convertConversationData converts generic conversation data to chunks
-func (imp *Importer) convertConversationData(data map[string]interface{}, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) convertConversationData(data map[string]interface{}, options *ImportOptions) ([]types.ConversationChunk, error) {
 	// Try messages format first (ChatML or similar)
 	if messages, ok := data["messages"].([]interface{}); ok {
 		return imp.convertMessagesFormat(messages, options)
@@ -519,7 +519,7 @@ func (imp *Importer) convertConversationData(data map[string]interface{}, option
 }
 
 // convertMessagesFormat handles message array format
-func (imp *Importer) convertMessagesFormat(messages []interface{}, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) convertMessagesFormat(messages []interface{}, options *ImportOptions) ([]types.ConversationChunk, error) {
 	chunks := make([]types.ConversationChunk, 0, len(messages))
 
 	for i, msg := range messages {
@@ -539,7 +539,7 @@ func (imp *Importer) convertMessagesFormat(messages []interface{}, options Impor
 }
 
 // convertSingleContentFormat handles single content string format
-func (imp *Importer) convertSingleContentFormat(content string, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) convertSingleContentFormat(content string, options *ImportOptions) ([]types.ConversationChunk, error) {
 	chunk, err := imp.createChunkFromText(content, options, 0)
 	if err != nil {
 		return nil, err
@@ -548,7 +548,7 @@ func (imp *Importer) convertSingleContentFormat(content string, options ImportOp
 }
 
 // convertMessageToChunk converts a message object to a conversation chunk
-func (imp *Importer) convertMessageToChunk(message map[string]interface{}, options ImportOptions, index int) (*types.ConversationChunk, error) {
+func (imp *Importer) convertMessageToChunk(message map[string]interface{}, options *ImportOptions, index int) (*types.ConversationChunk, error) {
 	content, ok := message["content"].(string)
 	if !ok {
 		return nil, fmt.Errorf("message content must be a string")
@@ -571,10 +571,11 @@ func (imp *Importer) convertMessageToChunk(message map[string]interface{}, optio
 }
 
 // processChunks processes the parsed chunks with validation and conflict resolution
-func (imp *Importer) processChunks(chunks []types.ConversationChunk, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) processChunks(chunks []types.ConversationChunk, options *ImportOptions, result *ImportResult) (*ImportResult, error) {
 	result.TotalItems = len(chunks)
 
-	for i, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		// Validate if requested
 		if options.ValidateChunks {
 			if err := chunk.Validate(); err != nil {
@@ -597,7 +598,7 @@ func (imp *Importer) processChunks(chunks []types.ConversationChunk, options Imp
 			continue
 		}
 
-		result.Chunks = append(result.Chunks, chunk)
+		result.Chunks = append(result.Chunks, *chunk)
 		result.SuccessfulItems++
 		result.ProcessedItems++
 	}
@@ -655,7 +656,7 @@ func (imp *Importer) isZipArchive(data []byte) bool {
 }
 
 // extractAndImportTarGz extracts and imports from tar.gz archive
-func (imp *Importer) extractAndImportTarGz(_ context.Context, reader io.Reader, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) extractAndImportTarGz(_ context.Context, reader io.Reader, options *ImportOptions, result *ImportResult) (*ImportResult, error) {
 	gzipReader, err := gzip.NewReader(reader)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create gzip reader: %w", err)
@@ -714,7 +715,7 @@ func (imp *Importer) extractAndImportTarGz(_ context.Context, reader io.Reader, 
 }
 
 // extractAndImportZip extracts and imports from zip archive
-func (imp *Importer) extractAndImportZip(_ context.Context, data []byte, options ImportOptions, result *ImportResult) (*ImportResult, error) {
+func (imp *Importer) extractAndImportZip(_ context.Context, data []byte, options *ImportOptions, result *ImportResult) (*ImportResult, error) {
 	reader := bytes.NewReader(data)
 	zipReader, err := zip.NewReader(reader, int64(len(data)))
 	if err != nil {
@@ -773,7 +774,7 @@ func (imp *Importer) extractAndImportZip(_ context.Context, data []byte, options
 }
 
 // processArchiveFile processes a single file from an archive
-func (imp *Importer) processArchiveFile(filename, content string, options ImportOptions) ([]types.ConversationChunk, error) {
+func (imp *Importer) processArchiveFile(filename, content string, options *ImportOptions) ([]types.ConversationChunk, error) {
 	// Determine format based on file extension
 	ext := strings.ToLower(filepath.Ext(filename))
 
@@ -794,7 +795,7 @@ func (imp *Importer) processArchiveFile(filename, content string, options Import
 }
 
 // parseJSONContent parses JSON content and returns chunks directly
-func (imp *Importer) parseJSONContent(content string, _ ImportOptions, filename string) ([]types.ConversationChunk, error) {
+func (imp *Importer) parseJSONContent(content string, _ *ImportOptions, filename string) ([]types.ConversationChunk, error) {
 	// Try to parse as array of chunks first
 	var chunks []types.ConversationChunk
 	if err := json.Unmarshal([]byte(content), &chunks); err == nil {
@@ -811,7 +812,7 @@ func (imp *Importer) parseJSONContent(content string, _ ImportOptions, filename 
 }
 
 // parseMarkdownContent parses markdown content and returns chunks directly
-func (imp *Importer) parseMarkdownContent(content string, options ImportOptions, filename string) ([]types.ConversationChunk, error) {
+func (imp *Importer) parseMarkdownContent(content string, options *ImportOptions, filename string) ([]types.ConversationChunk, error) {
 	// Simple markdown parsing - create a single chunk from the content
 	chunk := types.ConversationChunk{
 		ID:        uuid.New().String(),
@@ -829,7 +830,7 @@ func (imp *Importer) parseMarkdownContent(content string, options ImportOptions,
 }
 
 // parseCSVContent parses CSV content and returns chunks directly
-func (imp *Importer) parseCSVContent(content string, options ImportOptions, filename string) ([]types.ConversationChunk, error) {
+func (imp *Importer) parseCSVContent(content string, options *ImportOptions, filename string) ([]types.ConversationChunk, error) {
 	reader := csv.NewReader(strings.NewReader(content))
 	records, err := reader.ReadAll()
 	if err != nil {

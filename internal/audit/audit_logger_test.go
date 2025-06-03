@@ -118,7 +118,7 @@ func TestAuditLogger_Search(t *testing.T) {
 		SessionID:  "search-test",
 	}
 
-	events, err := logger.Search(ctx, criteria)
+	events, err := logger.Search(ctx, &criteria)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -133,7 +133,7 @@ func TestAuditLogger_Search(t *testing.T) {
 		Success: &successFalse,
 	}
 
-	events, err = logger.Search(ctx, criteria)
+	events, err = logger.Search(ctx, &criteria)
 	if err != nil {
 		t.Fatalf("Search failed: %v", err)
 	}
@@ -293,7 +293,7 @@ func TestSearchCriteria_Matches(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := tt.criteria.Matches(event); got != tt.want {
+			if got := (&tt.criteria).Matches(&event); got != tt.want {
 				t.Errorf("Matches() = %v, want %v", got, tt.want)
 			}
 		})

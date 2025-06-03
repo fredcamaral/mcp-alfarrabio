@@ -1376,7 +1376,7 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 
 	// Create and store chunk with repository-scoped session ID
 	logging.Info("Creating conversation chunk", "session_id", repositoryScopedSessionID)
-	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, repositoryScopedSessionID, content, metadata)
+	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, repositoryScopedSessionID, content, &metadata)
 	if err != nil {
 		logging.Error("Failed to create chunk", "error", err, "session_id", repositoryScopedSessionID)
 		return nil, fmt.Errorf("failed to create chunk: %w", err)
@@ -2226,7 +2226,7 @@ func (ms *MemoryServer) handleStoreDecision(ctx context.Context, params map[stri
 	logging.Info("Created repository-scoped session for decision", "original_session", sessionID, "scoped_session", repositoryScopedSessionID, "repository", metadata.Repository)
 
 	// Create and store chunk with repository-scoped session ID
-	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, repositoryScopedSessionID, content, metadata)
+	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, repositoryScopedSessionID, content, &metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create decision chunk: %w", err)
 	}
@@ -2931,16 +2931,14 @@ type patternAnalysisResult struct {
 }
 
 // findMostFrequent returns the key with the highest count in a map
-func findMostFrequent(data map[string]int) (string, int) {
-	maxKey := ""
-	maxCount := 0
+func findMostFrequent(data map[string]int) (mostFrequent string, maxCount int) {
 	for key, count := range data {
 		if count > maxCount {
 			maxCount = count
-			maxKey = key
+			mostFrequent = key
 		}
 	}
-	return maxKey, maxCount
+	return mostFrequent, maxCount
 }
 
 // analyzeHistoricalPatterns extracts patterns from historical memory chunks
@@ -3408,7 +3406,7 @@ func (ms *MemoryServer) importConversationText(ctx context.Context, data, reposi
 		chunkMetadata.Tags = append(chunkMetadata.Tags, "source:"+sourceSystem)
 	}
 
-	chunkData, err := ms.container.GetChunkingService().CreateChunk(ctx, "import", data, chunkMetadata)
+	chunkData, err := ms.container.GetChunkingService().CreateChunk(ctx, "import", data, &chunkMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -3437,7 +3435,7 @@ func (ms *MemoryServer) importFileContent(ctx context.Context, data, repository,
 		chunkMetadata.Tags = append(chunkMetadata.Tags, "source:"+sourceSystem)
 	}
 
-	chunkData, err := ms.container.GetChunkingService().CreateChunk(ctx, "import", data, chunkMetadata)
+	chunkData, err := ms.container.GetChunkingService().CreateChunk(ctx, "import", data, &chunkMetadata)
 	if err != nil {
 		return nil, err
 	}
@@ -7293,7 +7291,7 @@ func (ms *MemoryServer) storeCleanupResult(ctx context.Context, content string) 
 	}
 
 	// Create and store cleanup chunk
-	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, "system-cleanup", content, metadata)
+	chunk, err := ms.container.GetChunkingService().CreateChunk(ctx, "system-cleanup", content, &metadata)
 	if err != nil {
 		logging.Error("Failed to create cleanup result chunk", "error", err)
 		return
@@ -7837,11 +7835,11 @@ func (ms *MemoryServer) categorizeConflictsByType(conflicts []intelligence.Confl
 // categorizeConflictsBySeverity2 categorizes conflicts by their severity (new version)
 func (ms *MemoryServer) categorizeConflictsBySeverity2(conflicts []intelligence.Conflict) map[string]int {
 	severities := map[string]int{
-		"critical":   0,
+		"critical":  0,
 		LevelHigh:   0,
 		LevelMedium: 0,
-		"low":        0,
-		"info":       0,
+		"low":       0,
+		"info":      0,
 	}
 
 	for _, conflict := range conflicts {
@@ -7990,7 +7988,7 @@ func (ms *MemoryServer) handleBulkOperation(ctx context.Context, params map[stri
 	}
 
 	// Submit operation
-	progress, err := ms.bulkManager.SubmitOperation(ctx, bulkReq)
+	progress, err := ms.bulkManager.SubmitOperation(ctx, &bulkReq)
 	if err != nil {
 		return nil, fmt.Errorf("failed to submit bulk operation: %w", err)
 	}
@@ -8054,7 +8052,7 @@ func (ms *MemoryServer) handleBulkImport(ctx context.Context, params map[string]
 	ms.parseImportMetadata(params, &options)
 
 	// Import data
-	result, err := ms.bulkImporter.Import(ctx, data, options)
+	result, err := ms.bulkImporter.Import(ctx, data, &options)
 	if err != nil {
 		return nil, fmt.Errorf("import failed: %w", err)
 	}
@@ -8072,7 +8070,7 @@ func (ms *MemoryServer) handleBulkImport(ctx context.Context, params map[string]
 			},
 		}
 
-		progress, err := ms.bulkManager.SubmitOperation(ctx, bulkReq)
+		progress, err := ms.bulkManager.SubmitOperation(ctx, &bulkReq)
 		if err != nil {
 			logging.Warn("Failed to store imported chunks", "error", err)
 		} else {
@@ -8301,7 +8299,7 @@ func (ms *MemoryServer) handleBulkExport(ctx context.Context, params map[string]
 	}
 
 	// Export data
-	result, err := ms.bulkExporter.Export(ctx, options)
+	result, err := ms.bulkExporter.Export(ctx, &options)
 	if err != nil {
 		return nil, fmt.Errorf("export failed: %w", err)
 	}
@@ -8838,7 +8836,7 @@ func (ms *MemoryServer) handleCreateAlias(ctx context.Context, params map[string
 	}
 
 	// Create alias
-	createdAlias, err := ms.aliasManager.CreateAlias(ctx, alias)
+	createdAlias, err := ms.aliasManager.CreateAlias(ctx, &alias)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create alias: %w", err)
 	}
@@ -9600,7 +9598,7 @@ func (ms *MemoryServer) handleTodoWrite(ctx context.Context, args map[string]int
 
 	return map[string]interface{}{
 		StatusSuccess: true,
-		"message":      fmt.Sprintf("Processed %d todos for repository %s (session: %s)", len(todos), repository, sessionID),
+		"message":     fmt.Sprintf("Processed %d todos for repository %s (session: %s)", len(todos), repository, sessionID),
 	}, nil
 }
 
@@ -9711,7 +9709,7 @@ func (ms *MemoryServer) handleTodoUpdate(ctx context.Context, args map[string]in
 
 	return map[string]interface{}{
 		StatusSuccess: true,
-		"message":      fmt.Sprintf("Updated repository %s (session: %s) with tool usage: %s", repository, sessionID, toolName),
+		"message":     fmt.Sprintf("Updated repository %s (session: %s) with tool usage: %s", repository, sessionID, toolName),
 	}, nil
 }
 
@@ -9733,10 +9731,10 @@ func (ms *MemoryServer) handleSessionCreate(ctx context.Context, args map[string
 
 	return map[string]interface{}{
 		StatusSuccess: true,
-		"session_id":   session.SessionID,
-		"repository":   session.Repository,
-		"start_time":   session.StartTime,
-		"message":      fmt.Sprintf("Session %s created for repository %s", sessionID, repository),
+		"session_id":  session.SessionID,
+		"repository":  session.Repository,
+		"start_time":  session.StartTime,
+		"message":     fmt.Sprintf("Session %s created for repository %s", sessionID, repository),
 	}, nil
 }
 
@@ -9774,7 +9772,7 @@ func (ms *MemoryServer) handleSessionEnd(ctx context.Context, args map[string]in
 
 	return map[string]interface{}{
 		StatusSuccess: true,
-		"message":      fmt.Sprintf("Session %s in repository %s ended with outcome: %s", sessionID, repository, outcomeStr),
+		"message":     fmt.Sprintf("Session %s in repository %s ended with outcome: %s", sessionID, repository, outcomeStr),
 	}, nil
 }
 

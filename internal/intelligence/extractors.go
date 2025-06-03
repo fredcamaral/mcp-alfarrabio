@@ -1,7 +1,6 @@
 package intelligence
 
 import (
-	"fmt"
 	"regexp"
 	"strings"
 )
@@ -35,7 +34,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 		concept := Concept{
 			Name:        match,
 			Type:        "technical_term",
-			Description: fmt.Sprintf("Technical term: %s", match),
+			Description: "Technical term: " + match,
 			Confidence:  0.8,
 			Context: map[string]any{
 				"category": "technology",
@@ -51,7 +50,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 		concept := Concept{
 			Name:        match,
 			Type:        "architectural_concept",
-			Description: fmt.Sprintf("Architectural concept: %s", match),
+			Description: "Architectural concept: " + match,
 			Confidence:  0.7,
 			Context: map[string]any{
 				"category": "architecture",
@@ -67,7 +66,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 		concept := Concept{
 			Name:        match,
 			Type:        "action",
-			Description: fmt.Sprintf("Action concept: %s", match),
+			Description: "Action concept: " + match,
 			Confidence:  0.6,
 			Context: map[string]any{
 				"category": "action",
@@ -83,7 +82,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 		concept := Concept{
 			Name:        match,
 			Type:        "abstract_concept",
-			Description: fmt.Sprintf("Abstract concept: %s", match),
+			Description: "Abstract concept: " + match,
 			Confidence:  0.5,
 			Context: map[string]any{
 				"category": "abstract",
@@ -100,7 +99,7 @@ func (bce *BasicConceptExtractor) ExtractConcepts(text string) ([]Concept, error
 			concept := Concept{
 				Name:        phrase,
 				Type:        "key_phrase",
-				Description: fmt.Sprintf("Key phrase: %s", phrase),
+				Description: "Key phrase: " + phrase,
 				Confidence:  0.4,
 				Context: map[string]any{
 					"category": "phrase",

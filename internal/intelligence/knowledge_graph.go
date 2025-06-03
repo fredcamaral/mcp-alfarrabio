@@ -2,6 +2,7 @@ package intelligence
 
 import (
 	"context"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"math"
@@ -226,10 +227,10 @@ func (gb *GraphBuilder) AddRelation(relation *KnowledgeRelation) error {
 
 	// Verify nodes exist
 	if _, exists := gb.graph.Nodes[relation.FromNodeID]; !exists {
-		return fmt.Errorf("from node %s does not exist", relation.FromNodeID)
+		return errors.New("from node " + relation.FromNodeID + " does not exist")
 	}
 	if _, exists := gb.graph.Nodes[relation.ToNodeID]; !exists {
-		return fmt.Errorf("to node %s does not exist", relation.ToNodeID)
+		return errors.New("to node " + relation.ToNodeID + " does not exist")
 	}
 
 	gb.graph.Relations[relation.ID] = relation
@@ -306,9 +307,9 @@ func (gb *GraphBuilder) GetRelatedNodes(nodeID string, maxDepth int) ([]*Knowled
 
 func (gb *GraphBuilder) addChunkNode(chunk types.ConversationChunk) error {
 	node := &KnowledgeNode{
-		ID:          fmt.Sprintf("chunk_%s", chunk.ID),
+		ID:          "chunk_" + chunk.ID,
 		Type:        NodeTypeChunk,
-		Name:        fmt.Sprintf("Chunk %s", chunk.ID),
+		Name:        "Chunk " + chunk.ID,
 		Description: gb.generateChunkDescription(chunk),
 		Content:     chunk.Content,
 		Properties: map[string]any{
@@ -369,7 +370,7 @@ func (gb *GraphBuilder) updateExistingConcept(node *KnowledgeNode, concept Conce
 
 func (gb *GraphBuilder) createConceptNode(concept Concept, chunk types.ConversationChunk) error {
 	node := &KnowledgeNode{
-		ID:          fmt.Sprintf("concept_%s", gb.generateNodeID(concept.Name)),
+		ID:          "concept_" + gb.generateNodeID(concept.Name),
 		Type:        NodeTypeConcept,
 		Name:        concept.Name,
 		Description: concept.Description,
@@ -393,8 +394,8 @@ func (gb *GraphBuilder) createConceptNode(concept Concept, chunk types.Conversat
 
 func (gb *GraphBuilder) addConceptRelation(chunk types.ConversationChunk, node *KnowledgeNode, concept Concept) error {
 	relation := &KnowledgeRelation{
-		ID:         fmt.Sprintf("rel_%s_%s", chunk.ID, node.ID),
-		FromNodeID: fmt.Sprintf("chunk_%s", chunk.ID),
+		ID:         "rel_" + chunk.ID + "_" + node.ID,
+		FromNodeID: "chunk_" + chunk.ID,
 		ToNodeID:   node.ID,
 		Type:       RelationContains,
 		Weight:     concept.Confidence,
@@ -432,7 +433,7 @@ func (gb *GraphBuilder) extractAndAddEntities(chunk types.ConversationChunk) err
 }
 
 func (gb *GraphBuilder) addEntityNode(entityName string, nodeType NodeType, chunkID string) error {
-	nodeID := fmt.Sprintf("%s_%s", nodeType, gb.generateNodeID(entityName))
+	nodeID := string(nodeType) + "_" + gb.generateNodeID(entityName)
 
 	// Check if entity already exists
 	if existingNode := gb.findNodeByName(entityName, nodeType); existingNode != nil {
@@ -445,7 +446,7 @@ func (gb *GraphBuilder) addEntityNode(entityName string, nodeType NodeType, chun
 		ID:          nodeID,
 		Type:        nodeType,
 		Name:        entityName,
-		Description: fmt.Sprintf("%s entity: %s", nodeType, entityName),
+		Description: string(nodeType) + " entity: " + entityName,
 		Content:     entityName,
 		Properties: map[string]any{
 			"entity_type": string(nodeType),
@@ -465,8 +466,8 @@ func (gb *GraphBuilder) addEntityNode(entityName string, nodeType NodeType, chun
 
 	// Add relation from chunk to entity
 	relation := &KnowledgeRelation{
-		ID:         fmt.Sprintf("rel_%s_%s", chunkID, nodeID),
-		FromNodeID: fmt.Sprintf("chunk_%s", chunkID),
+		ID:         "rel_" + chunkID + "_" + nodeID,
+		FromNodeID: "chunk_" + chunkID,
 		ToNodeID:   nodeID,
 		Type:       RelationReferences,
 		Weight:     0.8,
@@ -485,9 +486,9 @@ func (gb *GraphBuilder) identifyRelations(chunks []types.ConversationChunk) erro
 	// Identify temporal relationships (follows)
 	for i := 0; i < len(chunks)-1; i++ {
 		relation := &KnowledgeRelation{
-			ID:         fmt.Sprintf("follows_%s_%s", chunks[i].ID, chunks[i+1].ID),
-			FromNodeID: fmt.Sprintf("chunk_%s", chunks[i].ID),
-			ToNodeID:   fmt.Sprintf("chunk_%s", chunks[i+1].ID),
+			ID:         "follows_" + chunks[i].ID + "_" + chunks[i+1].ID,
+			FromNodeID: "chunk_" + chunks[i].ID,
+			ToNodeID:   "chunk_" + chunks[i+1].ID,
 			Type:       RelationFollows,
 			Weight:     1.0,
 			Confidence: 1.0,
@@ -511,9 +512,9 @@ func (gb *GraphBuilder) identifyRelations(chunks []types.ConversationChunk) erro
 			for j := i + 1; j < len(chunks) && j < i+5; j++ {
 				if chunks[j].Type == types.ChunkTypeSolution {
 					relation := &KnowledgeRelation{
-						ID:         fmt.Sprintf("solves_%s_%s", chunks[j].ID, chunk.ID),
-						FromNodeID: fmt.Sprintf("chunk_%s", chunks[j].ID),
-						ToNodeID:   fmt.Sprintf("chunk_%s", chunk.ID),
+						ID:         "solves_" + chunks[j].ID + "_" + chunk.ID,
+						FromNodeID: "chunk_" + chunks[j].ID,
+						ToNodeID:   "chunk_" + chunk.ID,
 						Type:       RelationSolves,
 						Weight:     gb.calculateSolutionRelevance(chunk, chunks[j]),
 						Confidence: 0.8,
@@ -549,7 +550,7 @@ func (gb *GraphBuilder) inferRelationships() error {
 			similarity := gb.calculateNodeSimilarity(nodes[i], nodes[j])
 			if similarity > gb.relationThreshold {
 				relation := &KnowledgeRelation{
-					ID:         fmt.Sprintf("similar_%s_%s", nodes[i].ID, nodes[j].ID),
+					ID:         "similar_" + nodes[i].ID + "_" + nodes[j].ID,
 					FromNodeID: nodes[i].ID,
 					ToNodeID:   nodes[j].ID,
 					Type:       RelationSimilarTo,
@@ -600,7 +601,7 @@ func (gb *GraphBuilder) traverseRelations(nodeID string, maxDepth, currentDepth 
 
 func (gb *GraphBuilder) generateNodeID(name string) string {
 	// Simple hash-based ID generation
-	return fmt.Sprintf("%x", strings.ToLower(strings.ReplaceAll(name, " ", "_")))
+	return hex.EncodeToString([]byte(strings.ToLower(strings.ReplaceAll(name, " ", "_"))))
 }
 
 func (gb *GraphBuilder) generateChunkDescription(chunk types.ConversationChunk) string {
@@ -613,7 +614,7 @@ func (gb *GraphBuilder) generateChunkDescription(chunk types.ConversationChunk) 
 			summary = chunk.Content
 		}
 	}
-	return fmt.Sprintf("%s chunk: %s", chunk.Type, summary)
+	return string(chunk.Type) + " chunk: " + summary
 }
 
 func (gb *GraphBuilder) extractTags(chunk types.ConversationChunk) []string {

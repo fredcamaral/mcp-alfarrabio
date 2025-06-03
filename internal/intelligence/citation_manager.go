@@ -3,9 +3,11 @@ package intelligence
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"mcp-memory/pkg/types"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -138,7 +140,7 @@ func (cm *CitationManager) GenerateCitations(ctx context.Context, results []type
 	// Generate individual citations
 	citations := make([]Citation, 0, len(filteredResults))
 	for i, result := range filteredResults {
-		citation := cm.createCitation(result, i+1)
+		citation := cm.createCitation(&result, i+1)
 		citations = append(citations, citation)
 	}
 
@@ -225,7 +227,7 @@ func (cm *CitationManager) filterByConfidence(results []types.SearchResult) []ty
 	return filtered
 }
 
-func (cm *CitationManager) createCitation(result types.SearchResult, index int) Citation {
+func (cm *CitationManager) createCitation(result *types.SearchResult, index int) Citation {
 	chunk := result.Chunk
 
 	confidence := 0.5
@@ -234,12 +236,12 @@ func (cm *CitationManager) createCitation(result types.SearchResult, index int) 
 	}
 
 	// Generate citation ID (will be used below)
-	citationID := fmt.Sprintf("%d", index)
+	citationID := strconv.Itoa(index)
 
 	// Extract context (first 200 chars of content)
-	context := chunk.Content
-	if len(context) > 200 {
-		context = context[:200] + "..."
+	citationContext := chunk.Content
+	if len(citationContext) > 200 {
+		citationContext = citationContext[:200] + "..."
 	}
 
 	citation := Citation{
@@ -252,7 +254,7 @@ func (cm *CitationManager) createCitation(result types.SearchResult, index int) 
 		Confidence: confidence,
 		Relevance:  result.Score,
 		UsageCount: 0,
-		Context:    context,
+		Context:    citationContext,
 		Metadata:   make(map[string]interface{}),
 	}
 
@@ -394,12 +396,12 @@ func (cm *CitationManager) replacePlaceholders(template string, citation Citatio
 
 func (cm *CitationManager) generateResponseID(query string) string {
 	hash := sha256.Sum256([]byte(query + time.Now().Format(time.RFC3339)))
-	return fmt.Sprintf("resp_%x", hash[:8])
+	return "resp_" + hex.EncodeToString(hash[:8])
 }
 
 func (cm *CitationManager) generateTextHash(text string) string {
 	hash := sha256.Sum256([]byte(text))
-	return fmt.Sprintf("%x", hash[:8])
+	return hex.EncodeToString(hash[:8])
 }
 
 func (cm *CitationManager) findMatchingCitations(text string, citations []Citation) []Citation {
@@ -439,11 +441,11 @@ func (cm *CitationManager) generateGroupSummary(group *CitationGroup) string {
 
 	switch group.GroupType {
 	case "repository":
-		return fmt.Sprintf("%d sources from %s", len(group.Citations), group.GroupName)
+		return strconv.Itoa(len(group.Citations)) + " sources from " + group.GroupName
 	case "type":
-		return fmt.Sprintf("%d %s entries", len(group.Citations), group.GroupName)
+		return strconv.Itoa(len(group.Citations)) + " " + group.GroupName + " entries"
 	default:
-		return fmt.Sprintf("%d related sources", len(group.Citations))
+		return strconv.Itoa(len(group.Citations)) + " related sources"
 	}
 }
 

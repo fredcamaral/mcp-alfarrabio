@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"mcp-memory/pkg/types"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -562,7 +563,7 @@ func (fm *FreshnessManager) checkTechnologyVersionAlert(chunk *types.Conversatio
 		Type:         "technology_version_stale",
 		Severity:     "high",
 		Message:      fmt.Sprintf("%s version information may be outdated", tech),
-		Reason:       fmt.Sprintf("Technology reference is %d days old", daysOld),
+		Reason:       "Technology reference is " + strconv.Itoa(daysOld) + " days old",
 		Detected:     time.Now(),
 		ActionNeeded: "Verify current version compatibility",
 	}
@@ -588,7 +589,7 @@ func (fm *FreshnessManager) checkSecurityContentAlert(chunk *types.ConversationC
 					Type:         "security_content_stale",
 					Severity:     "high",
 					Message:      "Security-related content may be outdated",
-					Reason:       fmt.Sprintf("Security content is %d days old", daysOld),
+					Reason:       "Security content is " + strconv.Itoa(daysOld) + " days old",
 					Detected:     time.Now(),
 					ActionNeeded: "Review for current security best practices",
 				}
@@ -611,7 +612,7 @@ func (fm *FreshnessManager) checkPerformanceMetricsAlert(chunk *types.Conversati
 					Type:         "performance_metrics_stale",
 					Severity:     "medium",
 					Message:      "Performance metrics may be outdated",
-					Reason:       fmt.Sprintf("Performance data is %d days old", daysOld),
+					Reason:       "Performance data is " + strconv.Itoa(daysOld) + " days old",
 					Detected:     time.Now(),
 					ActionNeeded: "Re-measure current performance",
 				}
@@ -661,7 +662,7 @@ func (fm *FreshnessManager) generateSuggestedActions(chunk *types.ConversationCh
 			actions = append(actions, SuggestedAction{
 				Action:     "update",
 				Priority:   "high",
-				Reason:     fmt.Sprintf("%s content in fast-moving ecosystem", tech),
+				Reason:     tech + " content in fast-moving ecosystem",
 				Confidence: 0.9,
 			})
 		}

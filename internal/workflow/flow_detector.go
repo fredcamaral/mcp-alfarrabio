@@ -182,10 +182,10 @@ func (fd *FlowDetector) ProcessMessage(sessionID, content string, toolUsed strin
 }
 
 // detectFlow analyzes content to determine conversation flow type
-func (fd *FlowDetector) detectFlow(content, toolUsed string) (types.ConversationFlow, float64) {
+func (fd *FlowDetector) detectFlow(content, toolUsed string) (detectedFlow types.ConversationFlow, confidence float64) {
 	contentLower := strings.ToLower(content)
 	maxScore := 0.0
-	detectedFlow := types.FlowProblem // default
+	detectedFlow = types.FlowProblem // default
 
 	for flow, pattern := range fd.flowPatterns {
 		score := fd.calculateFlowScore(contentLower, toolUsed, pattern)
@@ -196,7 +196,7 @@ func (fd *FlowDetector) detectFlow(content, toolUsed string) (types.Conversation
 	}
 
 	// Normalize confidence to 0-1 range
-	confidence := maxScore / 3.0 // Max possible score is roughly 3 (keyword + phrase + tool)
+	confidence = maxScore / 3.0 // Max possible score is roughly 3 (keyword + phrase + tool)
 	if confidence > 1.0 {
 		confidence = 1.0
 	}

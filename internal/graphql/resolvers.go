@@ -331,7 +331,7 @@ func (s *Schema) storeChunkResolver(container *di.Container) graphql.FieldResolv
 
 		// Process with chunking service
 		chunkingService := container.GetChunkingService()
-		processedChunks, err := chunkingService.ProcessConversation(ctx, chunk.SessionID, chunk.Content, chunk.Metadata)
+		processedChunks, err := chunkingService.ProcessConversation(ctx, chunk.SessionID, chunk.Content, &chunk.Metadata)
 		if err != nil {
 			return nil, fmt.Errorf("failed to process conversation: %w", err)
 		}

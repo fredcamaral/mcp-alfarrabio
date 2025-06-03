@@ -53,7 +53,7 @@ func TestProcessConversation(t *testing.T) {
 	conversation := "Human: How do I fix this error?\n\nAssistant: You need to check the logs."
 	metadata := types.ChunkMetadata{Repository: "test-repo"}
 
-	chunks, err := cs.ProcessConversation(ctx, sessionID, conversation, metadata)
+	chunks, err := cs.ProcessConversation(ctx, sessionID, conversation, &metadata)
 	if err != nil {
 		t.Fatalf("ProcessConversation failed: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestProcessConversation(t *testing.T) {
 	}
 
 	// Test empty conversation
-	_, err = cs.ProcessConversation(ctx, sessionID, "", metadata)
+	_, err = cs.ProcessConversation(ctx, sessionID, "", &metadata)
 	if err == nil {
 		t.Error("Expected error for empty conversation")
 	}
@@ -102,7 +102,7 @@ func TestCreateChunk(t *testing.T) {
 	content := "I'm getting an error when running the tests"
 	metadata := types.ChunkMetadata{Repository: "test-repo"}
 
-	chunk, err := cs.CreateChunk(ctx, sessionID, content, metadata)
+	chunk, err := cs.CreateChunk(ctx, sessionID, content, &metadata)
 	if err != nil {
 		t.Fatalf("CreateChunk failed: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestCreateChunk(t *testing.T) {
 
 	// Test solution detection
 	content = "I fixed the issue by updating the dependencies"
-	chunk, err = cs.CreateChunk(ctx, sessionID, content, metadata)
+	chunk, err = cs.CreateChunk(ctx, sessionID, content, &metadata)
 	if err != nil {
 		t.Fatalf("CreateChunk failed: %v", err)
 	}

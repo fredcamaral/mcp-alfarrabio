@@ -95,7 +95,7 @@ type Logger struct {
 // NewLogger creates a new audit logger
 func NewLogger(baseDir string) (*Logger, error) {
 	// Create audit directory if it doesn't exist
-	if err := os.MkdirAll(baseDir, 0750); err != nil {
+	if err := os.MkdirAll(baseDir, 0o750); err != nil {
 		return nil, fmt.Errorf("failed to create audit directory: %w", err)
 	}
 
@@ -148,7 +148,7 @@ func (al *Logger) LogEvent(ctx context.Context, eventType EventType, action, res
 		event.Repository = repo
 	}
 
-	al.addEvent(event)
+	al.addEvent(&event)
 }
 
 // LogError logs an error event
@@ -172,7 +172,7 @@ func (al *Logger) LogError(ctx context.Context, eventType EventType, action, res
 		event.UserID = userID
 	}
 
-	al.addEvent(event)
+	al.addEvent(&event)
 	al.errorCount++
 }
 
@@ -201,15 +201,15 @@ func (al *Logger) LogEventWithDuration(ctx context.Context, eventType EventType,
 		event.Repository = repo
 	}
 
-	al.addEvent(event)
+	al.addEvent(&event)
 }
 
 // addEvent adds an event to the buffer
-func (al *Logger) addEvent(event Event) {
+func (al *Logger) addEvent(event *Event) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
-	al.buffer = append(al.buffer, event)
+	al.buffer = append(al.buffer, *event)
 	al.eventCount[event.EventType]++
 
 	// Flush if buffer is getting full
@@ -235,9 +235,9 @@ func (al *Logger) flush() {
 
 	// Write events to file
 	encoder := json.NewEncoder(al.currentFile)
-	for _, event := range al.buffer {
-		if err := encoder.Encode(event); err != nil {
-			logging.Error("Failed to write audit event", "error", err, "event_id", event.ID)
+	for i := range al.buffer {
+		if err := encoder.Encode(al.buffer[i]); err != nil {
+			logging.Error("Failed to write audit event", "error", err, "event_id", al.buffer[i].ID)
 		}
 	}
 
@@ -267,7 +267,7 @@ func (al *Logger) rotateFile() error {
 	fullPath := filepath.Join(al.baseDir, filename)
 
 	// Open new file
-	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600) // #nosec G304 -- Path is constructed from sanitized baseDir and timestamp
+	file, err := os.OpenFile(fullPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o600) // #nosec G304 -- Path is constructed from sanitized baseDir and timestamp
 	if err != nil {
 		return fmt.Errorf("failed to open audit file: %w", err)
 	}
@@ -339,7 +339,7 @@ func (al *Logger) GetStatistics() map[string]interface{} {
 }
 
 // Search searches audit logs
-func (al *Logger) Search(_ context.Context, criteria SearchCriteria) ([]Event, error) {
+func (al *Logger) Search(_ context.Context, criteria *SearchCriteria) ([]Event, error) {
 	events := []Event{}
 
 	// Get list of files to search
@@ -350,7 +350,7 @@ func (al *Logger) Search(_ context.Context, criteria SearchCriteria) ([]Event, e
 
 	// Search each file
 	for _, filename := range files {
-		fileEvents, err := al.searchFile(filename, criteria)
+		fileEvents, err := al.searchFile(filename, *criteria)
 		if err != nil {
 			logging.Error("Failed to search audit file", "file", filename, "error", err)
 			continue
@@ -367,7 +367,11 @@ func (al *Logger) Search(_ context.Context, criteria SearchCriteria) ([]Event, e
 }
 
 // searchFile searches a single audit file
-func (al *Logger) searchFile(filename string, criteria SearchCriteria) ([]Event, error) {
+func (al *Logger) searchFile(filename string, criteria SearchCriteria) ([]Event, error) { //nolint:gocritic // Delegate function to optimize for large parameter
+	return al.searchFileWithCriteria(filename, &criteria)
+}
+
+func (al *Logger) searchFileWithCriteria(filename string, criteria *SearchCriteria) ([]Event, error) {
 	// Clean and validate the filename
 	cleanPath := filepath.Clean(filepath.Join(al.baseDir, filename))
 	if !strings.HasPrefix(cleanPath, filepath.Clean(al.baseDir)) {
@@ -389,7 +393,7 @@ func (al *Logger) searchFile(filename string, criteria SearchCriteria) ([]Event,
 			continue
 		}
 
-		if criteria.Matches(event) {
+		if criteria.Matches(&event) {
 			events = append(events, event)
 		}
 	}
@@ -457,7 +461,7 @@ type SearchCriteria struct {
 }
 
 // Matches checks if an event matches the criteria
-func (sc SearchCriteria) Matches(event Event) bool {
+func (sc *SearchCriteria) Matches(event *Event) bool {
 	// Time range
 	if !sc.StartTime.IsZero() && event.Timestamp.Before(sc.StartTime) {
 		return false

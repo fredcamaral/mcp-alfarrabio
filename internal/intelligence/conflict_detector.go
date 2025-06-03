@@ -185,9 +185,9 @@ func (cd *ConflictDetector) DetectConflicts(ctx context.Context, chunks []types.
 
 	// Filter conflicts by confidence threshold
 	filteredConflicts := []Conflict{}
-	for _, conflict := range conflicts {
-		if conflict.Confidence >= cd.minConfidence {
-			filteredConflicts = append(filteredConflicts, conflict)
+	for i := range conflicts {
+		if conflicts[i].Confidence >= cd.minConfidence {
+			filteredConflicts = append(filteredConflicts, conflicts[i])
 		}
 	}
 
@@ -212,21 +212,21 @@ func (cd *ConflictDetector) detectArchitecturalConflicts(chunks []types.Conversa
 
 	// Group architectural decision chunks
 	archChunks := []types.ConversationChunk{}
-	for _, chunk := range chunks {
-		if chunk.Type == types.ChunkTypeArchitectureDecision ||
-			cd.containsKeywords(chunk.Content, cd.architecturalKeywords) {
-			archChunks = append(archChunks, chunk)
+	for i := range chunks {
+		if chunks[i].Type == types.ChunkTypeArchitectureDecision ||
+			cd.containsKeywords(chunks[i].Content, cd.architecturalKeywords) {
+			archChunks = append(archChunks, chunks[i])
 		}
 	}
 
 	// Compare architectural chunks for conflicts
-	for i, chunk1 := range archChunks {
-		for j, chunk2 := range archChunks {
-			if i >= j || chunk1.SessionID == chunk2.SessionID {
+	for i := range archChunks {
+		for j := range archChunks {
+			if i >= j || archChunks[i].SessionID == archChunks[j].SessionID {
 				continue
 			}
 
-			if conflict := cd.analyzeArchitecturalConflict(chunk1, chunk2); conflict != nil {
+			if conflict := cd.analyzeArchitecturalConflict(archChunks[i], archChunks[j]); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}
@@ -241,21 +241,21 @@ func (cd *ConflictDetector) detectTechnicalConflicts(chunks []types.Conversation
 
 	// Group technical chunks
 	techChunks := []types.ConversationChunk{}
-	for _, chunk := range chunks {
-		if chunk.Type == types.ChunkTypeCodeChange || chunk.Type == types.ChunkTypeSolution ||
-			cd.containsKeywords(chunk.Content, cd.technicalKeywords) {
-			techChunks = append(techChunks, chunk)
+	for i := range chunks {
+		if chunks[i].Type == types.ChunkTypeCodeChange || chunks[i].Type == types.ChunkTypeSolution ||
+			cd.containsKeywords(chunks[i].Content, cd.technicalKeywords) {
+			techChunks = append(techChunks, chunks[i])
 		}
 	}
 
 	// Compare technical approaches
-	for i, chunk1 := range techChunks {
-		for j, chunk2 := range techChunks {
-			if i >= j || chunk1.SessionID == chunk2.SessionID {
+	for i := range techChunks {
+		for j := range techChunks {
+			if i >= j || techChunks[i].SessionID == techChunks[j].SessionID {
 				continue
 			}
 
-			if conflict := cd.analyzeTechnicalConflict(chunk1, chunk2); conflict != nil {
+			if conflict := cd.analyzeTechnicalConflict(techChunks[i], techChunks[j]); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}

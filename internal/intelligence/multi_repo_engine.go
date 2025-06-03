@@ -259,7 +259,7 @@ func (mre *MultiRepoEngine) AnalyzeCrossRepoPatterns(ctx context.Context) error 
 			crossPattern := &CrossRepoPattern{
 				ID:           fmt.Sprintf("cross_%s_%d", sanitizeID(patternName), time.Now().Unix()),
 				Name:         patternName,
-				Description:  fmt.Sprintf("Cross-repository pattern: %s", patternName),
+				Description:  "Cross-repository pattern: " + patternName,
 				Repositories: make([]string, 0),
 				Frequency:    len(repos),
 				Confidence:   mre.calculateCrossPatternConfidence(repos),
@@ -369,7 +369,7 @@ func (mre *MultiRepoEngine) QueryMultiRepo(ctx context.Context, query MultiRepoQ
 func (mre *MultiRepoEngine) GetSimilarRepositories(ctx context.Context, repoID string, limit int) ([]*RepositoryContext, error) {
 	targetRepo, exists := mre.repositories[repoID]
 	if !exists {
-		return nil, fmt.Errorf("repository %s not found", repoID)
+		return nil, errors.New("repository " + repoID + " not found")
 	}
 
 	type repoSimilarity struct {
@@ -486,7 +486,7 @@ func (mre *MultiRepoEngine) analyzeRepositoryRelationships(_ context.Context, ne
 		similarity := mre.calculateRepositorySimilarity(newRepo, existingRepo)
 		if similarity >= mre.similarityThreshold {
 			relation := &RepositoryRelation{
-				ID:           fmt.Sprintf("rel_%s_%s", newRepo.ID, id),
+				ID:           "rel_" + newRepo.ID + "_" + id,
 				FromRepo:     newRepo.ID,
 				ToRepo:       id,
 				RelationType: "similar",
@@ -819,19 +819,19 @@ func (mre *MultiRepoEngine) generateSimilarityEvidence(repo1, repo2 *RepositoryC
 	for _, tech1 := range repo1.TechStack {
 		for _, tech2 := range repo2.TechStack {
 			if strings.EqualFold(tech1, tech2) {
-				evidence = append(evidence, fmt.Sprintf("shared_tech:%s", tech1))
+				evidence = append(evidence, "shared_tech:" + tech1)
 			}
 		}
 	}
 
 	// Same framework
 	if repo1.Framework != "" && strings.EqualFold(repo1.Framework, repo2.Framework) {
-		evidence = append(evidence, fmt.Sprintf("same_framework:%s", repo1.Framework))
+		evidence = append(evidence, "same_framework:" + repo1.Framework)
 	}
 
 	// Same language
 	if repo1.Language != "" && strings.EqualFold(repo1.Language, repo2.Language) {
-		evidence = append(evidence, fmt.Sprintf("same_language:%s", repo1.Language))
+		evidence = append(evidence, "same_language:" + repo1.Language)
 	}
 
 	return evidence

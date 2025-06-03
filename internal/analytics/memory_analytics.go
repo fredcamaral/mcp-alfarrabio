@@ -345,7 +345,7 @@ func (ma *MemoryAnalytics) UpdateChunkAnalytics(ctx context.Context, chunkID str
 }
 
 // MarkObsolete marks a memory as obsolete
-func (ma *MemoryAnalytics) MarkObsolete(ctx context.Context, chunkID string, reason string) error {
+func (ma *MemoryAnalytics) MarkObsolete(ctx context.Context, chunkID, reason string) error {
 	chunk, err := ma.store.GetByID(ctx, chunkID)
 	if err != nil {
 		return fmt.Errorf("failed to get chunk: %w", err)
@@ -377,14 +377,14 @@ func (ma *MemoryAnalytics) GetTopMemories(ctx context.Context, repository string
 	}
 
 	scored := make([]scoredChunk, 0, len(chunks))
-	for _, chunk := range chunks {
+	for i := range chunks {
 		// Skip obsolete chunks
-		if obsolete, ok := chunk.Metadata.ExtendedMetadata[types.EMKeyIsObsolete].(bool); ok && obsolete {
+		if obsolete, ok := chunks[i].Metadata.ExtendedMetadata[types.EMKeyIsObsolete].(bool); ok && obsolete {
 			continue
 		}
 
-		score := ma.CalculateEffectivenessScore(&chunk)
-		scored = append(scored, scoredChunk{chunk: chunk, score: score})
+		score := ma.CalculateEffectivenessScore(&chunks[i])
+		scored = append(scored, scoredChunk{chunk: chunks[i], score: score})
 	}
 
 	// Sort by score descending

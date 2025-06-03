@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -460,7 +461,7 @@ func (cs *ContextSuggester) generateSuccessfulPatternSuggestions(_ /* ctx */ con
 			suggestion := ContextSuggestion{
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypeSuccessfulPattern,
-				Title:         fmt.Sprintf("Successful %s pattern available", pattern.Type),
+				Title:         "Successful " + string(pattern.Type) + " pattern available",
 				Description:   cs.buildSuccessfulPatternDescription(pattern),
 				Relevance:     pattern.SuccessRate * 0.8, // Weight success rate
 				Source:        SourcePatternAnalysis,
@@ -484,7 +485,7 @@ func (cs *ContextSuggester) generateSuccessfulPatternSuggestions(_ /* ctx */ con
 
 func (cs *ContextSuggester) buildSimilarProblemDescription(problem types.ConversationChunk, solutions []types.ConversationChunk) string {
 	if len(solutions) == 0 {
-		return fmt.Sprintf("Found similar problem from %s", problem.Timestamp.Format("Jan 2"))
+		return "Found similar problem from " + problem.Timestamp.Format("Jan 2")
 	}
 	return fmt.Sprintf("Found similar problem from %s with %d solution(s). Success rate: %s",
 		problem.Timestamp.Format("Jan 2"), len(solutions), problem.Metadata.Outcome)
@@ -567,7 +568,7 @@ func (cs *ContextSuggester) ClearSuggestions(sessionID string) {
 
 // generateSuggestionID creates unique IDs for suggestions
 func generateSuggestionID() string {
-	return fmt.Sprintf("sug-%d", time.Now().UnixNano())
+	return "sug-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
 // truncateString truncates a string to a maximum length
@@ -653,7 +654,7 @@ func (cs *ContextSuggester) generateProblemFlowSuggestions(ctx context.Context, 
 			ID:            generateSuggestionID(),
 			Type:          SuggestionTypeFlowBased,
 			Title:         "🔍 Similar problem with solution found",
-			Description:   fmt.Sprintf("Found a similar problem that was resolved: %s", truncateString(problemChunk.Summary, 100)),
+			Description:   "Found a similar problem that was resolved: " + truncateString(problemChunk.Summary, 100),
 			Relevance:     cs.calculateRelevance(content, problemChunk.Content),
 			Source:        SourceFlowAnalysis,
 			RelatedChunks: append([]types.ConversationChunk{problemChunk}, solutions...),
@@ -693,7 +694,7 @@ func (cs *ContextSuggester) generateInvestigationFlowSuggestions(ctx context.Con
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypeFlowBased,
 				Title:         "🔬 Successful investigation approach found",
-				Description:   fmt.Sprintf("Similar investigation was successful: %s", truncateString(chunk.Summary, 100)),
+				Description:   "Similar investigation was successful: " + truncateString(chunk.Summary, 100),
 				Relevance:     cs.calculateRelevance(content, chunk.Content),
 				Source:        SourceFlowAnalysis,
 				RelatedChunks: []types.ConversationChunk{chunk},
@@ -732,7 +733,7 @@ func (cs *ContextSuggester) generateSolutionFlowSuggestions(ctx context.Context,
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypeFlowBased,
 				Title:         "💡 Similar implementation pattern found",
-				Description:   fmt.Sprintf("Successful implementation approach: %s", truncateString(solution.Summary, 100)),
+				Description:   "Successful implementation approach: " + truncateString(solution.Summary, 100),
 				Relevance:     cs.calculateRelevance(content, solution.Content),
 				Source:        SourceFlowAnalysis,
 				RelatedChunks: []types.ConversationChunk{solution},
@@ -773,7 +774,7 @@ func (cs *ContextSuggester) generateVerificationFlowSuggestions(ctx context.Cont
 			ID:            generateSuggestionID(),
 			Type:          SuggestionTypeFlowBased,
 			Title:         "✅ Testing approach found",
-			Description:   fmt.Sprintf("Verification method: %s", truncateString(chunk.Summary, 100)),
+			Description:   "Verification method: " + truncateString(chunk.Summary, 100),
 			Relevance:     cs.calculateRelevance(content, chunk.Content),
 			Source:        SourceFlowAnalysis,
 			RelatedChunks: []types.ConversationChunk{chunk},
@@ -814,7 +815,7 @@ func (cs *ContextSuggester) generateDebuggingContextSuggestions(ctx context.Cont
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypeDebuggingContext,
 				Title:         "🐛 Similar debugging success found",
-				Description:   fmt.Sprintf("Debugging approach that worked: %s", truncateString(chunk.Summary, 100)),
+				Description:   "Debugging approach that worked: " + truncateString(chunk.Summary, 100),
 				Relevance:     cs.calculateRelevance(content, chunk.Content),
 				Source:        SourceFlowAnalysis,
 				RelatedChunks: []types.ConversationChunk{chunk},
@@ -857,7 +858,7 @@ func (cs *ContextSuggester) generateImplementationContextSuggestions(ctx context
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypeImplementContext,
 				Title:         "⚙️ Similar implementation found",
-				Description:   fmt.Sprintf("Implementation pattern: %s", truncateString(chunk.Summary, 100)),
+				Description:   "Implementation pattern: " + truncateString(chunk.Summary, 100),
 				Relevance:     cs.calculateRelevance(content, chunk.Content),
 				Source:        SourceFlowAnalysis,
 				RelatedChunks: []types.ConversationChunk{chunk},

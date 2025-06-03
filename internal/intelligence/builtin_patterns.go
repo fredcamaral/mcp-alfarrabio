@@ -60,7 +60,7 @@ func createFourStepPattern(
 	patternType PatternType,
 	name, description string,
 	keywords, triggers, outcomes []string,
-	steps [4]struct {
+	steps *[4]struct {
 		Action      string
 		Description string
 		Context     map[string]any
@@ -73,7 +73,7 @@ func createFourStepPattern(
 	successRate float64,
 ) Pattern {
 	stepDefs := make([]StepDefinition, 4)
-	for i, step := range steps {
+	for i, step := range *steps {
 		stepDefs[i] = StepDefinition{
 			Action:      step.Action,
 			Description: step.Description,
@@ -212,7 +212,7 @@ func getBuiltInPatterns() []Pattern {
 			[]string{"code", "review", "improve", "refactor", "optimize", "quality"},
 			[]string{"code_review_requested", "improvement_needed"},
 			[]string{"code_improved", "quality_enhanced"},
-			[4]struct {
+			&[4]struct {
 				Action      string
 				Description string
 				Context     map[string]any
@@ -267,7 +267,7 @@ func getBuiltInPatterns() []Pattern {
 			[]string{"feature", "implement", "develop", "test", "deploy", "integration"},
 			[]string{"feature_requested", "new_functionality_needed"},
 			[]string{"feature_completed", "functionality_added"},
-			[4]struct {
+			&[4]struct {
 				Action      string
 				Description string
 				Context     map[string]any
@@ -369,7 +369,7 @@ func getBuiltInPatterns() []Pattern {
 			[]string{"learn", "understand", "explain", "concept", "how", "why"},
 			[]string{"learning_question", "explanation_requested"},
 			[]string{"understanding_gained", "knowledge_applied"},
-			[4]struct {
+			&[4]struct {
 				Action      string
 				Description string
 				Context     map[string]any

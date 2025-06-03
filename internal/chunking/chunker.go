@@ -135,38 +135,38 @@ func (cs *Service) initializePatterns() {
 }
 
 // ShouldCreateChunk determines if a new chunk should be created based on context
-func (cs *Service) ShouldCreateChunk(context types.ChunkingContext) bool {
+func (cs *Service) ShouldCreateChunk(chunkingContext *types.ChunkingContext) bool {
 	// Update current context
-	cs.currentContext = &context
+	cs.currentContext = chunkingContext
 
 	// Todo completion trigger (highest priority)
-	if cs.config.TodoCompletionTrigger && context.HasCompletedTodos() {
+	if cs.config.TodoCompletionTrigger && chunkingContext.HasCompletedTodos() {
 		return true
 	}
 
 	// Significant file changes
-	if len(context.FileModifications) >= cs.config.FileChangeThreshold {
+	if len(chunkingContext.FileModifications) >= cs.config.FileChangeThreshold {
 		return true
 	}
 
 	// Time-based chunking
-	if context.TimeElapsed >= cs.config.TimeThresholdMinutes {
+	if chunkingContext.TimeElapsed >= cs.config.TimeThresholdMinutes {
 		return true
 	}
 
 	// Problem resolution cycle complete
-	if context.ConversationFlow == types.FlowVerification && context.TimeElapsed > 5 {
+	if chunkingContext.ConversationFlow == types.FlowVerification && chunkingContext.TimeElapsed > 5 {
 		return true
 	}
 
 	// Context switch detected
-	if cs.hasContextSwitch(context) {
+	if cs.hasContextSwitch(chunkingContext) {
 		return true
 	}
 
 	// Content volume threshold
 	totalContent := 0
-	for _, tool := range context.ToolsUsed {
+	for _, tool := range chunkingContext.ToolsUsed {
 		totalContent += len(tool) * 10 // Rough estimation
 	}
 
@@ -174,7 +174,7 @@ func (cs *Service) ShouldCreateChunk(context types.ChunkingContext) bool {
 }
 
 // CreateChunk creates a conversation chunk from the current context
-func (cs *Service) CreateChunk(ctx context.Context, sessionID, content string, metadata types.ChunkMetadata) (*types.ConversationChunk, error) {
+func (cs *Service) CreateChunk(ctx context.Context, sessionID, content string, metadata *types.ChunkMetadata) (*types.ConversationChunk, error) {
 	if content == "" {
 		return nil, fmt.Errorf("content cannot be empty")
 	}
@@ -204,7 +204,9 @@ func (cs *Service) CreateChunk(ctx context.Context, sessionID, content string, m
 
 	// Update internal state
 	cs.lastChunkTime = time.Now()
-	cs.contextHistory = append(cs.contextHistory, *cs.currentContext)
+	if cs.currentContext != nil {
+		cs.contextHistory = append(cs.contextHistory, *cs.currentContext)
+	}
 
 	// Keep only last 10 contexts for analysis
 	if len(cs.contextHistory) > 10 {
@@ -252,7 +254,7 @@ func (cs *Service) analyzeContentType(content string) types.ChunkType {
 }
 
 // enrichMetadata adds analysis-based metadata to the chunk
-func (cs *Service) enrichMetadata(metadata types.ChunkMetadata, content string) types.ChunkMetadata {
+func (cs *Service) enrichMetadata(metadata *types.ChunkMetadata, content string) types.ChunkMetadata {
 	// Add current context tools and files if not already present
 	if cs.currentContext != nil {
 		if len(metadata.ToolsUsed) == 0 {
@@ -309,7 +311,7 @@ func (cs *Service) enrichMetadata(metadata types.ChunkMetadata, content string) 
 	// Calculate impact score and reusability score
 	metadata.ExtendedMetadata = cs.buildExtendedMetadata(content, metadata)
 
-	return metadata
+	return *metadata
 }
 
 // extractTags extracts relevant tags from content
@@ -556,12 +558,12 @@ func (cs *Service) cleanContentForEmbedding(content string) string {
 	cleaned = regexp.MustCompile("`([^`]+)`").ReplaceAllString(cleaned, "$1")
 
 	// Remove URLs but keep domain info for context
-	cleaned = regexp.MustCompile(`https?://([^/\s]+)[^\s]*`).ReplaceAllString(cleaned, "website_$1")
+	cleaned = regexp.MustCompile(`https?://([^/\s]+)\S*`).ReplaceAllString(cleaned, "website_$1")
 
 	// Remove excessive punctuation
-	cleaned = regexp.MustCompile(`[!]{2,}`).ReplaceAllString(cleaned, "!")
-	cleaned = regexp.MustCompile(`[?]{2,}`).ReplaceAllString(cleaned, "?")
-	cleaned = regexp.MustCompile(`[-]{3,}`).ReplaceAllString(cleaned, "")
+	cleaned = regexp.MustCompile(`!{2,}`).ReplaceAllString(cleaned, "!")
+	cleaned = regexp.MustCompile(`\?{2,}`).ReplaceAllString(cleaned, "?")
+	cleaned = regexp.MustCompile(`-{3,}`).ReplaceAllString(cleaned, "")
 
 	// Normalize common abbreviations for better semantic matching
 	replacements := map[string]string{
@@ -582,7 +584,7 @@ func (cs *Service) cleanContentForEmbedding(content string) string {
 }
 
 // hasContextSwitch detects if there has been a significant context switch
-func (cs *Service) hasContextSwitch(context types.ChunkingContext) bool {
+func (cs *Service) hasContextSwitch(chunkingContext *types.ChunkingContext) bool {
 	if len(cs.contextHistory) == 0 {
 		return false
 	}
@@ -590,14 +592,14 @@ func (cs *Service) hasContextSwitch(context types.ChunkingContext) bool {
 	lastContext := cs.contextHistory[len(cs.contextHistory)-1]
 
 	// Check for conversation flow changes
-	if lastContext.ConversationFlow != context.ConversationFlow {
+	if lastContext.ConversationFlow != chunkingContext.ConversationFlow {
 		return true
 	}
 
 	// Check for significant tool change
-	if len(context.ToolsUsed) > 0 && len(lastContext.ToolsUsed) > 0 {
+	if len(chunkingContext.ToolsUsed) > 0 && len(lastContext.ToolsUsed) > 0 {
 		commonTools := 0
-		for _, tool := range context.ToolsUsed {
+		for _, tool := range chunkingContext.ToolsUsed {
 			for _, lastTool := range lastContext.ToolsUsed {
 				if tool == lastTool {
 					commonTools++
@@ -607,15 +609,15 @@ func (cs *Service) hasContextSwitch(context types.ChunkingContext) bool {
 		}
 
 		// If less than 30% tools in common, it's a context switch
-		if float64(commonTools)/float64(len(context.ToolsUsed)) < 0.3 {
+		if float64(commonTools)/float64(len(chunkingContext.ToolsUsed)) < 0.3 {
 			return true
 		}
 	}
 
 	// Check for file context changes
-	if len(context.FileModifications) > 0 && len(lastContext.FileModifications) > 0 {
+	if len(chunkingContext.FileModifications) > 0 && len(lastContext.FileModifications) > 0 {
 		commonFiles := 0
-		for _, file := range context.FileModifications {
+		for _, file := range chunkingContext.FileModifications {
 			for _, lastFile := range lastContext.FileModifications {
 				if file == lastFile {
 					commonFiles++
@@ -666,7 +668,7 @@ func (cs *Service) UpdateContext(updates map[string]interface{}) {
 }
 
 // ProcessConversation processes a conversation into multiple chunks intelligently
-func (cs *Service) ProcessConversation(ctx context.Context, sessionID string, conversation string, baseMetadata types.ChunkMetadata) ([]types.ConversationChunk, error) {
+func (cs *Service) ProcessConversation(ctx context.Context, sessionID, conversation string, baseMetadata *types.ChunkMetadata) ([]types.ConversationChunk, error) {
 	if conversation == "" {
 		return nil, fmt.Errorf("conversation cannot be empty")
 	}
@@ -764,25 +766,25 @@ func (cs *Service) splitConversation(conversation string) []string {
 }
 
 // createSummaryChunk creates a summary chunk for a group of chunks
-func (cs *Service) createSummaryChunk(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata types.ChunkMetadata) *types.ConversationChunk {
+func (cs *Service) createSummaryChunk(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata *types.ChunkMetadata) *types.ConversationChunk {
 	if len(chunks) == 0 {
 		return nil
 	}
 
 	// Aggregate content for summary
 	contentParts := []string{"Summary of recent conversation:"}
-	for _, chunk := range chunks {
-		if chunk.Summary != "" {
-			contentParts = append(contentParts, fmt.Sprintf("- %s", chunk.Summary))
+	for i := range chunks {
+		if chunks[i].Summary != "" {
+			contentParts = append(contentParts, fmt.Sprintf("- %s", chunks[i].Summary))
 		}
 	}
 
 	summaryContent := strings.Join(contentParts, "\n")
 
-	summaryMetadata := baseMetadata
+	summaryMetadata := *baseMetadata
 	summaryMetadata.Tags = append(summaryMetadata.Tags, "summary", "aggregated")
 
-	summaryChunk, err := cs.CreateChunk(ctx, sessionID, summaryContent, summaryMetadata)
+	summaryChunk, err := cs.CreateChunk(ctx, sessionID, summaryContent, &summaryMetadata)
 	if err != nil {
 		return nil
 	}
@@ -792,11 +794,11 @@ func (cs *Service) createSummaryChunk(ctx context.Context, sessionID string, chu
 }
 
 // createSessionSummary creates a final summary for the entire session
-func (cs *Service) createSessionSummary(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata types.ChunkMetadata) *types.ConversationChunk {
+func (cs *Service) createSessionSummary(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata *types.ChunkMetadata) *types.ConversationChunk {
 	// Analyze chunk types
 	typeCounts := make(map[types.ChunkType]int)
-	for _, chunk := range chunks {
-		typeCounts[chunk.Type]++
+	for i := range chunks {
+		typeCounts[chunks[i].Type]++
 	}
 
 	// Build summary content
@@ -810,8 +812,8 @@ func (cs *Service) createSessionSummary(ctx context.Context, sessionID string, c
 
 	// Add key outcomes
 	successCount := 0
-	for _, chunk := range chunks {
-		if chunk.Metadata.Outcome == types.OutcomeSuccess {
+	for i := range chunks {
+		if chunks[i].Metadata.Outcome == types.OutcomeSuccess {
 			successCount++
 		}
 	}
@@ -820,11 +822,11 @@ func (cs *Service) createSessionSummary(ctx context.Context, sessionID string, c
 	// Add tools and files summary
 	toolsUsed := make(map[string]bool)
 	filesModified := make(map[string]bool)
-	for _, chunk := range chunks {
-		for _, tool := range chunk.Metadata.ToolsUsed {
+	for i := range chunks {
+		for _, tool := range chunks[i].Metadata.ToolsUsed {
 			toolsUsed[tool] = true
 		}
-		for _, file := range chunk.Metadata.FilesModified {
+		for _, file := range chunks[i].Metadata.FilesModified {
 			filesModified[file] = true
 		}
 	}
@@ -843,10 +845,10 @@ func (cs *Service) createSessionSummary(ctx context.Context, sessionID string, c
 
 	summaryContent := strings.Join(contentParts, "\n")
 
-	summaryMetadata := baseMetadata
+	summaryMetadata := *baseMetadata
 	summaryMetadata.Tags = append(summaryMetadata.Tags, "session-summary", "final")
 
-	summaryChunk, err := cs.CreateChunk(ctx, sessionID, summaryContent, summaryMetadata)
+	summaryChunk, err := cs.CreateChunk(ctx, sessionID, summaryContent, &summaryMetadata)
 	if err != nil {
 		return nil
 	}
@@ -950,7 +952,7 @@ func (cs *Service) detectSmartTags(content string) []string {
 }
 
 // buildExtendedMetadata creates rich metadata for smart analysis
-func (cs *Service) buildExtendedMetadata(content string, metadata types.ChunkMetadata) map[string]interface{} {
+func (cs *Service) buildExtendedMetadata(content string, metadata *types.ChunkMetadata) map[string]interface{} {
 	extended := make(map[string]interface{})
 
 	// Calculate impact score (0.0 to 1.0)
@@ -987,7 +989,7 @@ func (cs *Service) buildExtendedMetadata(content string, metadata types.ChunkMet
 }
 
 // calculateImpactScore determines the impact level of the content
-func (cs *Service) calculateImpactScore(content string, metadata types.ChunkMetadata) float64 {
+func (cs *Service) calculateImpactScore(content string, metadata *types.ChunkMetadata) float64 {
 	score := 0.0
 
 	// Base score from chunk type
@@ -1131,7 +1133,7 @@ func (cs *Service) extractTechnicalConcepts(content string) []string {
 }
 
 // analyzeComplexity provides complexity indicators
-func (cs *Service) analyzeComplexity(content string, metadata types.ChunkMetadata) map[string]interface{} {
+func (cs *Service) analyzeComplexity(content string, metadata *types.ChunkMetadata) map[string]interface{} {
 	complexity := make(map[string]interface{})
 
 	// Content length indicator
@@ -1163,7 +1165,7 @@ func (cs *Service) analyzeComplexity(content string, metadata types.ChunkMetadat
 }
 
 // estimateTimeInvestment estimates time spent based on content and metadata
-func (cs *Service) estimateTimeInvestment(content string, metadata types.ChunkMetadata) int {
+func (cs *Service) estimateTimeInvestment(content string, metadata *types.ChunkMetadata) int {
 	// Base time estimation
 	baseTime := 5 // minutes
 

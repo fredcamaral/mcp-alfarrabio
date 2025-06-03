@@ -122,21 +122,21 @@ type Exporter struct {
 }
 
 // NewExporter creates a new bulk exporter
-func NewExporter(storage storage.VectorStore, logger *log.Logger) *Exporter {
+func NewExporter(vectorStore storage.VectorStore, logger *log.Logger) *Exporter {
 	if logger == nil {
 		logger = log.New(log.Writer(), "[BulkExporter] ", log.LstdFlags)
 	}
 
 	return &Exporter{
-		storage: storage,
+		storage: vectorStore,
 		logger:  logger,
 	}
 }
 
 // Export exports memories based on the provided options
-func (exp *Exporter) Export(ctx context.Context, options ExportOptions) (*ExportResult, error) {
+func (exp *Exporter) Export(ctx context.Context, options *ExportOptions) (*ExportResult, error) {
 	// Query chunks based on filter
-	chunks, err := exp.queryChunks(ctx, options.Filter)
+	chunks, err := exp.queryChunks(ctx, &options.Filter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query chunks: %w", err)
 	}
@@ -162,7 +162,7 @@ func (exp *Exporter) Export(ctx context.Context, options ExportOptions) (*Export
 	case ExportFormatCSV:
 		data, dataSize, err = exp.exportCSV(chunks, options)
 	case ExportFormatArchive:
-		data, dataSize, err = exp.exportArchive(chunks, options, metadata)
+		data, dataSize, err = exp.exportArchive(chunks, options, &metadata)
 	default:
 		return nil, fmt.Errorf("unsupported export format: %s", options.Format)
 	}
@@ -193,7 +193,7 @@ func (exp *Exporter) Export(ctx context.Context, options ExportOptions) (*Export
 }
 
 // queryChunks queries chunks based on the filter criteria
-func (exp *Exporter) queryChunks(ctx context.Context, filter ExportFilter) ([]types.ConversationChunk, error) {
+func (exp *Exporter) queryChunks(ctx context.Context, filter *ExportFilter) ([]types.ConversationChunk, error) {
 	var chunks []types.ConversationChunk
 
 	// If repository is specified, query by repository
@@ -214,9 +214,9 @@ func (exp *Exporter) queryChunks(ctx context.Context, filter ExportFilter) ([]ty
 
 	// Apply filters
 	filteredChunks := make([]types.ConversationChunk, 0, len(chunks))
-	for _, chunk := range chunks {
-		if exp.matchesFilter(chunk, filter) {
-			filteredChunks = append(filteredChunks, chunk)
+	for i := range chunks {
+		if exp.matchesFilter(&chunks[i], filter) {
+			filteredChunks = append(filteredChunks, chunks[i])
 		}
 	}
 
@@ -224,7 +224,7 @@ func (exp *Exporter) queryChunks(ctx context.Context, filter ExportFilter) ([]ty
 }
 
 // matchesFilter checks if a chunk matches the filter criteria
-func (exp *Exporter) matchesFilter(chunk types.ConversationChunk, filter ExportFilter) bool {
+func (exp *Exporter) matchesFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
 	// Session ID filter
 	if len(filter.SessionIDs) > 0 {
 		found := false
@@ -375,12 +375,11 @@ func (exp *Exporter) paginateChunks(chunks []types.ConversationChunk, pagination
 }
 
 // exportJSON exports chunks as JSON
-func (exp *Exporter) exportJSON(chunks []types.ConversationChunk, options ExportOptions) (string, int64, error) {
+func (exp *Exporter) exportJSON(chunks []types.ConversationChunk, options *ExportOptions) (jsonData string, dataSize int64, err error) {
 	// Prepare chunks for export
 	exportChunks := exp.prepareChunksForExport(chunks, options)
 
 	var data []byte
-	var err error
 
 	if options.PrettyPrint {
 		data, err = json.MarshalIndent(exportChunks, "", "  ")
@@ -396,7 +395,7 @@ func (exp *Exporter) exportJSON(chunks []types.ConversationChunk, options Export
 }
 
 // exportMarkdown exports chunks as markdown
-func (exp *Exporter) exportMarkdown(chunks []types.ConversationChunk, options ExportOptions) (string, int64) {
+func (exp *Exporter) exportMarkdown(chunks []types.ConversationChunk, options *ExportOptions) (markdownData string, dataSize int64) {
 	var builder strings.Builder
 
 	// Write header
@@ -406,15 +405,16 @@ func (exp *Exporter) exportMarkdown(chunks []types.ConversationChunk, options Ex
 
 	// Group by session
 	sessionChunks := make(map[string][]types.ConversationChunk)
-	for _, chunk := range chunks {
-		sessionChunks[chunk.SessionID] = append(sessionChunks[chunk.SessionID], chunk)
+	for i := range chunks {
+		sessionChunks[chunks[i].SessionID] = append(sessionChunks[chunks[i].SessionID], chunks[i])
 	}
 
 	// Write sessions
 	for sessionID, sessionChunks := range sessionChunks {
 		builder.WriteString(fmt.Sprintf("## Session: %s\n\n", sessionID))
 
-		for _, chunk := range sessionChunks {
+		for j := range sessionChunks {
+			chunk := &sessionChunks[j]
 			builder.WriteString(fmt.Sprintf("### %s - %s\n",
 				chunk.Type, chunk.Timestamp.Format("2006-01-02 15:04:05")))
 
@@ -445,7 +445,7 @@ func (exp *Exporter) exportMarkdown(chunks []types.ConversationChunk, options Ex
 }
 
 // exportCSV exports chunks as CSV
-func (exp *Exporter) exportCSV(chunks []types.ConversationChunk, options ExportOptions) (string, int64, error) {
+func (exp *Exporter) exportCSV(chunks []types.ConversationChunk, options *ExportOptions) (csvData string, dataSize int64, err error) {
 	var buffer bytes.Buffer
 	writer := csv.NewWriter(&buffer)
 
@@ -464,7 +464,8 @@ func (exp *Exporter) exportCSV(chunks []types.ConversationChunk, options ExportO
 	}
 
 	// Write data
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		record := []string{
 			chunk.ID,
 			chunk.SessionID,
@@ -501,7 +502,7 @@ func (exp *Exporter) exportCSV(chunks []types.ConversationChunk, options ExportO
 }
 
 // exportArchive exports chunks as a compressed archive
-func (exp *Exporter) exportArchive(chunks []types.ConversationChunk, options ExportOptions, metadata ExportMeta) (string, int64, error) {
+func (exp *Exporter) exportArchive(chunks []types.ConversationChunk, options *ExportOptions, metadata *ExportMeta) (archiveData string, dataSize int64, err error) {
 	var buffer bytes.Buffer
 
 	// Create tar writer
@@ -550,7 +551,7 @@ func (exp *Exporter) addFileToTar(tarWriter *tar.Writer, filename string, data [
 	header := &tar.Header{
 		Name:    filename,
 		Size:    int64(len(data)),
-		Mode:    0644,
+		Mode:    0o644,
 		ModTime: time.Now(),
 	}
 
@@ -563,7 +564,7 @@ func (exp *Exporter) addFileToTar(tarWriter *tar.Writer, filename string, data [
 }
 
 // compressData compresses the data using the specified compression type
-func (exp *Exporter) compressData(data string, compression CompressionType) (string, int64, error) {
+func (exp *Exporter) compressData(data string, compression CompressionType) (compressedData string, dataSize int64, err error) {
 	switch compression {
 	case CompressionGzip:
 		return exp.compressGzip(data)
@@ -577,7 +578,7 @@ func (exp *Exporter) compressData(data string, compression CompressionType) (str
 }
 
 // compressGzip compresses data using gzip
-func (exp *Exporter) compressGzip(data string) (string, int64, error) {
+func (exp *Exporter) compressGzip(data string) (compressedData string, dataSize int64, err error) {
 	var buffer bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buffer)
 
@@ -594,7 +595,7 @@ func (exp *Exporter) compressGzip(data string) (string, int64, error) {
 }
 
 // compressZip compresses data using zip
-func (exp *Exporter) compressZip(data string) (string, int64, error) {
+func (exp *Exporter) compressZip(data string) (compressedData string, dataSize int64, err error) {
 	var buffer bytes.Buffer
 	zipWriter := zip.NewWriter(&buffer)
 
@@ -616,10 +617,11 @@ func (exp *Exporter) compressZip(data string) (string, int64, error) {
 }
 
 // prepareChunksForExport prepares chunks for export by filtering out unwanted fields
-func (exp *Exporter) prepareChunksForExport(chunks []types.ConversationChunk, options ExportOptions) []map[string]interface{} {
+func (exp *Exporter) prepareChunksForExport(chunks []types.ConversationChunk, options *ExportOptions) []map[string]interface{} {
 	exportChunks := make([]map[string]interface{}, len(chunks))
 
-	for i, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		exportChunk := map[string]interface{}{
 			"id":         chunk.ID,
 			"session_id": chunk.SessionID,
@@ -661,7 +663,8 @@ func (exp *Exporter) generateMetadata(chunks []types.ConversationChunk) ExportMe
 	sessions := make(map[string]bool)
 	var earliest, latest time.Time
 
-	for i, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		// Session tracking
 		sessions[chunk.SessionID] = true
 

@@ -1500,7 +1500,7 @@ func NewPerformanceAnomalyDetector(threshold float64, minDataPoints int) *Perfor
 	}
 }
 
-func (pad *PerformanceAnomalyDetector) DetectAnomaly(metricName string, value float64) (bool, float64) {
+func (pad *PerformanceAnomalyDetector) DetectAnomaly(metricName string, value float64) (isAnomaly bool, anomalyScore float64) {
 	// Placeholder implementation
 	return false, 0.0
 }

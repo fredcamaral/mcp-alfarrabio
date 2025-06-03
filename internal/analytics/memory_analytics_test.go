@@ -22,8 +22,12 @@ func NewMockStore() *MockStore {
 	}
 }
 
-func (m *MockStore) Store(_ context.Context, chunk types.ConversationChunk) error {
-	m.chunks[chunk.ID] = &chunk
+func (m *MockStore) Store(_ context.Context, chunk types.ConversationChunk) error { //nolint:gocritic // Interface implementation requires value type
+	return m.storeChunk(&chunk)
+}
+
+func (m *MockStore) storeChunk(chunk *types.ConversationChunk) error {
+	m.chunks[chunk.ID] = chunk
 	return nil
 }
 
@@ -35,12 +39,20 @@ func (m *MockStore) GetByID(_ context.Context, id string) (*types.ConversationCh
 	return chunk, nil
 }
 
-func (m *MockStore) Update(_ context.Context, chunk types.ConversationChunk) error {
-	m.chunks[chunk.ID] = &chunk
+func (m *MockStore) Update(_ context.Context, chunk types.ConversationChunk) error { //nolint:gocritic // Interface implementation requires value type
+	return m.updateChunk(&chunk)
+}
+
+func (m *MockStore) updateChunk(chunk *types.ConversationChunk) error {
+	m.chunks[chunk.ID] = chunk
 	return nil
 }
 
-func (m *MockStore) Search(_ context.Context, query types.MemoryQuery, _ []float64) (*types.SearchResults, error) {
+func (m *MockStore) Search(_ context.Context, query types.MemoryQuery, _ []float64) (*types.SearchResults, error) { //nolint:gocritic // Interface implementation requires value type
+	return m.searchWithQuery(&query)
+}
+
+func (m *MockStore) searchWithQuery(query *types.MemoryQuery) (*types.SearchResults, error) {
 	var chunks []types.ConversationChunk
 	for _, chunk := range m.chunks {
 		if query.Repository != nil && chunk.Metadata.Repository == *query.Repository {
@@ -52,9 +64,9 @@ func (m *MockStore) Search(_ context.Context, query types.MemoryQuery, _ []float
 	}
 
 	results := make([]types.SearchResult, 0, len(chunks))
-	for _, chunk := range chunks {
+	for i := range chunks {
 		results = append(results, types.SearchResult{
-			Chunk: chunk,
+			Chunk: chunks[i],
 			Score: 0.8, // Fixed score for testing
 		})
 	}
@@ -86,7 +98,7 @@ func (m *MockStore) Initialize(_ context.Context) error {
 	return nil
 }
 
-func (m *MockStore) ListByRepository(_ context.Context, repository string, limit int, _ int) ([]types.ConversationChunk, error) {
+func (m *MockStore) ListByRepository(_ context.Context, repository string, limit, _ int) ([]types.ConversationChunk, error) {
 	var results []types.ConversationChunk
 	for _, chunk := range m.chunks {
 		if chunk.Metadata.Repository == repository {
@@ -156,8 +168,8 @@ func (m *MockStore) FindSimilar(_ context.Context, _ string, _ *types.ChunkType,
 	return nil, nil // Simplified mock
 }
 
-func (m *MockStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
-	return m.Store(ctx, chunk)
+func (m *MockStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error { //nolint:gocritic // Interface implementation requires value type
+	return m.storeChunk(&chunk)
 }
 
 func (m *MockStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*storage.BatchResult, error) {
@@ -168,14 +180,14 @@ func (m *MockStore) BatchStore(ctx context.Context, chunks []types.ConversationC
 		ProcessedIDs: []string{},
 	}
 
-	for _, chunk := range chunks {
-		if err := m.Store(ctx, chunk); err != nil {
+	for i := range chunks {
+		if err := m.storeChunk(&chunks[i]); err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, err.Error())
 		} else {
 			result.Success++
 		}
-		result.ProcessedIDs = append(result.ProcessedIDs, chunk.ID)
+		result.ProcessedIDs = append(result.ProcessedIDs, chunks[i].ID)
 	}
 
 	return result, nil
@@ -206,7 +218,11 @@ func (m *MockStore) StoreRelationship(_ context.Context, _, _ string, _ types.Re
 	return nil, errors.New("not implemented in mock")
 }
 
-func (m *MockStore) GetRelationships(_ context.Context, _ types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (m *MockStore) GetRelationships(_ context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) { //nolint:gocritic // Interface implementation requires value type
+	return m.getRelationshipsWithQuery(&query)
+}
+
+func (m *MockStore) getRelationshipsWithQuery(_ *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	return nil, errors.New("not implemented in mock")
 }
 

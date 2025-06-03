@@ -540,7 +540,13 @@ func (tm *ThreadManager) createThreadChain(ctx context.Context, thread *MemoryTh
 	chainName := "Thread: " + thread.Title
 	chainDescription := "Memory chain for thread: " + thread.Description
 
-	_, err := tm.chainBuilder.CreateChain(ctx, chainName, chainDescription, chunks)
+	// Convert chunks to pointers for the chain builder
+	chunkPointers := make([]*types.ConversationChunk, len(chunks))
+	for i := range chunks {
+		chunkPointers[i] = &chunks[i]
+	}
+
+	_, err := tm.chainBuilder.CreateChain(ctx, chainName, chainDescription, chunkPointers)
 	return err
 }
 

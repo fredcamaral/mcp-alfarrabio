@@ -7,7 +7,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
+	"errors"
 	"regexp"
 	"strings"
 	"time"
@@ -126,13 +126,13 @@ func NewAccessControlManager() *AccessControlManager {
 // CreateUser creates a new user
 func (acm *AccessControlManager) CreateUser(username, email string) (*User, error) {
 	if username == "" || email == "" {
-		return nil, fmt.Errorf("username and email are required")
+		return nil, errors.New("username and email are required")
 	}
 
 	// Check if user already exists
 	for _, user := range acm.users {
 		if user.Username == username || user.Email == email {
-			return nil, fmt.Errorf("user already exists")
+			return nil, errors.New("user already exists")
 		}
 	}
 
@@ -156,11 +156,11 @@ func (acm *AccessControlManager) CreateUser(username, email string) (*User, erro
 func (acm *AccessControlManager) GenerateToken(userID string, scope []string, duration time.Duration) (*AccessToken, error) {
 	user, exists := acm.users[userID]
 	if !exists {
-		return nil, fmt.Errorf("user not found")
+		return nil, errors.New("user not found")
 	}
 
 	if !user.IsActive {
-		return nil, fmt.Errorf("user is not active")
+		return nil, errors.New("user is not active")
 	}
 
 	tokenString := generateSecureToken()
@@ -185,19 +185,19 @@ func (acm *AccessControlManager) GenerateToken(userID string, scope []string, du
 func (acm *AccessControlManager) ValidateToken(tokenString string) (*AccessToken, error) {
 	token, exists := acm.tokens[tokenString]
 	if !exists {
-		return nil, fmt.Errorf("invalid token")
+		return nil, errors.New("invalid token")
 	}
 
 	if time.Now().After(token.ExpiresAt) {
 		delete(acm.tokens, tokenString)
-		return nil, fmt.Errorf("token expired")
+		return nil, errors.New("token expired")
 	}
 
 	// Check if user is still active
 	user, exists := acm.users[token.UserID]
 	if !exists || !user.IsActive {
 		delete(acm.tokens, tokenString)
-		return nil, fmt.Errorf("user not active")
+		return nil, errors.New("user not active")
 	}
 
 	return token, nil
@@ -211,11 +211,11 @@ func (acm *AccessControlManager) CheckAccess(ctx context.Context, userID, action
 
 	user, exists := acm.users[userID]
 	if !exists {
-		return false, fmt.Errorf("user not found")
+		return false, errors.New("user not found")
 	}
 
 	if !user.IsActive {
-		return false, fmt.Errorf("user not active")
+		return false, errors.New("user not active")
 	}
 
 	// Check user permissions
@@ -263,7 +263,7 @@ func (acm *AccessControlManager) CheckAccess(ctx context.Context, userID, action
 func (acm *AccessControlManager) GrantPermission(userID string, permission Permission) error {
 	user, exists := acm.users[userID]
 	if !exists {
-		return fmt.Errorf("user not found")
+		return errors.New("user not found")
 	}
 
 	// Check if permission already exists
@@ -284,7 +284,7 @@ func (acm *AccessControlManager) GrantPermission(userID string, permission Permi
 func (acm *AccessControlManager) RevokePermission(userID, resource, action string) error {
 	user, exists := acm.users[userID]
 	if !exists {
-		return fmt.Errorf("user not found")
+		return errors.New("user not found")
 	}
 
 	// Remove permission
@@ -295,7 +295,7 @@ func (acm *AccessControlManager) RevokePermission(userID, resource, action strin
 		}
 	}
 
-	return fmt.Errorf("permission not found")
+	return errors.New("permission not found")
 }
 
 // CreateRepository creates a repository with access controls
@@ -319,7 +319,7 @@ func (acm *AccessControlManager) CreateRepository(name, owner string, isPublic b
 func (acm *AccessControlManager) GrantRepositoryAccess(repoID, userID string, level AccessLevel) error {
 	repo, exists := acm.repositories[repoID]
 	if !exists {
-		return fmt.Errorf("repository not found")
+		return errors.New("repository not found")
 	}
 
 	// Check if user already has access
@@ -333,7 +333,7 @@ func (acm *AccessControlManager) GrantRepositoryAccess(repoID, userID string, le
 
 	// Grant specific permission
 	permission := Permission{
-		Resource: fmt.Sprintf("repository:%s", repoID),
+		Resource: "repository:" + repoID,
 		Action:   "*",
 		Level:    level,
 	}

@@ -69,8 +69,8 @@ func main() {
 	case "stdio":
 		log.Printf("🚀 Starting MCP Memory Server in stdio mode")
 		// Set up stdio transport for MCP protocol
-		transport := transport.NewStdioTransport()
-		mcpServer.SetTransport(transport)
+		stdioTransport := transport.NewStdioTransport()
+		mcpServer.SetTransport(stdioTransport)
 
 		// Start the MCP server
 		if err := mcpServer.Start(ctx); err != nil {
@@ -340,7 +340,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "mcp-memory", "mode": "development with hot-reload"}`)
 	})
 
-	server := &http.Server{
+	httpServer := &http.Server{
 		Addr:              addr,
 		Handler:           mux,
 		ReadHeaderTimeout: 10 * time.Second,
@@ -357,7 +357,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		log.Printf("🔌 WebSocket endpoint: ws://localhost%s/ws", addr)
 		log.Printf("🎨 GraphQL endpoint: http://localhost%s/graphql", addr)
 		log.Printf("💚 Health check: http://localhost%s/health", addr)
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)
 		}
 	}()
@@ -371,5 +371,5 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	defer cancel()
 
 	// Shutdown server gracefully
-	return server.Shutdown(shutdownCtx) //nolint:contextcheck // Fresh context needed for shutdown when parent is cancelled
+	return httpServer.Shutdown(shutdownCtx) //nolint:contextcheck // Fresh context needed for shutdown when parent is cancelled
 }

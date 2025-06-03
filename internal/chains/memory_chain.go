@@ -74,8 +74,8 @@ type ChainBuilder struct {
 
 // ChainAnalyzer analyzes relationships between memories
 type ChainAnalyzer interface {
-	AnalyzeRelationship(ctx context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error)
-	SuggestChainName(ctx context.Context, chunks []types.ConversationChunk) (string, string, error)
+	AnalyzeRelationship(ctx context.Context, chunk1, chunk2 *types.ConversationChunk) (ChainType, float64, error)
+	SuggestChainName(ctx context.Context, chunks []*types.ConversationChunk) (string, string, error)
 }
 
 // NewChainBuilder creates a new chain builder
@@ -88,7 +88,7 @@ func NewChainBuilder(store ChainStore, analyzer ChainAnalyzer) *ChainBuilder {
 }
 
 // CreateChain creates a new memory chain
-func (cb *ChainBuilder) CreateChain(ctx context.Context, name, description string, initialChunks []types.ConversationChunk) (*MemoryChain, error) {
+func (cb *ChainBuilder) CreateChain(ctx context.Context, name, description string, initialChunks []*types.ConversationChunk) (*MemoryChain, error) {
 	if len(initialChunks) < 2 {
 		return nil, fmt.Errorf("chain must have at least 2 chunks")
 	}
@@ -140,7 +140,7 @@ func (cb *ChainBuilder) CreateChain(ctx context.Context, name, description strin
 }
 
 // AddToChain adds a chunk to an existing chain
-func (cb *ChainBuilder) AddToChain(ctx context.Context, chainID string, chunk types.ConversationChunk, relatedChunks []types.ConversationChunk) error {
+func (cb *ChainBuilder) AddToChain(ctx context.Context, chainID string, chunk *types.ConversationChunk, relatedChunks []*types.ConversationChunk) error {
 	// Get chain
 	chain, err := cb.getOrLoadChain(ctx, chainID)
 	if err != nil {
@@ -158,15 +158,15 @@ func (cb *ChainBuilder) AddToChain(ctx context.Context, chainID string, chunk ty
 	chain.ChunkIDs = append(chain.ChunkIDs, chunk.ID)
 
 	// Analyze relationships with specified related chunks
-	for _, related := range relatedChunks {
-		linkType, strength, err := cb.analyzer.AnalyzeRelationship(ctx, chunk, related)
+	for i := range relatedChunks {
+		linkType, strength, err := cb.analyzer.AnalyzeRelationship(ctx, chunk, relatedChunks[i])
 		if err != nil {
 			continue
 		}
 
 		if strength > 0.5 {
 			link := ChainLink{
-				FromChunkID: related.ID,
+				FromChunkID: relatedChunks[i].ID,
 				ToChunkID:   chunk.ID,
 				Type:        linkType,
 				Strength:    strength,
@@ -186,7 +186,7 @@ func (cb *ChainBuilder) AddToChain(ctx context.Context, chainID string, chunk ty
 }
 
 // AutoCreateChain automatically creates chains based on chunk relationships
-func (cb *ChainBuilder) AutoCreateChain(ctx context.Context, chunks []types.ConversationChunk) (*MemoryChain, error) {
+func (cb *ChainBuilder) AutoCreateChain(ctx context.Context, chunks []*types.ConversationChunk) (*MemoryChain, error) {
 	if len(chunks) < 2 {
 		return nil, fmt.Errorf("need at least 2 chunks for auto-chain creation")
 	}
@@ -384,10 +384,10 @@ func (cb *ChainBuilder) bfsPath(graph map[string][]string, start, end string) []
 	return nil // No path found
 }
 
-func extractChunkIDs(chunks []types.ConversationChunk) []string {
+func extractChunkIDs(chunks []*types.ConversationChunk) []string {
 	ids := make([]string, len(chunks))
-	for i, chunk := range chunks {
-		ids[i] = chunk.ID
+	for i := range chunks {
+		ids[i] = chunks[i].ID
 	}
 	return ids
 }

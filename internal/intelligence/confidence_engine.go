@@ -203,9 +203,9 @@ func (ce *ConfidenceEngine) calculateConsistencyScore(_ context.Context, chunk *
 }
 
 // calculateCorroborationScore counts supporting memories and converts to score
-func (ce *ConfidenceEngine) calculateCorroborationScore(_ context.Context, chunk *types.ConversationChunk, config *ConfidenceConfig) (int, float64) {
+func (ce *ConfidenceEngine) calculateCorroborationScore(_ context.Context, chunk *types.ConversationChunk, config *ConfidenceConfig) (count int, score float64) {
 	// Count related chunks in the same session or repository
-	count := 0
+	count = 0
 
 	// Count by tags overlap
 	if len(chunk.Metadata.Tags) > 0 {
@@ -218,7 +218,7 @@ func (ce *ConfidenceEngine) calculateCorroborationScore(_ context.Context, chunk
 	}
 
 	// Convert count to score (0.0-1.0)
-	score := float64(count) / float64(config.MinCorroborationCount+3)
+	score = float64(count) / float64(config.MinCorroborationCount+3)
 	return count, math.Min(1.0, score)
 }
 

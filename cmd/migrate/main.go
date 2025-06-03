@@ -21,7 +21,7 @@ import (
 const (
 	batchSize           = 100
 	migrationVersion    = "1.0.0"
-	backupDirPermission = 0755
+	backupDirPermission = 0o755
 )
 
 // MigrationStats tracks the progress of migration
@@ -358,9 +358,9 @@ func (mt *MigrationTool) validateData(chunks []types.ConversationChunk) error {
 	log.Printf("Validating data structure: chunks=%d", len(chunks))
 
 	invalidChunks := 0
-	for _, chunk := range chunks {
-		if err := chunk.Validate(); err != nil {
-			log.Printf("Invalid chunk found: id=%s, error=%v", chunk.ID, err)
+	for i := range chunks {
+		if err := chunks[i].Validate(); err != nil {
+			log.Printf("Invalid chunk found: id=%s, error=%v", chunks[i].ID, err)
 			invalidChunks++
 		}
 	}
@@ -398,7 +398,7 @@ func (mt *MigrationTool) createPreMigrationBackup(ctx context.Context) error {
 	log.Printf("Creating pre-migration backup: path=%s", backupPath)
 
 	// Create the backup directory with secure permissions
-	if err := os.MkdirAll(mt.backupDir, 0750); err != nil {
+	if err := os.MkdirAll(mt.backupDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create backup directory: %w", err)
 	}
 

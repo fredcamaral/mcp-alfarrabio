@@ -23,7 +23,7 @@ func NewDefaultChainAnalyzer(embeddingService embeddings.EmbeddingService) *Defa
 }
 
 // AnalyzeRelationship analyzes the relationship between two chunks
-func (a *DefaultChainAnalyzer) AnalyzeRelationship(_ context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error) {
+func (a *DefaultChainAnalyzer) AnalyzeRelationship(_ context.Context, chunk1, chunk2 *types.ConversationChunk) (ChainType, float64, error) {
 	// Calculate various similarity metrics
 	semanticSim := a.calculateSemanticSimilarity(chunk1.Embeddings, chunk2.Embeddings)
 	temporalProximity := a.calculateTemporalProximity(chunk1.Timestamp, chunk2.Timestamp)
@@ -41,15 +41,15 @@ func (a *DefaultChainAnalyzer) AnalyzeRelationship(_ context.Context, chunk1, ch
 }
 
 // SuggestChainName suggests a name and description for a chain
-func (a *DefaultChainAnalyzer) SuggestChainName(_ context.Context, chunks []types.ConversationChunk) (string, string, error) {
+func (a *DefaultChainAnalyzer) SuggestChainName(_ context.Context, chunks []*types.ConversationChunk) (name, description string, err error) {
 	if len(chunks) == 0 {
 		return "", "", fmt.Errorf("no chunks provided")
 	}
 
 	// Find common concepts from tags
 	conceptFreq := make(map[string]int)
-	for _, chunk := range chunks {
-		for _, tag := range chunk.Metadata.Tags {
+	for i := range chunks {
+		for _, tag := range chunks[i].Metadata.Tags {
 			conceptFreq[tag]++
 		}
 	}
@@ -68,10 +68,10 @@ func (a *DefaultChainAnalyzer) SuggestChainName(_ context.Context, chunks []type
 	theme := a.determineChainTheme(chunks)
 
 	// Generate name
-	name := a.generateChainName(topConcept, theme, chunks[0].Metadata.Repository)
+	name = a.generateChainName(topConcept, theme, chunks[0].Metadata.Repository)
 
 	// Generate description
-	description := a.generateChainDescription(chunks, theme, conceptFreq)
+	description = a.generateChainDescription(chunks, theme, conceptFreq)
 
 	return name, description, nil
 }
@@ -138,7 +138,7 @@ func (a *DefaultChainAnalyzer) calculateConceptOverlap(concepts1, concepts2 []st
 }
 
 // determineChainType determines the type of relationship
-func (a *DefaultChainAnalyzer) determineChainType(chunk1, chunk2 types.ConversationChunk, semanticSim, temporalProx, conceptOverlap float64) ChainType {
+func (a *DefaultChainAnalyzer) determineChainType(chunk1, chunk2 *types.ConversationChunk, semanticSim, temporalProx, conceptOverlap float64) ChainType {
 	// Check for solution pattern
 	if (chunk1.Type == "problem" || chunk1.Type == "bug") && chunk2.Type == "solution" {
 		return ChainTypeSolution
@@ -189,11 +189,11 @@ func (a *DefaultChainAnalyzer) calculateOverallStrength(semanticSim, temporalPro
 }
 
 // determineChainTheme determines the overall theme of a chain
-func (a *DefaultChainAnalyzer) determineChainTheme(chunks []types.ConversationChunk) string {
+func (a *DefaultChainAnalyzer) determineChainTheme(chunks []*types.ConversationChunk) string {
 	// Count types
 	typeCount := make(map[string]int)
-	for _, chunk := range chunks {
-		typeCount[string(chunk.Type)]++
+	for i := range chunks {
+		typeCount[string(chunks[i].Type)]++
 	}
 
 	// Find dominant type
@@ -229,7 +229,7 @@ func (a *DefaultChainAnalyzer) generateChainName(topConcept, theme, repository s
 	if topConcept != "" {
 		// Simple title case - capitalize first letter
 		titled := topConcept
-		if len(topConcept) > 0 {
+		if topConcept != "" {
 			titled = strings.ToUpper(topConcept[:1]) + topConcept[1:]
 		}
 		return fmt.Sprintf("%s: %s", theme, titled)
@@ -243,15 +243,15 @@ func (a *DefaultChainAnalyzer) generateChainName(topConcept, theme, repository s
 }
 
 // generateChainDescription generates a description for the chain
-func (a *DefaultChainAnalyzer) generateChainDescription(chunks []types.ConversationChunk, theme string, conceptFreq map[string]int) string {
+func (a *DefaultChainAnalyzer) generateChainDescription(chunks []*types.ConversationChunk, theme string, conceptFreq map[string]int) string {
 	// Get time range
 	var minTime, maxTime time.Time
-	for i, chunk := range chunks {
-		if i == 0 || chunk.Timestamp.Before(minTime) {
-			minTime = chunk.Timestamp
+	for i := range chunks {
+		if i == 0 || chunks[i].Timestamp.Before(minTime) {
+			minTime = chunks[i].Timestamp
 		}
-		if i == 0 || chunk.Timestamp.After(maxTime) {
-			maxTime = chunk.Timestamp
+		if i == 0 || chunks[i].Timestamp.After(maxTime) {
+			maxTime = chunks[i].Timestamp
 		}
 	}
 

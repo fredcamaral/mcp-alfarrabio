@@ -10,18 +10,18 @@ import (
 
 // MockChainAnalyzer for testing
 type MockChainAnalyzer struct {
-	analyzeFunc     func(ctx context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error)
-	suggestNameFunc func(ctx context.Context, chunks []types.ConversationChunk) (string, string, error)
+	analyzeFunc     func(ctx context.Context, chunk1, chunk2 *types.ConversationChunk) (ChainType, float64, error)
+	suggestNameFunc func(ctx context.Context, chunks []*types.ConversationChunk) (string, string, error)
 }
 
-func (m *MockChainAnalyzer) AnalyzeRelationship(ctx context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error) {
+func (m *MockChainAnalyzer) AnalyzeRelationship(ctx context.Context, chunk1, chunk2 *types.ConversationChunk) (ChainType, float64, error) {
 	if m.analyzeFunc != nil {
 		return m.analyzeFunc(ctx, chunk1, chunk2)
 	}
 	return ChainTypeContinuation, 0.8, nil
 }
 
-func (m *MockChainAnalyzer) SuggestChainName(ctx context.Context, chunks []types.ConversationChunk) (string, string, error) {
+func (m *MockChainAnalyzer) SuggestChainName(ctx context.Context, chunks []*types.ConversationChunk) (name, description string, err error) {
 	if m.suggestNameFunc != nil {
 		return m.suggestNameFunc(ctx, chunks)
 	}
@@ -30,12 +30,12 @@ func (m *MockChainAnalyzer) SuggestChainName(ctx context.Context, chunks []types
 
 var chunkIDCounter = 0
 
-func createTestChunks(n int) []types.ConversationChunk {
-	chunks := make([]types.ConversationChunk, n)
+func createTestChunks(n int) []*types.ConversationChunk {
+	chunks := make([]*types.ConversationChunk, n)
 	baseTime := time.Now()
 
 	for i := 0; i < n; i++ {
-		chunks[i] = types.ConversationChunk{
+		chunks[i] = &types.ConversationChunk{
 			ID:         fmt.Sprintf("test-chunk-%d", chunkIDCounter+i), // Use unique incremental IDs
 			Content:    "Test content " + string(rune(i)),              // Keep content pattern consistent for test logic
 			SessionID:  "test-session",
@@ -215,7 +215,7 @@ func TestChainBuilder_GetChainPath(t *testing.T) {
 
 	// Custom analyzer that creates a linear chain
 	analyzer := &MockChainAnalyzer{
-		analyzeFunc: func(_ context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error) {
+		analyzeFunc: func(_ context.Context, chunk1, chunk2 *types.ConversationChunk) (ChainType, float64, error) {
 			// Map chunks to their indices based on content
 			idx1 := -1
 			idx2 := -1

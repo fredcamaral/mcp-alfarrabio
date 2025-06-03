@@ -126,20 +126,20 @@ type AliasManager struct {
 }
 
 // NewAliasManager creates a new alias manager
-func NewAliasManager(storage storage.VectorStore, logger *log.Logger) *AliasManager {
+func NewAliasManager(vectorStore storage.VectorStore, logger *log.Logger) *AliasManager {
 	if logger == nil {
 		logger = log.New(log.Writer(), "[AliasManager] ", log.LstdFlags)
 	}
 
 	return &AliasManager{
-		storage: storage,
+		storage: vectorStore,
 		aliases: make(map[string]*Alias),
 		logger:  logger,
 	}
 }
 
 // CreateAlias creates a new alias
-func (am *AliasManager) CreateAlias(ctx context.Context, alias Alias) (*Alias, error) {
+func (am *AliasManager) CreateAlias(ctx context.Context, alias *Alias) (*Alias, error) {
 	// Validate alias
 	if err := am.validateAlias(alias); err != nil {
 		return nil, fmt.Errorf("invalid alias: %w", err)
@@ -162,7 +162,7 @@ func (am *AliasManager) CreateAlias(ctx context.Context, alias Alias) (*Alias, e
 
 	// Store alias
 	am.aliasesMux.Lock()
-	am.aliases[alias.ID] = &alias
+	am.aliases[alias.ID] = alias
 	am.aliasesMux.Unlock()
 
 	// Persist to storage (would be implemented based on storage backend)
@@ -170,11 +170,11 @@ func (am *AliasManager) CreateAlias(ctx context.Context, alias Alias) (*Alias, e
 		am.logger.Printf("Warning: failed to persist alias %s: %v", alias.ID, err)
 	}
 
-	return &alias, nil
+	return alias, nil
 }
 
 // UpdateAlias updates an existing alias
-func (am *AliasManager) UpdateAlias(ctx context.Context, aliasID string, updates Alias) (*Alias, error) {
+func (am *AliasManager) UpdateAlias(ctx context.Context, aliasID string, updates *Alias) (*Alias, error) {
 	am.aliasesMux.Lock()
 	existing, exists := am.aliases[aliasID]
 	if !exists {
@@ -204,7 +204,7 @@ func (am *AliasManager) UpdateAlias(ctx context.Context, aliasID string, updates
 	}
 
 	// Update alias
-	am.aliases[aliasID] = &updates
+	am.aliases[aliasID] = updates
 	am.aliasesMux.Unlock()
 
 	// Persist to storage
@@ -212,7 +212,7 @@ func (am *AliasManager) UpdateAlias(ctx context.Context, aliasID string, updates
 		am.logger.Printf("Warning: failed to persist alias update %s: %v", aliasID, err)
 	}
 
-	return &updates, nil
+	return updates, nil
 }
 
 // DeleteAlias deletes an alias
@@ -305,7 +305,7 @@ func (am *AliasManager) ListAliases(filter AliasListFilter) ([]*Alias, error) {
 
 	var aliases []*Alias
 	for _, alias := range am.aliases {
-		if am.matchesFilter(*alias, filter) {
+		if am.matchesFilter(alias, filter) {
 			aliases = append(aliases, alias)
 		}
 	}
@@ -338,7 +338,7 @@ type AliasListFilter struct {
 
 // Helper methods
 
-func (am *AliasManager) validateAlias(alias Alias) error {
+func (am *AliasManager) validateAlias(alias *Alias) error {
 	if alias.Name == "" {
 		return fmt.Errorf("alias name cannot be empty")
 	}
@@ -440,11 +440,11 @@ func (am *AliasManager) resolveTarget(ctx context.Context, target AliasTarget) (
 	case TargetTypeChunks:
 		return am.resolveChunkTarget(ctx, target.ChunkIDs)
 	case TargetTypeQuery:
-		return am.resolveQueryTarget(ctx, *target.Query)
+		return am.resolveQueryTarget(ctx, target.Query)
 	case TargetTypeFilter:
-		return am.resolveFilterTarget(ctx, *target.Filter)
+		return am.resolveFilterTarget(ctx, target.Filter)
 	case TargetTypeCollection:
-		return am.resolveCollectionTarget(ctx, *target.Collection)
+		return am.resolveCollectionTarget(ctx, target.Collection)
 	default:
 		return nil, fmt.Errorf("unsupported target type: %s", target.Type)
 	}
@@ -463,7 +463,7 @@ func (am *AliasManager) resolveChunkTarget(ctx context.Context, chunkIDs []strin
 	return chunks, nil
 }
 
-func (am *AliasManager) resolveQueryTarget(_ context.Context, query QueryTarget) ([]types.ConversationChunk, error) {
+func (am *AliasManager) resolveQueryTarget(_ context.Context, query *QueryTarget) ([]types.ConversationChunk, error) {
 	// Convert QueryTarget to MemoryQuery
 	_ = &types.MemoryQuery{
 		Query:             query.Query,
@@ -478,13 +478,13 @@ func (am *AliasManager) resolveQueryTarget(_ context.Context, query QueryTarget)
 	return []types.ConversationChunk{}, nil
 }
 
-func (am *AliasManager) resolveFilterTarget(_ context.Context, _ FilterTarget) ([]types.ConversationChunk, error) {
+func (am *AliasManager) resolveFilterTarget(_ context.Context, _ *FilterTarget) ([]types.ConversationChunk, error) {
 	// This would apply the filter criteria to find matching chunks
 	// For now, return empty - real implementation would query storage
 	return []types.ConversationChunk{}, nil
 }
 
-func (am *AliasManager) resolveCollectionTarget(ctx context.Context, collection CollectionTarget) ([]types.ConversationChunk, error) {
+func (am *AliasManager) resolveCollectionTarget(ctx context.Context, collection *CollectionTarget) ([]types.ConversationChunk, error) {
 	return am.resolveChunkTarget(ctx, collection.ChunkIDs)
 }
 
@@ -517,7 +517,7 @@ func (am *AliasManager) findAliasReferences(text string) []string {
 	return unique
 }
 
-func (am *AliasManager) matchesFilter(alias Alias, filter AliasListFilter) bool {
+func (am *AliasManager) matchesFilter(alias *Alias, filter AliasListFilter) bool {
 	// Type filter
 	if filter.Type != nil && alias.Type != *filter.Type {
 		return false
@@ -569,7 +569,7 @@ func (am *AliasManager) generateResultMessage(alias *Alias, resultCount int) str
 
 // Persistence methods (would be implemented based on storage backend)
 
-func (am *AliasManager) persistAlias(_ context.Context, _ Alias) error {
+func (am *AliasManager) persistAlias(_ context.Context, _ *Alias) error {
 	// This would persist the alias to storage
 	// Implementation depends on the storage backend
 	return nil

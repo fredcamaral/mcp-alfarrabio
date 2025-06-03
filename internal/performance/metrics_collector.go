@@ -1228,7 +1228,7 @@ func NewAnomalyDetector(threshold float64, minDataPoints int) *AnomalyDetector {
 	}
 }
 
-func (ad *AnomalyDetector) DetectAnomaly(metricName string, value float64) (bool, float64) {
+func (ad *AnomalyDetector) DetectAnomaly(metricName string, value float64) (isAnomaly bool, anomalyScore float64) {
 	// Placeholder implementation
 	return false, 0.0
 }

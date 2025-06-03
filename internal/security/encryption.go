@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -112,7 +113,7 @@ func (em *EncryptionManager) DecryptString(encrypted *EncryptedData) (string, er
 	}
 
 	if !em.enabled {
-		return "", fmt.Errorf("encryption is not enabled")
+		return "", errors.New("encryption is not enabled")
 	}
 
 	if encrypted.Data == "" {
@@ -120,7 +121,7 @@ func (em *EncryptionManager) DecryptString(encrypted *EncryptedData) (string, er
 	}
 
 	if encrypted.Algorithm != "aes-gcm" {
-		return "", fmt.Errorf("unsupported encryption algorithm: %s", encrypted.Algorithm)
+		return "", errors.New("unsupported encryption algorithm: " + encrypted.Algorithm)
 	}
 
 	// Decode components
@@ -194,7 +195,7 @@ func (em *EncryptionManager) EncryptSensitiveFields(content string) (string, err
 				}
 
 				// Replace with encrypted placeholder
-				encryptedPlaceholder := fmt.Sprintf("[ENCRYPTED:%s:%s]", fieldType, encrypted.Data)
+				encryptedPlaceholder := "[ENCRYPTED:" + fieldType + ":" + encrypted.Data + "]"
 				result = strings.ReplaceAll(result, original,
 					strings.Replace(original, sensitiveValue, encryptedPlaceholder, 1))
 			}
@@ -302,7 +303,7 @@ func (em *EncryptionManager) ValidateEncryption() error {
 	}
 
 	if decrypted != testData {
-		return fmt.Errorf("encryption validation failed: data mismatch")
+		return errors.New("encryption validation failed: data mismatch")
 	}
 
 	return nil
@@ -311,7 +312,7 @@ func (em *EncryptionManager) ValidateEncryption() error {
 // RotateKey rotates the encryption key (in a real implementation)
 func (em *EncryptionManager) RotateKey(newPassword string) error {
 	if !em.enabled {
-		return fmt.Errorf("encryption is not enabled")
+		return errors.New("encryption is not enabled")
 	}
 
 	// In a real implementation, this would:
@@ -341,7 +342,7 @@ func (em *EncryptionManager) IsEnabled() bool {
 // Enable enables encryption with a master password
 func (em *EncryptionManager) Enable(masterPassword string) error {
 	if masterPassword == "" {
-		return fmt.Errorf("master password is required")
+		return errors.New("master password is required")
 	}
 
 	// Generate master key
