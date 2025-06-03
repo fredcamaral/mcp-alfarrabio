@@ -2,24 +2,10 @@ version: "2"
 
 run:
   timeout: 10m
-  issues-exit-code: 1
   tests: true
-  build-tags:
-    - integration
-    - e2e
-  concurrency: 8
-  allow-parallel-runners: true
-  modules-download-mode: readonly
-  skip-dirs:
-    - "vendor"
-    - "internal/audit_logs"
-    - "internal/di/audit_logs"
-    - "internal/mcp/audit_logs"
-  skip-files:
-    - ".*_test.go$"
+  go: '1.23'
 
 linters:
-  fast: true
   enable:
     # Core quality checks
     - errcheck        # Check for unchecked errors
@@ -51,54 +37,28 @@ linters:
     - gocritic       # Comprehensive Go linter
     - nilnil         # Checks that there is no simultaneous return of nil error and nil value
     - nolintlint     # Reports ill-formed or insufficient nolint directives
-#    - revive         # Fast, configurable, extensible, flexible, and beautiful linter for Go
+  settings:
+    gocyclo:
+      min-complexity: 15
+    nestif:
+      min-complexity: 5
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        - commentedOutCode
+        - ifElseChain
+    gosec:
+      excludes:
+        - G204  # Subprocess launched with variable
+        - G304  # File path provided as taint input
+    staticcheck:
+      checks: ["all"]
+    unused:
+      check-exported: false
 
-linters-settings:
-  gocyclo:
-    min-complexity: 15
-  nestif:
-    min-complexity: 5
-  gocritic:
-    enabled-tags:
-      - diagnostic
-      - style
-      - performance
-    disabled-checks:
-      - commentedOutCode
-      - ifElseChain
-  gosec:
-    excludes:
-      - G204  # Subprocess launched with variable
-      - G304  # File path provided as taint input
-  staticcheck:
-    checks: ["all"]
-  unused:
-    check-exported: false
-  revive:
-    rules:
-      - name: exported
-        disabled: true
-      - name: package-comments
-        disabled: true
-        
 issues:
-  exclude-use-default: false
-  exclude-rules:
-    # Disable certain linters for test files
-    - path: _test\.go
-      linters:
-        - gocyclo
-        - dupl
-        - gosec
-        - goconst
-    # Disable gosec in specific directories
-    - path: cmd/
-      linters:
-        - gosec
-    # Allow long lines in comments
-    - source: "^//.*"
-      linters:
-        - lll
   max-issues-per-linter: 0
   max-same-issues: 0
-  new-from-rev: ""
