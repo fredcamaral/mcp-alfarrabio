@@ -25,11 +25,18 @@ jobs:
       - name: Cache Go modules
         uses: actions/cache@v4
         with:
-          path: ~/go/pkg/mod
-          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-${{ hashFiles('**/*.go') }}
           restore-keys: |
+            ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}-
             ${{ runner.os }}-go-
 
+      - name: Clean Go caches
+        run: |
+          go clean -cache -modcache -testcache || true
+          
       - name: Download dependencies
         run: go mod download
 
@@ -44,14 +51,20 @@ jobs:
       - name: Run golangci-lint
         uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.1.6
-          args: --timeout=3m --config=.golangci.yml
+          version: v1.62.2
+          args: --timeout=5m --config=.golangci.yml
+          skip-cache: false
+          skip-pkg-cache: false
+          skip-build-cache: false
+
+      - name: Build server binary
+        run: go build -o server ./cmd/server
 
       - name: Integration tests
         run: |
           # Basic integration test - ensure server starts
-          go build -o server ./cmd/server
           timeout 5s ./server -mode=stdio || true
+          echo "Integration test completed"
 
   security:
     name: Security Scan

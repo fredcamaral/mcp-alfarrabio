@@ -267,6 +267,11 @@ func (e *StandardError) ToJSON() ([]byte, error) {
 func (e *StandardError) WriteHTTPError(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 
+	// Add trace ID header if present
+	if e.ErrorInfo.TraceID != "" {
+		w.Header().Set("X-Trace-ID", e.ErrorInfo.TraceID)
+	}
+
 	// Add rate limiting headers if applicable
 	if e.ErrorInfo.Code == ErrorCodeRateLimited {
 		if rateLimitDetail, ok := e.ErrorInfo.Details.(RateLimitDetail); ok {
