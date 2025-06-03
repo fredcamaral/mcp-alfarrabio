@@ -56,8 +56,6 @@ linters:
         - G304  # File path provided as taint input
     staticcheck:
       checks: ["all"]
-    unused:
-      check-exported: false
 
 issues:
   max-issues-per-linter: 0
