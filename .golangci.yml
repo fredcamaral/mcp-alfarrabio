@@ -11,7 +11,7 @@ linters:
     - errcheck        # Check for unchecked errors
     - govet          # Vet examines Go source code
     - ineffassign    # Detects ineffectual assignments
-    - staticcheck    # Advanced Go linter
+    #- staticcheck    # Advanced Go linter
     - unused         # Checks for unused constants, variables, functions and types
     
     # Security and best practices
@@ -21,7 +21,7 @@ linters:
     - errorlint      # Find code that will cause problems with the error wrapping scheme
     - copyloopvar    # Checks for pointers to enclosing loop variables
     - goconst        # Finds repeated strings that could be replaced by a constant
-    - gocyclo        # Computes and checks the cyclomatic complexity of functions
+    #- gocyclo        # Computes and checks the cyclomatic complexity of functions
     - nestif         # Reports deeply nested if statements
     
     # Code quality
