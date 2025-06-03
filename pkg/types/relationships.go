@@ -2,6 +2,7 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -164,19 +165,19 @@ type MemoryRelationship struct {
 // NewMemoryRelationship creates a new memory relationship
 func NewMemoryRelationship(sourceID, targetID string, relationType RelationType, confidence float64, source ConfidenceSource) (*MemoryRelationship, error) {
 	if sourceID == "" {
-		return nil, fmt.Errorf("source chunk ID cannot be empty")
+		return nil, errors.New("source chunk ID cannot be empty")
 	}
 	if targetID == "" {
-		return nil, fmt.Errorf("target chunk ID cannot be empty")
+		return nil, errors.New("target chunk ID cannot be empty")
 	}
 	if sourceID == targetID {
-		return nil, fmt.Errorf("source and target chunk IDs cannot be the same")
+		return nil, errors.New("source and target chunk IDs cannot be the same")
 	}
 	if !relationType.Valid() {
 		return nil, fmt.Errorf("invalid relation type: %s", relationType)
 	}
 	if confidence < 0 || confidence > 1 {
-		return nil, fmt.Errorf("confidence must be between 0 and 1")
+		return nil, errors.New("confidence must be between 0 and 1")
 	}
 	if !source.Valid() {
 		return nil, fmt.Errorf("invalid confidence source: %s", source)
@@ -199,31 +200,31 @@ func NewMemoryRelationship(sourceID, targetID string, relationType RelationType,
 // Validate checks if the memory relationship is valid
 func (mr *MemoryRelationship) Validate() error {
 	if mr.ID == "" {
-		return fmt.Errorf("ID cannot be empty")
+		return errors.New("ID cannot be empty")
 	}
 	if mr.SourceChunkID == "" {
-		return fmt.Errorf("source chunk ID cannot be empty")
+		return errors.New("source chunk ID cannot be empty")
 	}
 	if mr.TargetChunkID == "" {
-		return fmt.Errorf("target chunk ID cannot be empty")
+		return errors.New("target chunk ID cannot be empty")
 	}
 	if mr.SourceChunkID == mr.TargetChunkID {
-		return fmt.Errorf("source and target chunk IDs cannot be the same")
+		return errors.New("source and target chunk IDs cannot be the same")
 	}
 	if !mr.RelationType.Valid() {
 		return fmt.Errorf("invalid relation type: %s", mr.RelationType)
 	}
 	if mr.Confidence < 0 || mr.Confidence > 1 {
-		return fmt.Errorf("confidence must be between 0 and 1")
+		return errors.New("confidence must be between 0 and 1")
 	}
 	if !mr.ConfidenceSource.Valid() {
 		return fmt.Errorf("invalid confidence source: %s", mr.ConfidenceSource)
 	}
 	if mr.ValidationCount < 0 {
-		return fmt.Errorf("validation count cannot be negative")
+		return errors.New("validation count cannot be negative")
 	}
 	if mr.CreatedAt.IsZero() {
-		return fmt.Errorf("created at cannot be zero")
+		return errors.New("created at cannot be zero")
 	}
 	return nil
 }
@@ -231,7 +232,7 @@ func (mr *MemoryRelationship) Validate() error {
 // UpdateConfidence updates the confidence score and factors
 func (mr *MemoryRelationship) UpdateConfidence(newConfidence float64, factors ConfidenceFactors) error {
 	if newConfidence < 0 || newConfidence > 1 {
-		return fmt.Errorf("confidence must be between 0 and 1")
+		return errors.New("confidence must be between 0 and 1")
 	}
 	mr.Confidence = newConfidence
 	mr.ConfidenceFactors = factors
@@ -273,25 +274,25 @@ func NewRelationshipQuery(chunkID string) *RelationshipQuery {
 // Validate checks if the relationship query is valid
 func (rq *RelationshipQuery) Validate() error {
 	if rq.ChunkID == "" {
-		return fmt.Errorf("chunk ID cannot be empty")
+		return errors.New("chunk ID cannot be empty")
 	}
 	if rq.Direction != "incoming" && rq.Direction != "outgoing" && rq.Direction != "both" {
-		return fmt.Errorf("direction must be 'incoming', 'outgoing', or 'both'")
+		return errors.New("direction must be 'incoming', 'outgoing', or 'both'")
 	}
 	if rq.MinConfidence < 0 || rq.MinConfidence > 1 {
-		return fmt.Errorf("min confidence must be between 0 and 1")
+		return errors.New("min confidence must be between 0 and 1")
 	}
 	if rq.MaxDepth < 1 {
-		return fmt.Errorf("max depth must be at least 1")
+		return errors.New("max depth must be at least 1")
 	}
 	if rq.SortBy != "" && rq.SortBy != "confidence" && rq.SortBy != "created_at" && rq.SortBy != "validation_count" {
-		return fmt.Errorf("sort by must be 'confidence', 'created_at', or 'validation_count'")
+		return errors.New("sort by must be 'confidence', 'created_at', or 'validation_count'")
 	}
 	if rq.SortOrder != "" && rq.SortOrder != "asc" && rq.SortOrder != "desc" {
-		return fmt.Errorf("sort order must be 'asc' or 'desc'")
+		return errors.New("sort order must be 'asc' or 'desc'")
 	}
 	if rq.Limit < 0 {
-		return fmt.Errorf("limit cannot be negative")
+		return errors.New("limit cannot be negative")
 	}
 	for _, relType := range rq.RelationTypes {
 		if !relType.Valid() {

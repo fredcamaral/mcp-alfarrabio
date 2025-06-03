@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"mcp-memory/pkg/types"
@@ -251,7 +252,7 @@ func (rs *RelationshipStore) TraverseGraph(ctx context.Context, startChunkID str
 			}
 
 			// Add edge
-			edgeKey := fmt.Sprintf("%s-%s", relationship.SourceChunkID, relationship.TargetChunkID)
+			edgeKey := relationship.SourceChunkID + "-" + relationship.TargetChunkID
 			edges[edgeKey] = &types.GraphEdge{
 				Relationship: relationship,
 				Weight:       relationship.Confidence,
@@ -434,7 +435,7 @@ func (rs *RelationshipStore) pointToRelationship(point *qdrant.RetrievedPoint) (
 
 	// Validate required fields
 	if sourceChunkID == "" || targetChunkID == "" || relationTypeStr == "" {
-		return nil, fmt.Errorf("missing required fields in relationship")
+		return nil, errors.New("missing required fields in relationship")
 	}
 
 	relationType := types.RelationType(relationTypeStr)

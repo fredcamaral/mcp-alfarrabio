@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -252,19 +253,19 @@ func (tcs *testCompatibilityServer) registerBackwardCompatibilityLayer() {
 func (tcs *testCompatibilityServer) handleMemoryCreate(_ context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, errors.New("options parameter is required")
 	}
 
 	// Mock successful responses for different operations
 	switch operation {
 	case "store_chunk":
 		if _, ok := options["content"]; !ok {
-			return nil, fmt.Errorf("content is required")
+			return nil, errors.New("content is required")
 		}
 		return map[string]interface{}{
 			"chunk_id": "compat_test_chunk_123",
@@ -272,7 +273,7 @@ func (tcs *testCompatibilityServer) handleMemoryCreate(_ context.Context, args m
 		}, nil
 	case "store_decision":
 		if _, ok := options["decision"]; !ok {
-			return nil, fmt.Errorf("decision is required")
+			return nil, errors.New("decision is required")
 		}
 		return map[string]interface{}{
 			"decision_id": "compat_test_decision_123",
@@ -289,7 +290,7 @@ func (tcs *testCompatibilityServer) handleMemoryCreate(_ context.Context, args m
 func (tcs *testCompatibilityServer) handleMemoryRead(_ context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	return map[string]interface{}{
@@ -302,7 +303,7 @@ func (tcs *testCompatibilityServer) handleMemoryRead(_ context.Context, args map
 func (tcs *testCompatibilityServer) handleMemorySystem(_ context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	switch operation {
@@ -322,7 +323,7 @@ func (tcs *testCompatibilityServer) handleMemorySystem(_ context.Context, args m
 func (tcs *testCompatibilityServer) handleBulkOperationCompatibility(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 	operationType, ok := params["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	// Remove operation from params since it will be handled differently

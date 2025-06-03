@@ -3,6 +3,7 @@
 package config
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -447,45 +448,45 @@ func (c *Config) Validate() error {
 		return fmt.Errorf("invalid server port: %d", c.Server.Port)
 	}
 	if c.Server.Host == "" {
-		return fmt.Errorf("server host cannot be empty")
+		return errors.New("server host cannot be empty")
 	}
 
 	// Validate Qdrant config
 	if c.Qdrant.Host == "" {
-		return fmt.Errorf("qdrant host cannot be empty")
+		return errors.New("qdrant host cannot be empty")
 	}
 	if c.Qdrant.Port <= 0 {
-		return fmt.Errorf("qdrant port must be greater than 0")
+		return errors.New("qdrant port must be greater than 0")
 	}
 	if c.Qdrant.Collection == "" {
-		return fmt.Errorf("qdrant collection cannot be empty")
+		return errors.New("qdrant collection cannot be empty")
 	}
 	if c.Qdrant.Docker.Enabled && c.Qdrant.Docker.ContainerName == "" {
-		return fmt.Errorf("docker container name cannot be empty when docker is enabled")
+		return errors.New("docker container name cannot be empty when docker is enabled")
 	}
 
 	// Validate OpenAI config
 	if c.OpenAI.APIKey == "" {
-		return fmt.Errorf("OpenAI API key is required")
+		return errors.New("OpenAI API key is required")
 	}
 	if c.OpenAI.EmbeddingModel == "" {
-		return fmt.Errorf("OpenAI embedding model cannot be empty")
+		return errors.New("OpenAI embedding model cannot be empty")
 	}
 
 	// Validate storage config
 	if c.Storage.RetentionDays <= 0 {
-		return fmt.Errorf("retention days must be positive")
+		return errors.New("retention days must be positive")
 	}
 
 	// Validate chunking config
 	if c.Chunking.MinContentLength <= 0 {
-		return fmt.Errorf("min content length must be positive")
+		return errors.New("min content length must be positive")
 	}
 	if c.Chunking.MaxContentLength <= c.Chunking.MinContentLength {
-		return fmt.Errorf("max content length must be greater than min content length")
+		return errors.New("max content length must be greater than min content length")
 	}
 	if c.Chunking.SimilarityThreshold < 0 || c.Chunking.SimilarityThreshold > 1 {
-		return fmt.Errorf("similarity threshold must be between 0 and 1")
+		return errors.New("similarity threshold must be between 0 and 1")
 	}
 
 	return nil

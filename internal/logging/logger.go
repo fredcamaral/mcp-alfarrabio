@@ -249,11 +249,11 @@ func (l *StructuredLogger) outputText(entry LogEntry) {
 	parts = append(parts, fmt.Sprintf("[%s]", entry.Level))
 
 	if entry.TraceID != "" {
-		parts = append(parts, fmt.Sprintf("trace:%s", entry.TraceID[:8]))
+		parts = append(parts, "trace:"+entry.TraceID[:8])
 	}
 
 	if entry.Component != "" {
-		parts = append(parts, fmt.Sprintf("component:%s", entry.Component))
+		parts = append(parts, "component:"+entry.Component)
 	}
 
 	parts = append(parts, entry.Message)

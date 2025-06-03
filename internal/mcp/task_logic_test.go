@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -133,17 +134,17 @@ func validateTaskParameters(params map[string]interface{}) error {
 	// Required parameters
 	title, ok := params["title"].(string)
 	if !ok || title == "" {
-		return fmt.Errorf("title parameter is required")
+		return errors.New("title parameter is required")
 	}
 
 	description, ok := params["description"].(string)
 	if !ok || description == "" {
-		return fmt.Errorf("description parameter is required")
+		return errors.New("description parameter is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
-		return fmt.Errorf("session_id parameter is required")
+		return errors.New("session_id parameter is required")
 	}
 
 	// Validate priority if provided
@@ -160,14 +161,14 @@ func validateTaskParameters(params map[string]interface{}) error {
 	if dueDateStr, ok := params["due_date"].(string); ok && dueDateStr != "" {
 		_, err := time.Parse(time.RFC3339, dueDateStr)
 		if err != nil {
-			return fmt.Errorf("invalid due_date format: must be RFC3339 (e.g., 2024-12-31T23:59:59Z)")
+			return errors.New("invalid due_date format: must be RFC3339 (e.g., 2024-12-31T23:59:59Z)")
 		}
 	}
 
 	// Validate estimate if provided
 	if estimate, ok := params["estimate"].(float64); ok {
 		if estimate < 0 {
-			return fmt.Errorf("estimate must be positive")
+			return errors.New("estimate must be positive")
 		}
 	}
 
@@ -330,4 +331,95 @@ func TestTaskContentBuilding(t *testing.T) {
 // buildTaskContent extracts the content building logic for unit testing
 func buildTaskContent(title, description string) string {
 	return fmt.Sprintf("TASK: %s\n\nDESCRIPTION:\n%s", title, description)
+}
+
+// TestTodoReadLogic tests the todo read functionality without external dependencies
+func TestTodoReadLogic(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          map[string]interface{}
+		expectError   bool
+		errorMsg      string
+		expectedScope string
+		hasSessionID  bool
+	}{
+		{
+			name: "missing_repository",
+			args: map[string]interface{}{
+				"session_id": "test-session",
+			},
+			expectError: true,
+			errorMsg:    "repository parameter is required",
+		},
+		{
+			name: "repository_only_scope",
+			args: map[string]interface{}{
+				"repository": "github.com/test/repo",
+			},
+			expectError:   false,
+			expectedScope: "repository",
+			hasSessionID:  false,
+		},
+		{
+			name: "session_scope",
+			args: map[string]interface{}{
+				"repository": "github.com/test/repo",
+				"session_id": "test-session",
+			},
+			expectError:   false,
+			expectedScope: "session",
+			hasSessionID:  true,
+		},
+		{
+			name: "empty_session_id_should_use_repository_scope",
+			args: map[string]interface{}{
+				"repository": "github.com/test/repo",
+				"session_id": "",
+			},
+			expectError:   false,
+			expectedScope: "repository",
+			hasSessionID:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// Test parameter validation
+			err := validateTodoReadParameters(tt.args)
+
+			if tt.expectError {
+				assert.Error(t, err, "Expected validation error for test case: %s", tt.name)
+				if tt.errorMsg != "" {
+					assert.Contains(t, err.Error(), tt.errorMsg, "Error message should contain: %s", tt.errorMsg)
+				}
+			} else {
+				assert.NoError(t, err, "Unexpected validation error for test case: %s", tt.name)
+
+				// Test scope detection
+				scope, hasSession := determineTodoReadScope(tt.args)
+				assert.Equal(t, tt.expectedScope, scope, "Scope should match expected value")
+				assert.Equal(t, tt.hasSessionID, hasSession, "Session ID presence should match expected value")
+			}
+		})
+	}
+}
+
+// validateTodoReadParameters extracts the parameter validation logic for todo_read testing
+func validateTodoReadParameters(args map[string]interface{}) error {
+	repository, ok := args["repository"].(string)
+	if !ok || repository == "" {
+		return errors.New("repository parameter is required for multi-tenant isolation")
+	}
+	return nil
+}
+
+// determineTodoReadScope extracts the scope detection logic for todo_read testing
+func determineTodoReadScope(args map[string]interface{}) (scope string, hasSession bool) {
+	sessionID, hasSessionID := args["session_id"].(string)
+
+	if hasSessionID && sessionID != "" {
+		return "session", true
+	}
+
+	return "repository", false
 }

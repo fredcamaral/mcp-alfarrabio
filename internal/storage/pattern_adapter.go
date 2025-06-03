@@ -49,7 +49,7 @@ func (p *PatternStorageAdapter) GetPattern(ctx context.Context, id string) (*int
 	// Convert chunk back to pattern (simplified)
 	pattern := &intelligence.Pattern{
 		ID:          chunk.ID,
-		Name:        fmt.Sprintf("Pattern_%s", chunk.ID[:8]),
+		Name:        "Pattern_" + chunk.ID[:8],
 		Description: chunk.Summary,
 		Type:        intelligence.PatternTypeWorkflow, // Default type
 	}
@@ -69,7 +69,7 @@ func (p *PatternStorageAdapter) ListPatterns(ctx context.Context, patternType *i
 	for _, chunk := range chunks {
 		pattern := intelligence.Pattern{
 			ID:          chunk.ID,
-			Name:        fmt.Sprintf("Pattern_%s", chunk.ID[:8]),
+			Name:        "Pattern_" + chunk.ID[:8],
 			Description: chunk.Summary,
 			Type:        intelligence.PatternTypeWorkflow, // Default type
 		}

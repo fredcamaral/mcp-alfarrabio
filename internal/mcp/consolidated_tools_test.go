@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -362,21 +363,21 @@ func (tms *testMemoryServer) handleMemoryCreate(ctx context.Context, args map[st
 	// Mock implementation that validates parameters and returns success
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, errors.New("options parameter is required")
 	}
 
 	switch operation {
 	case "store_chunk":
 		if _, ok := options["content"]; !ok {
-			return nil, fmt.Errorf("content is required for store_chunk")
+			return nil, errors.New("content is required for store_chunk")
 		}
 		if _, ok := options["session_id"]; !ok {
-			return nil, fmt.Errorf("session_id is required for store_chunk")
+			return nil, errors.New("session_id is required for store_chunk")
 		}
 		return map[string]interface{}{
 			"chunk_id":  "test_chunk_123",
@@ -396,12 +397,12 @@ func (tms *testMemoryServer) handleMemoryCreate(ctx context.Context, args map[st
 func (tms *testMemoryServer) handleMemoryRead(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	_, ok = args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, errors.New("options parameter is required")
 	}
 
 	switch operation {
@@ -419,7 +420,7 @@ func (tms *testMemoryServer) handleMemoryRead(ctx context.Context, args map[stri
 func (tms *testMemoryServer) handleMemorySystem(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	switch operation {
@@ -443,7 +444,7 @@ func (tms *testMemoryServer) handleMemorySystem(ctx context.Context, args map[st
 func (tms *testMemoryServer) handleMemoryAnalyze(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	switch operation {
@@ -460,7 +461,7 @@ func (tms *testMemoryServer) handleMemoryAnalyze(ctx context.Context, args map[s
 func (tms *testMemoryServer) handleMemoryIntelligence(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	switch operation {

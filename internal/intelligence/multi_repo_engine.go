@@ -2,6 +2,7 @@ package intelligence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -175,11 +176,11 @@ func NewMultiRepoEngine(patternEngine *PatternEngine, knowledgeGraph *GraphBuild
 // AddRepository adds a new repository to the intelligence system
 func (mre *MultiRepoEngine) AddRepository(ctx context.Context, repo *RepositoryContext) error {
 	if repo.ID == "" {
-		return fmt.Errorf("repository ID cannot be empty")
+		return errors.New("repository ID cannot be empty")
 	}
 
 	if len(mre.repositories) >= mre.maxRepositories {
-		return fmt.Errorf("maximum number of repositories reached")
+		return errors.New("maximum number of repositories reached")
 	}
 
 	repo.LastActivity = time.Now()

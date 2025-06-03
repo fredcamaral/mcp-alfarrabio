@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -35,11 +36,11 @@ import (
 
 // String constants for repeated values
 const (
-	STATUS_SUCCESS = "success"
-	LEVEL_MEDIUM   = "medium"
-	LEVEL_HIGH     = "high"
-	VALUE_UNKNOWN  = "unknown"
-	VALUE_DEFAULT  = "default"
+	StatusSuccess = "success"
+	LevelMedium   = "medium"
+	LevelHigh     = "high"
+	ValueUnknown  = "unknown"
+	ValueDefault  = "default"
 )
 
 // MemoryServer implements the MCP server for Claude memory
@@ -1285,9 +1286,9 @@ func (ms *MemoryServer) registerLegacyTools() {
 			},
 			"outcome": map[string]interface{}{
 				"type":        "string",
-				"enum":        []string{STATUS_SUCCESS, "partial", "failed"},
+				"enum":        []string{StatusSuccess, "partial", "failed"},
 				"description": "Completion outcome",
-				"default":     STATUS_SUCCESS,
+				"default":     StatusSuccess,
 			},
 			"files_modified":  mcp.ArraySchema("Files modified during task completion", map[string]interface{}{"type": "string"}),
 			"tools_used":      mcp.ArraySchema("Tools used during task completion", map[string]interface{}{"type": "string"}),
@@ -2088,7 +2089,7 @@ func (ms *MemoryServer) handleFindSimilar(ctx context.Context, params map[string
 	problem, ok := params["problem"].(string)
 	if !ok || problem == "" {
 		logging.Error("memory_find_similar failed: missing problem parameter")
-		return nil, fmt.Errorf("problem description is required")
+		return nil, errors.New("problem description is required")
 	}
 
 	logging.Info("Processing similar problem search", "problem", problem)
@@ -2154,17 +2155,17 @@ func (ms *MemoryServer) handleFindSimilar(ctx context.Context, params map[string
 func (ms *MemoryServer) handleStoreDecision(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 	decision, ok := params["decision"].(string)
 	if !ok || decision == "" {
-		return nil, fmt.Errorf("decision is required")
+		return nil, errors.New("decision is required")
 	}
 
 	rationale, ok := params["rationale"].(string)
 	if !ok || rationale == "" {
-		return nil, fmt.Errorf("rationale is required")
+		return nil, errors.New("rationale is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	context := ""
@@ -2250,7 +2251,7 @@ func (ms *MemoryServer) handleGetPatterns(ctx context.Context, params map[string
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_get_patterns failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	timeframe := types.TimeframeMonth
@@ -2345,7 +2346,7 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]p
 	switch resourceType {
 	case "recent":
 		if len(parts) < 4 {
-			return nil, fmt.Errorf("repository required for recent resource")
+			return nil, errors.New("repository required for recent resource")
 		}
 		repository := parts[3]
 		chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 20, 0)
@@ -2357,7 +2358,7 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]p
 
 	case "patterns":
 		if len(parts) < 4 {
-			return nil, fmt.Errorf("repository required for patterns resource")
+			return nil, errors.New("repository required for patterns resource")
 		}
 		repository := parts[3]
 		chunks, err := ms.container.GetVectorStore().ListByRepository(ctx, repository, 100, 0)
@@ -2374,7 +2375,7 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]p
 
 	case "decisions":
 		if len(parts) < 4 {
-			return nil, fmt.Errorf("repository required for decisions resource")
+			return nil, errors.New("repository required for decisions resource")
 		}
 		repository := parts[3]
 
@@ -2413,7 +2414,7 @@ func (ms *MemoryServer) handleResourceRead(ctx context.Context, uri string) ([]p
 
 	case GlobalRepository:
 		if len(parts) < 4 || parts[3] != "insights" {
-			return nil, fmt.Errorf("invalid global resource")
+			return nil, errors.New("invalid global resource")
 		}
 
 		// Get global insights across all repositories
@@ -2501,13 +2502,13 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 	currentContext, ok := params["current_context"].(string)
 	if !ok {
 		logging.Error("memory_suggest_related failed: missing current_context parameter")
-		return nil, fmt.Errorf("current_context is required")
+		return nil, errors.New("current_context is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok {
 		logging.Error("memory_suggest_related failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	logging.Info("Processing context suggestions", "context_length", len(currentContext), "session_id", sessionID)
@@ -2645,13 +2646,13 @@ func (ms *MemoryServer) handleAutoInsights(ctx context.Context, params map[strin
 	repository, ok := params["repository"].(string)
 	if !ok {
 		logging.Error("memory_auto_insights failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok {
 		logging.Error("memory_auto_insights failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	timeframe := "week"
@@ -2703,7 +2704,7 @@ func (ms *MemoryServer) handleAutoInsights(ctx context.Context, params map[strin
 
 		// Calculate simple effectiveness score (placeholder)
 		score := 0.7 // Base score
-		if chunk.Metadata.Outcome == STATUS_SUCCESS {
+		if chunk.Metadata.Outcome == StatusSuccess {
 			score += 0.2
 		}
 		if len(chunk.Metadata.Tags) > 2 {
@@ -2798,7 +2799,7 @@ func (ms *MemoryServer) handleAutoInsights(ctx context.Context, params map[strin
 			"complexity_trend":      "increasing",
 		}
 
-		if outcomeDistribution[STATUS_SUCCESS] > outcomeDistribution["failure"] {
+		if outcomeDistribution[StatusSuccess] > outcomeDistribution["failure"] {
 			trends["overall_trend"] = "positive"
 		} else {
 			trends["overall_trend"] = "needs_attention"
@@ -2837,19 +2838,19 @@ func (ms *MemoryServer) handlePatternPrediction(ctx context.Context, params map[
 	context, ok := params["context"].(string)
 	if !ok {
 		logging.Error("memory_pattern_prediction failed: missing context parameter")
-		return nil, fmt.Errorf("context is required")
+		return nil, errors.New("context is required")
 	}
 
 	repository, ok := params["repository"].(string)
 	if !ok {
 		logging.Error("memory_pattern_prediction failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok {
 		logging.Error("memory_pattern_prediction failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	// Set optional parameters with defaults
@@ -2982,7 +2983,7 @@ func analyzeHistoricalPatterns(chunks []types.ConversationChunk, context string)
 func predictOutcome(analysis *patternAnalysisResult, totalChunks int, confidenceThreshold float64) *map[string]interface{} {
 	mostLikelyOutcome, maxOutcomeCount := findMostFrequent(analysis.outcomes)
 	if mostLikelyOutcome == "" {
-		mostLikelyOutcome = STATUS_SUCCESS
+		mostLikelyOutcome = StatusSuccess
 	}
 
 	outcomeConfidence := float64(maxOutcomeCount) / float64(totalChunks)
@@ -3032,11 +3033,11 @@ func predictComplexity(chunks []types.ConversationChunk) map[string]interface{} 
 		avgTagCount /= len(chunks)
 	}
 
-	complexityLevel := LEVEL_MEDIUM
+	complexityLevel := LevelMedium
 	complexityConfidence := 0.6
 
 	if avgContentLength > 500 || avgTagCount > 5 {
-		complexityLevel = LEVEL_HIGH
+		complexityLevel = LevelHigh
 		complexityConfidence = 0.8
 	} else if avgContentLength < 200 && avgTagCount < 3 {
 		complexityLevel = "low"
@@ -3115,12 +3116,12 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 	repository, ok := params["repository"].(string)
 	if !ok {
 		logging.Error("memory_export_project failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	format := "json"
@@ -3246,7 +3247,7 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 	case "archive":
 		// Use backup manager to create compressed archive
 		if ms.container.GetBackupManager() == nil {
-			return nil, fmt.Errorf("backup manager not available")
+			return nil, errors.New("backup manager not available")
 		}
 
 		// Create a filtered backup for this repository only
@@ -3287,22 +3288,22 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 func (ms *MemoryServer) handleImportContext(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 	source, ok := params["source"].(string)
 	if !ok {
-		return nil, fmt.Errorf("source is required")
+		return nil, errors.New("source is required")
 	}
 
 	data, ok := params["data"].(string)
 	if !ok {
-		return nil, fmt.Errorf("data is required")
+		return nil, errors.New("data is required")
 	}
 
 	repository, ok := params["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	chunkingStrategy := "auto"
@@ -3463,7 +3464,7 @@ func (ms *MemoryServer) importArchiveData(_ context.Context, data, repository st
 	// Extract chunks from archive
 	chunksData, exists := archiveContent["chunks"]
 	if !exists {
-		return nil, fmt.Errorf("no chunks found in archive")
+		return nil, errors.New("no chunks found in archive")
 	}
 
 	chunksJSON, err := json.Marshal(chunksData)
@@ -3566,17 +3567,17 @@ func (ms *MemoryServer) handleMemoryLink(ctx context.Context, params map[string]
 	// Extract parameters
 	sourceChunkID, ok := params["source_chunk_id"].(string)
 	if !ok || sourceChunkID == "" {
-		return nil, fmt.Errorf("source_chunk_id is required")
+		return nil, errors.New("source_chunk_id is required")
 	}
 
 	targetChunkID, ok := params["target_chunk_id"].(string)
 	if !ok || targetChunkID == "" {
-		return nil, fmt.Errorf("target_chunk_id is required")
+		return nil, errors.New("target_chunk_id is required")
 	}
 
 	relationTypeStr, ok := params["relation_type"].(string)
 	if !ok || relationTypeStr == "" {
-		return nil, fmt.Errorf("relation_type is required")
+		return nil, errors.New("relation_type is required")
 	}
 
 	relationType := types.RelationType(relationTypeStr)
@@ -3628,7 +3629,7 @@ func (ms *MemoryServer) handleGetRelationships(ctx context.Context, params map[s
 	// Extract parameters
 	chunkID, ok := params["chunk_id"].(string)
 	if !ok || chunkID == "" {
-		return nil, fmt.Errorf("chunk_id is required")
+		return nil, errors.New("chunk_id is required")
 	}
 
 	// Build query
@@ -3725,7 +3726,7 @@ func (ms *MemoryServer) handleTraverseGraph(ctx context.Context, params map[stri
 	// Extract parameters
 	startChunkID, ok := params["start_chunk_id"].(string)
 	if !ok || startChunkID == "" {
-		return nil, fmt.Errorf("start_chunk_id is required")
+		return nil, errors.New("start_chunk_id is required")
 	}
 
 	maxDepth := 3 // default
@@ -3819,12 +3820,12 @@ func (ms *MemoryServer) handleAutoDetectRelationships(ctx context.Context, param
 	// Extract parameters
 	chunkID, ok := params["chunk_id"].(string)
 	if !ok || chunkID == "" {
-		return nil, fmt.Errorf("chunk_id is required")
+		return nil, errors.New("chunk_id is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	minConfidence := 0.6 // default
@@ -3932,7 +3933,7 @@ func (ms *MemoryServer) handleUpdateRelationship(ctx context.Context, params map
 	// Extract parameters
 	relationshipID, ok := params["relationship_id"].(string)
 	if !ok || relationshipID == "" {
-		return nil, fmt.Errorf("relationship_id is required")
+		return nil, errors.New("relationship_id is required")
 	}
 
 	// Get storage from container
@@ -4007,7 +4008,7 @@ func (ms *MemoryServer) handleSearchExplained(ctx context.Context, params map[st
 	// Extract parameters
 	query, ok := params["query"].(string)
 	if !ok || query == "" {
-		return nil, fmt.Errorf("query is required")
+		return nil, errors.New("query is required")
 	}
 
 	// Build memory query
@@ -4268,7 +4269,7 @@ func (ms *MemoryServer) handleMemoryStatus(ctx context.Context, params map[strin
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_status failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	// Get enhanced context data (reuse our new auto-context logic)
@@ -4442,7 +4443,7 @@ func (ms *MemoryServer) parseConflictResolutionParams(params map[string]interfac
 	}
 
 	if len(config.ConflictIDs) == 0 {
-		return nil, fmt.Errorf("conflict_ids parameter is required and must be a non-empty array")
+		return nil, errors.New("conflict_ids parameter is required and must be a non-empty array")
 	}
 
 	if repo, ok := params["repository"].(string); ok {
@@ -4694,15 +4695,15 @@ func (ms *MemoryServer) mapSeverityToPriority(severity intelligence.ConflictSeve
 	case intelligence.SeverityCritical:
 		return "urgent"
 	case intelligence.SeverityHigh:
-		return LEVEL_HIGH
+		return LevelHigh
 	case intelligence.SeverityMedium:
-		return LEVEL_MEDIUM
+		return LevelMedium
 	case intelligence.SeverityLow:
 		return "low"
 	case intelligence.SeverityInfo:
 		return "info"
 	default:
-		return LEVEL_MEDIUM
+		return LevelMedium
 	}
 }
 
@@ -4713,7 +4714,7 @@ func (ms *MemoryServer) handleMemoryContinuity(ctx context.Context, params map[s
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_continuity failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	sessionID := ""
@@ -5445,7 +5446,7 @@ func (ms *MemoryServer) handleCreateThread(ctx context.Context, params map[strin
 	chunkIDsInterface, ok := params["chunk_ids"].([]interface{})
 	if !ok || len(chunkIDsInterface) == 0 {
 		logging.Error("memory_create_thread failed: missing or empty chunk_ids parameter")
-		return nil, fmt.Errorf("chunk_ids is required and must not be empty")
+		return nil, errors.New("chunk_ids is required and must not be empty")
 	}
 
 	// Convert interface{} slice to string slice
@@ -5454,7 +5455,7 @@ func (ms *MemoryServer) handleCreateThread(ctx context.Context, params map[strin
 		if idStr, ok := id.(string); ok {
 			chunkIDs[i] = idStr
 		} else {
-			return nil, fmt.Errorf("chunk_ids must be an array of strings")
+			return nil, errors.New("chunk_ids must be an array of strings")
 		}
 	}
 
@@ -5497,7 +5498,7 @@ func (ms *MemoryServer) handleCreateThread(ctx context.Context, params map[strin
 	}
 
 	if len(chunks) == 0 {
-		return nil, fmt.Errorf("no valid chunks found for the provided chunk_ids")
+		return nil, errors.New("no valid chunks found for the provided chunk_ids")
 	}
 
 	// Create thread using ThreadManager
@@ -5649,7 +5650,7 @@ func (ms *MemoryServer) handleDetectThreads(ctx context.Context, params map[stri
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_detect_threads failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	autoCreate := true
@@ -5730,7 +5731,7 @@ func (ms *MemoryServer) handleUpdateThread(ctx context.Context, params map[strin
 	threadID, ok := params["thread_id"].(string)
 	if !ok || threadID == "" {
 		logging.Error("memory_update_thread failed: missing thread_id parameter")
-		return nil, fmt.Errorf("thread_id is required")
+		return nil, errors.New("thread_id is required")
 	}
 
 	// Get current thread
@@ -5820,7 +5821,7 @@ func (ms *MemoryServer) handleAnalyzeCrossRepoPatterns(ctx context.Context, para
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_analyze_cross_repo_patterns failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	multiRepoEngine := ms.container.GetMultiRepoEngine()
@@ -5922,13 +5923,13 @@ func (ms *MemoryServer) handleFindSimilarRepositories(ctx context.Context, param
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_find_similar_repositories failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_find_similar_repositories failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	// Parse optional parameters
@@ -6006,7 +6007,7 @@ func (ms *MemoryServer) handleGetCrossRepoInsights(ctx context.Context, params m
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_get_cross_repo_insights failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	// Parse optional boolean parameters
@@ -6080,13 +6081,13 @@ func (ms *MemoryServer) handleSearchMultiRepo(ctx context.Context, params map[st
 	query, ok := params["query"].(string)
 	if !ok || query == "" {
 		logging.Error("memory_search_multi_repo failed: missing query parameter")
-		return nil, fmt.Errorf("query is required")
+		return nil, errors.New("query is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_search_multi_repo failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	// Parse optional parameters
@@ -6223,13 +6224,13 @@ func (ms *MemoryServer) handleMemoryHealthDashboard(ctx context.Context, params 
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_health_dashboard failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_health_dashboard failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	// Parse optional parameters
@@ -6758,19 +6759,19 @@ func (ms *MemoryServer) handleMemoryDecayManagement(ctx context.Context, params 
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_decay_management failed: missing repository parameter")
-		return nil, fmt.Errorf("repository is required")
+		return nil, errors.New("repository is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_decay_management failed: missing session_id parameter")
-		return nil, fmt.Errorf("session_id is required")
+		return nil, errors.New("session_id is required")
 	}
 
 	action, ok := params["action"].(string)
 	if !ok || action == "" {
 		logging.Error("memory_decay_management failed: missing action parameter")
-		return nil, fmt.Errorf("action is required")
+		return nil, errors.New("action is required")
 	}
 
 	// Parse optional parameters
@@ -6797,7 +6798,7 @@ func (ms *MemoryServer) handleMemoryDecayManagement(ctx context.Context, params 
 	case "configure":
 		config, hasConfig := params["config"].(map[string]interface{})
 		if !hasConfig {
-			return nil, fmt.Errorf("config is required for configure action")
+			return nil, errors.New("config is required for configure action")
 		}
 		result = ms.handleDecayConfiguration(ctx, repository, sessionID, config)
 		err = nil
@@ -7094,7 +7095,7 @@ func (ms *MemoryServer) estimateDecayScore(chunk types.ConversationChunk, age ti
 	case types.ChunkTypeTask:
 		// Boost based on task priority and completion
 		boost := 1.4 // Base boost for tasks
-		if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == LEVEL_HIGH {
+		if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == LevelHigh {
 			boost *= 1.3 // High priority tasks get extra boost
 		}
 		if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == "completed" {
@@ -7171,7 +7172,7 @@ func (ms *MemoryServer) searchRelatedRepositories(ctx context.Context, relaxedQu
 		}
 	}
 
-	return nil, fmt.Errorf("no results found in related repositories")
+	return nil, errors.New("no results found in related repositories")
 }
 
 // filterChunksBySession filters chunks by the given session ID (supports both regular and composite session IDs)
@@ -7359,7 +7360,7 @@ func (ms *MemoryServer) validateAndNormalizeSessionID(sessionID string) string {
 
 	// Add timestamp suffix if session seems too generic (helps with isolation)
 	originalSessionID := ms.extractSessionFromComposite(sessionID)
-	genericSessions := []string{"session", "test", "demo", "example", VALUE_DEFAULT}
+	genericSessions := []string{"session", "test", "demo", "example", ValueDefault}
 	for _, generic := range genericSessions {
 		if strings.ToLower(originalSessionID) == generic {
 			// For composite keys, rebuild with timestamped session part
@@ -7386,7 +7387,7 @@ func (ms *MemoryServer) handleCheckFreshness(ctx context.Context, params map[str
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_check_freshness failed: missing repository parameter")
-		return nil, fmt.Errorf("repository parameter is required")
+		return nil, errors.New("repository parameter is required")
 	}
 
 	// Check if we're checking a single chunk or repository
@@ -7418,7 +7419,7 @@ func (ms *MemoryServer) handleMarkRefreshed(ctx context.Context, params map[stri
 	chunkID, ok := params["chunk_id"].(string)
 	if !ok || chunkID == "" {
 		logging.Error("memory_mark_refreshed failed: missing chunk_id parameter")
-		return nil, fmt.Errorf("chunk_id parameter is required")
+		return nil, errors.New("chunk_id parameter is required")
 	}
 
 	// Validate UUID format
@@ -7566,13 +7567,13 @@ func (ms *MemoryServer) handleGenerateCitations(ctx context.Context, params map[
 	query, ok := params["query"].(string)
 	if !ok || query == "" {
 		logging.Error("memory_generate_citations failed: missing query parameter")
-		return nil, fmt.Errorf("query parameter is required")
+		return nil, errors.New("query parameter is required")
 	}
 
 	chunkIDsInterface, ok := params["chunk_ids"].([]interface{})
 	if !ok {
 		logging.Error("memory_generate_citations failed: missing or invalid chunk_ids parameter")
-		return nil, fmt.Errorf("chunk_ids parameter is required and must be an array")
+		return nil, errors.New("chunk_ids parameter is required and must be an array")
 	}
 
 	// Convert chunk IDs to string array
@@ -7580,7 +7581,7 @@ func (ms *MemoryServer) handleGenerateCitations(ctx context.Context, params map[
 	for i, id := range chunkIDsInterface {
 		chunkID, ok := id.(string)
 		if !ok {
-			return nil, fmt.Errorf("all chunk IDs must be strings")
+			return nil, errors.New("all chunk IDs must be strings")
 		}
 		chunkIDs[i] = chunkID
 	}
@@ -7620,7 +7621,7 @@ func (ms *MemoryServer) handleGenerateCitations(ctx context.Context, params map[
 	}
 
 	if len(results) == 0 {
-		return nil, fmt.Errorf("no valid chunks found for citation generation")
+		return nil, errors.New("no valid chunks found for citation generation")
 	}
 
 	// Create citation manager
@@ -7679,13 +7680,13 @@ func (ms *MemoryServer) handleCreateInlineCitation(ctx context.Context, params m
 	text, ok := params["text"].(string)
 	if !ok || text == "" {
 		logging.Error("memory_create_inline_citation failed: missing text parameter")
-		return nil, fmt.Errorf("text parameter is required")
+		return nil, errors.New("text parameter is required")
 	}
 
 	responseID, ok := params["response_id"].(string)
 	if !ok || responseID == "" {
 		logging.Error("memory_create_inline_citation failed: missing response_id parameter")
-		return nil, fmt.Errorf("response_id parameter is required")
+		return nil, errors.New("response_id parameter is required")
 	}
 
 	// Get optional format parameter
@@ -7837,8 +7838,8 @@ func (ms *MemoryServer) categorizeConflictsByType(conflicts []intelligence.Confl
 func (ms *MemoryServer) categorizeConflictsBySeverity2(conflicts []intelligence.Conflict) map[string]int {
 	severities := map[string]int{
 		"critical":   0,
-		LEVEL_HIGH:   0,
-		LEVEL_MEDIUM: 0,
+		LevelHigh:   0,
+		LevelMedium: 0,
 		"low":        0,
 		"info":       0,
 	}
@@ -7848,9 +7849,9 @@ func (ms *MemoryServer) categorizeConflictsBySeverity2(conflicts []intelligence.
 		case intelligence.SeverityCritical:
 			severities["critical"]++
 		case intelligence.SeverityHigh:
-			severities[LEVEL_HIGH]++
+			severities[LevelHigh]++
 		case intelligence.SeverityMedium:
-			severities[LEVEL_MEDIUM]++
+			severities[LevelMedium]++
 		case intelligence.SeverityLow:
 			severities["low"]++
 		case intelligence.SeverityInfo:
@@ -7938,7 +7939,7 @@ func (ms *MemoryServer) handleBulkOperation(ctx context.Context, params map[stri
 	if op, ok := params["operation"].(string); ok {
 		req.Operation = op
 	} else {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	// Optional parameters
@@ -8010,7 +8011,7 @@ func (ms *MemoryServer) handleBulkImport(ctx context.Context, params map[string]
 	// Required data parameter
 	data, ok := params["data"].(string)
 	if !ok || data == "" {
-		return nil, fmt.Errorf("data parameter is required")
+		return nil, errors.New("data parameter is required")
 	}
 
 	// Build import options
@@ -8590,12 +8591,12 @@ func (ms *MemoryServer) parseAliasParams(params map[string]interface{}) (*aliasP
 	// Required parameters
 	name, ok := params["name"].(string)
 	if !ok || name == "" {
-		return nil, fmt.Errorf("name parameter is required")
+		return nil, errors.New("name parameter is required")
 	}
 
 	aliasType, ok := params["type"].(string)
 	if !ok || aliasType == "" {
-		return nil, fmt.Errorf("type parameter is required")
+		return nil, errors.New("type parameter is required")
 	}
 
 	// Try string target first (simplified), then fall back to complex object
@@ -8605,13 +8606,13 @@ func (ms *MemoryServer) parseAliasParams(params map[string]interface{}) (*aliasP
 	} else if targetObj, ok := params["target"].(map[string]interface{}); ok {
 		targetInterface = targetObj
 	} else {
-		return nil, fmt.Errorf("target parameter is required")
+		return nil, errors.New("target parameter is required")
 	}
 
 	// Repository is required
 	repository, ok := params["repository"].(string)
 	if !ok {
-		repository = VALUE_UNKNOWN // Default value
+		repository = ValueUnknown // Default value
 	}
 
 	result := &aliasParams{
@@ -8672,12 +8673,12 @@ func (ms *MemoryServer) parseAliasTarget(targetInterface interface{}) (bulk.Alia
 	// Handle complex object target (original API)
 	targetMap, ok := targetInterface.(map[string]interface{})
 	if !ok {
-		return target, fmt.Errorf("target must be a string or object")
+		return target, errors.New("target must be a string or object")
 	}
 
 	targetType, ok := targetMap["type"].(string)
 	if !ok {
-		return target, fmt.Errorf("missing or invalid target type")
+		return target, errors.New("missing or invalid target type")
 	}
 
 	target.Type = bulk.TargetType(targetType)
@@ -8686,22 +8687,22 @@ func (ms *MemoryServer) parseAliasTarget(targetInterface interface{}) (bulk.Alia
 	case bulk.TargetTypeChunks:
 		target.ChunkIDs = ms.parseChunkIDs(targetMap)
 		if len(target.ChunkIDs) == 0 {
-			return target, fmt.Errorf("chunks target must specify at least one chunk_id")
+			return target, errors.New("chunks target must specify at least one chunk_id")
 		}
 	case bulk.TargetTypeQuery:
 		target.Query = ms.parseQueryTarget(targetMap)
 		if target.Query == nil || target.Query.Query == "" {
-			return target, fmt.Errorf("query target must specify a valid query")
+			return target, errors.New("query target must specify a valid query")
 		}
 	case bulk.TargetTypeFilter:
 		target.Filter = ms.parseFilterTarget(targetMap)
 		if target.Filter == nil {
-			return target, fmt.Errorf("filter target must specify valid filter criteria")
+			return target, errors.New("filter target must specify valid filter criteria")
 		}
 	case bulk.TargetTypeCollection:
 		target.Collection = ms.parseCollectionTarget(targetMap)
 		if target.Collection == nil || target.Collection.Name == "" {
-			return target, fmt.Errorf("collection target must specify a valid collection name")
+			return target, errors.New("collection target must specify a valid collection name")
 		}
 	default:
 		return target, fmt.Errorf("unsupported target type: %s", targetType)
@@ -8853,7 +8854,7 @@ func (ms *MemoryServer) handleResolveAlias(ctx context.Context, params map[strin
 	// Required parameter
 	aliasName, ok := params["alias_name"].(string)
 	if !ok || aliasName == "" {
-		return nil, fmt.Errorf("alias_name parameter is required")
+		return nil, errors.New("alias_name parameter is required")
 	}
 
 	// Resolve alias
@@ -8969,7 +8970,7 @@ func (ms *MemoryServer) handleGetBulkProgress(ctx context.Context, params map[st
 	// Required parameter
 	operationID, ok := params["operation_id"].(string)
 	if !ok || operationID == "" {
-		return nil, fmt.Errorf("operation_id parameter is required")
+		return nil, errors.New("operation_id parameter is required")
 	}
 
 	// Get progress
@@ -9017,17 +9018,17 @@ func (ms *MemoryServer) handleCreateTask(ctx context.Context, params map[string]
 	// Required parameters
 	title, ok := params["title"].(string)
 	if !ok || title == "" {
-		return nil, fmt.Errorf("title parameter is required")
+		return nil, errors.New("title parameter is required")
 	}
 
 	description, ok := params["description"].(string)
 	if !ok || description == "" {
-		return nil, fmt.Errorf("description parameter is required")
+		return nil, errors.New("description parameter is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
-		return nil, fmt.Errorf("session_id parameter is required")
+		return nil, errors.New("session_id parameter is required")
 	}
 
 	// Optional parameters with defaults
@@ -9204,12 +9205,12 @@ func (ms *MemoryServer) handleUpdateTask(ctx context.Context, params map[string]
 	// Required parameters
 	taskID, ok := params["task_id"].(string)
 	if !ok || taskID == "" {
-		return nil, fmt.Errorf("task_id parameter is required")
+		return nil, errors.New("task_id parameter is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
-		return nil, fmt.Errorf("session_id parameter is required")
+		return nil, errors.New("session_id parameter is required")
 	}
 
 	// Get existing task
@@ -9413,12 +9414,12 @@ func (ms *MemoryServer) handleCompleteTask(ctx context.Context, params map[strin
 	// Required parameters
 	taskID, ok := params["task_id"].(string)
 	if !ok || taskID == "" {
-		return nil, fmt.Errorf("task_id parameter is required")
+		return nil, errors.New("task_id parameter is required")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
-		return nil, fmt.Errorf("session_id parameter is required")
+		return nil, errors.New("session_id parameter is required")
 	}
 
 	// Get existing task
@@ -9457,7 +9458,7 @@ func (ms *MemoryServer) handleCompleteTask(ctx context.Context, params map[strin
 
 	// Create completion notes chunk if provided
 	if completionNotes, ok := params["completion_notes"].(string); ok && completionNotes != "" {
-		outcome := STATUS_SUCCESS
+		outcome := StatusSuccess
 		if o, ok := params["outcome"].(string); ok {
 			outcome = o
 		}
@@ -9567,19 +9568,20 @@ func extractStringArray(param interface{}) []string {
 
 // handleTodoWrite processes TodoWrite operations from Claude
 func (ms *MemoryServer) handleTodoWrite(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	sessionID, ok := args["session_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"todos\": [...]}")
+	// session_id is now OPTIONAL for repository-wide task persistence
+	sessionID, _ := args["session_id"].(string)
+	if sessionID == "" {
+		sessionID = "repo-wide" // Default for repository-scoped tasks
 	}
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"todos\": [...]}")
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"todos\": [...]} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"todos\": [...]}")
 	}
 
 	todosRaw, ok := args["todos"]
 	if !ok {
-		return nil, fmt.Errorf("todos parameter is required")
+		return nil, errors.New("todos parameter is required")
 	}
 
 	todosJSON, err := json.Marshal(todosRaw)
@@ -9597,61 +9599,107 @@ func (ms *MemoryServer) handleTodoWrite(ctx context.Context, args map[string]int
 	}
 
 	return map[string]interface{}{
-		STATUS_SUCCESS: true,
-		"message":      fmt.Sprintf("Processed %d todos for session %s", len(todos), sessionID),
+		StatusSuccess: true,
+		"message":      fmt.Sprintf("Processed %d todos for repository %s (session: %s)", len(todos), repository, sessionID),
 	}, nil
 }
 
 // handleTodoRead retrieves current todo state
+// Supports two modes:
+// 1. Session-specific: When session_id is provided, returns todos for that specific session
+// 2. Repository-wide: When session_id is omitted or empty, returns all todos across all active sessions for the repository
 func (ms *MemoryServer) handleTodoRead(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	_ = ctx // Context unused but required by handler interface
-	sessionID, ok := args["session_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
-	}
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
 	}
 
-	session, exists := ms.todoTracker.GetActiveSession(sessionID, repository)
-	if !exists {
+	// session_id is now OPTIONAL - when not provided, return ALL todos for repository
+	sessionID, hasSessionID := args["session_id"].(string)
+
+	if hasSessionID && sessionID != "" {
+		// Get todos for specific session
+		session, exists := ms.todoTracker.GetActiveSession(sessionID, repository)
+		if !exists {
+			return map[string]interface{}{
+				"todos":          []workflow.TodoItem{},
+				"session_exists": false,
+				"repository":     repository,
+				"session_id":     sessionID,
+				"scope":          "session",
+			}, nil
+		}
+
 		return map[string]interface{}{
-			"todos":          []workflow.TodoItem{},
-			"session_exists": false,
-			"repository":     repository,
-			"session_id":     sessionID,
+			"todos":          session.Todos,
+			"session_id":     session.SessionID,
+			"repository":     session.Repository,
+			"start_time":     session.StartTime,
+			"tools_used":     session.ToolsUsed,
+			"files_changed":  session.FilesChanged,
+			"session_exists": true,
+			"scope":          "session",
 		}, nil
 	}
 
+	// No session_id provided - return ALL todos for repository across all sessions
+	repositorySessions := ms.todoTracker.GetActiveSessionsByRepository(repository)
+
+	if len(repositorySessions) == 0 {
+		return map[string]interface{}{
+			"todos":                 []workflow.TodoItem{},
+			"repository":            repository,
+			"scope":                 "repository",
+			"active_sessions_count": 0,
+		}, nil
+	}
+
+	// Aggregate all todos from all sessions
+	allTodos := make([]workflow.TodoItem, 0)
+	sessionDetails := make([]map[string]interface{}, 0)
+
+	for _, session := range repositorySessions {
+		// Add session metadata to todos for context
+		allTodos = append(allTodos, session.Todos...)
+
+		sessionDetails = append(sessionDetails, map[string]interface{}{
+			"session_id":    session.SessionID,
+			"start_time":    session.StartTime,
+			"todo_count":    len(session.Todos),
+			"tools_used":    session.ToolsUsed,
+			"files_changed": session.FilesChanged,
+		})
+	}
+
 	return map[string]interface{}{
-		"todos":          session.Todos,
-		"session_id":     session.SessionID,
-		"repository":     session.Repository,
-		"start_time":     session.StartTime,
-		"tools_used":     session.ToolsUsed,
-		"files_changed":  session.FilesChanged,
-		"session_exists": true,
+		"todos":                 allTodos,
+		"repository":            repository,
+		"scope":                 "repository",
+		"active_sessions_count": len(repositorySessions),
+		"session_details":       sessionDetails,
 	}, nil
 }
 
 // handleTodoUpdate updates todo status and processes completion
 func (ms *MemoryServer) handleTodoUpdate(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	_ = ctx // Context unused but required by handler interface
-	sessionID, ok := args["session_id"].(string)
-	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"tool_name\": \"Edit\"}")
-	}
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"tool_name\": \"Edit\"}")
+		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"tool_name\": \"Edit\"} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"tool_name\": \"Edit\"}")
+	}
+
+	// session_id is now OPTIONAL for repository-wide task updates
+	sessionID, _ := args["session_id"].(string)
+	if sessionID == "" {
+		sessionID = "repo-wide" // Default for repository-scoped updates
 	}
 
 	toolName, ok := args["tool_name"].(string)
 	if !ok {
-		return nil, fmt.Errorf("tool_name parameter is required. Example: {\"tool_name\": \"Edit\", \"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
+		return nil, fmt.Errorf("tool_name parameter is required. Example: {\"tool_name\": \"Edit\", \"repository\": \"github.com/user/repo\"} or {\"tool_name\": \"Edit\", \"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	toolContext, ok := args["tool_context"].(map[string]interface{})
@@ -9662,8 +9710,8 @@ func (ms *MemoryServer) handleTodoUpdate(ctx context.Context, args map[string]in
 	ms.todoTracker.ProcessToolUsage(sessionID, repository, toolName, toolContext)
 
 	return map[string]interface{}{
-		STATUS_SUCCESS: true,
-		"message":      fmt.Sprintf("Updated session %s in repository %s with tool usage: %s", sessionID, repository, toolName),
+		StatusSuccess: true,
+		"message":      fmt.Sprintf("Updated repository %s (session: %s) with tool usage: %s", repository, sessionID, toolName),
 	}, nil
 }
 
@@ -9684,7 +9732,7 @@ func (ms *MemoryServer) handleSessionCreate(ctx context.Context, args map[string
 	session := ms.todoTracker.GetOrCreateSession(sessionID, repository)
 
 	return map[string]interface{}{
-		STATUS_SUCCESS: true,
+		StatusSuccess: true,
 		"session_id":   session.SessionID,
 		"repository":   session.Repository,
 		"start_time":   session.StartTime,
@@ -9707,12 +9755,12 @@ func (ms *MemoryServer) handleSessionEnd(ctx context.Context, args map[string]in
 
 	outcomeStr, ok := args["outcome"].(string)
 	if !ok {
-		outcomeStr = STATUS_SUCCESS
+		outcomeStr = StatusSuccess
 	}
 
 	var outcome types.Outcome
 	switch outcomeStr {
-	case STATUS_SUCCESS:
+	case StatusSuccess:
 		outcome = types.OutcomeSuccess
 	case "failed":
 		outcome = types.OutcomeFailed
@@ -9725,7 +9773,7 @@ func (ms *MemoryServer) handleSessionEnd(ctx context.Context, args map[string]in
 	ms.todoTracker.EndSession(sessionID, repository, outcome)
 
 	return map[string]interface{}{
-		STATUS_SUCCESS: true,
+		StatusSuccess: true,
 		"message":      fmt.Sprintf("Session %s in repository %s ended with outcome: %s", sessionID, repository, outcomeStr),
 	}, nil
 }

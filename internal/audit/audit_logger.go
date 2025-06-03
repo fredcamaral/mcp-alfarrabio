@@ -5,6 +5,7 @@ package audit
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -370,7 +371,7 @@ func (al *Logger) searchFile(filename string, criteria SearchCriteria) ([]Event,
 	// Clean and validate the filename
 	cleanPath := filepath.Clean(filepath.Join(al.baseDir, filename))
 	if !strings.HasPrefix(cleanPath, filepath.Clean(al.baseDir)) {
-		return nil, fmt.Errorf("invalid filename")
+		return nil, errors.New("invalid filename")
 	}
 
 	file, err := os.Open(cleanPath) // #nosec G304 -- Path is cleaned and validated

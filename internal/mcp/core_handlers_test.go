@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -335,12 +336,12 @@ func (ts *TestMemoryServer) handleStoreChunk(ctx context.Context, params map[str
 	// Extract required parameters
 	content, ok := params["content"].(string)
 	if !ok || content == "" {
-		return nil, fmt.Errorf("missing content parameter")
+		return nil, errors.New("missing content parameter")
 	}
 
 	sessionID, ok := params["session_id"].(string)
 	if !ok || sessionID == "" {
-		return nil, fmt.Errorf("missing session_id parameter")
+		return nil, errors.New("missing session_id parameter")
 	}
 
 	// Create chunk
@@ -378,7 +379,7 @@ func (ts *TestMemoryServer) handleSearch(ctx context.Context, params map[string]
 	// Extract required parameters
 	query, ok := params["query"].(string)
 	if !ok || query == "" {
-		return nil, fmt.Errorf("missing query parameter")
+		return nil, errors.New("missing query parameter")
 	}
 
 	limit := 10
@@ -408,7 +409,7 @@ func (ts *TestMemoryServer) handleGetContext(ctx context.Context, params map[str
 	// Extract required parameters
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
-		return nil, fmt.Errorf("missing repository parameter")
+		return nil, errors.New("missing repository parameter")
 	}
 
 	// Get chunks by repository using ListByRepository method

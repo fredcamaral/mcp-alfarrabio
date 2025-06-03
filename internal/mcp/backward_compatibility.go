@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	mcp "github.com/fredcamaral/gomcp-sdk"
@@ -149,7 +150,7 @@ func (ms *MemoryServer) registerBulkOperationCompatibility() {
 	), mcp.ToolHandlerFunc(func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 		operationType, ok := params["operation"].(string)
 		if !ok {
-			return nil, fmt.Errorf("operation parameter is required")
+			return nil, errors.New("operation parameter is required")
 		}
 
 		// Remove operation from params since it will be handled differently

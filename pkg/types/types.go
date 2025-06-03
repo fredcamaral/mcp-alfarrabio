@@ -4,6 +4,7 @@ package types
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -222,7 +223,7 @@ func (cm *ChunkMetadata) Validate() error {
 		return fmt.Errorf("invalid difficulty: %s", cm.Difficulty)
 	}
 	if cm.TimeSpent != nil && *cm.TimeSpent < 0 {
-		return fmt.Errorf("time spent cannot be negative")
+		return errors.New("time spent cannot be negative")
 	}
 
 	// Task-specific validation
@@ -230,10 +231,10 @@ func (cm *ChunkMetadata) Validate() error {
 		return fmt.Errorf("invalid task status: %s", *cm.TaskStatus)
 	}
 	if cm.TaskProgress != nil && (*cm.TaskProgress < 0 || *cm.TaskProgress > 100) {
-		return fmt.Errorf("task progress must be between 0 and 100")
+		return errors.New("task progress must be between 0 and 100")
 	}
 	if cm.TaskEstimate != nil && *cm.TaskEstimate < 0 {
-		return fmt.Errorf("task estimate cannot be negative")
+		return errors.New("task estimate cannot be negative")
 	}
 	if cm.TaskPriority != nil {
 		switch *cm.TaskPriority {
@@ -263,10 +264,10 @@ type ConversationChunk struct {
 // NewConversationChunk creates a new conversation chunk with defaults
 func NewConversationChunk(sessionID, content string, chunkType ChunkType, metadata ChunkMetadata) (*ConversationChunk, error) {
 	if sessionID == "" {
-		return nil, fmt.Errorf("session ID cannot be empty")
+		return nil, errors.New("session ID cannot be empty")
 	}
 	if content == "" {
-		return nil, fmt.Errorf("content cannot be empty")
+		return nil, errors.New("content cannot be empty")
 	}
 	if !chunkType.Valid() {
 		return nil, fmt.Errorf("invalid chunk type: %s", chunkType)
@@ -291,19 +292,19 @@ func NewConversationChunk(sessionID, content string, chunkType ChunkType, metada
 // Validate checks if the conversation chunk is valid
 func (cc *ConversationChunk) Validate() error {
 	if cc.ID == "" {
-		return fmt.Errorf("ID cannot be empty")
+		return errors.New("ID cannot be empty")
 	}
 	if cc.SessionID == "" {
-		return fmt.Errorf("session ID cannot be empty")
+		return errors.New("session ID cannot be empty")
 	}
 	if cc.Content == "" {
-		return fmt.Errorf("content cannot be empty")
+		return errors.New("content cannot be empty")
 	}
 	if !cc.Type.Valid() {
 		return fmt.Errorf("invalid chunk type: %s", cc.Type)
 	}
 	if cc.Timestamp.IsZero() {
-		return fmt.Errorf("timestamp cannot be zero")
+		return errors.New("timestamp cannot be zero")
 	}
 	return cc.Metadata.Validate()
 }
@@ -335,10 +336,10 @@ func NewProjectContext(repository string) *ProjectContext {
 // Validate checks if the project context is valid
 func (pc *ProjectContext) Validate() error {
 	if pc.Repository == "" {
-		return fmt.Errorf("repository cannot be empty")
+		return errors.New("repository cannot be empty")
 	}
 	if pc.TotalSessions < 0 {
-		return fmt.Errorf("total sessions cannot be negative")
+		return errors.New("total sessions cannot be negative")
 	}
 	return nil
 }
@@ -368,16 +369,16 @@ func NewMemoryQuery(query string) *MemoryQuery {
 // Validate checks if the memory query is valid
 func (mq *MemoryQuery) Validate() error {
 	if mq.Query == "" {
-		return fmt.Errorf("query cannot be empty")
+		return errors.New("query cannot be empty")
 	}
 	if !mq.Recency.Valid() {
 		return fmt.Errorf("invalid recency: %s", mq.Recency)
 	}
 	if mq.MinRelevanceScore < 0 || mq.MinRelevanceScore > 1 {
-		return fmt.Errorf("min relevance score must be between 0 and 1")
+		return errors.New("min relevance score must be between 0 and 1")
 	}
 	if mq.Limit < 0 {
-		return fmt.Errorf("limit cannot be negative")
+		return errors.New("limit cannot be negative")
 	}
 	for _, chunkType := range mq.Types {
 		if !chunkType.Valid() {
@@ -457,7 +458,7 @@ type ChunkingContext struct {
 // Validate checks if the chunking context is valid
 func (cc *ChunkingContext) Validate() error {
 	if cc.TimeElapsed < 0 {
-		return fmt.Errorf("time elapsed cannot be negative")
+		return errors.New("time elapsed cannot be negative")
 	}
 	if !cc.ConversationFlow.Valid() {
 		return fmt.Errorf("invalid conversation flow: %s", cc.ConversationFlow)

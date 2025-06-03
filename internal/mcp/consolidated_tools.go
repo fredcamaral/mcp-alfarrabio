@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"mcp-memory/internal/logging"
 	"strings"
@@ -19,7 +20,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 1. memory_create - All creation operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_create",
-		"Handle all memory creation operations. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; store_chunk/store_decision require session_id+repository; create_thread requires name+description+chunk_ids+repository; create_relationship requires source_chunk_id+target_chunk_id+relation_type+repository. Use repository='global' for cross-project architecture decisions.",
+		"Handle all memory creation operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; store_chunk/store_decision require session_id+repository; create_thread requires name+description+chunk_ids+repository; create_relationship requires source_chunk_id+target_chunk_id+relation_type+repository. Use repository='global' for cross-project architecture decisions.",
 		mcp.ObjectSchema("Memory creation parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -97,7 +98,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 2. memory_read - All read/query operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_read",
-		"Handle all memory read operations. REQUIRED fields: repository parameter is mandatory for ALL operations for multi-tenant isolation; search requires query+repository; get_context requires repository; find_similar requires problem+repository; get_relationships requires chunk_id+repository; search_multi_repo requires query+session_id+repository.",
+		"Handle all memory read operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository parameter is mandatory for ALL operations for multi-tenant isolation; search requires query+repository; get_context requires repository; find_similar requires problem+repository; get_relationships requires chunk_id+repository; search_multi_repo requires query+session_id+repository.",
 		mcp.ObjectSchema("Memory read parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -159,7 +160,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 3. memory_update - All update operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_update",
-		"Handle all memory update operations including thread updates, relationship updates, refreshing memories, and conflict resolution. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation.",
+		"Handle all memory update operations including thread updates, relationship updates, refreshing memories, and conflict resolution. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation.",
 		mcp.ObjectSchema("Memory update parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -225,7 +226,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 4. memory_delete - All deletion operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_delete",
-		"Handle all memory deletion operations including bulk deletions and filtered deletions. REQUIRED fields: repository parameter is mandatory for ALL operations to prevent cross-tenant data deletion.",
+		"Handle all memory deletion operations including bulk deletions and filtered deletions. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository parameter is mandatory for ALL operations to prevent cross-tenant data deletion.",
 		mcp.ObjectSchema("Memory delete parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -260,7 +261,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 5. memory_analyze - All analysis operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_analyze",
-		"Handle memory analysis operations. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; health_dashboard requires repository+session_id; cross_repo_patterns requires session_id+repository; find_similar_repositories requires repository+session_id.",
+		"Handle memory analysis operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; health_dashboard requires repository+session_id; cross_repo_patterns requires session_id+repository; find_similar_repositories requires repository+session_id.",
 		mcp.ObjectSchema("Memory analysis parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -297,7 +298,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 6. memory_intelligence - AI-powered operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_intelligence",
-		"Handle AI-powered operations. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; suggest_related requires current_context+session_id+repository; auto_insights requires repository+session_id; pattern_prediction requires context+repository+session_id.",
+		"Handle AI-powered operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; suggest_related requires current_context+session_id+repository; auto_insights requires repository+session_id; pattern_prediction requires context+repository+session_id.",
 		mcp.ObjectSchema("Memory intelligence parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -339,7 +340,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 7. memory_transfer - Data transfer operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_transfer",
-		"Handle data transfer operations with pagination support. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; export_project requires repository+session_id (optional: limit, offset, format, include_vectors); import_context requires data+repository+session_id; continuity requires repository.",
+		"Handle data transfer operations with pagination support. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; export_project requires repository+session_id (optional: limit, offset, format, include_vectors); import_context requires data+repository+session_id; continuity requires repository.",
 		mcp.ObjectSchema("Memory transfer parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -401,7 +402,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 8. memory_tasks - Task and workflow management operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_tasks",
-		"Handle task management and workflow tracking operations including todo management, session tracking, and workflow analysis.",
+		"Handle task management and workflow tracking operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). DECISION GUIDE for session_id: OMIT session_id for cross-session task continuity (RECOMMENDED - allows access to todos from previous conversations). INCLUDE session_id only when you need session-specific task isolation. BEHAVIORAL DIFFERENCE: Without session_id = repository-wide todos visible across all LLM sessions; With session_id = session-isolated todos.",
 		mcp.ObjectSchema("Memory tasks parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -419,7 +420,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: ALL operations require repository for multi-tenant isolation; todo_write requires todos array + session_id + repository; session_create requires session_id + repository; session_end requires session_id + repository; workflow_analyze requires session_id + repository; todo_update requires tool_name + session_id + repository",
+				"description":          "Operation-specific parameters. REQUIRED: repository for all operations. TODO OPERATIONS DECISION: For todo_write/todo_read/todo_update, OMIT session_id for cross-session continuity (recommended), INCLUDE session_id for session isolation. SESSION OPERATIONS: session_create, session_end, workflow_analyze require session_id.",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"todos": map[string]interface{}{
@@ -428,7 +429,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Session ID (required for session_create, session_end, workflow_analyze, todo_write, todo_read, todo_update)",
+						"description": "Session ID - LLM DECISION GUIDE: OMIT for cross-session task continuity (RECOMMENDED - see todos from previous conversations). INCLUDE only for session-specific task isolation. BEHAVIOR: Without session_id = repository-wide todos across all sessions; With session_id = session-isolated todos. Required for session_create, session_end, workflow_analyze.",
 					},
 					"repository": map[string]interface{}{
 						"type":        "string",
@@ -446,7 +447,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 9. memory_system - System operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_system",
-		"Handle system-level memory operations including health checks, status reports, and citation management. REQUIRED fields: repository parameter for status operations; health checks are global by default.",
+		"Handle system-level memory operations including health checks, status reports, and citation management. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository parameter for status operations; health checks are global by default.",
 		mcp.ObjectSchema("Memory system parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
@@ -502,7 +503,7 @@ func (ms *MemoryServer) handleMemoryCreate(ctx context.Context, args map[string]
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"content\": \"text\", \"session_id\": \"session-123\", \"repository\": \"github.com/user/repo\"}")
+		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"content\": \"text\", \"session_id\": \"session-123\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all create operations
@@ -548,7 +549,7 @@ func (ms *MemoryServer) handleMemoryRead(ctx context.Context, args map[string]in
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"query\": \"search term\", \"repository\": \"github.com/user/repo\"}")
+		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"query\": \"search term\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all read operations for multi-tenant isolation
@@ -597,12 +598,12 @@ func (ms *MemoryServer) handleMemoryRead(ctx context.Context, args map[string]in
 func (ms *MemoryServer) handleMemoryUpdate(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required")
+		return nil, errors.New("operation parameter is required")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required")
+		return nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string)")
 	}
 
 	switch operation {
@@ -638,7 +639,7 @@ func (ms *MemoryServer) handleMemoryDelete(ctx context.Context, args map[string]
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required. Must contain repository for security. Example: {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-id-1\", \"chunk-id-2\"]}")
+		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for security. Example: {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-id-1\", \"chunk-id-2\"]}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all delete operations
@@ -670,7 +671,7 @@ func (ms *MemoryServer) handleMemoryAnalyze(ctx context.Context, args map[string
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all analyze operations
@@ -714,7 +715,7 @@ func (ms *MemoryServer) handleMemoryIntelligence(ctx context.Context, args map[s
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all intelligence operations
@@ -745,12 +746,12 @@ func (ms *MemoryServer) handleMemoryIntelligence(ctx context.Context, args map[s
 func (ms *MemoryServer) handleMemoryTasks(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"todo_write\", \"options\": {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"todos\": [...]}}")
+		return nil, fmt.Errorf("operation parameter is required. DECISION GUIDE: For todo operations, omit session_id for cross-session continuity (recommended). Example: {\"operation\": \"todo_write\", \"options\": {\"repository\": \"github.com/user/repo\", \"todos\": [...]}} or {\"operation\": \"todo_write\", \"options\": {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"todos\": [...]}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required. Must contain session_id and repository for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
+		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository. DECISION GUIDE: OMIT session_id for cross-session continuity (recommended), INCLUDE for session isolation. Example: {\"repository\": \"github.com/user/repo\"} or {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	switch operation {
@@ -784,7 +785,7 @@ func (ms *MemoryServer) handleMemoryTransfer(ctx context.Context, args map[strin
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required. Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all transfer operations

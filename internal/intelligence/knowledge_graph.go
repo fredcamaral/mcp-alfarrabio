@@ -2,6 +2,7 @@ package intelligence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -203,11 +204,11 @@ func (gb *GraphBuilder) BuildFromChunks(ctx context.Context, chunks []types.Conv
 // AddNode adds a node to the knowledge graph
 func (gb *GraphBuilder) AddNode(node *KnowledgeNode) error {
 	if node.ID == "" {
-		return fmt.Errorf("node ID cannot be empty")
+		return errors.New("node ID cannot be empty")
 	}
 
 	if len(gb.graph.Nodes) >= gb.maxNodes {
-		return fmt.Errorf("maximum number of nodes reached")
+		return errors.New("maximum number of nodes reached")
 	}
 
 	gb.graph.Nodes[node.ID] = node
@@ -220,7 +221,7 @@ func (gb *GraphBuilder) AddNode(node *KnowledgeNode) error {
 // AddRelation adds a relation to the knowledge graph
 func (gb *GraphBuilder) AddRelation(relation *KnowledgeRelation) error {
 	if relation.ID == "" {
-		return fmt.Errorf("relation ID cannot be empty")
+		return errors.New("relation ID cannot be empty")
 	}
 
 	// Verify nodes exist
@@ -290,7 +291,7 @@ func (gb *GraphBuilder) QueryGraph(query GraphQuery) ([]*KnowledgeNode, error) {
 // GetRelatedNodes finds nodes related to a given node
 func (gb *GraphBuilder) GetRelatedNodes(nodeID string, maxDepth int) ([]*KnowledgeNode, error) {
 	if maxDepth <= 0 {
-		return nil, fmt.Errorf("maxDepth must be positive")
+		return nil, errors.New("maxDepth must be positive")
 	}
 
 	visited := make(map[string]bool)

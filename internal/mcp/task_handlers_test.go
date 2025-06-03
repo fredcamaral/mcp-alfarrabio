@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 
@@ -23,20 +24,20 @@ func TestTaskHandlers(t *testing.T) {
 func validateTaskParams(params map[string]interface{}) error {
 	// Check required parameters
 	if _, ok := params["title"]; !ok {
-		return fmt.Errorf("title parameter is required")
+		return errors.New("title parameter is required")
 	}
 	if _, ok := params["description"]; !ok {
-		return fmt.Errorf("description parameter is required")
+		return errors.New("description parameter is required")
 	}
 	if _, ok := params["session_id"]; !ok {
-		return fmt.Errorf("session_id parameter is required")
+		return errors.New("session_id parameter is required")
 	}
 
 	// Validate priority if provided
 	if priority, ok := params["priority"]; ok {
 		priorityStr, ok := priority.(string)
 		if !ok {
-			return fmt.Errorf("priority must be a string")
+			return errors.New("priority must be a string")
 		}
 		validPriorities := []string{
 			types.PriorityLow,
@@ -59,7 +60,7 @@ func validateTaskParams(params map[string]interface{}) error {
 	if estimate, ok := params["estimate"]; ok {
 		if estimateInt, ok := estimate.(int); ok {
 			if estimateInt < 0 {
-				return fmt.Errorf("estimate must be positive")
+				return errors.New("estimate must be positive")
 			}
 		}
 	}
@@ -68,15 +69,15 @@ func validateTaskParams(params map[string]interface{}) error {
 	if dueDate, ok := params["due_date"]; ok {
 		dueDateStr, ok := dueDate.(string)
 		if !ok {
-			return fmt.Errorf("due_date must be a string")
+			return errors.New("due_date must be a string")
 		}
 
 		// Simple validation - should be ISO format (at least YYYY-MM-DD)
 		if len(dueDateStr) < 10 {
-			return fmt.Errorf("invalid due_date format: expected ISO format")
+			return errors.New("invalid due_date format: expected ISO format")
 		}
 		if dueDateStr[4] != '-' || dueDateStr[7] != '-' {
-			return fmt.Errorf("invalid due_date format: expected ISO format")
+			return errors.New("invalid due_date format: expected ISO format")
 		}
 	}
 

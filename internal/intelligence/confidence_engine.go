@@ -2,7 +2,7 @@ package intelligence
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math"
 	"mcp-memory/pkg/types"
 	"strings"
@@ -174,10 +174,10 @@ func (ce *ConfidenceEngine) CalculateQualityMetrics(ctx context.Context, chunk *
 func (ce *ConfidenceEngine) calculateConsistencyScore(_ context.Context, chunk *types.ConversationChunk) (float64, error) {
 	// Validate input
 	if chunk == nil {
-		return 0, fmt.Errorf("chunk cannot be nil")
+		return 0, errors.New("chunk cannot be nil")
 	}
 	if len(chunk.Content) == 0 {
-		return 0, fmt.Errorf("chunk content cannot be empty")
+		return 0, errors.New("chunk content cannot be empty")
 	}
 
 	// Find similar chunks to compare against
@@ -226,10 +226,10 @@ func (ce *ConfidenceEngine) calculateCorroborationScore(_ context.Context, chunk
 func (ce *ConfidenceEngine) calculateSemanticSimilarityScore(_ context.Context, chunk *types.ConversationChunk) (float64, error) {
 	// Validate input
 	if chunk == nil {
-		return 0, fmt.Errorf("chunk cannot be nil")
+		return 0, errors.New("chunk cannot be nil")
 	}
 	if len(chunk.Content) == 0 {
-		return 0, fmt.Errorf("chunk content cannot be empty")
+		return 0, errors.New("chunk content cannot be empty")
 	}
 
 	// This would need embeddings service integration

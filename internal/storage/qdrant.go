@@ -2,6 +2,7 @@ package storage
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -123,7 +124,7 @@ func (qs *QdrantStore) Store(ctx context.Context, chunk types.ConversationChunk)
 	}
 
 	if len(chunk.Embeddings) == 0 {
-		return fmt.Errorf("chunk must have embeddings before storing")
+		return errors.New("chunk must have embeddings before storing")
 	}
 
 	// Convert chunk to Qdrant format
@@ -153,7 +154,7 @@ func (qs *QdrantStore) Search(ctx context.Context, query types.MemoryQuery, embe
 	defer qs.updateMetrics("search", start)
 
 	if len(embeddings) == 0 {
-		return nil, fmt.Errorf("embeddings cannot be empty")
+		return nil, errors.New("embeddings cannot be empty")
 	}
 
 	// Build search filter
@@ -712,7 +713,7 @@ func (qs *QdrantStore) buildChunkFromPayload(id string, embeddings []float64, pa
 	// Parse timestamp
 	timestampValue, ok := payload["timestamp"]
 	if !ok {
-		return nil, fmt.Errorf("missing timestamp in payload")
+		return nil, errors.New("missing timestamp in payload")
 	}
 	timestamp := time.Unix(timestampValue.GetIntegerValue(), 0)
 
@@ -1028,7 +1029,7 @@ func (qs *QdrantStore) FindSimilar(ctx context.Context, content string, chunkTyp
 	// 1. Generate embeddings for the content using an embedding service
 	// 2. Perform the vector search
 	// For now, return an error indicating this needs embedding service integration
-	return nil, fmt.Errorf("FindSimilar requires embedding service integration - use Search method with embeddings instead")
+	return nil, errors.New("FindSimilar requires embedding service integration - use Search method with embeddings instead")
 }
 
 // StoreChunk is an alias for Store for backward compatibility
@@ -1057,7 +1058,7 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []types.Conversati
 		}
 
 		if len(chunk.Embeddings) == 0 {
-			errors = append(errors, fmt.Sprintf("chunk %s has no embeddings", chunk.ID))
+			errors = append(errors, "chunk "+chunk.ID+" has no embeddings")
 			continue
 		}
 
