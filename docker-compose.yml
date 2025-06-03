@@ -21,7 +21,7 @@ services:
       - mcp_network
 
   # MCP Memory Server with integrated WebUI
-  mcp-memory-full:
+  mcp-memory-server:
     build:
       context: .
       dockerfile: Dockerfile
@@ -31,7 +31,7 @@ services:
       - qdrant
     ports:
       - "${MCP_HOST_PORT:-9080}:9080"    # MCP API port
-      - "${WEBUI_PORT:-3000}:3000"       # WebUI port
+      - "${WEBUI_PORT:-2001}:3000"       # WebUI port
       - "${MCP_HEALTH_PORT:-9081}:8081"  # Health check port
       - "${MCP_METRICS_PORT:-9082}:8082" # Metrics port (optional)
     environment:
