@@ -23,7 +23,7 @@ func NewDefaultChainAnalyzer(embeddingService embeddings.EmbeddingService) *Defa
 }
 
 // AnalyzeRelationship analyzes the relationship between two chunks
-func (a *DefaultChainAnalyzer) AnalyzeRelationship(ctx context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error) {
+func (a *DefaultChainAnalyzer) AnalyzeRelationship(_ context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error) {
 	// Calculate various similarity metrics
 	semanticSim := a.calculateSemanticSimilarity(chunk1.Embeddings, chunk2.Embeddings)
 	temporalProximity := a.calculateTemporalProximity(chunk1.Timestamp, chunk2.Timestamp)
@@ -41,7 +41,7 @@ func (a *DefaultChainAnalyzer) AnalyzeRelationship(ctx context.Context, chunk1, 
 }
 
 // SuggestChainName suggests a name and description for a chain
-func (a *DefaultChainAnalyzer) SuggestChainName(ctx context.Context, chunks []types.ConversationChunk) (string, string, error) {
+func (a *DefaultChainAnalyzer) SuggestChainName(_ context.Context, chunks []types.ConversationChunk) (string, string, error) {
 	if len(chunks) == 0 {
 		return "", "", fmt.Errorf("no chunks provided")
 	}

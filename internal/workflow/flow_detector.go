@@ -160,7 +160,7 @@ func (fd *FlowDetector) StartSession(sessionID, repository string) {
 }
 
 // ProcessMessage analyzes a conversation message and updates flow state
-func (fd *FlowDetector) ProcessMessage(sessionID, content string, toolUsed string, context map[string]interface{}) {
+func (fd *FlowDetector) ProcessMessage(sessionID, content string, toolUsed string, _ map[string]interface{}) {
 	session := fd.getOrCreateSession(sessionID)
 
 	// Detect flow type for this content
@@ -306,7 +306,7 @@ func (fd *FlowDetector) updateCurrentSegment(content string, confidence float64)
 }
 
 // EndSession completes the conversation session and generates summary
-func (fd *FlowDetector) EndSession(sessionID string, outcome types.Outcome) {
+func (fd *FlowDetector) EndSession(sessionID string, _ types.Outcome) {
 	session := fd.sessions[sessionID]
 	if session == nil {
 		return

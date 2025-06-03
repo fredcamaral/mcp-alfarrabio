@@ -1,3 +1,5 @@
+// test-mcp is a command-line tool for testing MCP protocol compatibility
+// and validating the MCP Memory Server's JSON-RPC implementation.
 package main
 
 import (

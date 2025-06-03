@@ -887,22 +887,22 @@ func (mc *MetricsCollectorV2) aggregateValues(points []*MetricDataPoint, aggrega
 		return sum / float64(len(values)), nil
 
 	case AggregationMin:
-		min := values[0]
+		minVal := values[0]
 		for _, v := range values[1:] {
-			if v < min {
-				min = v
+			if v < minVal {
+				minVal = v
 			}
 		}
-		return min, nil
+		return minVal, nil
 
 	case AggregationMax:
-		max := values[0]
+		maxVal := values[0]
 		for _, v := range values[1:] {
-			if v > max {
-				max = v
+			if v > maxVal {
+				maxVal = v
 			}
 		}
-		return max, nil
+		return maxVal, nil
 
 	case AggregationMedian:
 		sort.Float64s(values)

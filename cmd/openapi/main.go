@@ -1,3 +1,5 @@
+// openapi is a command-line tool for working with OpenAPI specifications,
+// providing validation, documentation serving, and code generation capabilities.
 package main
 
 import (
@@ -42,7 +44,7 @@ func serveDocumentation() {
 	router := mux.NewRouter()
 
 	// Serve OpenAPI spec
-	router.HandleFunc("/openapi.json", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/openapi.json", func(w http.ResponseWriter, _ *http.Request) {
 		spec, err := loadSpec()
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -54,7 +56,7 @@ func serveDocumentation() {
 	})
 
 	// Serve Swagger UI
-	router.HandleFunc("/docs", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/docs", func(w http.ResponseWriter, _ *http.Request) {
 		html := `
 <!DOCTYPE html>
 <html lang="en">

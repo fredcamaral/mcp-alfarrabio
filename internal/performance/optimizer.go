@@ -1,3 +1,5 @@
+// Package performance provides query optimization, caching, and resource management
+// to improve the efficiency and speed of the MCP Memory Server.
 package performance
 
 import (

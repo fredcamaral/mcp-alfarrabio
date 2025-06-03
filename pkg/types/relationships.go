@@ -12,31 +12,40 @@ import (
 type RelationType string
 
 const (
-	// Causal relationships
+	// RelationLedTo indicates that one chunk led to another (e.g., problem led to solution)
 	RelationLedTo    RelationType = "led_to"    // Problem led to solution
+	// RelationSolvedBy indicates that one chunk was solved by another
 	RelationSolvedBy RelationType = "solved_by" // Problem solved by solution
 
-	// Dependency relationships
+	// RelationDependsOn indicates that one chunk depends on another
 	RelationDependsOn  RelationType = "depends_on" // Feature depends on another
+	// RelationEnables indicates that one chunk enables another
 	RelationEnables    RelationType = "enables"    // Decision enables feature
+	// RelationImplements indicates that one chunk implements another
 	RelationImplements RelationType = "implements" // Implementation of design/spec
 
-	// Conflict relationships
+	// RelationConflictsWith indicates that two chunks are in conflict
 	RelationConflictsWith RelationType = "conflicts_with" // Decisions conflict
+	// RelationSupersedes indicates that one chunk supersedes another
 	RelationSupersedes    RelationType = "supersedes"     // New decision supersedes old
 
-	// Contextual relationships
+	// RelationRelatedTo indicates a general relationship between chunks
 	RelationRelatedTo RelationType = "related_to" // General relation
+	// RelationFollowsUp indicates that one chunk follows up on another
 	RelationFollowsUp RelationType = "follows_up" // Follow-up discussion
+	// RelationPrecedes indicates temporal precedence
 	RelationPrecedes  RelationType = "precedes"   // Temporal precedence
 
-	// Learning relationships
+	// RelationLearnedFrom indicates that knowledge was derived from another chunk
 	RelationLearnedFrom RelationType = "learned_from" // Knowledge derived from
+	// RelationTeaches indicates that one chunk teaches a concept
 	RelationTeaches     RelationType = "teaches"      // Knowledge teaches concept
+	// RelationExemplifes indicates that one chunk exemplifies a pattern
 	RelationExemplifes  RelationType = "exemplifies"  // Example of pattern
 
-	// Reference relationships
+	// RelationReferencesBy indicates that one chunk is referenced by another
 	RelationReferencesBy RelationType = "referenced_by" // Chunk referenced by another
+	// RelationReferences indicates that one chunk references another
 	RelationReferences   RelationType = "references"    // Chunk references another
 )
 
@@ -115,9 +124,13 @@ func (rt RelationType) IsSymmetric() bool {
 type ConfidenceSource string
 
 const (
+	// ConfidenceExplicit indicates confidence was explicitly stated by user
 	ConfidenceExplicit ConfidenceSource = "explicit" // User explicitly stated
+	// ConfidenceInferred indicates confidence was inferred by AI from context
 	ConfidenceInferred ConfidenceSource = "inferred" // AI inferred from context
+	// ConfidenceDerived indicates confidence was calculated from other data
 	ConfidenceDerived  ConfidenceSource = "derived"  // Calculated from other data
+	// ConfidenceAuto indicates confidence was automatically detected
 	ConfidenceAuto     ConfidenceSource = "auto"     // Automatically detected
 )
 
@@ -324,11 +337,12 @@ type GraphEdge struct {
 	Weight       float64            `json:"weight"` // Based on confidence
 }
 
-// JSON marshaling for custom types
+// MarshalJSON implements json.Marshaler for RelationType
 func (rt RelationType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(rt))
 }
 
+// UnmarshalJSON implements json.Unmarshaler for RelationType
 func (rt *RelationType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -338,10 +352,12 @@ func (rt *RelationType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements json.Marshaler for ConfidenceSource
 func (cs ConfidenceSource) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(cs))
 }
 
+// UnmarshalJSON implements json.Unmarshaler for ConfidenceSource
 func (cs *ConfidenceSource) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {

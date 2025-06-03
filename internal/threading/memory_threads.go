@@ -19,6 +19,7 @@ import (
 type ThreadType string
 
 const (
+	// ThreadTypeConversation represents single conversation threads
 	ThreadTypeConversation   ThreadType = "conversation"    // Single conversation thread
 	ThreadTypeProblemSolving ThreadType = "problem_solving" // Problem→Investigation→Solution flow
 	ThreadTypeFeature        ThreadType = "feature"         // Feature development thread
@@ -31,7 +32,9 @@ const (
 type ThreadStatus string
 
 const (
+	// ThreadStatusActive represents ongoing work threads
 	ThreadStatusActive    ThreadStatus = "active"    // Ongoing work
+	// ThreadStatusComplete represents successfully completed threads
 	ThreadStatusComplete  ThreadStatus = "complete"  // Successfully completed
 	ThreadStatusPaused    ThreadStatus = "paused"    // Temporarily paused
 	ThreadStatusAbandoned ThreadStatus = "abandoned" // Abandoned/cancelled
@@ -438,9 +441,8 @@ func (tm *ThreadManager) determineInitialStatus(chunks []types.ConversationChunk
 		// If last activity was recent, consider active
 		if time.Since(lastChunk.Timestamp) < 24*time.Hour {
 			return ThreadStatusActive
-		} else {
-			return ThreadStatusPaused
 		}
+		return ThreadStatusPaused
 	}
 }
 

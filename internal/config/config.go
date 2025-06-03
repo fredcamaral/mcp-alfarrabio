@@ -1,3 +1,5 @@
+// Package config provides configuration management for the MCP Memory Server,
+// handling environment variables, YAML files, and runtime settings.
 package config
 
 import (
@@ -424,12 +426,12 @@ func loadOpenAIConfig(config *Config) {
 }
 
 // loadDecayConfig loads decay configuration from environment
-func loadDecayConfig(config *Config) {
+func loadDecayConfig(_ *Config) {
 	// Add decay config loading if needed
 }
 
 // loadIntelligenceConfig loads intelligence configuration from environment
-func loadIntelligenceConfig(config *Config) {
+func loadIntelligenceConfig(_ *Config) {
 	// Add intelligence config loading if needed
 }
 

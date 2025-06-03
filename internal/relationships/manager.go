@@ -1,3 +1,5 @@
+// Package relationships provides relationship detection and management
+// for connecting related memories in the MCP Memory Server.
 package relationships
 
 import (

@@ -1,3 +1,5 @@
+// migrate is a command-line tool for migrating data from ChromaDB to Qdrant vector database,
+// providing batch migration, validation, and backup capabilities for the MCP Memory Server.
 package main
 
 import (
@@ -332,7 +334,7 @@ func (mt *MigrationTool) validateMigration(ctx context.Context, originalChunks [
 
 	// Sample validation: check a few random chunks
 	if len(originalChunks) > 0 {
-		sampleSize := min(10, len(originalChunks))
+		sampleSize := minInt(10, len(originalChunks))
 		for i := 0; i < sampleSize; i++ {
 			chunk := originalChunks[i]
 			retrieved, err := mt.qdrantStore.GetByID(ctx, chunk.ID)
@@ -442,7 +444,7 @@ func (mt *MigrationTool) PrintResults() {
 	fmt.Println(strings.Repeat("=", 60))
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

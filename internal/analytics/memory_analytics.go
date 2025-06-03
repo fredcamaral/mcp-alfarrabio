@@ -1,3 +1,5 @@
+// Package analytics provides memory usage tracking, effectiveness scoring,
+// and task completion analytics for the MCP Memory Server.
 package analytics
 
 import (
@@ -11,9 +13,9 @@ import (
 )
 
 const (
-	// Task priority constants
+	// TaskPriorityHigh represents high priority for tasks
 	TaskPriorityHigh = "high"
-	// Task status constants
+	// TaskStatusCompleted represents a completed task status
 	TaskStatusCompleted = "completed"
 )
 
@@ -52,7 +54,7 @@ func NewMemoryAnalytics(store storage.VectorStore) *MemoryAnalytics {
 }
 
 // RecordAccess tracks when a memory chunk is accessed
-func (ma *MemoryAnalytics) RecordAccess(ctx context.Context, chunkID string) error {
+func (ma *MemoryAnalytics) RecordAccess(_ context.Context, chunkID string) error {
 	ma.mu.Lock()
 	defer ma.mu.Unlock()
 
@@ -74,7 +76,7 @@ func (ma *MemoryAnalytics) RecordAccess(ctx context.Context, chunkID string) err
 }
 
 // RecordUsage tracks when a memory chunk is used with outcome
-func (ma *MemoryAnalytics) RecordUsage(ctx context.Context, chunkID string, successful bool) error {
+func (ma *MemoryAnalytics) RecordUsage(_ context.Context, chunkID string, successful bool) error {
 	ma.mu.Lock()
 	defer ma.mu.Unlock()
 
@@ -122,7 +124,7 @@ func (ma *MemoryAnalytics) CalculateEffectivenessScore(chunk *types.Conversation
 		accessCount, hasAccessCount := chunk.Metadata.ExtendedMetadata[types.EMKeyAccessCount].(int)
 		if hasAccessCount {
 			// Logarithmic scale for access count
-			accessScore := min(1.0, float64(accessCount)/10.0)
+			accessScore := minFloat64(1.0, float64(accessCount)/10.0)
 			score += accessScore * 0.2
 		} else {
 			score += 0.1 // Neutral if unknown
@@ -138,7 +140,7 @@ func (ma *MemoryAnalytics) CalculateEffectivenessScore(chunk *types.Conversation
 	// Factor 4: Problem resolution and task completion (20% weight)
 	score += ma.calculateTypeEffectivenessScore(chunk)
 
-	return min(1.0, score)
+	return minFloat64(1.0, score)
 }
 
 // estimateSuccessRateForNewChunk estimates success rate for chunks without usage history
@@ -439,7 +441,7 @@ func (ma *MemoryAnalytics) Stop() {
 }
 
 // Helper functions
-func min(a, b float64) float64 {
+func minFloat64(a, b float64) float64 {
 	if a < b {
 		return a
 	}

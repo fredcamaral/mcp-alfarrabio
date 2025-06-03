@@ -101,8 +101,8 @@ func (h *MCPErrorHandler) ValidateRepositoryParam(params map[string]interface{})
 
 	// Additional repository format validation
 	if repoStr != "global" && !isValidRepositoryURL(repoStr) {
-		return NewValidationError("repository", 
-			"must be 'global' or a valid repository URL (e.g., 'github.com/user/repo')", 
+		return NewValidationError("repository",
+			"must be 'global' or a valid repository URL (e.g., 'github.com/user/repo')",
 			repository)
 	}
 
@@ -185,9 +185,9 @@ func (h *MCPErrorHandler) LogError(ctx context.Context, operation string, stdErr
 		detailsStr = fmt.Sprintf(", details: %+v", stdErr.ErrorInfo.Details)
 	}
 
-	log.Printf("[ERROR] %s: %s (code: %s, trace_id: %s, protocol: %s%s)", 
-		operation, 
-		stdErr.ErrorInfo.Message, 
+	log.Printf("[ERROR] %s: %s (code: %s, trace_id: %s, protocol: %s%s)",
+		operation,
+		stdErr.ErrorInfo.Message,
 		string(stdErr.ErrorInfo.Code),
 		stdErr.ErrorInfo.TraceID,
 		stdErr.ErrorInfo.Protocol,

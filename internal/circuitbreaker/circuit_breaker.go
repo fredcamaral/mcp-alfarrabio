@@ -14,8 +14,11 @@ import (
 type State int
 
 const (
+	// StateClosed indicates the circuit breaker is closed and requests are flowing normally
 	StateClosed State = iota
+	// StateOpen indicates the circuit breaker is open and requests are being rejected
 	StateOpen
+	// StateHalfOpen indicates the circuit breaker is allowing limited requests to test recovery
 	StateHalfOpen
 )
 

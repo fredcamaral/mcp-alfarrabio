@@ -1,3 +1,5 @@
+// Package audit provides comprehensive audit logging capabilities
+// for tracking all operations and changes in the MCP Memory Server.
 package audit
 
 import (
@@ -26,23 +28,36 @@ const (
 type EventType string
 
 const (
+	// EventTypeMemoryStore represents memory storage operations
 	EventTypeMemoryStore     EventType = "memory_store"
+	// EventTypeMemorySearch represents memory search operations
 	EventTypeMemorySearch    EventType = "memory_search"
+	// EventTypeMemoryUpdate represents memory update operations
 	EventTypeMemoryUpdate    EventType = "memory_update"
+	// EventTypeMemoryDelete represents memory deletion operations
 	EventTypeMemoryDelete    EventType = "memory_delete"
+	// EventTypeDecisionStore represents decision storage operations
 	EventTypeDecisionStore   EventType = "decision_store"
+	// EventTypeRelationshipAdd represents relationship creation operations
 	EventTypeRelationshipAdd EventType = "relationship_add"
+	// EventTypePatternDetected represents pattern detection events
 	EventTypePatternDetected EventType = "pattern_detected"
+	// EventTypeContextSwitch represents context switching events
 	EventTypeContextSwitch   EventType = "context_switch"
+	// EventTypeExport represents data export operations
 	EventTypeExport          EventType = "export"
+	// EventTypeImport represents data import operations
 	EventTypeImport          EventType = "import"
+	// EventTypeSystemStart represents system startup events
 	EventTypeSystemStart     EventType = "system_start"
+	// EventTypeSystemShutdown represents system shutdown events
 	EventTypeSystemShutdown  EventType = "system_shutdown"
+	// EventTypeError represents error events
 	EventTypeError           EventType = "error"
 )
 
-// AuditEvent represents a single audit log entry
-type AuditEvent struct {
+// Event represents a single audit log entry
+type Event struct {
 	ID         string                 `json:"id"`
 	Timestamp  time.Time              `json:"timestamp"`
 	EventType  EventType              `json:"event_type"`
@@ -60,12 +75,12 @@ type AuditEvent struct {
 	UserAgent  string                 `json:"user_agent,omitempty"`
 }
 
-// AuditLogger handles persistent audit logging
-type AuditLogger struct {
+// Logger handles persistent audit logging
+type Logger struct {
 	baseDir     string
 	currentFile *os.File
 	mu          sync.Mutex
-	buffer      []AuditEvent
+	buffer      []Event
 	flushTicker *time.Ticker
 	maxFileSize int64
 	retention   time.Duration
@@ -76,16 +91,16 @@ type AuditLogger struct {
 	lastFlush  time.Time
 }
 
-// NewAuditLogger creates a new audit logger
-func NewAuditLogger(baseDir string) (*AuditLogger, error) {
+// NewLogger creates a new audit logger
+func NewLogger(baseDir string) (*Logger, error) {
 	// Create audit directory if it doesn't exist
 	if err := os.MkdirAll(baseDir, 0750); err != nil {
 		return nil, fmt.Errorf("failed to create audit directory: %w", err)
 	}
 
-	logger := &AuditLogger{
+	logger := &Logger{
 		baseDir:     baseDir,
-		buffer:      make([]AuditEvent, 0, 100),
+		buffer:      make([]Event, 0, 100),
 		flushTicker: time.NewTicker(30 * time.Second),
 		maxFileSize: 100 * 1024 * 1024,   // 100MB
 		retention:   90 * 24 * time.Hour, // 90 days
@@ -109,8 +124,8 @@ func NewAuditLogger(baseDir string) (*AuditLogger, error) {
 }
 
 // LogEvent logs an audit event
-func (al *AuditLogger) LogEvent(ctx context.Context, eventType EventType, action, resource, resourceID string, details map[string]interface{}) {
-	event := AuditEvent{
+func (al *Logger) LogEvent(ctx context.Context, eventType EventType, action, resource, resourceID string, details map[string]interface{}) {
+	event := Event{
 		ID:         generateEventID(),
 		Timestamp:  time.Now().UTC(),
 		EventType:  eventType,
@@ -136,8 +151,8 @@ func (al *AuditLogger) LogEvent(ctx context.Context, eventType EventType, action
 }
 
 // LogError logs an error event
-func (al *AuditLogger) LogError(ctx context.Context, eventType EventType, action, resource string, err error, details map[string]interface{}) {
-	event := AuditEvent{
+func (al *Logger) LogError(ctx context.Context, eventType EventType, action, resource string, err error, details map[string]interface{}) {
+	event := Event{
 		ID:        generateEventID(),
 		Timestamp: time.Now().UTC(),
 		EventType: eventType,
@@ -161,8 +176,8 @@ func (al *AuditLogger) LogError(ctx context.Context, eventType EventType, action
 }
 
 // LogEventWithDuration logs an event with timing information
-func (al *AuditLogger) LogEventWithDuration(ctx context.Context, eventType EventType, action, resource, resourceID string, duration time.Duration, details map[string]interface{}) {
-	event := AuditEvent{
+func (al *Logger) LogEventWithDuration(ctx context.Context, eventType EventType, action, resource, resourceID string, duration time.Duration, details map[string]interface{}) {
+	event := Event{
 		ID:         generateEventID(),
 		Timestamp:  time.Now().UTC(),
 		EventType:  eventType,
@@ -189,7 +204,7 @@ func (al *AuditLogger) LogEventWithDuration(ctx context.Context, eventType Event
 }
 
 // addEvent adds an event to the buffer
-func (al *AuditLogger) addEvent(event AuditEvent) {
+func (al *Logger) addEvent(event Event) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
@@ -203,7 +218,7 @@ func (al *AuditLogger) addEvent(event AuditEvent) {
 }
 
 // flush writes buffered events to disk
-func (al *AuditLogger) flush() {
+func (al *Logger) flush() {
 	if len(al.buffer) == 0 {
 		return
 	}
@@ -231,7 +246,7 @@ func (al *AuditLogger) flush() {
 }
 
 // flushLoop periodically flushes the buffer
-func (al *AuditLogger) flushLoop() {
+func (al *Logger) flushLoop() {
 	for range al.flushTicker.C {
 		al.mu.Lock()
 		al.flush()
@@ -240,7 +255,7 @@ func (al *AuditLogger) flushLoop() {
 }
 
 // rotateFile creates a new log file
-func (al *AuditLogger) rotateFile() error {
+func (al *Logger) rotateFile() error {
 	// Close current file if open
 	if al.currentFile != nil {
 		_ = al.currentFile.Close()
@@ -267,7 +282,7 @@ func (al *AuditLogger) rotateFile() error {
 }
 
 // cleanupLoop periodically removes old audit files
-func (al *AuditLogger) cleanupLoop() {
+func (al *Logger) cleanupLoop() {
 	// Run cleanup every hour
 	ticker := time.NewTicker(1 * time.Hour)
 	for range ticker.C {
@@ -276,7 +291,7 @@ func (al *AuditLogger) cleanupLoop() {
 }
 
 // cleanup removes old audit files
-func (al *AuditLogger) cleanup() {
+func (al *Logger) cleanup() {
 	cutoff := time.Now().Add(-al.retention)
 
 	files, err := os.ReadDir(al.baseDir)
@@ -307,7 +322,7 @@ func (al *AuditLogger) cleanup() {
 }
 
 // GetStatistics returns audit statistics
-func (al *AuditLogger) GetStatistics() map[string]interface{} {
+func (al *Logger) GetStatistics() map[string]interface{} {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
@@ -323,8 +338,8 @@ func (al *AuditLogger) GetStatistics() map[string]interface{} {
 }
 
 // Search searches audit logs
-func (al *AuditLogger) Search(ctx context.Context, criteria SearchCriteria) ([]AuditEvent, error) {
-	events := []AuditEvent{}
+func (al *Logger) Search(_ context.Context, criteria SearchCriteria) ([]Event, error) {
+	events := []Event{}
 
 	// Get list of files to search
 	files, err := al.getFilesToSearch(criteria.StartTime, criteria.EndTime)
@@ -351,7 +366,7 @@ func (al *AuditLogger) Search(ctx context.Context, criteria SearchCriteria) ([]A
 }
 
 // searchFile searches a single audit file
-func (al *AuditLogger) searchFile(filename string, criteria SearchCriteria) ([]AuditEvent, error) {
+func (al *Logger) searchFile(filename string, criteria SearchCriteria) ([]Event, error) {
 	// Clean and validate the filename
 	cleanPath := filepath.Clean(filepath.Join(al.baseDir, filename))
 	if !strings.HasPrefix(cleanPath, filepath.Clean(al.baseDir)) {
@@ -364,11 +379,11 @@ func (al *AuditLogger) searchFile(filename string, criteria SearchCriteria) ([]A
 	}
 	defer func() { _ = file.Close() }()
 
-	events := []AuditEvent{}
+	events := []Event{}
 	decoder := json.NewDecoder(file)
 
 	for decoder.More() {
-		var event AuditEvent
+		var event Event
 		if err := decoder.Decode(&event); err != nil {
 			continue
 		}
@@ -382,7 +397,7 @@ func (al *AuditLogger) searchFile(filename string, criteria SearchCriteria) ([]A
 }
 
 // getFilesToSearch returns audit files within the time range
-func (al *AuditLogger) getFilesToSearch(_ /* start */, _ /* end */ time.Time) ([]string, error) {
+func (al *Logger) getFilesToSearch(_ /* start */, _ /* end */ time.Time) ([]string, error) {
 	files, err := os.ReadDir(al.baseDir)
 	if err != nil {
 		return nil, err
@@ -402,7 +417,7 @@ func (al *AuditLogger) getFilesToSearch(_ /* start */, _ /* end */ time.Time) ([
 }
 
 // Stop gracefully stops the audit logger
-func (al *AuditLogger) Stop() {
+func (al *Logger) Stop() {
 	// Stop tickers
 	al.flushTicker.Stop()
 
@@ -411,7 +426,7 @@ func (al *AuditLogger) Stop() {
 	defer al.mu.Unlock()
 
 	// Log shutdown
-	al.buffer = append(al.buffer, AuditEvent{
+	al.buffer = append(al.buffer, Event{
 		ID:        generateEventID(),
 		Timestamp: time.Now().UTC(),
 		EventType: EventTypeSystemShutdown,
@@ -441,7 +456,7 @@ type SearchCriteria struct {
 }
 
 // Matches checks if an event matches the criteria
-func (sc SearchCriteria) Matches(event AuditEvent) bool {
+func (sc SearchCriteria) Matches(event Event) bool {
 	// Time range
 	if !sc.StartTime.IsZero() && event.Timestamp.Before(sc.StartTime) {
 		return false

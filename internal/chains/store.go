@@ -23,7 +23,7 @@ func NewInMemoryChainStore() *InMemoryChainStore {
 }
 
 // StoreChain stores a memory chain
-func (s *InMemoryChainStore) StoreChain(ctx context.Context, chain *MemoryChain) error {
+func (s *InMemoryChainStore) StoreChain(_ context.Context, chain *MemoryChain) error {
 	if chain == nil || chain.ID == "" {
 		return fmt.Errorf("invalid chain")
 	}
@@ -56,7 +56,7 @@ func (s *InMemoryChainStore) StoreChain(ctx context.Context, chain *MemoryChain)
 }
 
 // GetChain retrieves a chain by ID
-func (s *InMemoryChainStore) GetChain(ctx context.Context, chainID string) (*MemoryChain, error) {
+func (s *InMemoryChainStore) GetChain(_ context.Context, chainID string) (*MemoryChain, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -70,7 +70,7 @@ func (s *InMemoryChainStore) GetChain(ctx context.Context, chainID string) (*Mem
 }
 
 // GetChainsByChunkID retrieves all chains containing a specific chunk
-func (s *InMemoryChainStore) GetChainsByChunkID(ctx context.Context, chunkID string) ([]*MemoryChain, error) {
+func (s *InMemoryChainStore) GetChainsByChunkID(_ context.Context, chunkID string) ([]*MemoryChain, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -90,7 +90,7 @@ func (s *InMemoryChainStore) GetChainsByChunkID(ctx context.Context, chunkID str
 }
 
 // UpdateChain updates an existing chain
-func (s *InMemoryChainStore) UpdateChain(ctx context.Context, chain *MemoryChain) error {
+func (s *InMemoryChainStore) UpdateChain(_ context.Context, chain *MemoryChain) error {
 	if chain == nil || chain.ID == "" {
 		return fmt.Errorf("invalid chain")
 	}
@@ -144,7 +144,7 @@ func (s *InMemoryChainStore) UpdateChain(ctx context.Context, chain *MemoryChain
 }
 
 // DeleteChain deletes a chain
-func (s *InMemoryChainStore) DeleteChain(ctx context.Context, chainID string) error {
+func (s *InMemoryChainStore) DeleteChain(_ context.Context, chainID string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -177,7 +177,7 @@ func (s *InMemoryChainStore) DeleteChain(ctx context.Context, chainID string) er
 }
 
 // ListChains lists all chains with pagination
-func (s *InMemoryChainStore) ListChains(ctx context.Context, limit, offset int) ([]*MemoryChain, error) {
+func (s *InMemoryChainStore) ListChains(_ context.Context, limit, offset int) ([]*MemoryChain, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -216,7 +216,7 @@ func (s *InMemoryChainStore) copyChain(chain *MemoryChain) *MemoryChain {
 	}
 
 	// Copy basic fields
-	copy := &MemoryChain{
+	chainCopy := &MemoryChain{
 		ID:          chain.ID,
 		Name:        chain.Name,
 		Description: chain.Description,
@@ -225,15 +225,13 @@ func (s *InMemoryChainStore) copyChain(chain *MemoryChain) *MemoryChain {
 	}
 
 	// Copy chunk IDs
-	copy.ChunkIDs = make([]string, len(chain.ChunkIDs))
-	for i, id := range chain.ChunkIDs {
-		copy.ChunkIDs[i] = id
-	}
+	chainCopy.ChunkIDs = make([]string, len(chain.ChunkIDs))
+	copy(chainCopy.ChunkIDs, chain.ChunkIDs)
 
 	// Copy links
-	copy.Links = make([]ChainLink, len(chain.Links))
+	chainCopy.Links = make([]ChainLink, len(chain.Links))
 	for i, link := range chain.Links {
-		copy.Links[i] = ChainLink{
+		chainCopy.Links[i] = ChainLink{
 			FromChunkID: link.FromChunkID,
 			ToChunkID:   link.ToChunkID,
 			Type:        link.Type,
@@ -242,22 +240,22 @@ func (s *InMemoryChainStore) copyChain(chain *MemoryChain) *MemoryChain {
 		}
 		// Copy metadata if present
 		if link.Metadata != nil {
-			copy.Links[i].Metadata = make(map[string]interface{})
+			chainCopy.Links[i].Metadata = make(map[string]interface{})
 			for k, v := range link.Metadata {
-				copy.Links[i].Metadata[k] = v
+				chainCopy.Links[i].Metadata[k] = v
 			}
 		}
 	}
 
 	// Copy metadata
 	if chain.Metadata != nil {
-		copy.Metadata = make(map[string]interface{})
+		chainCopy.Metadata = make(map[string]interface{})
 		for k, v := range chain.Metadata {
-			copy.Metadata[k] = v
+			chainCopy.Metadata[k] = v
 		}
 	}
 
-	return copy
+	return chainCopy
 }
 
 // GetStats returns statistics about the chain store

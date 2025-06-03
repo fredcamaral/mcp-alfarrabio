@@ -1,3 +1,5 @@
+// graphql is a command-line tool that starts a GraphQL server for the MCP Memory Server,
+// providing a web interface and API for querying and managing memory data.
 package main
 
 import (

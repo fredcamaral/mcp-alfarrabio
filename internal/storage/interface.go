@@ -1,3 +1,5 @@
+// Package storage provides vector database interfaces and implementations
+// for Qdrant, including connection pooling and retry mechanisms.
 package storage
 
 import (

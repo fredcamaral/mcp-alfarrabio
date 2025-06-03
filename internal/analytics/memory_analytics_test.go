@@ -22,12 +22,12 @@ func NewMockStore() *MockStore {
 	}
 }
 
-func (m *MockStore) Store(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockStore) Store(_ context.Context, chunk types.ConversationChunk) error {
 	m.chunks[chunk.ID] = &chunk
 	return nil
 }
 
-func (m *MockStore) GetByID(ctx context.Context, id string) (*types.ConversationChunk, error) {
+func (m *MockStore) GetByID(_ context.Context, id string) (*types.ConversationChunk, error) {
 	chunk, exists := m.chunks[id]
 	if !exists {
 		return nil, fmt.Errorf("chunk not found")
@@ -35,12 +35,12 @@ func (m *MockStore) GetByID(ctx context.Context, id string) (*types.Conversation
 	return chunk, nil
 }
 
-func (m *MockStore) Update(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockStore) Update(_ context.Context, chunk types.ConversationChunk) error {
 	m.chunks[chunk.ID] = &chunk
 	return nil
 }
 
-func (m *MockStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
+func (m *MockStore) Search(_ context.Context, query types.MemoryQuery, _ []float64) (*types.SearchResults, error) {
 	var chunks []types.ConversationChunk
 	for _, chunk := range m.chunks {
 		if query.Repository != nil && chunk.Metadata.Repository == *query.Repository {
@@ -66,27 +66,27 @@ func (m *MockStore) Search(ctx context.Context, query types.MemoryQuery, embeddi
 	}, nil
 }
 
-func (m *MockStore) SearchByTags(ctx context.Context, tags []string, limit int) ([]types.ConversationChunk, error) {
+func (m *MockStore) SearchByTags(_ context.Context, _ []string, _ int) ([]types.ConversationChunk, error) {
 	return nil, nil
 }
 
-func (m *MockStore) SearchByTimeRange(ctx context.Context, start, end time.Time, limit int) ([]types.ConversationChunk, error) {
+func (m *MockStore) SearchByTimeRange(_ context.Context, _, _ time.Time, _ int) ([]types.ConversationChunk, error) {
 	return nil, nil
 }
 
-func (m *MockStore) SearchSimilar(ctx context.Context, embedding []float32, limit int) ([]types.ConversationChunk, error) {
+func (m *MockStore) SearchSimilar(_ context.Context, _ []float32, _ int) ([]types.ConversationChunk, error) {
 	return nil, nil
 }
 
-func (m *MockStore) ListRepositories(ctx context.Context) ([]string, error) {
+func (m *MockStore) ListRepositories(_ context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (m *MockStore) Initialize(ctx context.Context) error {
+func (m *MockStore) Initialize(_ context.Context) error {
 	return nil
 }
 
-func (m *MockStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
+func (m *MockStore) ListByRepository(_ context.Context, repository string, limit int, _ int) ([]types.ConversationChunk, error) {
 	var results []types.ConversationChunk
 	for _, chunk := range m.chunks {
 		if chunk.Metadata.Repository == repository {
@@ -99,7 +99,7 @@ func (m *MockStore) ListByRepository(ctx context.Context, repository string, lim
 	return results, nil
 }
 
-func (m *MockStore) ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error) {
+func (m *MockStore) ListBySession(_ context.Context, sessionID string) ([]types.ConversationChunk, error) {
 	var results []types.ConversationChunk
 	for _, chunk := range m.chunks {
 		if chunk.SessionID == sessionID {
@@ -109,20 +109,20 @@ func (m *MockStore) ListBySession(ctx context.Context, sessionID string) ([]type
 	return results, nil
 }
 
-func (m *MockStore) Delete(ctx context.Context, id string) error {
+func (m *MockStore) Delete(_ context.Context, id string) error {
 	delete(m.chunks, id)
 	return nil
 }
 
-func (m *MockStore) Cleanup(ctx context.Context, retentionDays int) (int, error) {
+func (m *MockStore) Cleanup(_ context.Context, _ int) (int, error) {
 	return 0, nil
 }
 
-func (m *MockStore) GetStats(ctx context.Context) (*storage.StoreStats, error) {
+func (m *MockStore) GetStats(_ context.Context) (*storage.StoreStats, error) {
 	return &storage.StoreStats{}, nil
 }
 
-func (m *MockStore) Backup(ctx context.Context, path string) error {
+func (m *MockStore) Backup(_ context.Context, _ string) error {
 	return nil
 }
 
@@ -130,12 +130,12 @@ func (m *MockStore) Close() error {
 	return nil
 }
 
-func (m *MockStore) HealthCheck(ctx context.Context) error {
+func (m *MockStore) HealthCheck(_ context.Context) error {
 	return nil
 }
 
 // New interface methods for updated VectorStore interface
-func (m *MockStore) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) {
+func (m *MockStore) GetAllChunks(_ context.Context) ([]types.ConversationChunk, error) {
 	chunks := make([]types.ConversationChunk, 0, len(m.chunks))
 	for _, chunk := range m.chunks {
 		chunks = append(chunks, *chunk)
@@ -143,16 +143,16 @@ func (m *MockStore) GetAllChunks(ctx context.Context) ([]types.ConversationChunk
 	return chunks, nil
 }
 
-func (m *MockStore) DeleteCollection(ctx context.Context, collection string) error {
+func (m *MockStore) DeleteCollection(_ context.Context, _ string) error {
 	m.chunks = make(map[string]*types.ConversationChunk)
 	return nil
 }
 
-func (m *MockStore) ListCollections(ctx context.Context) ([]string, error) {
+func (m *MockStore) ListCollections(_ context.Context) ([]string, error) {
 	return []string{"claude_memory"}, nil
 }
 
-func (m *MockStore) FindSimilar(ctx context.Context, content string, chunkType *types.ChunkType, limit int) ([]types.ConversationChunk, error) {
+func (m *MockStore) FindSimilar(_ context.Context, _ string, _ *types.ChunkType, _ int) ([]types.ConversationChunk, error) {
 	return nil, nil // Simplified mock
 }
 
@@ -202,27 +202,27 @@ func (m *MockStore) BatchDelete(ctx context.Context, ids []string) (*storage.Bat
 }
 
 // Relationship management methods (required by VectorStore interface)
-func (m *MockStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
+func (m *MockStore) StoreRelationship(_ context.Context, _, _ string, _ types.RelationType, _ float64, _ types.ConfidenceSource) (*types.MemoryRelationship, error) {
 	return nil, errors.New("not implemented in mock")
 }
 
-func (m *MockStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (m *MockStore) GetRelationships(_ context.Context, _ types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	return nil, errors.New("not implemented in mock")
 }
 
-func (m *MockStore) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) {
+func (m *MockStore) TraverseGraph(_ context.Context, _ string, _ int, _ []types.RelationType) (*types.GraphTraversalResult, error) {
 	return nil, errors.New("not implemented in mock")
 }
 
-func (m *MockStore) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error {
+func (m *MockStore) UpdateRelationship(_ context.Context, _ string, _ float64, _ types.ConfidenceFactors) error {
 	return errors.New("not implemented in mock")
 }
 
-func (m *MockStore) DeleteRelationship(ctx context.Context, relationshipID string) error {
+func (m *MockStore) DeleteRelationship(_ context.Context, _ string) error {
 	return errors.New("not implemented in mock")
 }
 
-func (m *MockStore) GetRelationshipByID(ctx context.Context, relationshipID string) (*types.MemoryRelationship, error) {
+func (m *MockStore) GetRelationshipByID(_ context.Context, _ string) (*types.MemoryRelationship, error) {
 	return nil, errors.New("not implemented in mock")
 }
 

@@ -1,3 +1,5 @@
+// server is the main MCP Memory Server binary that provides persistent memory capabilities
+// for AI assistants through multiple transport protocols (stdio, HTTP, WebSocket, SSE).
 package main
 
 import (
@@ -20,9 +22,14 @@ import (
 	"github.com/fredcamaral/gomcp-sdk/protocol"
 	"github.com/fredcamaral/gomcp-sdk/server"
 	"github.com/fredcamaral/gomcp-sdk/transport"
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/graphql-go/handler"
-	"github.com/google/uuid"
+)
+
+const (
+	// HTTP method constants
+	methodOptions = "OPTIONS"
 )
 
 func main() {
@@ -112,7 +119,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		return fmt.Errorf("failed to load config for GraphQL: %w", err)
 	}
 
-	memoryServer, err := mcp.NewMemoryServer(cfg)
+	memoryServer, err := mcp.NewMemoryServer(cfg) //nolint:contextcheck // Constructor doesn't need context, Start() method does
 	if err != nil {
 		return fmt.Errorf("failed to create memory server for GraphQL: %w", err)
 	}
@@ -133,20 +140,22 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		// Add a fallback GraphQL endpoint
 		mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
 			w.Header().Set("Content-Type", "application/json")
-			
-			if r.Method == "OPTIONS" {
+
+			if r.Method == methodOptions {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			
+
 			w.WriteHeader(http.StatusServiceUnavailable)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error": "GraphQL service unavailable",
+			if err := json.NewEncoder(w).Encode(map[string]string{
+				"error":   "GraphQL service unavailable",
 				"message": fmt.Sprintf("Schema creation failed: %v", err),
-			})
+			}); err != nil {
+				log.Printf("Error encoding GraphQL error response: %v", err)
+			}
 		})
 	} else {
 		// Create GraphQL handler with the schema
@@ -162,14 +171,14 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
 			// CORS headers
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			
-			if r.Method == "OPTIONS" {
+
+			if r.Method == methodOptions {
 				w.WriteHeader(http.StatusOK)
 				return
 			}
-			
+
 			// Delegate to GraphQL handler
 			h.ServeHTTP(w, r)
 		})
@@ -179,11 +188,11 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers for remote access
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "POST, "+methodOptions)
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Set("Content-Type", "application/json")
 
-		if r.Method == "OPTIONS" {
+		if r.Method == methodOptions {
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -213,9 +222,9 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	// Server-Sent Events endpoint for bidirectional MCP communication
 	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
 		// Handle CORS preflight
-		if r.Method == "OPTIONS" {
+		if r.Method == methodOptions {
 			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
 			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Cache-Control")
 			w.WriteHeader(http.StatusOK)
 			return
@@ -286,7 +295,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 
 	// WebSocket upgrader
 	var upgrader = websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool {
+		CheckOrigin: func(_ *http.Request) bool {
 			return true // Allow connections from any origin
 		},
 	}
@@ -310,7 +319,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		// Get client preferences from query parameters
 		repository := r.URL.Query().Get("repository")
 		sessionID := r.URL.Query().Get("session_id")
-		
+
 		// Create a new client
 		clientID := uuid.New().String()
 		client := mcpwebsocket.NewClient(clientID, conn, wsHub, repository, sessionID)
@@ -326,7 +335,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	})
 
 	// Health check endpoint
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "mcp-memory", "mode": "development with hot-reload"}`)
 	})
@@ -358,9 +367,9 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 
 	// Create a timeout context for shutdown
 	// We use context.Background() here because the parent context is already cancelled
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second) //nolint:contextcheck
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
 	// Shutdown server gracefully
-	return server.Shutdown(shutdownCtx) //nolint:contextcheck // Parent context is already cancelled
+	return server.Shutdown(shutdownCtx) //nolint:contextcheck // Fresh context needed for shutdown when parent is cancelled
 }

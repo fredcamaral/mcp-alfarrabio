@@ -215,7 +215,7 @@ func TestChainBuilder_GetChainPath(t *testing.T) {
 
 	// Custom analyzer that creates a linear chain
 	analyzer := &MockChainAnalyzer{
-		analyzeFunc: func(ctx context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error) {
+		analyzeFunc: func(_ context.Context, chunk1, chunk2 types.ConversationChunk) (ChainType, float64, error) {
 			// Map chunks to their indices based on content
 			idx1 := -1
 			idx2 := -1

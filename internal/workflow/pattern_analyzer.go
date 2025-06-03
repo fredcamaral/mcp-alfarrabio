@@ -36,14 +36,16 @@ type ToolSequence struct {
 type PatternType string
 
 const (
+	// PatternInvestigative represents Read → Grep → Read → Edit workflow patterns
 	PatternInvestigative PatternType = "investigative" // Read → Grep → Read → Edit
+	// PatternBuildFix represents Build → Error → Edit → Build workflow patterns
 	PatternBuildFix      PatternType = "build_fix"     // Build → Error → Edit → Build
 	PatternTestDriven    PatternType = "test_driven"   // Test → Edit → Test
 	PatternExploration   PatternType = "exploration"   // Glob → Read → Grep → Read
 	PatternConfiguration PatternType = "configuration" // Read config → Edit → Test
 	PatternDebug         PatternType = "debug"         // Error → Search → Read → Fix
 
-	// Repository constants
+	// UnknownRepository represents an unknown repository identifier
 	UnknownRepository = "unknown"
 )
 
@@ -422,7 +424,7 @@ func (pa *PatternAnalyzer) GetContextSwitches() []ContextSwitch {
 }
 
 // GetPatternRecommendations suggests patterns based on current context
-func (pa *PatternAnalyzer) GetPatternRecommendations(currentTools []string, problemType string) []SuccessPattern {
+func (pa *PatternAnalyzer) GetPatternRecommendations(currentTools []string, _ string) []SuccessPattern {
 	recommendations := make([]SuccessPattern, 0)
 
 	// Find patterns with high success rates

@@ -19,7 +19,7 @@ func TestAuditLogger_LogEvent(t *testing.T) {
 	}()
 
 	// Create audit logger
-	logger, err := NewAuditLogger(tempDir)
+	logger, err := NewLogger(tempDir)
 	if err != nil {
 		t.Fatalf("Failed to create audit logger: %v", err)
 	}
@@ -92,7 +92,7 @@ func TestAuditLogger_Search(t *testing.T) {
 		_ = os.RemoveAll(tempDir)
 	}()
 
-	logger, err := NewAuditLogger(tempDir)
+	logger, err := NewLogger(tempDir)
 	if err != nil {
 		t.Fatalf("Failed to create audit logger: %v", err)
 	}
@@ -153,7 +153,7 @@ func TestAuditLogger_FileRotation(t *testing.T) {
 		_ = os.RemoveAll(tempDir)
 	}()
 
-	logger, err := NewAuditLogger(tempDir)
+	logger, err := NewLogger(tempDir)
 	if err != nil {
 		t.Fatalf("Failed to create audit logger: %v", err)
 	}
@@ -226,7 +226,7 @@ func TestAuditLogger_FileRotation(t *testing.T) {
 }
 
 func TestSearchCriteria_Matches(t *testing.T) {
-	event := AuditEvent{
+	event := Event{
 		ID:         "test-1",
 		Timestamp:  time.Now(),
 		EventType:  EventTypeMemoryStore,

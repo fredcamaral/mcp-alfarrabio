@@ -320,7 +320,7 @@ func TestMinFunction(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := min(tt.a, tt.b)
+			result := minInt(tt.a, tt.b)
 			assert.Equal(t, tt.expected, result)
 		})
 	}

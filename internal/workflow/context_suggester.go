@@ -29,7 +29,9 @@ type ContextSuggestion struct {
 type SuggestionType string
 
 const (
+	// SuggestionTypeSimilarProblem represents suggestions based on similar past problems
 	SuggestionTypeSimilarProblem    SuggestionType = "similar_problem"
+	// SuggestionTypeArchitectural represents architectural pattern suggestions
 	SuggestionTypeArchitectural     SuggestionType = "architectural_pattern"
 	SuggestionTypePastDecision      SuggestionType = "past_decision"
 	SuggestionTypeDuplicateWork     SuggestionType = "duplicate_work"
@@ -45,7 +47,9 @@ const (
 type SuggestionSource string
 
 const (
+	// SourceVectorSearch represents suggestions from vector similarity search
 	SourceVectorSearch    SuggestionSource = "vector_search"
+	// SourcePatternAnalysis represents suggestions from pattern analysis
 	SourcePatternAnalysis SuggestionSource = "pattern_analysis"
 	SourceTodoHistory     SuggestionSource = "todo_history"
 	SourceDecisionLog     SuggestionSource = "decision_log"
@@ -56,7 +60,9 @@ const (
 type ActionType string
 
 const (
+	// ActionReview suggests reviewing previous decisions or patterns
 	ActionReview    ActionType = "review"
+	// ActionConsider suggests considering alternatives or approaches
 	ActionConsider  ActionType = "consider"
 	ActionAvoid     ActionType = "avoid"
 	ActionImplement ActionType = "implement"

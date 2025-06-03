@@ -15,35 +15,35 @@ type ErrorCode string
 
 const (
 	// Authentication and authorization errors
-	ErrorCodeUnauthorized   ErrorCode = "UNAUTHORIZED"
-	ErrorCodeForbidden      ErrorCode = "FORBIDDEN"
-	ErrorCodeInvalidAPIKey  ErrorCode = "INVALID_API_KEY" //nolint:gosec // This is an error code, not credentials
-	
+	ErrorCodeUnauthorized  ErrorCode = "UNAUTHORIZED"
+	ErrorCodeForbidden     ErrorCode = "FORBIDDEN"
+	ErrorCodeInvalidAPIKey ErrorCode = "INVALID_API_KEY" //nolint:gosec // This is an error code, not credentials
+
 	// Validation errors
 	ErrorCodeValidationError ErrorCode = "VALIDATION_ERROR"
 	ErrorCodeRequiredField   ErrorCode = "REQUIRED_FIELD"
 	ErrorCodeInvalidFormat   ErrorCode = "INVALID_FORMAT"
 	ErrorCodeInvalidValue    ErrorCode = "INVALID_VALUE"
-	
+
 	// Resource errors
-	ErrorCodeNotFound        ErrorCode = "NOT_FOUND"
-	ErrorCodeAlreadyExists   ErrorCode = "ALREADY_EXISTS"
-	ErrorCodeConflict        ErrorCode = "CONFLICT"
-	
+	ErrorCodeNotFound      ErrorCode = "NOT_FOUND"
+	ErrorCodeAlreadyExists ErrorCode = "ALREADY_EXISTS"
+	ErrorCodeConflict      ErrorCode = "CONFLICT"
+
 	// Rate limiting and quota errors
-	ErrorCodeRateLimited     ErrorCode = "RATE_LIMITED"
-	ErrorCodeQuotaExceeded   ErrorCode = "QUOTA_EXCEEDED"
-	
+	ErrorCodeRateLimited   ErrorCode = "RATE_LIMITED"
+	ErrorCodeQuotaExceeded ErrorCode = "QUOTA_EXCEEDED"
+
 	// System and processing errors
-	ErrorCodeInternalError   ErrorCode = "INTERNAL_ERROR"
+	ErrorCodeInternalError      ErrorCode = "INTERNAL_ERROR"
 	ErrorCodeServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
-	ErrorCodeTimeout         ErrorCode = "TIMEOUT"
-	ErrorCodeDatabaseError   ErrorCode = "DATABASE_ERROR"
-	ErrorCodeEmbeddingError  ErrorCode = "EMBEDDING_ERROR"
-	
+	ErrorCodeTimeout            ErrorCode = "TIMEOUT"
+	ErrorCodeDatabaseError      ErrorCode = "DATABASE_ERROR"
+	ErrorCodeEmbeddingError     ErrorCode = "EMBEDDING_ERROR"
+
 	// Repository and session errors
-	ErrorCodeInvalidRepository ErrorCode = "INVALID_REPOSITORY"
-	ErrorCodeInvalidSession    ErrorCode = "INVALID_SESSION"
+	ErrorCodeInvalidRepository  ErrorCode = "INVALID_REPOSITORY"
+	ErrorCodeInvalidSession     ErrorCode = "INVALID_SESSION"
 	ErrorCodeRepositoryNotFound ErrorCode = "REPOSITORY_NOT_FOUND"
 )
 
@@ -68,8 +68,8 @@ type ErrorDetails struct {
 
 // ValidationDetail provides specific validation error information
 type ValidationDetail struct {
-	Field  string `json:"field"`
-	Reason string `json:"reason"`
+	Field  string      `json:"field"`
+	Reason string      `json:"reason"`
 	Value  interface{} `json:"value,omitempty"`
 }
 
@@ -155,11 +155,11 @@ func NewInternalError(message string, originalError error) *StandardError {
 	details := map[string]interface{}{
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
-	
+
 	if originalError != nil {
 		details["original_error"] = originalError.Error()
 	}
-	
+
 	return &StandardError{
 		ErrorInfo: ErrorDetails{
 			Code:    ErrorCodeInternalError,
@@ -266,7 +266,7 @@ func (e *StandardError) ToJSON() ([]byte, error) {
 // WriteHTTPError writes StandardError as HTTP response
 func (e *StandardError) WriteHTTPError(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
-	
+
 	// Add rate limiting headers if applicable
 	if e.ErrorInfo.Code == ErrorCodeRateLimited {
 		if rateLimitDetail, ok := e.ErrorInfo.Details.(RateLimitDetail); ok {
@@ -275,9 +275,9 @@ func (e *StandardError) WriteHTTPError(w http.ResponseWriter) {
 			w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", rateLimitDetail.Remaining))
 		}
 	}
-	
+
 	w.WriteHeader(e.ToHTTPStatus())
-	
+
 	jsonBytes, _ := e.ToJSON()
 	_, _ = w.Write(jsonBytes)
 }
@@ -290,32 +290,32 @@ var (
 	ErrContentRequired    = NewRequiredFieldError("content")
 	ErrDecisionRequired   = NewRequiredFieldError("decision")
 	ErrRationaleRequired  = NewRequiredFieldError("rationale")
-	
+
 	ErrUnauthorizedAccess = NewUnauthorizedError("authentication_required")
 	ErrInvalidAPIKey      = NewStandardError(ErrorCodeInvalidAPIKey, "Invalid API key provided", nil)
-	
-	ErrInternalServer = NewInternalError("Internal server error occurred", nil)
+
+	ErrInternalServer     = NewInternalError("Internal server error occurred", nil)
 	ErrServiceUnavailable = NewStandardError(ErrorCodeServiceUnavailable, "Service temporarily unavailable", nil)
 )
 
 // Helper functions for error checking
 func IsValidationError(err *StandardError) bool {
-	return err.ErrorInfo.Code == ErrorCodeValidationError || 
-		   err.ErrorInfo.Code == ErrorCodeRequiredField ||
-		   err.ErrorInfo.Code == ErrorCodeInvalidFormat ||
-		   err.ErrorInfo.Code == ErrorCodeInvalidValue
+	return err.ErrorInfo.Code == ErrorCodeValidationError ||
+		err.ErrorInfo.Code == ErrorCodeRequiredField ||
+		err.ErrorInfo.Code == ErrorCodeInvalidFormat ||
+		err.ErrorInfo.Code == ErrorCodeInvalidValue
 }
 
 func IsAuthenticationError(err *StandardError) bool {
 	return err.ErrorInfo.Code == ErrorCodeUnauthorized ||
-		   err.ErrorInfo.Code == ErrorCodeForbidden ||
-		   err.ErrorInfo.Code == ErrorCodeInvalidAPIKey
+		err.ErrorInfo.Code == ErrorCodeForbidden ||
+		err.ErrorInfo.Code == ErrorCodeInvalidAPIKey
 }
 
 func IsSystemError(err *StandardError) bool {
 	return err.ErrorInfo.Code == ErrorCodeInternalError ||
-		   err.ErrorInfo.Code == ErrorCodeServiceUnavailable ||
-		   err.ErrorInfo.Code == ErrorCodeTimeout ||
-		   err.ErrorInfo.Code == ErrorCodeDatabaseError ||
-		   err.ErrorInfo.Code == ErrorCodeEmbeddingError
+		err.ErrorInfo.Code == ErrorCodeServiceUnavailable ||
+		err.ErrorInfo.Code == ErrorCodeTimeout ||
+		err.ErrorInfo.Code == ErrorCodeDatabaseError ||
+		err.ErrorInfo.Code == ErrorCodeEmbeddingError
 }

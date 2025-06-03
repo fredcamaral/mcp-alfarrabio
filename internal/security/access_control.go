@@ -1,3 +1,5 @@
+// Package security provides access control, encryption, and security
+// mechanisms for protecting data in the MCP Memory Server.
 package security
 
 import (

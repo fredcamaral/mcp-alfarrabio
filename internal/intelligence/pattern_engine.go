@@ -1,3 +1,5 @@
+// Package intelligence provides AI-powered pattern recognition, learning engines,
+// conflict detection, and knowledge graph capabilities for the MCP Memory Server.
 package intelligence
 
 import (

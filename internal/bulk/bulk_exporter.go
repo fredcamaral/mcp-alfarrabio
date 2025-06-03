@@ -23,9 +23,13 @@ import (
 type ExportFormat string
 
 const (
+	// ExportFormatJSON exports data in JSON format
 	ExportFormatJSON     ExportFormat = "json"
+	// ExportFormatMarkdown exports data in Markdown format
 	ExportFormatMarkdown ExportFormat = "markdown"
+	// ExportFormatCSV exports data in CSV format
 	ExportFormatCSV      ExportFormat = "csv"
+	// ExportFormatArchive exports data as an archive
 	ExportFormatArchive  ExportFormat = "archive"
 )
 
@@ -33,8 +37,11 @@ const (
 type CompressionType string
 
 const (
+	// CompressionNone indicates no compression
 	CompressionNone CompressionType = "none"
+	// CompressionGzip indicates gzip compression
 	CompressionGzip CompressionType = "gzip"
+	// CompressionZip indicates zip compression
 	CompressionZip  CompressionType = "zip"
 )
 

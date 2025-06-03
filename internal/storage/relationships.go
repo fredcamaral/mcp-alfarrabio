@@ -339,7 +339,7 @@ func (rs *RelationshipStore) GetByID(ctx context.Context, id string) (*types.Mem
 	// Get point by ID
 	points, err := rs.client.Get(ctx, &qdrant.GetPoints{
 		CollectionName: rs.collectionName,
-		Ids:            []*qdrant.PointId{rs.stringToPointId(id)},
+		Ids:            []*qdrant.PointId{rs.stringToPointID(id)},
 		WithPayload:    &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
 	})
 
@@ -364,7 +364,7 @@ func (rs *RelationshipStore) Delete(ctx context.Context, id string) error {
 		Points: &qdrant.PointsSelector{
 			PointsSelectorOneOf: &qdrant.PointsSelector_Points{
 				Points: &qdrant.PointsIdsList{
-					Ids: []*qdrant.PointId{rs.stringToPointId(id)},
+					Ids: []*qdrant.PointId{rs.stringToPointID(id)},
 				},
 			},
 		},
@@ -412,7 +412,7 @@ func (rs *RelationshipStore) relationshipToPoint(relationship types.MemoryRelati
 	}
 
 	return &qdrant.PointStruct{
-		Id:      rs.stringToPointId(relationship.ID),
+		Id:      rs.stringToPointID(relationship.ID),
 		Vectors: &qdrant.Vectors{VectorsOptions: &qdrant.Vectors_Vector{Vector: &qdrant.Vector{Data: []float32{0.0}}}}, // Dummy vector
 		Payload: payload,
 	}
@@ -421,7 +421,7 @@ func (rs *RelationshipStore) relationshipToPoint(relationship types.MemoryRelati
 // pointToRelationship converts a Qdrant point to MemoryRelationship
 func (rs *RelationshipStore) pointToRelationship(point *qdrant.RetrievedPoint) (*types.MemoryRelationship, error) {
 	payload := point.GetPayload()
-	id := rs.pointIdToString(point.GetId())
+	id := rs.pointIDToString(point.GetId())
 
 	// Parse required fields
 	sourceChunkID := rs.getStringFromPayload(payload, "source_chunk_id")
@@ -568,11 +568,11 @@ func (rs *RelationshipStore) int64ToValue(i int64) *qdrant.Value {
 	return &qdrant.Value{Kind: &qdrant.Value_IntegerValue{IntegerValue: i}}
 }
 
-func (rs *RelationshipStore) stringToPointId(s string) *qdrant.PointId {
+func (rs *RelationshipStore) stringToPointID(s string) *qdrant.PointId {
 	return &qdrant.PointId{PointIdOptions: &qdrant.PointId_Uuid{Uuid: s}}
 }
 
-func (rs *RelationshipStore) pointIdToString(id *qdrant.PointId) string {
+func (rs *RelationshipStore) pointIDToString(id *qdrant.PointId) string {
 	return id.GetUuid()
 }
 

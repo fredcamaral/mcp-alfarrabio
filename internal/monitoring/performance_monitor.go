@@ -1,3 +1,5 @@
+// Package monitoring provides performance monitoring and metrics collection
+// for tracking system health and resource usage in the MCP Memory Server.
 package monitoring
 
 import (

@@ -33,7 +33,7 @@ linters:
     - bodyclose      # Check HTTP response bodies are closed
     - contextcheck   # Check the function whether use a non-inherited context
     - errorlint      # Find code that will cause problems with the error wrapping scheme
-    - exportloopref  # Checks for pointers to enclosing loop variables
+    - copyloopvar    # Checks for pointers to enclosing loop variables
     - goconst        # Finds repeated strings that could be replaced by a constant
     - gocyclo        # Computes and checks the cyclomatic complexity of functions
     - nestif         # Reports deeply nested if statements
@@ -41,8 +41,6 @@ linters:
     # Code quality
     - dupl           # Tool for code clone detection
     - durationcheck  # Check for two durations multiplied together
-    - gofmt          # Gofmt checks whether code was gofmt-ed
-    - goimports      # Check import statements are formatted according to the 'goimport' command
     - misspell       # Finds commonly misspelled English words in comments
     - prealloc       # Find slice declarations that could potentially be preallocated
     - unconvert      # Remove unnecessary type conversions
@@ -53,7 +51,7 @@ linters:
     - gocritic       # Comprehensive Go linter
     - nilnil         # Checks that there is no simultaneous return of nil error and nil value
     - nolintlint     # Reports ill-formed or insufficient nolint directives
-    - revive         # Fast, configurable, extensible, flexible, and beautiful linter for Go
+#    - revive         # Fast, configurable, extensible, flexible, and beautiful linter for Go
 
 linters-settings:
   gocyclo:

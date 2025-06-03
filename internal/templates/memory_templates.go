@@ -1,3 +1,5 @@
+// Package templates provides memory templates and content formatting
+// for standardizing memory storage and retrieval in the MCP Memory Server.
 package templates
 
 import (

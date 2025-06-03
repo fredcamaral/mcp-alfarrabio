@@ -2518,8 +2518,8 @@ func (ms *MemoryServer) handleSuggestRelated(ctx context.Context, params map[str
 	}
 
 	maxSuggestions := 5
-	if max, exists := params["max_suggestions"].(float64); exists {
-		maxSuggestions = int(max)
+	if maxVal, exists := params["max_suggestions"].(float64); exists {
+		maxSuggestions = int(maxVal)
 	}
 
 	includePatterns := true
@@ -4449,8 +4449,8 @@ func (ms *MemoryServer) parseConflictResolutionParams(params map[string]interfac
 		config.Repository = repo
 	}
 
-	if max, ok := params["max_strategies"].(float64); ok {
-		config.MaxStrategies = int(max)
+	if maxVal, ok := params["max_strategies"].(float64); ok {
+		config.MaxStrategies = int(maxVal)
 	}
 
 	if include, ok := params["include_detailed_steps"].(bool); ok {
@@ -6132,8 +6132,8 @@ func (ms *MemoryServer) handleSearchMultiRepo(ctx context.Context, params map[st
 	}
 
 	maxResults := 10
-	if max, ok := params["max_results"].(float64); ok {
-		maxResults = int(max)
+	if maxVal, ok := params["max_results"].(float64); ok {
+		maxResults = int(maxVal)
 	}
 
 	includeSimilar := true
@@ -7932,7 +7932,7 @@ func (ms *MemoryServer) handleBulkOperation(ctx context.Context, params map[stri
 	logging.Info("MCP TOOL: memory_bulk_operation called", "params", params)
 
 	// Parse bulk operation request
-	req := bulk.BulkOperationRequest{}
+	req := bulk.OperationRequest{}
 
 	// Required operation parameter
 	if op, ok := params["operation"].(string); ok {
@@ -7983,7 +7983,7 @@ func (ms *MemoryServer) handleBulkOperation(ctx context.Context, params map[stri
 	}
 
 	// Convert to internal request
-	bulkReq, err := req.ToBulkRequest()
+	bulkReq, err := req.ToRequest()
 	if err != nil {
 		return nil, fmt.Errorf("invalid bulk request: %w", err)
 	}
@@ -8060,10 +8060,10 @@ func (ms *MemoryServer) handleBulkImport(ctx context.Context, params map[string]
 
 	// Store imported chunks if successful
 	if len(result.Chunks) > 0 {
-		bulkReq := bulk.BulkRequest{
+		bulkReq := bulk.Request{
 			Operation: bulk.OperationStore,
 			Chunks:    result.Chunks,
-			Options: bulk.BulkOptions{
+			Options: bulk.Options{
 				BatchSize:       50,
 				MaxConcurrency:  3,
 				ValidateFirst:   false, // Already validated during import

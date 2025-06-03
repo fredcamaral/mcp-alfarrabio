@@ -1,3 +1,5 @@
+// Package context provides context detection and session management
+// for identifying and grouping related memories in the MCP Memory Server.
 package context
 
 import (

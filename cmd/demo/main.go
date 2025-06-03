@@ -1,3 +1,5 @@
+// demo is a command-line tool that demonstrates the MCP Memory Server capabilities
+// by running through all available MCP tools and showing their functionality.
 package main
 
 import (

@@ -1,3 +1,5 @@
+// Package embeddings provides OpenAI integration for generating and managing
+// text embeddings with circuit breaker and retry capabilities.
 package embeddings
 
 import (
@@ -71,7 +73,7 @@ func (rl *RateLimiter) Allow() bool {
 	tokensToAdd := int(elapsed / rl.refillRate)
 
 	if tokensToAdd > 0 {
-		rl.tokens = min(rl.maxTokens, rl.tokens+tokensToAdd)
+		rl.tokens = minInt(rl.maxTokens, rl.tokens+tokensToAdd)
 		rl.lastRefill = now
 	}
 
@@ -342,7 +344,7 @@ func (oes *OpenAIEmbeddingService) GetCacheStats() map[string]interface{} {
 }
 
 // Helper function for Go 1.24.3 (older version doesn't have min built-in)
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

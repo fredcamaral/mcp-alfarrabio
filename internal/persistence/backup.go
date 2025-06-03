@@ -1,3 +1,5 @@
+// Package persistence provides backup and restore functionality
+// for memory data persistence in the MCP Memory Server.
 package persistence
 
 import (

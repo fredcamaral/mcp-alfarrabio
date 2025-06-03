@@ -56,15 +56,15 @@ func TestMultiProtocolErrorHandling(t *testing.T) {
 			t.Run("HTTP", func(t *testing.T) {
 				testHTTPErrorHandling(t, tc.error, tc.traceID, tc.expectedCode)
 			})
-			
+
 			t.Run("JSON-RPC", func(t *testing.T) {
 				testJSONRPCErrorHandling(t, tc.error, tc.traceID, tc.expectedCode)
 			})
-			
+
 			t.Run("GraphQL", func(t *testing.T) {
 				testGraphQLErrorHandling(t, tc.error, tc.traceID, tc.expectedCode)
 			})
-			
+
 			t.Run("WebSocket", func(t *testing.T) {
 				testWebSocketErrorHandling(t, tc.error, tc.traceID, tc.expectedCode)
 			})
@@ -75,34 +75,34 @@ func TestMultiProtocolErrorHandling(t *testing.T) {
 func testHTTPErrorHandling(t *testing.T, stdErr *StandardError, traceID, expectedCode string) {
 	// Add trace ID to error
 	errorWithTrace := stdErr.WithTraceID(traceID).WithProtocol("http")
-	
+
 	// Create HTTP response recorder
 	recorder := httptest.NewRecorder()
-	
+
 	// Write error to HTTP response
 	errorWithTrace.WriteHTTPError(recorder)
-	
+
 	// Verify HTTP status code
 	expectedStatus := errorWithTrace.ToHTTPStatus()
 	assert.Equal(t, expectedStatus, recorder.Code)
-	
+
 	// Verify Content-Type header
 	assert.Equal(t, "application/json", recorder.Header().Get("Content-Type"))
-	
+
 	// Verify trace ID in response header
 	if traceID != "" {
 		assert.Equal(t, traceID, recorder.Header().Get("X-Trace-ID"))
 	}
-	
+
 	// Verify JSON response body
 	var response StandardError
 	err := json.Unmarshal(recorder.Body.Bytes(), &response)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, expectedCode, string(response.ErrorInfo.Code))
 	assert.Equal(t, traceID, response.ErrorInfo.TraceID)
 	assert.Equal(t, "http", response.ErrorInfo.Protocol)
-	
+
 	// Verify rate limit headers for rate limit errors
 	if stdErr.ErrorInfo.Code == ErrorCodeRateLimited {
 		assert.NotEmpty(t, recorder.Header().Get("X-RateLimit-Limit"))
@@ -115,37 +115,37 @@ func testJSONRPCErrorHandling(t *testing.T, stdErr *StandardError, traceID, expe
 	assert.Equal(t, expectedCode, string(stdErr.ErrorInfo.Code))
 	// Add trace ID to error
 	errorWithTrace := stdErr.WithTraceID(traceID).WithProtocol("json-rpc")
-	
+
 	// Convert to JSON-RPC error
 	jsonRpcError := errorWithTrace.ToJSONRPCError("test-request-id")
-	
+
 	// Verify JSON-RPC structure
 	assert.Equal(t, "2.0", jsonRpcError.JSONRPC)
 	assert.Equal(t, "test-request-id", jsonRpcError.ID)
 	assert.NotNil(t, jsonRpcError.Error)
-	
+
 	// Verify error code mapping
 	expectedJSONRPCCode := mapToJSONRPCCode(stdErr.ErrorInfo.Code)
 	assert.Equal(t, expectedJSONRPCCode, jsonRpcError.Error.Code)
-	
+
 	// Verify error message
 	assert.Equal(t, stdErr.ErrorInfo.Message, jsonRpcError.Error.Message)
-	
+
 	// Verify error data contains trace ID
 	if data, ok := jsonRpcError.Error.Data.(*StandardError); ok {
 		assert.Equal(t, traceID, data.ErrorInfo.TraceID)
 		assert.Equal(t, "json-rpc", data.ErrorInfo.Protocol)
 	}
-	
+
 	// Test serialization
 	jsonBytes, err := json.Marshal(jsonRpcError)
 	require.NoError(t, err)
-	
+
 	// Test deserialization
 	var parsedResponse protocol.JSONRPCResponse
 	err = json.Unmarshal(jsonBytes, &parsedResponse)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, jsonRpcError.JSONRPC, parsedResponse.JSONRPC)
 	assert.Equal(t, jsonRpcError.ID, parsedResponse.ID)
 }
@@ -153,31 +153,31 @@ func testJSONRPCErrorHandling(t *testing.T, stdErr *StandardError, traceID, expe
 func testGraphQLErrorHandling(t *testing.T, stdErr *StandardError, traceID, expectedCode string) {
 	// Add trace ID to error
 	errorWithTrace := stdErr.WithTraceID(traceID).WithProtocol("graphql")
-	
+
 	// Convert to GraphQL error
 	graphqlError := errorWithTrace.ToGraphQLError()
-	
+
 	// Verify GraphQL error structure
 	assert.Equal(t, stdErr.ErrorInfo.Message, graphqlError["message"])
-	
+
 	// Verify extensions
 	extensions, ok := graphqlError["extensions"].(map[string]interface{})
 	require.True(t, ok)
-	
+
 	assert.Equal(t, expectedCode, extensions["code"])
 	assert.Equal(t, traceID, extensions["trace_id"])
 	assert.Equal(t, "graphql", extensions["protocol"])
 	assert.Equal(t, stdErr.ErrorInfo.Details, extensions["details"])
-	
+
 	// Test JSON serialization of GraphQL error
 	jsonBytes, err := json.Marshal(graphqlError)
 	require.NoError(t, err)
-	
+
 	// Test deserialization
 	var parsed map[string]interface{}
 	err = json.Unmarshal(jsonBytes, &parsed)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, stdErr.ErrorInfo.Message, parsed["message"])
 }
 
@@ -189,7 +189,7 @@ func testWebSocketErrorHandling(t *testing.T, stdErr *StandardError, traceID, ex
 		upgrader := websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool { return true },
 		}
-		
+
 		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
 			t.Fatalf("Failed to upgrade connection: %v", err)
@@ -199,18 +199,18 @@ func testWebSocketErrorHandling(t *testing.T, stdErr *StandardError, traceID, ex
 				t.Logf("Failed to close connection: %v", err)
 			}
 		}()
-		
+
 		// Read message from client
 		var msg map[string]interface{}
 		err = conn.ReadJSON(&msg)
 		if err != nil {
 			t.Fatalf("Failed to read JSON: %v", err)
 		}
-		
+
 		// Create error response
 		errorWithTrace := stdErr.WithTraceID(traceID).WithProtocol("websocket")
 		jsonRpcError := errorWithTrace.ToJSONRPCError(msg["id"])
-		
+
 		// Send error response
 		err = conn.WriteJSON(jsonRpcError)
 		if err != nil {
@@ -218,7 +218,7 @@ func testWebSocketErrorHandling(t *testing.T, stdErr *StandardError, traceID, ex
 		}
 	}))
 	defer server.Close()
-	
+
 	// Connect to WebSocket server
 	url := "ws" + strings.TrimPrefix(server.URL, "http")
 	conn, resp, err := websocket.DefaultDialer.Dial(url, nil)
@@ -235,27 +235,27 @@ func testWebSocketErrorHandling(t *testing.T, stdErr *StandardError, traceID, ex
 			t.Logf("Failed to close connection: %v", err)
 		}
 	}()
-	
+
 	// Send test request
 	request := map[string]interface{}{
 		"jsonrpc": "2.0",
 		"method":  "test_method",
 		"id":      "test-ws-id",
 	}
-	
+
 	err = conn.WriteJSON(request)
 	require.NoError(t, err)
-	
+
 	// Read error response
 	var response protocol.JSONRPCResponse
 	err = conn.ReadJSON(&response)
 	require.NoError(t, err)
-	
+
 	// Verify error response
 	assert.Equal(t, "2.0", response.JSONRPC)
 	assert.Equal(t, "test-ws-id", response.ID)
 	assert.NotNil(t, response.Error)
-	
+
 	// Verify error code and message
 	expectedJSONRPCCode := mapToJSONRPCCode(stdErr.ErrorInfo.Code)
 	assert.Equal(t, expectedJSONRPCCode, response.Error.Code)
@@ -266,16 +266,16 @@ func testWebSocketErrorHandling(t *testing.T, stdErr *StandardError, traceID, ex
 func TestErrorConsistencyAcrossProtocols(t *testing.T) {
 	baseError := NewValidationError("repository", "invalid format", "bad-repo")
 	traceID := "consistency-test-123"
-	
+
 	// Test consistency of error information
 	httpError := baseError.WithTraceID(traceID).WithProtocol("http")
 	jsonRpcError := baseError.WithTraceID(traceID).WithProtocol("json-rpc")
 	graphqlError := baseError.WithTraceID(traceID).WithProtocol("graphql")
 	wsError := baseError.WithTraceID(traceID).WithProtocol("websocket")
-	
+
 	// All should have the same core error information
 	errors := []*StandardError{httpError, jsonRpcError, graphqlError, wsError}
-	
+
 	for i, err := range errors {
 		t.Run(fmt.Sprintf("error_%d", i), func(t *testing.T) {
 			assert.Equal(t, string(ErrorCodeValidationError), string(err.ErrorInfo.Code))
@@ -295,28 +295,28 @@ const testTraceIDKey contextKey = "trace_id"
 func TestErrorPropagationWithContext(t *testing.T) {
 	ctx := context.Background()
 	traceID := "context-test-456"
-	
+
 	// Add trace ID to context
 	ctx = context.WithValue(ctx, testTraceIDKey, traceID)
-	
+
 	// Create error and verify it can extract trace ID from context
 	err := NewValidationError("test", "test reason", "test value")
-	
+
 	// Simulate context-aware error handling
 	if contextTraceID, ok := ctx.Value(testTraceIDKey).(string); ok {
 		err = err.WithTraceID(contextTraceID)
 	}
-	
+
 	assert.Equal(t, traceID, err.ErrorInfo.TraceID)
 }
 
 // TestConcurrentErrorHandling tests error handling under concurrent load
 func TestConcurrentErrorHandling(t *testing.T) {
 	const numGoroutines = 100
-	
+
 	// Channel to collect errors
 	errorChan := make(chan *StandardError, numGoroutines)
-	
+
 	// Start multiple goroutines creating and processing errors
 	for i := 0; i < numGoroutines; i++ {
 		go func(id int) {
@@ -324,17 +324,17 @@ func TestConcurrentErrorHandling(t *testing.T) {
 			err := NewValidationError("field", "reason", "value").
 				WithTraceID(traceID).
 				WithProtocol("http")
-			
+
 			// Test various conversions
 			_ = err.ToHTTPStatus()
 			_ = err.ToJSONRPCError(id)
 			_ = err.ToGraphQLError()
 			_, _ = err.ToJSON()
-			
+
 			errorChan <- err
 		}(i)
 	}
-	
+
 	// Collect all errors
 	errors := make([]*StandardError, 0, numGoroutines)
 	for i := 0; i < numGoroutines; i++ {
@@ -345,10 +345,10 @@ func TestConcurrentErrorHandling(t *testing.T) {
 			t.Fatal("Timeout waiting for error")
 		}
 	}
-	
+
 	// Verify all errors were processed correctly
 	assert.Len(t, errors, numGoroutines)
-	
+
 	// Verify each error has unique trace ID
 	traceIDs := make(map[string]bool)
 	for _, err := range errors {
@@ -374,26 +374,26 @@ func TestErrorMetadata(t *testing.T) {
 			Protocol: "http",
 		},
 	}
-	
+
 	// Test HTTP transformation preserves metadata
 	recorder := httptest.NewRecorder()
 	err.WriteHTTPError(recorder)
-	
+
 	var httpResponse StandardError
 	jsonErr := json.Unmarshal(recorder.Body.Bytes(), &httpResponse)
 	require.NoError(t, jsonErr)
-	
+
 	assert.Equal(t, err.ErrorInfo.Code, httpResponse.ErrorInfo.Code)
 	assert.Equal(t, err.ErrorInfo.TraceID, httpResponse.ErrorInfo.TraceID)
 	assert.NotNil(t, httpResponse.ErrorInfo.Details)
-	
+
 	// Test JSON-RPC transformation preserves metadata
 	jsonRpcErr := err.ToJSONRPCError("test-id")
 	if data, ok := jsonRpcErr.Error.Data.(*StandardError); ok {
 		assert.Equal(t, err.ErrorInfo.TraceID, data.ErrorInfo.TraceID)
 		assert.Equal(t, err.ErrorInfo.Details, data.ErrorInfo.Details)
 	}
-	
+
 	// Test GraphQL transformation preserves metadata
 	graphqlErr := err.ToGraphQLError()
 	extensions := graphqlErr["extensions"].(map[string]interface{})

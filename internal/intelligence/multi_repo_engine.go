@@ -556,13 +556,13 @@ func (mre *MultiRepoEngine) extractPatterns(chunks []types.ConversationChunk) []
 	return result
 }
 
-func (mre *MultiRepoEngine) mergeTechStack(existing, new []string) []string {
+func (mre *MultiRepoEngine) mergeTechStack(existing, newItems []string) []string {
 	merged := make(map[string]bool)
 
 	for _, tech := range existing {
 		merged[tech] = true
 	}
-	for _, tech := range new {
+	for _, tech := range newItems {
 		merged[tech] = true
 	}
 
@@ -574,13 +574,13 @@ func (mre *MultiRepoEngine) mergeTechStack(existing, new []string) []string {
 	return result
 }
 
-func (mre *MultiRepoEngine) mergePatterns(existing, new []string) []string {
+func (mre *MultiRepoEngine) mergePatterns(existing, newItems []string) []string {
 	merged := make(map[string]bool)
 
 	for _, pattern := range existing {
 		merged[pattern] = true
 	}
-	for _, pattern := range new {
+	for _, pattern := range newItems {
 		merged[pattern] = true
 	}
 

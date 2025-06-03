@@ -11,11 +11,11 @@ import (
 // MockEmbeddingService implements a mock embedding service for testing
 type MockEmbeddingService struct{}
 
-func (m *MockEmbeddingService) GenerateEmbedding(ctx context.Context, content string) ([]float64, error) {
+func (m *MockEmbeddingService) GenerateEmbedding(_ context.Context, content string) ([]float64, error) {
 	return []float64{0.1, 0.2, 0.3, 0.4, 0.5}, nil
 }
 
-func (m *MockEmbeddingService) GenerateBatchEmbeddings(ctx context.Context, contents []string) ([][]float64, error) {
+func (m *MockEmbeddingService) GenerateBatchEmbeddings(_ context.Context, contents []string) ([][]float64, error) {
 	embeddings := make([][]float64, len(contents))
 	for i := range contents {
 		embeddings[i] = []float64{0.1, 0.2, 0.3, 0.4, 0.5}
@@ -23,7 +23,7 @@ func (m *MockEmbeddingService) GenerateBatchEmbeddings(ctx context.Context, cont
 	return embeddings, nil
 }
 
-func (m *MockEmbeddingService) HealthCheck(ctx context.Context) error {
+func (m *MockEmbeddingService) HealthCheck(_ context.Context) error {
 	return nil
 }
 
@@ -44,7 +44,7 @@ func TestProcessConversation(t *testing.T) {
 	}
 
 	embeddingService := &MockEmbeddingService{}
-	cs := NewChunkingService(cfg, embeddingService)
+	cs := NewService(cfg, embeddingService)
 
 	ctx := context.Background()
 	sessionID := "test-session"
@@ -93,7 +93,7 @@ func TestCreateChunk(t *testing.T) {
 	}
 
 	embeddingService := &MockEmbeddingService{}
-	cs := NewChunkingService(cfg, embeddingService)
+	cs := NewService(cfg, embeddingService)
 
 	ctx := context.Background()
 	sessionID := "test-session-2"

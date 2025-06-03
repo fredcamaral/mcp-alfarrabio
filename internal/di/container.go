@@ -26,7 +26,7 @@ type Container struct {
 	Config              *config.Config
 	VectorStore         storage.VectorStore
 	EmbeddingService    embeddings.EmbeddingService
-	ChunkingService     *chunking.ChunkingService
+	ChunkingService     *chunking.Service
 	ContextSuggester    *workflow.ContextSuggester
 	BackupManager       *persistence.BackupManager
 	LearningEngine      *intelligence.LearningEngine
@@ -42,7 +42,7 @@ type Container struct {
 	ThreadManager       *threading.ThreadManager
 	ThreadStore         threading.ThreadStore
 	MemoryAnalytics     *analytics.MemoryAnalytics
-	AuditLogger         *audit.AuditLogger
+	AuditLogger         *audit.Logger
 }
 
 // NewContainer creates a new dependency injection container
@@ -101,7 +101,7 @@ func (c *Container) initializeServices() {
 	}
 
 	// Initialize chunking service
-	c.ChunkingService = chunking.NewChunkingService(&c.Config.Chunking, c.EmbeddingService)
+	c.ChunkingService = chunking.NewService(&c.Config.Chunking, c.EmbeddingService)
 
 	// Initialize backup manager
 	backupDir := os.Getenv("MCP_MEMORY_BACKUP_DIRECTORY")
@@ -131,7 +131,7 @@ func (c *Container) initializeServices() {
 		auditDir = "./audit_logs"
 	}
 	var err error
-	c.AuditLogger, err = audit.NewAuditLogger(auditDir)
+	c.AuditLogger, err = audit.NewLogger(auditDir)
 	if err != nil {
 		// Log error but don't fail initialization
 		fmt.Printf("Warning: Failed to initialize audit logger: %v\n", err)
@@ -219,7 +219,7 @@ func (c *Container) GetEmbeddingService() embeddings.EmbeddingService {
 }
 
 // GetChunkingService returns the chunking service instance
-func (c *Container) GetChunkingService() *chunking.ChunkingService {
+func (c *Container) GetChunkingService() *chunking.Service {
 	return c.ChunkingService
 }
 
@@ -264,7 +264,7 @@ func (c *Container) GetMemoryAnalytics() *analytics.MemoryAnalytics {
 }
 
 // GetAuditLogger returns the audit logger instance
-func (c *Container) GetAuditLogger() *audit.AuditLogger {
+func (c *Container) GetAuditLogger() *audit.Logger {
 	return c.AuditLogger
 }
 

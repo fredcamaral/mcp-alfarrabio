@@ -17,11 +17,13 @@ import (
 type AliasType string
 
 const (
-	// AliasTypeTag represents tag-based aliases (e.g., "@bug-fixes")
+	// AliasTypeTag represents a tag-based alias (e.g., "@bug-fixes")
 	AliasTypeTag        AliasType = "tag"        // Tag-based alias (e.g., "@bug-fixes")
-	// AliasTypeShortcut represents custom shortcuts (e.g., "#auth-module")
+	// AliasTypeShortcut represents a custom shortcut (e.g., "#auth-module")
 	AliasTypeShortcut   AliasType = "shortcut"   // Custom shortcut (e.g., "#auth-module")
+	// AliasTypeQuery represents a saved query (e.g., "!recent-errors")
 	AliasTypeQuery      AliasType = "query"      // Saved query (e.g., "!recent-errors")
+	// AliasTypeCollection represents a named collection (e.g., "&deployment-notes")
 	AliasTypeCollection AliasType = "collection" // Named collection (e.g., "&deployment-notes")
 )
 
@@ -54,9 +56,11 @@ type TargetType string
 const (
 	// TargetTypeChunks represents direct chunk references
 	TargetTypeChunks     TargetType = "chunks"     // Direct chunk references
-	// TargetTypeQuery represents dynamic query targets
+	// TargetTypeQuery represents a dynamic query
 	TargetTypeQuery      TargetType = "query"      // Dynamic query
+	// TargetTypeFilter represents filter criteria
 	TargetTypeFilter     TargetType = "filter"     // Filter criteria
+	// TargetTypeCollection represents a named collection
 	TargetTypeCollection TargetType = "collection" // Named collection
 )
 
@@ -478,7 +482,7 @@ func (am *AliasManager) resolveQueryTarget(_ context.Context, query QueryTarget)
 	return []types.ConversationChunk{}, nil
 }
 
-func (am *AliasManager) resolveFilterTarget(_ context.Context, _ FilterTarget) ([]types.ConversationChunk, error) {
+func (am *AliasManager) resolveFilterTarget(_ context.Context, filter FilterTarget) ([]types.ConversationChunk, error) {
 	// This would apply the filter criteria to find matching chunks
 	// For now, return empty - real implementation would query storage
 	return []types.ConversationChunk{}, nil
@@ -569,13 +573,13 @@ func (am *AliasManager) generateResultMessage(alias *Alias, resultCount int) str
 
 // Persistence methods (would be implemented based on storage backend)
 
-func (am *AliasManager) persistAlias(_ context.Context, _ Alias) error {
+func (am *AliasManager) persistAlias(_ context.Context, alias Alias) error {
 	// This would persist the alias to storage
 	// Implementation depends on the storage backend
 	return nil
 }
 
-func (am *AliasManager) removePersistedAlias(_ context.Context, _ string) error {
+func (am *AliasManager) removePersistedAlias(_ context.Context, aliasID string) error {
 	// This would remove the alias from persistent storage
 	return nil
 }

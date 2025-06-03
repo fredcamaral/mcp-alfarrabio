@@ -1,3 +1,5 @@
+// Package deployment provides deployment utilities including health checks,
+// graceful shutdown, and monitoring for the MCP Memory Server.
 package deployment
 
 import (

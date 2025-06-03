@@ -26,10 +26,15 @@ import (
 type ImportFormat string
 
 const (
+	// FormatJSON imports data in JSON format
 	FormatJSON     ImportFormat = "json"
+	// FormatMarkdown imports data in Markdown format
 	FormatMarkdown ImportFormat = "markdown"
+	// FormatCSV imports data in CSV format
 	FormatCSV      ImportFormat = "csv"
+	// FormatArchive imports data from archive format
 	FormatArchive  ImportFormat = "archive"
+	// FormatAuto automatically detects the format
 	FormatAuto     ImportFormat = "auto" // Auto-detect format
 )
 
@@ -49,9 +54,13 @@ type ImportOptions struct {
 type ChunkingStrategy string
 
 const (
+	// ChunkingAuto automatically determines the best chunking strategy
 	ChunkingAuto              ChunkingStrategy = "auto"
+	// ChunkingParagraph chunks data by paragraphs
 	ChunkingParagraph         ChunkingStrategy = "paragraph"
+	// ChunkingFixedSize chunks data into fixed-size pieces
 	ChunkingFixedSize         ChunkingStrategy = "fixed_size"
+	// ChunkingConversationTurns chunks data by conversation turns
 	ChunkingConversationTurns ChunkingStrategy = "conversation_turns"
 )
 

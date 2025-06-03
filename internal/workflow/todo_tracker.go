@@ -294,19 +294,19 @@ func (tt *TodoTracker) assessDifficulty(session *TodoSession, todo TodoItem) typ
 	if timeSpent > 30*time.Minute {
 		score += 2
 	} else if timeSpent > 10*time.Minute {
-		score += 1
+		score++
 	}
 
 	// Factor in number of tools used
 	if len(session.ToolsUsed) > 5 {
 		score += 2
 	} else if len(session.ToolsUsed) > 2 {
-		score += 1
+		score++
 	}
 
 	// Factor in number of files changed
 	if len(session.FilesChanged) > 3 {
-		score += 1
+		score++
 	}
 
 	// Convert score to difficulty
@@ -461,15 +461,15 @@ func (tt *TodoTracker) assessSessionDifficulty(session *TodoSession) types.Diffi
 	if duration > time.Hour {
 		score += 2
 	} else if duration > 30*time.Minute {
-		score += 1
+		score++
 	}
 
 	if totalTodos > 5 {
-		score += 1
+		score++
 	}
 
 	if len(session.ToolsUsed) > 8 {
-		score += 1
+		score++
 	}
 
 	switch {

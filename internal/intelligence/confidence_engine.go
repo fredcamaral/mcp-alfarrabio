@@ -181,7 +181,7 @@ func (ce *ConfidenceEngine) calculateConsistencyScore(_ context.Context, chunk *
 	}
 
 	// Find similar chunks to compare against
-	query := types.NewMemoryQuery(chunk.Content[:min(100, len(chunk.Content))])
+	query := types.NewMemoryQuery(chunk.Content[:minInt(100, len(chunk.Content))])
 	query.Repository = &chunk.Metadata.Repository
 	query.Types = []types.ChunkType{chunk.Type}
 	query.Limit = 10
@@ -421,7 +421,7 @@ func (ce *ConfidenceEngine) calculateUsageScore(chunk *types.ConversationChunk) 
 }
 
 // Utility functions
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

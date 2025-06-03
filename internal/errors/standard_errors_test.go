@@ -13,9 +13,9 @@ import (
 
 func TestStandardError_Creation(t *testing.T) {
 	tests := []struct {
-		name        string
-		createError func() *StandardError
-		expectedCode ErrorCode
+		name            string
+		createError     func() *StandardError
+		expectedCode    ErrorCode
 		expectedMessage string
 	}{
 		{
@@ -23,7 +23,7 @@ func TestStandardError_Creation(t *testing.T) {
 			createError: func() *StandardError {
 				return NewValidationError("repository", "must be a valid URL", "invalid-repo")
 			},
-			expectedCode: ErrorCodeValidationError,
+			expectedCode:    ErrorCodeValidationError,
 			expectedMessage: "Validation failed for field 'repository': must be a valid URL",
 		},
 		{
@@ -31,7 +31,7 @@ func TestStandardError_Creation(t *testing.T) {
 			createError: func() *StandardError {
 				return NewRequiredFieldError("session_id")
 			},
-			expectedCode: ErrorCodeRequiredField,
+			expectedCode:    ErrorCodeRequiredField,
 			expectedMessage: "Required field 'session_id' is missing",
 		},
 		{
@@ -39,7 +39,7 @@ func TestStandardError_Creation(t *testing.T) {
 			createError: func() *StandardError {
 				return NewRateLimitError(100, "1m", 60*time.Second, 0)
 			},
-			expectedCode: ErrorCodeRateLimited,
+			expectedCode:    ErrorCodeRateLimited,
 			expectedMessage: "Rate limit exceeded: 100 requests per 1m",
 		},
 		{
@@ -47,7 +47,7 @@ func TestStandardError_Creation(t *testing.T) {
 			createError: func() *StandardError {
 				return NewUnauthorizedError("missing_api_key")
 			},
-			expectedCode: ErrorCodeUnauthorized,
+			expectedCode:    ErrorCodeUnauthorized,
 			expectedMessage: "Authentication required",
 		},
 		{
@@ -55,7 +55,7 @@ func TestStandardError_Creation(t *testing.T) {
 			createError: func() *StandardError {
 				return NewInternalError("Database connection failed", assert.AnError)
 			},
-			expectedCode: ErrorCodeInternalError,
+			expectedCode:    ErrorCodeInternalError,
 			expectedMessage: "Database connection failed",
 		},
 	}
@@ -63,7 +63,7 @@ func TestStandardError_Creation(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			err := tt.createError()
-			
+
 			assert.Equal(t, tt.expectedCode, err.ErrorInfo.Code)
 			assert.Equal(t, tt.expectedMessage, err.ErrorInfo.Message)
 			assert.NotNil(t, err.ErrorInfo.Details)
@@ -73,15 +73,15 @@ func TestStandardError_Creation(t *testing.T) {
 
 func TestStandardError_WithMethods(t *testing.T) {
 	baseError := NewValidationError("test", "test reason", "test value")
-	
+
 	// Test WithTraceID
 	errorWithTrace := baseError.WithTraceID("trace-123")
 	assert.Equal(t, "trace-123", errorWithTrace.ErrorInfo.TraceID)
-	
+
 	// Test WithProtocol
 	errorWithProtocol := baseError.WithProtocol("http")
 	assert.Equal(t, "http", errorWithProtocol.ErrorInfo.Protocol)
-	
+
 	// Test chaining
 	chainedError := baseError.WithTraceID("trace-456").WithProtocol("json-rpc")
 	assert.Equal(t, "trace-456", chainedError.ErrorInfo.TraceID)
@@ -124,7 +124,7 @@ func TestStandardError_ToJSONRPCError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			jsonRpcError := tt.error.ToJSONRPCError(tt.id)
-			
+
 			assert.Equal(t, "2.0", jsonRpcError.JSONRPC)
 			assert.Equal(t, tt.id, jsonRpcError.ID)
 			assert.NotNil(t, jsonRpcError.Error)
@@ -183,22 +183,22 @@ func TestStandardError_ToHTTPStatus(t *testing.T) {
 
 func TestStandardError_WriteHTTPError(t *testing.T) {
 	tests := []struct {
-		name          string
-		error         *StandardError
+		name           string
+		error          *StandardError
 		expectedStatus int
-		checkHeaders  func(t *testing.T, headers http.Header)
+		checkHeaders   func(t *testing.T, headers http.Header)
 	}{
 		{
-			name:          "validation error response",
-			error:         NewValidationError("repository", "invalid format", "bad-repo"),
+			name:           "validation error response",
+			error:          NewValidationError("repository", "invalid format", "bad-repo"),
 			expectedStatus: http.StatusBadRequest,
 			checkHeaders: func(t *testing.T, headers http.Header) {
 				assert.Equal(t, "application/json", headers.Get("Content-Type"))
 			},
 		},
 		{
-			name:          "rate limit error with headers",
-			error:         NewRateLimitError(100, "1m", 60*time.Second, 5),
+			name:           "rate limit error with headers",
+			error:          NewRateLimitError(100, "1m", 60*time.Second, 5),
 			expectedStatus: http.StatusTooManyRequests,
 			checkHeaders: func(t *testing.T, headers http.Header) {
 				assert.Equal(t, "application/json", headers.Get("Content-Type"))
@@ -212,12 +212,12 @@ func TestStandardError_WriteHTTPError(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
-			
+
 			tt.error.WriteHTTPError(recorder)
-			
+
 			assert.Equal(t, tt.expectedStatus, recorder.Code)
 			tt.checkHeaders(t, recorder.Header())
-			
+
 			// Verify JSON response body
 			var response StandardError
 			err := json.Unmarshal(recorder.Body.Bytes(), &response)
@@ -232,15 +232,15 @@ func TestStandardError_ToGraphQLError(t *testing.T) {
 	stdErr := NewValidationError("test", "test reason", "test value").
 		WithTraceID("trace-123").
 		WithProtocol("graphql")
-	
+
 	graphqlError := stdErr.ToGraphQLError()
-	
+
 	// Check structure
 	assert.Equal(t, stdErr.ErrorInfo.Message, graphqlError["message"])
-	
+
 	extensions, ok := graphqlError["extensions"].(map[string]interface{})
 	require.True(t, ok)
-	
+
 	assert.Equal(t, string(stdErr.ErrorInfo.Code), extensions["code"])
 	assert.Equal(t, stdErr.ErrorInfo.Details, extensions["details"])
 	assert.Equal(t, "graphql", extensions["protocol"])
@@ -251,15 +251,15 @@ func TestStandardError_ToJSON(t *testing.T) {
 	stdErr := NewValidationError("repository", "invalid format", "bad-repo").
 		WithTraceID("trace-123").
 		WithProtocol("http")
-	
+
 	jsonBytes, err := stdErr.ToJSON()
 	require.NoError(t, err)
-	
+
 	// Verify JSON structure
 	var parsed StandardError
 	err = json.Unmarshal(jsonBytes, &parsed)
 	require.NoError(t, err)
-	
+
 	assert.Equal(t, stdErr.ErrorInfo.Code, parsed.ErrorInfo.Code)
 	assert.Equal(t, stdErr.ErrorInfo.Message, parsed.ErrorInfo.Message)
 	assert.Equal(t, stdErr.ErrorInfo.TraceID, parsed.ErrorInfo.TraceID)
@@ -324,8 +324,8 @@ func TestPredefinedErrors(t *testing.T) {
 
 func TestErrorClassifiers(t *testing.T) {
 	tests := []struct {
-		name     string
-		error    *StandardError
+		name         string
+		error        *StandardError
 		isValidation bool
 		isAuth       bool
 		isSystem     bool
@@ -413,7 +413,7 @@ func TestErrorDetails_Serialization(t *testing.T) {
 	assert.Equal(t, err.ErrorInfo.Message, parsed.ErrorInfo.Message)
 	assert.Equal(t, err.ErrorInfo.Protocol, parsed.ErrorInfo.Protocol)
 	assert.Equal(t, err.ErrorInfo.TraceID, parsed.ErrorInfo.TraceID)
-	
+
 	// Note: Details will be map[string]interface{} after JSON roundtrip
 	assert.NotNil(t, parsed.ErrorInfo.Details)
 }
@@ -427,7 +427,7 @@ func BenchmarkStandardError_Creation(b *testing.B) {
 
 func BenchmarkStandardError_ToJSONRPCError(b *testing.B) {
 	err := NewValidationError("repository", "invalid format", "bad-repo")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_ = err.ToJSONRPCError("test-id")
@@ -436,7 +436,7 @@ func BenchmarkStandardError_ToJSONRPCError(b *testing.B) {
 
 func BenchmarkStandardError_ToJSON(b *testing.B) {
 	err := NewValidationError("repository", "invalid format", "bad-repo")
-	
+
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		_, _ = err.ToJSON()

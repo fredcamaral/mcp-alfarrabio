@@ -1,3 +1,5 @@
+// Package websocket provides WebSocket hub and client management
+// for real-time communication in the MCP Memory Server.
 package websocket
 
 import (
@@ -11,16 +13,16 @@ import (
 
 // MemoryEvent represents a memory change event
 type MemoryEvent struct {
-	Type        string      `json:"type"`
-	Action      string      `json:"action"`      // "created", "updated", "deleted"
-	ChunkID     string      `json:"chunk_id,omitempty"`
-	Repository  string      `json:"repository,omitempty"`
-	SessionID   string      `json:"session_id,omitempty"`
-	Content     string      `json:"content,omitempty"`
-	Summary     string      `json:"summary,omitempty"`
-	Tags        []string    `json:"tags,omitempty"`
-	Timestamp   time.Time   `json:"timestamp"`
-	Data        interface{} `json:"data,omitempty"`
+	Type       string      `json:"type"`
+	Action     string      `json:"action"` // "created", "updated", "deleted"
+	ChunkID    string      `json:"chunk_id,omitempty"`
+	Repository string      `json:"repository,omitempty"`
+	SessionID  string      `json:"session_id,omitempty"`
+	Content    string      `json:"content,omitempty"`
+	Summary    string      `json:"summary,omitempty"`
+	Tags       []string    `json:"tags,omitempty"`
+	Timestamp  time.Time   `json:"timestamp"`
+	Data       interface{} `json:"data,omitempty"`
 }
 
 // Client represents a WebSocket client
@@ -72,9 +74,9 @@ func (h *Hub) Run(ctx context.Context) {
 			h.mutex.Lock()
 			h.clients[client] = true
 			h.mutex.Unlock()
-			
+
 			log.Printf("WebSocket client %s registered (total: %d)", client.ID, len(h.clients))
-			
+
 			// Send welcome message
 			welcomeEvent := MemoryEvent{
 				Type:      "connection",
@@ -86,7 +88,7 @@ func (h *Hub) Run(ctx context.Context) {
 					"message":   "Connected to memory update stream",
 				},
 			}
-			
+
 			select {
 			case client.Send <- welcomeEvent:
 			default:
@@ -208,7 +210,9 @@ func (c *Client) WritePump(ctx context.Context) {
 	for {
 		select {
 		case event, ok := <-c.Send:
-			c.Connection.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.Connection.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				log.Printf("Error setting write deadline: %v", err)
+			}
 			if !ok {
 				// The hub closed the channel
 				if err := c.Connection.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
@@ -223,7 +227,9 @@ func (c *Client) WritePump(ctx context.Context) {
 			}
 
 		case <-ticker.C:
-			c.Connection.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			if err := c.Connection.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
+				log.Printf("Error setting write deadline for heartbeat: %v", err)
+			}
 			heartbeat := MemoryEvent{
 				Type:      "heartbeat",
 				Timestamp: time.Now(),
@@ -250,9 +256,13 @@ func (c *Client) ReadPump(ctx context.Context) {
 
 	// Set read limits and timeouts
 	c.Connection.SetReadLimit(512)
-	c.Connection.SetReadDeadline(time.Now().Add(60 * time.Second))
+	if err := c.Connection.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+		log.Printf("Error setting read deadline: %v", err)
+	}
 	c.Connection.SetPongHandler(func(string) error {
-		c.Connection.SetReadDeadline(time.Now().Add(60 * time.Second))
+		if err := c.Connection.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
+			log.Printf("Error setting read deadline in pong handler: %v", err)
+		}
 		return nil
 	})
 
@@ -321,7 +331,7 @@ func (c *Client) handleClientMessage(msg map[string]interface{}) {
 	}
 }
 
-// Helper function to create memory events
+// NewMemoryEvent creates a new memory event with the specified parameters
 func NewMemoryEvent(eventType, action, chunkID, repository, sessionID string, data interface{}) MemoryEvent {
 	return MemoryEvent{
 		Type:       eventType,

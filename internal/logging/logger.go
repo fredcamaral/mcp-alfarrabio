@@ -1,3 +1,5 @@
+// Package logging provides structured logging capabilities
+// with different levels and output formats for the MCP Memory Server.
 package logging
 
 import (
@@ -19,13 +21,13 @@ type Logger interface {
 	Error(msg string, fields ...interface{})
 	Debug(msg string, fields ...interface{})
 	Fatal(msg string, fields ...interface{})
-	
+
 	// Context-aware logging with trace IDs
 	InfoContext(ctx context.Context, msg string, fields ...interface{})
 	WarnContext(ctx context.Context, msg string, fields ...interface{})
 	ErrorContext(ctx context.Context, msg string, fields ...interface{})
 	DebugContext(ctx context.Context, msg string, fields ...interface{})
-	
+
 	// Trace ID management
 	WithTraceID(traceID string) Logger
 	WithComponent(component string) Logger
@@ -242,30 +244,30 @@ func (l *StructuredLogger) outputJSON(entry LogEntry) {
 // outputText outputs the log entry as human-readable text
 func (l *StructuredLogger) outputText(entry LogEntry) {
 	var parts []string
-	
+
 	parts = append(parts, entry.Timestamp)
 	parts = append(parts, fmt.Sprintf("[%s]", entry.Level))
-	
+
 	if entry.TraceID != "" {
 		parts = append(parts, fmt.Sprintf("trace:%s", entry.TraceID[:8]))
 	}
-	
+
 	if entry.Component != "" {
 		parts = append(parts, fmt.Sprintf("component:%s", entry.Component))
 	}
-	
+
 	parts = append(parts, entry.Message)
-	
+
 	if len(entry.Fields) > 0 {
 		for k, v := range entry.Fields {
 			parts = append(parts, fmt.Sprintf("%s=%v", k, v))
 		}
 	}
-	
+
 	if entry.File != "" && entry.Line > 0 {
 		parts = append(parts, fmt.Sprintf("(%s:%d)", entry.File, entry.Line))
 	}
-	
+
 	fmt.Println(strings.Join(parts, " "))
 }
 
@@ -274,11 +276,11 @@ func (l *StructuredLogger) extractTraceID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
-	
+
 	if traceID, ok := ctx.Value(TraceIDKey).(string); ok {
 		return traceID
 	}
-	
+
 	return ""
 }
 

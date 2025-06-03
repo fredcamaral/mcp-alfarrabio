@@ -1,3 +1,5 @@
+// Package types provides core data structures and type definitions
+// for the MCP Memory Server, including conversation chunks and metadata.
 package types
 
 import (
@@ -34,18 +36,29 @@ const (
 type ChunkType string
 
 const (
+	// ChunkTypeProblem represents a problem or issue being discussed
 	ChunkTypeProblem              ChunkType = "problem"
+	// ChunkTypeSolution represents a solution to a problem
 	ChunkTypeSolution             ChunkType = "solution"
+	// ChunkTypeCodeChange represents code modifications or additions
 	ChunkTypeCodeChange           ChunkType = "code_change"
+	// ChunkTypeDiscussion represents general discussion or conversation
 	ChunkTypeDiscussion           ChunkType = "discussion"
+	// ChunkTypeArchitectureDecision represents architectural decisions or design choices
 	ChunkTypeArchitectureDecision ChunkType = "architecture_decision"
+	// ChunkTypeSessionSummary represents a summary of a work session
 	ChunkTypeSessionSummary       ChunkType = "session_summary"
+	// ChunkTypeAnalysis represents analysis or investigation results
 	ChunkTypeAnalysis             ChunkType = "analysis"
+	// ChunkTypeVerification represents verification or testing activities
 	ChunkTypeVerification         ChunkType = "verification"
+	// ChunkTypeQuestion represents questions or inquiries
 	ChunkTypeQuestion             ChunkType = "question"
-	// Task-oriented chunk types
+	// ChunkTypeTask represents a task or work item
 	ChunkTypeTask         ChunkType = "task"
+	// ChunkTypeTaskUpdate represents updates to a task
 	ChunkTypeTaskUpdate   ChunkType = "task_update"
+	// ChunkTypeTaskProgress represents progress tracking for a task
 	ChunkTypeTaskProgress ChunkType = "task_progress"
 )
 
@@ -62,9 +75,13 @@ func (ct ChunkType) Valid() bool {
 type Outcome string
 
 const (
+	// OutcomeSuccess indicates a successful completion or resolution
 	OutcomeSuccess    Outcome = "success"
+	// OutcomeInProgress indicates work is still ongoing
 	OutcomeInProgress Outcome = "in_progress"
+	// OutcomeFailed indicates a failed attempt or unsuccessful outcome
 	OutcomeFailed     Outcome = "failed"
+	// OutcomeAbandoned indicates the work was abandoned or cancelled
 	OutcomeAbandoned  Outcome = "abandoned"
 )
 
@@ -72,11 +89,17 @@ const (
 type TaskStatus string
 
 const (
+	// TaskStatusTodo indicates a task that needs to be started
 	TaskStatusTodo       TaskStatus = "todo"
+	// TaskStatusInProgress indicates a task currently being worked on
 	TaskStatusInProgress TaskStatus = "in_progress"
+	// TaskStatusCompleted indicates a finished task
 	TaskStatusCompleted  TaskStatus = "completed"
+	// TaskStatusBlocked indicates a task that cannot proceed due to dependencies
 	TaskStatusBlocked    TaskStatus = "blocked"
+	// TaskStatusCancelled indicates a task that was cancelled
 	TaskStatusCancelled  TaskStatus = "cancelled"
+	// TaskStatusOnHold indicates a task that is temporarily paused
 	TaskStatusOnHold     TaskStatus = "on_hold"
 )
 
@@ -102,8 +125,11 @@ func (ts TaskStatus) Valid() bool {
 type Difficulty string
 
 const (
+	// DifficultySimple indicates a simple or straightforward task
 	DifficultySimple   Difficulty = "simple"
+	// DifficultyModerate indicates a task of moderate complexity
 	DifficultyModerate Difficulty = "moderate"
+	// DifficultyComplex indicates a complex or challenging task
 	DifficultyComplex  Difficulty = "complex"
 )
 
@@ -120,9 +146,13 @@ func (d Difficulty) Valid() bool {
 type ConversationFlow string
 
 const (
+	// FlowProblem indicates conversation is focused on identifying problems
 	FlowProblem       ConversationFlow = "problem"
+	// FlowInvestigation indicates conversation is in investigation or exploration phase
 	FlowInvestigation ConversationFlow = "investigation"
+	// FlowSolution indicates conversation is focused on finding solutions
 	FlowSolution      ConversationFlow = "solution"
+	// FlowVerification indicates conversation is focused on verification or testing
 	FlowVerification  ConversationFlow = "verification"
 )
 
@@ -139,8 +169,11 @@ func (cf ConversationFlow) Valid() bool {
 type Recency string
 
 const (
+	// RecencyRecent filters for recent items
 	RecencyRecent    Recency = "recent"
+	// RecencyAllTime includes all items regardless of age
 	RecencyAllTime   Recency = "all_time"
+	// RecencyLastMonth filters for items from the last month
 	RecencyLastMonth Recency = "last_month"
 )
 
@@ -457,10 +490,12 @@ type SearchResults struct {
 
 // JSON marshaling helpers for custom types
 
+// MarshalJSON implements json.Marshaler for ChunkType
 func (ct ChunkType) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(ct))
 }
 
+// UnmarshalJSON implements json.Unmarshaler for ChunkType
 func (ct *ChunkType) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -470,10 +505,12 @@ func (ct *ChunkType) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements json.Marshaler for Outcome
 func (o Outcome) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(o))
 }
 
+// UnmarshalJSON implements json.Unmarshaler for Outcome
 func (o *Outcome) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -483,10 +520,12 @@ func (o *Outcome) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements json.Marshaler for Difficulty
 func (d Difficulty) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(d))
 }
 
+// UnmarshalJSON implements json.Unmarshaler for Difficulty
 func (d *Difficulty) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -496,10 +535,12 @@ func (d *Difficulty) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements json.Marshaler for ConversationFlow
 func (cf ConversationFlow) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(cf))
 }
 
+// UnmarshalJSON implements json.Unmarshaler for ConversationFlow
 func (cf *ConversationFlow) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {
@@ -509,10 +550,12 @@ func (cf *ConversationFlow) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// MarshalJSON implements json.Marshaler for Recency
 func (r Recency) MarshalJSON() ([]byte, error) {
 	return json.Marshal(string(r))
 }
 
+// UnmarshalJSON implements json.Unmarshaler for Recency
 func (r *Recency) UnmarshalJSON(data []byte) error {
 	var s string
 	if err := json.Unmarshal(data, &s); err != nil {

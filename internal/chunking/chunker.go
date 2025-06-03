@@ -1,3 +1,5 @@
+// Package chunking provides intelligent content chunking strategies
+// for optimizing memory storage and retrieval in the MCP Memory Server.
 package chunking
 
 import (
@@ -20,8 +22,8 @@ const (
 	SignificanceLow    = "low"
 )
 
-// ChunkingService handles the intelligent chunking of conversations
-type ChunkingService struct {
+// Service handles the intelligent chunking of conversations
+type Service struct {
 	config           *config.ChunkingConfig
 	embeddingService embeddings.EmbeddingService
 
@@ -43,9 +45,9 @@ type ChunkingService struct {
 	performancePatterns   []*regexp.Regexp
 }
 
-// NewChunkingService creates a new chunking service
-func NewChunkingService(cfg *config.ChunkingConfig, embeddingService embeddings.EmbeddingService) *ChunkingService {
-	cs := &ChunkingService{
+// NewService creates a new chunking service
+func NewService(cfg *config.ChunkingConfig, embeddingService embeddings.EmbeddingService) *Service {
+	cs := &Service{
 		config:           cfg,
 		embeddingService: embeddingService,
 		currentContext:   &types.ChunkingContext{},
@@ -58,7 +60,7 @@ func NewChunkingService(cfg *config.ChunkingConfig, embeddingService embeddings.
 }
 
 // initializePatterns sets up regex patterns for content analysis
-func (cs *ChunkingService) initializePatterns() {
+func (cs *Service) initializePatterns() {
 	// Problem identification patterns
 	cs.problemPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)(error|failed|issue|problem|bug|broken)`),
@@ -133,7 +135,7 @@ func (cs *ChunkingService) initializePatterns() {
 }
 
 // ShouldCreateChunk determines if a new chunk should be created based on context
-func (cs *ChunkingService) ShouldCreateChunk(context types.ChunkingContext) bool {
+func (cs *Service) ShouldCreateChunk(context types.ChunkingContext) bool {
 	// Update current context
 	cs.currentContext = &context
 
@@ -172,7 +174,7 @@ func (cs *ChunkingService) ShouldCreateChunk(context types.ChunkingContext) bool
 }
 
 // CreateChunk creates a conversation chunk from the current context
-func (cs *ChunkingService) CreateChunk(ctx context.Context, sessionID, content string, metadata types.ChunkMetadata) (*types.ConversationChunk, error) {
+func (cs *Service) CreateChunk(ctx context.Context, sessionID, content string, metadata types.ChunkMetadata) (*types.ConversationChunk, error) {
 	if content == "" {
 		return nil, fmt.Errorf("content cannot be empty")
 	}
@@ -213,7 +215,7 @@ func (cs *ChunkingService) CreateChunk(ctx context.Context, sessionID, content s
 }
 
 // analyzeContentType determines the type of chunk based on content analysis
-func (cs *ChunkingService) analyzeContentType(content string) types.ChunkType {
+func (cs *Service) analyzeContentType(content string) types.ChunkType {
 	content = strings.ToLower(content)
 
 	// Check for architecture decisions
@@ -250,7 +252,7 @@ func (cs *ChunkingService) analyzeContentType(content string) types.ChunkType {
 }
 
 // enrichMetadata adds analysis-based metadata to the chunk
-func (cs *ChunkingService) enrichMetadata(metadata types.ChunkMetadata, content string) types.ChunkMetadata {
+func (cs *Service) enrichMetadata(metadata types.ChunkMetadata, content string) types.ChunkMetadata {
 	// Add current context tools and files if not already present
 	if cs.currentContext != nil {
 		if len(metadata.ToolsUsed) == 0 {
@@ -311,7 +313,7 @@ func (cs *ChunkingService) enrichMetadata(metadata types.ChunkMetadata, content 
 }
 
 // extractTags extracts relevant tags from content
-func (cs *ChunkingService) extractTags(content string) []string {
+func (cs *Service) extractTags(content string) []string {
 	tags := []string{}
 	content = strings.ToLower(content)
 
@@ -349,7 +351,7 @@ func (cs *ChunkingService) extractTags(content string) []string {
 }
 
 // assessDifficulty determines the difficulty level based on content
-func (cs *ChunkingService) assessDifficulty(content string) types.Difficulty {
+func (cs *Service) assessDifficulty(content string) types.Difficulty {
 	complexityScore := 0
 
 	// Indicators of complexity
@@ -392,7 +394,7 @@ func (cs *ChunkingService) assessDifficulty(content string) types.Difficulty {
 }
 
 // assessOutcome determines the outcome based on content
-func (cs *ChunkingService) assessOutcome(content string) types.Outcome {
+func (cs *Service) assessOutcome(content string) types.Outcome {
 	content = strings.ToLower(content)
 
 	// Strong success indicators (weighted higher)
@@ -464,14 +466,14 @@ func (cs *ChunkingService) assessOutcome(content string) types.Outcome {
 }
 
 // generateSummary creates an AI-powered summary of the content
-func (cs *ChunkingService) generateSummary(_ context.Context, content string, _ types.ChunkType) string {
+func (cs *Service) generateSummary(_ context.Context, content string, _ types.ChunkType) string {
 	// For now, implement a simple extractive summary
 	// In a full implementation, this would use an LLM for abstractive summarization
 	return cs.generateSimpleSummary(content)
 }
 
 // generateSimpleSummary creates a simple extractive summary
-func (cs *ChunkingService) generateSimpleSummary(content string) string {
+func (cs *Service) generateSimpleSummary(content string) string {
 	lines := strings.Split(content, "\n")
 
 	// Take first meaningful line as summary
@@ -491,7 +493,7 @@ func (cs *ChunkingService) generateSimpleSummary(content string) string {
 }
 
 // prepareContentForEmbedding formats content optimally for embedding generation
-func (cs *ChunkingService) prepareContentForEmbedding(chunk *types.ConversationChunk) string {
+func (cs *Service) prepareContentForEmbedding(chunk *types.ConversationChunk) string {
 	parts := []string{}
 
 	// Include chunk type for context
@@ -533,7 +535,7 @@ func (cs *ChunkingService) prepareContentForEmbedding(chunk *types.ConversationC
 }
 
 // cleanContentForEmbedding removes formatting and emojis that pollute vector similarity
-func (cs *ChunkingService) cleanContentForEmbedding(content string) string {
+func (cs *Service) cleanContentForEmbedding(content string) string {
 	// Remove common emojis and symbols that pollute semantic search
 	emojiPattern := `[🚀🔍🔒🔧💡⚡✅❌🎯📊📈📉🛠️🔄🌟⭐💻📝🗂️🎉🔥💪🎨🚨⚠️✨🔎🆕🔵🟢🔴🟡]`
 	re := regexp.MustCompile(emojiPattern)
@@ -580,7 +582,7 @@ func (cs *ChunkingService) cleanContentForEmbedding(content string) string {
 }
 
 // hasContextSwitch detects if there has been a significant context switch
-func (cs *ChunkingService) hasContextSwitch(context types.ChunkingContext) bool {
+func (cs *Service) hasContextSwitch(context types.ChunkingContext) bool {
 	if len(cs.contextHistory) == 0 {
 		return false
 	}
@@ -632,12 +634,12 @@ func (cs *ChunkingService) hasContextSwitch(context types.ChunkingContext) bool 
 }
 
 // GetCurrentContext returns the current chunking context
-func (cs *ChunkingService) GetCurrentContext() *types.ChunkingContext {
+func (cs *Service) GetCurrentContext() *types.ChunkingContext {
 	return cs.currentContext
 }
 
 // UpdateContext updates the current context with new information
-func (cs *ChunkingService) UpdateContext(updates map[string]interface{}) {
+func (cs *Service) UpdateContext(updates map[string]interface{}) {
 	if cs.currentContext == nil {
 		cs.currentContext = &types.ChunkingContext{}
 	}
@@ -664,7 +666,7 @@ func (cs *ChunkingService) UpdateContext(updates map[string]interface{}) {
 }
 
 // ProcessConversation processes a conversation into multiple chunks intelligently
-func (cs *ChunkingService) ProcessConversation(ctx context.Context, sessionID string, conversation string, baseMetadata types.ChunkMetadata) ([]types.ConversationChunk, error) {
+func (cs *Service) ProcessConversation(ctx context.Context, sessionID string, conversation string, baseMetadata types.ChunkMetadata) ([]types.ConversationChunk, error) {
 	if conversation == "" {
 		return nil, fmt.Errorf("conversation cannot be empty")
 	}
@@ -709,7 +711,7 @@ func (cs *ChunkingService) ProcessConversation(ctx context.Context, sessionID st
 }
 
 // splitConversation splits a conversation into logical segments
-func (cs *ChunkingService) splitConversation(conversation string) []string {
+func (cs *Service) splitConversation(conversation string) []string {
 	segments := []string{}
 	currentSegment := ""
 	lines := strings.Split(conversation, "\n")
@@ -762,7 +764,7 @@ func (cs *ChunkingService) splitConversation(conversation string) []string {
 }
 
 // createSummaryChunk creates a summary chunk for a group of chunks
-func (cs *ChunkingService) createSummaryChunk(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata types.ChunkMetadata) *types.ConversationChunk {
+func (cs *Service) createSummaryChunk(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata types.ChunkMetadata) *types.ConversationChunk {
 	if len(chunks) == 0 {
 		return nil
 	}
@@ -790,7 +792,7 @@ func (cs *ChunkingService) createSummaryChunk(ctx context.Context, sessionID str
 }
 
 // createSessionSummary creates a final summary for the entire session
-func (cs *ChunkingService) createSessionSummary(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata types.ChunkMetadata) *types.ConversationChunk {
+func (cs *Service) createSessionSummary(ctx context.Context, sessionID string, chunks []types.ConversationChunk, baseMetadata types.ChunkMetadata) *types.ConversationChunk {
 	// Analyze chunk types
 	typeCounts := make(map[types.ChunkType]int)
 	for _, chunk := range chunks {
@@ -854,7 +856,7 @@ func (cs *ChunkingService) createSessionSummary(ctx context.Context, sessionID s
 }
 
 // Reset resets the chunking service state
-func (cs *ChunkingService) Reset() {
+func (cs *Service) Reset() {
 	cs.currentContext = &types.ChunkingContext{}
 	cs.contextHistory = []types.ChunkingContext{}
 	cs.lastChunkTime = time.Now()
@@ -873,7 +875,7 @@ func getEnvInt(key string, defaultValue int) int {
 // Smart Detection Functions
 
 // detectSmartTags identifies specialized tags based on content patterns
-func (cs *ChunkingService) detectSmartTags(content string) []string {
+func (cs *Service) detectSmartTags(content string) []string {
 	tags := []string{}
 
 	// High-impact decision detection
@@ -948,7 +950,7 @@ func (cs *ChunkingService) detectSmartTags(content string) []string {
 }
 
 // buildExtendedMetadata creates rich metadata for smart analysis
-func (cs *ChunkingService) buildExtendedMetadata(content string, metadata types.ChunkMetadata) map[string]interface{} {
+func (cs *Service) buildExtendedMetadata(content string, metadata types.ChunkMetadata) map[string]interface{} {
 	extended := make(map[string]interface{})
 
 	// Calculate impact score (0.0 to 1.0)
@@ -985,7 +987,7 @@ func (cs *ChunkingService) buildExtendedMetadata(content string, metadata types.
 }
 
 // calculateImpactScore determines the impact level of the content
-func (cs *ChunkingService) calculateImpactScore(content string, metadata types.ChunkMetadata) float64 {
+func (cs *Service) calculateImpactScore(content string, metadata types.ChunkMetadata) float64 {
 	score := 0.0
 
 	// Base score from chunk type
@@ -1042,7 +1044,7 @@ func (cs *ChunkingService) calculateImpactScore(content string, metadata types.C
 }
 
 // calculateReusabilityScore determines how reusable the content is
-func (cs *ChunkingService) calculateReusabilityScore(content string) float64 {
+func (cs *Service) calculateReusabilityScore(content string) float64 {
 	score := 0.0
 
 	// Reusable pattern bonus
@@ -1088,7 +1090,7 @@ func (cs *ChunkingService) calculateReusabilityScore(content string) float64 {
 }
 
 // determineSignificanceLevel categorizes the overall significance
-func (cs *ChunkingService) determineSignificanceLevel(impactScore, reusabilityScore float64) string {
+func (cs *Service) determineSignificanceLevel(impactScore, reusabilityScore float64) string {
 	combinedScore := (impactScore + reusabilityScore) / 2
 
 	switch {
@@ -1104,7 +1106,7 @@ func (cs *ChunkingService) determineSignificanceLevel(impactScore, reusabilitySc
 }
 
 // extractTechnicalConcepts identifies key technical concepts
-func (cs *ChunkingService) extractTechnicalConcepts(content string) []string {
+func (cs *Service) extractTechnicalConcepts(content string) []string {
 	concepts := []string{}
 
 	// Technology patterns
@@ -1129,7 +1131,7 @@ func (cs *ChunkingService) extractTechnicalConcepts(content string) []string {
 }
 
 // analyzeComplexity provides complexity indicators
-func (cs *ChunkingService) analyzeComplexity(content string, metadata types.ChunkMetadata) map[string]interface{} {
+func (cs *Service) analyzeComplexity(content string, metadata types.ChunkMetadata) map[string]interface{} {
 	complexity := make(map[string]interface{})
 
 	// Content length indicator
@@ -1161,7 +1163,7 @@ func (cs *ChunkingService) analyzeComplexity(content string, metadata types.Chun
 }
 
 // estimateTimeInvestment estimates time spent based on content and metadata
-func (cs *ChunkingService) estimateTimeInvestment(content string, metadata types.ChunkMetadata) int {
+func (cs *Service) estimateTimeInvestment(content string, metadata types.ChunkMetadata) int {
 	// Base time estimation
 	baseTime := 5 // minutes
 
@@ -1198,7 +1200,7 @@ func (cs *ChunkingService) estimateTimeInvestment(content string, metadata types
 }
 
 // assessLearningValue determines the educational value of the content
-func (cs *ChunkingService) assessLearningValue(content string, impactScore float64) string {
+func (cs *Service) assessLearningValue(content string, impactScore float64) string {
 	// High impact usually means high learning value
 	if impactScore >= 0.7 {
 		return "high"
