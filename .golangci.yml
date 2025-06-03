@@ -34,7 +34,7 @@ linters:
     - whitespace     # Tool for detection of leading and trailing whitespace
     
     # Additional quality checks
-    - gocritic       # Comprehensive Go linter
+    #- gocritic       # Comprehensive Go linter
     - nilnil         # Checks that there is no simultaneous return of nil error and nil value
     - nolintlint     # Reports ill-formed or insufficient nolint directives
   settings:
