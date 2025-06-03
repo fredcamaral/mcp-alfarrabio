@@ -17,7 +17,7 @@ type Operation string
 
 const (
 	// OperationStore represents a bulk store operation
-	OperationStore  Operation = "store"
+	OperationStore Operation = "store"
 	// OperationUpdate represents a bulk update operation
 	OperationUpdate Operation = "update"
 	// OperationDelete represents a bulk delete operation
@@ -29,13 +29,13 @@ type OperationStatus string
 
 const (
 	// StatusPending indicates an operation is pending
-	StatusPending   OperationStatus = "pending"
+	StatusPending OperationStatus = "pending"
 	// StatusRunning indicates an operation is currently running
-	StatusRunning   OperationStatus = "running"
+	StatusRunning OperationStatus = "running"
 	// StatusCompleted indicates an operation has completed successfully
 	StatusCompleted OperationStatus = "completed"
 	// StatusFailed indicates an operation has failed
-	StatusFailed    OperationStatus = "failed"
+	StatusFailed OperationStatus = "failed"
 	// StatusCancelled indicates an operation was cancelled
 	StatusCancelled OperationStatus = "cancelled"
 )
@@ -46,7 +46,7 @@ type Request struct {
 	Operation   Operation                 `json:"operation"`
 	Chunks      []types.ConversationChunk `json:"chunks,omitempty"`
 	IDs         []string                  `json:"ids,omitempty"` // For delete operations
-	Options     Options               `json:"options"`
+	Options     Options                   `json:"options"`
 	CreatedAt   time.Time                 `json:"created_at"`
 	StartedAt   *time.Time                `json:"started_at,omitempty"`
 	CompletedAt *time.Time                `json:"completed_at,omitempty"`
@@ -54,12 +54,12 @@ type Request struct {
 
 // Options configures bulk operation behavior
 type Options struct {
-	BatchSize        int                `json:"batch_size"`        // Number of items per batch
-	MaxConcurrency   int                `json:"max_concurrency"`   // Max concurrent batches
-	ValidateFirst    bool               `json:"validate_first"`    // Validate all items before processing
-	ContinueOnError  bool               `json:"continue_on_error"` // Continue processing if individual items fail
-	DryRun           bool               `json:"dry_run"`           // Preview operation without executing
-	ConflictPolicy   ConflictPolicy     `json:"conflict_policy"`   // How to handle conflicts
+	BatchSize        int            `json:"batch_size"`        // Number of items per batch
+	MaxConcurrency   int            `json:"max_concurrency"`   // Max concurrent batches
+	ValidateFirst    bool           `json:"validate_first"`    // Validate all items before processing
+	ContinueOnError  bool           `json:"continue_on_error"` // Continue processing if individual items fail
+	DryRun           bool           `json:"dry_run"`           // Preview operation without executing
+	ConflictPolicy   ConflictPolicy `json:"conflict_policy"`   // How to handle conflicts
 	ProgressCallback func(Progress) `json:"-"`                 // Progress callback function
 }
 
@@ -68,13 +68,13 @@ type ConflictPolicy string
 
 const (
 	// ConflictPolicySkip skips conflicting items
-	ConflictPolicySkip      ConflictPolicy = "skip"      // Skip conflicting items
+	ConflictPolicySkip ConflictPolicy = "skip" // Skip conflicting items
 	// ConflictPolicyOverwrite overwrites existing items
 	ConflictPolicyOverwrite ConflictPolicy = "overwrite" // Overwrite existing items
 	// ConflictPolicyMerge merges with existing items
-	ConflictPolicyMerge     ConflictPolicy = "merge"     // Merge with existing items
+	ConflictPolicyMerge ConflictPolicy = "merge" // Merge with existing items
 	// ConflictPolicyFail fails the entire operation on conflict
-	ConflictPolicyFail      ConflictPolicy = "fail"      // Fail the entire operation on conflict
+	ConflictPolicyFail ConflictPolicy = "fail" // Fail the entire operation on conflict
 )
 
 // Progress represents the progress of a bulk operation
@@ -91,7 +91,7 @@ type Progress struct {
 	StartTime        time.Time         `json:"start_time"`
 	ElapsedTime      time.Duration     `json:"elapsed_time"`
 	EstimatedTime    time.Duration     `json:"estimated_time"`
-	Errors           []Error       `json:"errors,omitempty"`
+	Errors           []Error           `json:"errors,omitempty"`
 	ValidationErrors []ValidationError `json:"validation_errors,omitempty"`
 }
 
@@ -113,8 +113,8 @@ type ValidationError struct {
 // Result represents the final result of a bulk operation
 type Result struct {
 	Progress     Progress `json:"progress"`
-	ProcessedIDs []string     `json:"processed_ids,omitempty"`
-	Summary      string       `json:"summary"`
+	ProcessedIDs []string `json:"processed_ids,omitempty"`
+	Summary      string   `json:"summary"`
 }
 
 // Manager handles bulk operations on memory chunks

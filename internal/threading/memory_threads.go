@@ -33,7 +33,7 @@ type ThreadStatus string
 
 const (
 	// ThreadStatusActive represents ongoing work threads
-	ThreadStatusActive    ThreadStatus = "active"    // Ongoing work
+	ThreadStatusActive ThreadStatus = "active" // Ongoing work
 	// ThreadStatusComplete represents successfully completed threads
 	ThreadStatusComplete  ThreadStatus = "complete"  // Successfully completed
 	ThreadStatusPaused    ThreadStatus = "paused"    // Temporarily paused

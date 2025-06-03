@@ -46,15 +46,15 @@ type EventType string
 
 const (
 	// EventTypeProblemFound represents when a problem is identified
-	EventTypeProblemFound     EventType = "problem_found"
+	EventTypeProblemFound EventType = "problem_found"
 	// EventTypeSolutionFound represents when a solution is discovered
-	EventTypeSolutionFound    EventType = "solution_found"
+	EventTypeSolutionFound EventType = "solution_found"
 	// EventTypeDecisionMade represents when a decision is made
-	EventTypeDecisionMade     EventType = "decision_made"
+	EventTypeDecisionMade EventType = "decision_made"
 	// EventTypeBreakthroughMade represents when a breakthrough occurs
 	EventTypeBreakthroughMade EventType = "breakthrough_made"
 	// EventTypeErrorResolved represents when an error is resolved
-	EventTypeErrorResolved    EventType = "error_resolved"
+	EventTypeErrorResolved EventType = "error_resolved"
 )
 
 // FlowTransition represents a transition between conversation phases

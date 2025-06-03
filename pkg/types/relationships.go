@@ -13,40 +13,40 @@ type RelationType string
 
 const (
 	// RelationLedTo indicates that one chunk led to another (e.g., problem led to solution)
-	RelationLedTo    RelationType = "led_to"    // Problem led to solution
+	RelationLedTo RelationType = "led_to" // Problem led to solution
 	// RelationSolvedBy indicates that one chunk was solved by another
 	RelationSolvedBy RelationType = "solved_by" // Problem solved by solution
 
 	// RelationDependsOn indicates that one chunk depends on another
-	RelationDependsOn  RelationType = "depends_on" // Feature depends on another
+	RelationDependsOn RelationType = "depends_on" // Feature depends on another
 	// RelationEnables indicates that one chunk enables another
-	RelationEnables    RelationType = "enables"    // Decision enables feature
+	RelationEnables RelationType = "enables" // Decision enables feature
 	// RelationImplements indicates that one chunk implements another
 	RelationImplements RelationType = "implements" // Implementation of design/spec
 
 	// RelationConflictsWith indicates that two chunks are in conflict
 	RelationConflictsWith RelationType = "conflicts_with" // Decisions conflict
 	// RelationSupersedes indicates that one chunk supersedes another
-	RelationSupersedes    RelationType = "supersedes"     // New decision supersedes old
+	RelationSupersedes RelationType = "supersedes" // New decision supersedes old
 
 	// RelationRelatedTo indicates a general relationship between chunks
 	RelationRelatedTo RelationType = "related_to" // General relation
 	// RelationFollowsUp indicates that one chunk follows up on another
 	RelationFollowsUp RelationType = "follows_up" // Follow-up discussion
 	// RelationPrecedes indicates temporal precedence
-	RelationPrecedes  RelationType = "precedes"   // Temporal precedence
+	RelationPrecedes RelationType = "precedes" // Temporal precedence
 
 	// RelationLearnedFrom indicates that knowledge was derived from another chunk
 	RelationLearnedFrom RelationType = "learned_from" // Knowledge derived from
 	// RelationTeaches indicates that one chunk teaches a concept
-	RelationTeaches     RelationType = "teaches"      // Knowledge teaches concept
+	RelationTeaches RelationType = "teaches" // Knowledge teaches concept
 	// RelationExemplifes indicates that one chunk exemplifies a pattern
-	RelationExemplifes  RelationType = "exemplifies"  // Example of pattern
+	RelationExemplifes RelationType = "exemplifies" // Example of pattern
 
 	// RelationReferencesBy indicates that one chunk is referenced by another
 	RelationReferencesBy RelationType = "referenced_by" // Chunk referenced by another
 	// RelationReferences indicates that one chunk references another
-	RelationReferences   RelationType = "references"    // Chunk references another
+	RelationReferences RelationType = "references" // Chunk references another
 )
 
 // AllValidRelationTypes returns all valid relation types
@@ -129,9 +129,9 @@ const (
 	// ConfidenceInferred indicates confidence was inferred by AI from context
 	ConfidenceInferred ConfidenceSource = "inferred" // AI inferred from context
 	// ConfidenceDerived indicates confidence was calculated from other data
-	ConfidenceDerived  ConfidenceSource = "derived"  // Calculated from other data
+	ConfidenceDerived ConfidenceSource = "derived" // Calculated from other data
 	// ConfidenceAuto indicates confidence was automatically detected
-	ConfidenceAuto     ConfidenceSource = "auto"     // Automatically detected
+	ConfidenceAuto ConfidenceSource = "auto" // Automatically detected
 )
 
 // Valid returns true if the confidence source is valid

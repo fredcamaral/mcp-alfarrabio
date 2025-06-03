@@ -37,27 +37,27 @@ type ChunkType string
 
 const (
 	// ChunkTypeProblem represents a problem or issue being discussed
-	ChunkTypeProblem              ChunkType = "problem"
+	ChunkTypeProblem ChunkType = "problem"
 	// ChunkTypeSolution represents a solution to a problem
-	ChunkTypeSolution             ChunkType = "solution"
+	ChunkTypeSolution ChunkType = "solution"
 	// ChunkTypeCodeChange represents code modifications or additions
-	ChunkTypeCodeChange           ChunkType = "code_change"
+	ChunkTypeCodeChange ChunkType = "code_change"
 	// ChunkTypeDiscussion represents general discussion or conversation
-	ChunkTypeDiscussion           ChunkType = "discussion"
+	ChunkTypeDiscussion ChunkType = "discussion"
 	// ChunkTypeArchitectureDecision represents architectural decisions or design choices
 	ChunkTypeArchitectureDecision ChunkType = "architecture_decision"
 	// ChunkTypeSessionSummary represents a summary of a work session
-	ChunkTypeSessionSummary       ChunkType = "session_summary"
+	ChunkTypeSessionSummary ChunkType = "session_summary"
 	// ChunkTypeAnalysis represents analysis or investigation results
-	ChunkTypeAnalysis             ChunkType = "analysis"
+	ChunkTypeAnalysis ChunkType = "analysis"
 	// ChunkTypeVerification represents verification or testing activities
-	ChunkTypeVerification         ChunkType = "verification"
+	ChunkTypeVerification ChunkType = "verification"
 	// ChunkTypeQuestion represents questions or inquiries
-	ChunkTypeQuestion             ChunkType = "question"
+	ChunkTypeQuestion ChunkType = "question"
 	// ChunkTypeTask represents a task or work item
-	ChunkTypeTask         ChunkType = "task"
+	ChunkTypeTask ChunkType = "task"
 	// ChunkTypeTaskUpdate represents updates to a task
-	ChunkTypeTaskUpdate   ChunkType = "task_update"
+	ChunkTypeTaskUpdate ChunkType = "task_update"
 	// ChunkTypeTaskProgress represents progress tracking for a task
 	ChunkTypeTaskProgress ChunkType = "task_progress"
 )
@@ -76,13 +76,13 @@ type Outcome string
 
 const (
 	// OutcomeSuccess indicates a successful completion or resolution
-	OutcomeSuccess    Outcome = "success"
+	OutcomeSuccess Outcome = "success"
 	// OutcomeInProgress indicates work is still ongoing
 	OutcomeInProgress Outcome = "in_progress"
 	// OutcomeFailed indicates a failed attempt or unsuccessful outcome
-	OutcomeFailed     Outcome = "failed"
+	OutcomeFailed Outcome = "failed"
 	// OutcomeAbandoned indicates the work was abandoned or cancelled
-	OutcomeAbandoned  Outcome = "abandoned"
+	OutcomeAbandoned Outcome = "abandoned"
 )
 
 // TaskStatus represents the status of a task-oriented chunk
@@ -90,17 +90,17 @@ type TaskStatus string
 
 const (
 	// TaskStatusTodo indicates a task that needs to be started
-	TaskStatusTodo       TaskStatus = "todo"
+	TaskStatusTodo TaskStatus = "todo"
 	// TaskStatusInProgress indicates a task currently being worked on
 	TaskStatusInProgress TaskStatus = "in_progress"
 	// TaskStatusCompleted indicates a finished task
-	TaskStatusCompleted  TaskStatus = "completed"
+	TaskStatusCompleted TaskStatus = "completed"
 	// TaskStatusBlocked indicates a task that cannot proceed due to dependencies
-	TaskStatusBlocked    TaskStatus = "blocked"
+	TaskStatusBlocked TaskStatus = "blocked"
 	// TaskStatusCancelled indicates a task that was cancelled
-	TaskStatusCancelled  TaskStatus = "cancelled"
+	TaskStatusCancelled TaskStatus = "cancelled"
 	// TaskStatusOnHold indicates a task that is temporarily paused
-	TaskStatusOnHold     TaskStatus = "on_hold"
+	TaskStatusOnHold TaskStatus = "on_hold"
 )
 
 // Valid returns true if the outcome is valid
@@ -126,11 +126,11 @@ type Difficulty string
 
 const (
 	// DifficultySimple indicates a simple or straightforward task
-	DifficultySimple   Difficulty = "simple"
+	DifficultySimple Difficulty = "simple"
 	// DifficultyModerate indicates a task of moderate complexity
 	DifficultyModerate Difficulty = "moderate"
 	// DifficultyComplex indicates a complex or challenging task
-	DifficultyComplex  Difficulty = "complex"
+	DifficultyComplex Difficulty = "complex"
 )
 
 // Valid returns true if the difficulty is valid
@@ -147,13 +147,13 @@ type ConversationFlow string
 
 const (
 	// FlowProblem indicates conversation is focused on identifying problems
-	FlowProblem       ConversationFlow = "problem"
+	FlowProblem ConversationFlow = "problem"
 	// FlowInvestigation indicates conversation is in investigation or exploration phase
 	FlowInvestigation ConversationFlow = "investigation"
 	// FlowSolution indicates conversation is focused on finding solutions
-	FlowSolution      ConversationFlow = "solution"
+	FlowSolution ConversationFlow = "solution"
 	// FlowVerification indicates conversation is focused on verification or testing
-	FlowVerification  ConversationFlow = "verification"
+	FlowVerification ConversationFlow = "verification"
 )
 
 // Valid returns true if the conversation flow is valid
@@ -170,9 +170,9 @@ type Recency string
 
 const (
 	// RecencyRecent filters for recent items
-	RecencyRecent    Recency = "recent"
+	RecencyRecent Recency = "recent"
 	// RecencyAllTime includes all items regardless of age
-	RecencyAllTime   Recency = "all_time"
+	RecencyAllTime Recency = "all_time"
 	// RecencyLastMonth filters for items from the last month
 	RecencyLastMonth Recency = "last_month"
 )

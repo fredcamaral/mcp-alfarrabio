@@ -29,31 +29,31 @@ type EventType string
 
 const (
 	// EventTypeMemoryStore represents memory storage operations
-	EventTypeMemoryStore     EventType = "memory_store"
+	EventTypeMemoryStore EventType = "memory_store"
 	// EventTypeMemorySearch represents memory search operations
-	EventTypeMemorySearch    EventType = "memory_search"
+	EventTypeMemorySearch EventType = "memory_search"
 	// EventTypeMemoryUpdate represents memory update operations
-	EventTypeMemoryUpdate    EventType = "memory_update"
+	EventTypeMemoryUpdate EventType = "memory_update"
 	// EventTypeMemoryDelete represents memory deletion operations
-	EventTypeMemoryDelete    EventType = "memory_delete"
+	EventTypeMemoryDelete EventType = "memory_delete"
 	// EventTypeDecisionStore represents decision storage operations
-	EventTypeDecisionStore   EventType = "decision_store"
+	EventTypeDecisionStore EventType = "decision_store"
 	// EventTypeRelationshipAdd represents relationship creation operations
 	EventTypeRelationshipAdd EventType = "relationship_add"
 	// EventTypePatternDetected represents pattern detection events
 	EventTypePatternDetected EventType = "pattern_detected"
 	// EventTypeContextSwitch represents context switching events
-	EventTypeContextSwitch   EventType = "context_switch"
+	EventTypeContextSwitch EventType = "context_switch"
 	// EventTypeExport represents data export operations
-	EventTypeExport          EventType = "export"
+	EventTypeExport EventType = "export"
 	// EventTypeImport represents data import operations
-	EventTypeImport          EventType = "import"
+	EventTypeImport EventType = "import"
 	// EventTypeSystemStart represents system startup events
-	EventTypeSystemStart     EventType = "system_start"
+	EventTypeSystemStart EventType = "system_start"
 	// EventTypeSystemShutdown represents system shutdown events
-	EventTypeSystemShutdown  EventType = "system_shutdown"
+	EventTypeSystemShutdown EventType = "system_shutdown"
 	// EventTypeError represents error events
-	EventTypeError           EventType = "error"
+	EventTypeError EventType = "error"
 )
 
 // Event represents a single audit log entry

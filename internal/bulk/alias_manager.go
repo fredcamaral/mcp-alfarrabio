@@ -18,7 +18,7 @@ type AliasType string
 
 const (
 	// AliasTypeTag represents tag-based aliases (e.g., "@bug-fixes")
-	AliasTypeTag        AliasType = "tag"        // Tag-based alias (e.g., "@bug-fixes")
+	AliasTypeTag AliasType = "tag" // Tag-based alias (e.g., "@bug-fixes")
 	// AliasTypeShortcut represents custom shortcuts (e.g., "#auth-module")
 	AliasTypeShortcut   AliasType = "shortcut"   // Custom shortcut (e.g., "#auth-module")
 	AliasTypeQuery      AliasType = "query"      // Saved query (e.g., "!recent-errors")
@@ -53,7 +53,7 @@ type TargetType string
 
 const (
 	// TargetTypeChunks represents direct chunk references
-	TargetTypeChunks     TargetType = "chunks"     // Direct chunk references
+	TargetTypeChunks TargetType = "chunks" // Direct chunk references
 	// TargetTypeQuery represents dynamic query targets
 	TargetTypeQuery      TargetType = "query"      // Dynamic query
 	TargetTypeFilter     TargetType = "filter"     // Filter criteria

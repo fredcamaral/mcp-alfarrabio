@@ -19,9 +19,9 @@ const (
 	// DecayStrategyExponential applies exponential decay to memories
 	DecayStrategyExponential DecayStrategy = "exponential"
 	// DecayStrategyLinear applies linear decay to memories
-	DecayStrategyLinear      DecayStrategy = "linear"
+	DecayStrategyLinear DecayStrategy = "linear"
 	// DecayStrategyAdaptive applies adaptive decay based on usage patterns
-	DecayStrategyAdaptive    DecayStrategy = "adaptive"
+	DecayStrategyAdaptive DecayStrategy = "adaptive"
 )
 
 // DecayConfig holds configuration for memory decay

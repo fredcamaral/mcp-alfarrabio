@@ -24,13 +24,13 @@ type ExportFormat string
 
 const (
 	// ExportFormatJSON exports data in JSON format
-	ExportFormatJSON     ExportFormat = "json"
+	ExportFormatJSON ExportFormat = "json"
 	// ExportFormatMarkdown exports data in Markdown format
 	ExportFormatMarkdown ExportFormat = "markdown"
 	// ExportFormatCSV exports data in CSV format
-	ExportFormatCSV      ExportFormat = "csv"
+	ExportFormatCSV ExportFormat = "csv"
 	// ExportFormatArchive exports data as an archive
-	ExportFormatArchive  ExportFormat = "archive"
+	ExportFormatArchive ExportFormat = "archive"
 )
 
 // CompressionType represents compression options
@@ -42,7 +42,7 @@ const (
 	// CompressionGzip indicates gzip compression
 	CompressionGzip CompressionType = "gzip"
 	// CompressionZip indicates zip compression
-	CompressionZip  CompressionType = "zip"
+	CompressionZip CompressionType = "zip"
 )
 
 // ExportOptions configures export behavior

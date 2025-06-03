@@ -17,19 +17,19 @@ const (
 	// ChainTypeContinuation represents a chain where memories continue from each other
 	ChainTypeContinuation ChainType = "continuation"
 	// ChainTypeSolution represents a chain from problem to solution
-	ChainTypeSolution     ChainType = "solution"
+	ChainTypeSolution ChainType = "solution"
 	// ChainTypeReference represents a chain of references between memories
-	ChainTypeReference    ChainType = "reference"
+	ChainTypeReference ChainType = "reference"
 	// ChainTypeEvolution represents how memories evolve over time
-	ChainTypeEvolution    ChainType = "evolution"
+	ChainTypeEvolution ChainType = "evolution"
 	// ChainTypeConflict represents conflicting memories
-	ChainTypeConflict     ChainType = "conflict"
+	ChainTypeConflict ChainType = "conflict"
 	// ChainTypeSupport represents supporting evidence or context
-	ChainTypeSupport      ChainType = "support"
+	ChainTypeSupport ChainType = "support"
 	// ChainTypeThread represents memory thread grouping
-	ChainTypeThread       ChainType = "thread"   // Memory thread grouping
+	ChainTypeThread ChainType = "thread" // Memory thread grouping
 	// ChainTypeWorkflow represents workflow-based chains
-	ChainTypeWorkflow     ChainType = "workflow" // Workflow-based chains
+	ChainTypeWorkflow ChainType = "workflow" // Workflow-based chains
 )
 
 // ChainLink represents a link between two memories
