@@ -2887,12 +2887,12 @@ func (ms *MemoryServer) handlePatternPrediction(ctx context.Context, params map[
 
 	// Add outcome prediction
 	if outcomePred := predictOutcome(analysis, len(chunks), confidenceThreshold); outcomePred != nil {
-		predictions = append(predictions, *outcomePred)
+		predictions = append(predictions, outcomePred)
 	}
 
 	// Add technology prediction
 	if techPred := predictTechnology(analysis, len(chunks), confidenceThreshold); techPred != nil {
-		predictions = append(predictions, *techPred)
+		predictions = append(predictions, techPred)
 	}
 
 	// Add complexity prediction (always included)
@@ -2900,7 +2900,7 @@ func (ms *MemoryServer) handlePatternPrediction(ctx context.Context, params map[
 
 	// Add timing prediction
 	if timingPred := predictOptimalTiming(analysis, len(chunks), confidenceThreshold); timingPred != nil {
-		predictions = append(predictions, *timingPred)
+		predictions = append(predictions, timingPred)
 	}
 
 	// Build response
@@ -2978,7 +2978,7 @@ func analyzeHistoricalPatterns(chunks []types.ConversationChunk, context string)
 }
 
 // predictOutcome generates outcome prediction based on historical outcomes
-func predictOutcome(analysis *patternAnalysisResult, totalChunks int, confidenceThreshold float64) *map[string]interface{} {
+func predictOutcome(analysis *patternAnalysisResult, totalChunks int, confidenceThreshold float64) map[string]interface{} {
 	mostLikelyOutcome, maxOutcomeCount := findMostFrequent(analysis.outcomes)
 	if mostLikelyOutcome == "" {
 		mostLikelyOutcome = StatusSuccess
@@ -2986,7 +2986,7 @@ func predictOutcome(analysis *patternAnalysisResult, totalChunks int, confidence
 
 	outcomeConfidence := float64(maxOutcomeCount) / float64(totalChunks)
 	if outcomeConfidence >= confidenceThreshold {
-		return &map[string]interface{}{
+		return map[string]interface{}{
 			"type":       "outcome",
 			"prediction": mostLikelyOutcome,
 			"confidence": outcomeConfidence,
@@ -2997,7 +2997,7 @@ func predictOutcome(analysis *patternAnalysisResult, totalChunks int, confidence
 }
 
 // predictTechnology generates technology prediction based on historical technology usage
-func predictTechnology(analysis *patternAnalysisResult, totalChunks int, confidenceThreshold float64) *map[string]interface{} {
+func predictTechnology(analysis *patternAnalysisResult, totalChunks int, confidenceThreshold float64) map[string]interface{} {
 	if len(analysis.technologies) == 0 {
 		return nil
 	}
@@ -3006,7 +3006,7 @@ func predictTechnology(analysis *patternAnalysisResult, totalChunks int, confide
 	techConfidence := float64(maxTechCount) / float64(totalChunks)
 
 	if techConfidence >= confidenceThreshold {
-		return &map[string]interface{}{
+		return map[string]interface{}{
 			"type":       "technology",
 			"prediction": mostLikelyTech,
 			"confidence": techConfidence,
@@ -3051,7 +3051,7 @@ func predictComplexity(chunks []types.ConversationChunk) map[string]interface{} 
 }
 
 // predictOptimalTiming generates timing prediction based on historical patterns
-func predictOptimalTiming(analysis *patternAnalysisResult, totalChunks int, confidenceThreshold float64) *map[string]interface{} {
+func predictOptimalTiming(analysis *patternAnalysisResult, totalChunks int, confidenceThreshold float64) map[string]interface{} {
 	bestDay, maxDayCount := findMostFrequent(analysis.timePatterns)
 
 	if maxDayCount <= 1 {
@@ -3060,7 +3060,7 @@ func predictOptimalTiming(analysis *patternAnalysisResult, totalChunks int, conf
 
 	dayConfidence := float64(maxDayCount) / float64(totalChunks)
 	if dayConfidence >= confidenceThreshold {
-		return &map[string]interface{}{
+		return map[string]interface{}{
 			"type":       "timing",
 			"prediction": fmt.Sprintf("Best day for this type of work: %s", bestDay),
 			"confidence": dayConfidence,
