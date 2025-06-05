@@ -49,10 +49,11 @@ FROM node:20-alpine AS frontend-builder
 WORKDIR /frontend
 
 # Copy package files
-COPY web-ui/package.json web-ui/package-lock.json* ./
+COPY web-ui/package.json ./
+COPY web-ui/package-lock.json ./
 
 # Install dependencies
-RUN npm ci --only=production
+RUN npm ci --omit=dev
 
 # Copy frontend source
 COPY web-ui/ ./
