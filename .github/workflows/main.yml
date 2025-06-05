@@ -118,15 +118,15 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/${{ github.repository }}:latest
-            ghcr.io/${{ github.repository }}:${{ github.sha }}
+            ghcr.io/lerianstudio/mcp-memory:latest
+            ghcr.io/lerianstudio/mcp-memory:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Generate build provenance
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ghcr.io/${{ github.repository }}
+          subject-name: ghcr.io/lerianstudio/mcp-memory
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
