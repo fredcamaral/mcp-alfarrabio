@@ -341,21 +341,22 @@ func (bm *BackupManager) ListBackups() ([]BackupMetadata, error) {
 	}
 
 	for _, entry := range entries {
-		if !entry.IsDir() && strings.HasSuffix(entry.Name(), ".meta.json") {
-			metadataFile := filepath.Join(bm.backupDir, entry.Name())
-
-			metadataData, err := os.ReadFile(filepath.Clean(metadataFile)) // #nosec G304 -- Path is constructed safely
-			if err != nil {
-				continue
-			}
-
-			var metadata BackupMetadata
-			if err := json.Unmarshal(metadataData, &metadata); err != nil {
-				continue
-			}
-
-			backups = append(backups, metadata)
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".meta.json") {
+			continue
 		}
+		metadataFile := filepath.Join(bm.backupDir, entry.Name())
+
+		metadataData, err := os.ReadFile(filepath.Clean(metadataFile)) // #nosec G304 -- Path is constructed safely
+		if err != nil {
+			continue
+		}
+
+		var metadata BackupMetadata
+		if err := json.Unmarshal(metadataData, &metadata); err != nil {
+			continue
+		}
+
+		backups = append(backups, metadata)
 	}
 
 	return backups, nil

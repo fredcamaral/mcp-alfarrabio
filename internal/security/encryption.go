@@ -184,21 +184,22 @@ func (em *EncryptionManager) EncryptSensitiveFields(content string) (string, err
 	for fieldType, pattern := range sensitivePatterns {
 		matches := pattern.FindAllStringSubmatch(result, -1)
 		for _, match := range matches {
-			if len(match) >= 3 {
-				original := match[0]
-				sensitiveValue := match[2]
-
-				// Encrypt the sensitive value
-				encrypted, err := em.EncryptString(sensitiveValue)
-				if err != nil {
-					return "", fmt.Errorf("failed to encrypt %s: %w", fieldType, err)
-				}
-
-				// Replace with encrypted placeholder
-				encryptedPlaceholder := "[ENCRYPTED:" + fieldType + ":" + encrypted.Data + "]"
-				result = strings.ReplaceAll(result, original,
-					strings.Replace(original, sensitiveValue, encryptedPlaceholder, 1))
+			if len(match) < 3 {
+				continue
 			}
+			original := match[0]
+			sensitiveValue := match[2]
+
+			// Encrypt the sensitive value
+			encrypted, err := em.EncryptString(sensitiveValue)
+			if err != nil {
+				return "", fmt.Errorf("failed to encrypt %s: %w", fieldType, err)
+			}
+
+			// Replace with encrypted placeholder
+			encryptedPlaceholder := "[ENCRYPTED:" + fieldType + ":" + encrypted.Data + "]"
+			result = strings.ReplaceAll(result, original,
+					strings.Replace(original, sensitiveValue, encryptedPlaceholder, 1))
 		}
 	}
 
@@ -218,26 +219,27 @@ func (em *EncryptionManager) DecryptSensitiveFields(content string) (string, err
 	result := content
 
 	for _, match := range matches {
-		if len(match) >= 3 {
-			placeholder := match[0]
-			_ = match[1] // fieldType
-			encryptedData := match[2]
-
-			// Decrypt the value
-			encrypted := &EncryptedData{
-				Algorithm: "aes-gcm",
-				Data:      encryptedData,
-			}
-
-			decrypted, err := em.DecryptString(encrypted)
-			if err != nil {
-				// If decryption fails, leave placeholder as is
-				continue
-			}
-
-			// Replace placeholder with decrypted value
-			result = strings.ReplaceAll(result, placeholder, decrypted)
+		if len(match) < 3 {
+			continue
 		}
+		placeholder := match[0]
+		_ = match[1] // fieldType
+		encryptedData := match[2]
+
+		// Decrypt the value
+		encrypted := &EncryptedData{
+			Algorithm: "aes-gcm",
+			Data:      encryptedData,
+		}
+
+		decrypted, err := em.DecryptString(encrypted)
+		if err != nil {
+			// If decryption fails, leave placeholder as is
+			continue
+		}
+
+		// Replace placeholder with decrypted value
+		result = strings.ReplaceAll(result, placeholder, decrypted)
 	}
 
 	return result, nil

@@ -206,16 +206,17 @@ func (tm *ThreadManager) DetectThreads(ctx context.Context, chunks []types.Conve
 
 	// Create threads from session groups
 	for sessionID, sessionChunks := range sessionGroups {
-		if len(sessionChunks) >= 2 { // Minimum thread size
-			threadType := tm.inferThreadType(sessionChunks)
-			thread, err := tm.CreateThread(ctx, sessionChunks, threadType)
-			if err != nil {
-				continue // Skip failed threads
-			}
-			thread.Metadata["detection_method"] = "session_grouping"
-			thread.Metadata["source_session"] = sessionID
-			threads = append(threads, thread)
+		if len(sessionChunks) < 2 { // Minimum thread size
+			continue
 		}
+		threadType := tm.inferThreadType(sessionChunks)
+		thread, err := tm.CreateThread(ctx, sessionChunks, threadType)
+		if err != nil {
+			continue // Skip failed threads
+		}
+		thread.Metadata["detection_method"] = "session_grouping"
+		thread.Metadata["source_session"] = sessionID
+		threads = append(threads, thread)
 	}
 
 	// Create problem-solution threads that span sessions
@@ -232,15 +233,16 @@ func (tm *ThreadManager) DetectThreads(ctx context.Context, chunks []types.Conve
 
 	// Create feature development threads
 	for featureName, featureChunks := range featureGroups {
-		if len(featureChunks) >= 3 { // Features usually have more chunks
-			thread, err := tm.CreateThread(ctx, featureChunks, ThreadTypeFeature)
-			if err != nil {
-				continue
-			}
-			thread.Metadata["detection_method"] = "feature_grouping"
-			thread.Metadata["feature_name"] = featureName
-			threads = append(threads, thread)
+		if len(featureChunks) < 3 { // Features usually have more chunks
+			continue
 		}
+		thread, err := tm.CreateThread(ctx, featureChunks, ThreadTypeFeature)
+		if err != nil {
+			continue
+		}
+		thread.Metadata["detection_method"] = "feature_grouping"
+		thread.Metadata["feature_name"] = featureName
+		threads = append(threads, thread)
 	}
 
 	return threads, nil
