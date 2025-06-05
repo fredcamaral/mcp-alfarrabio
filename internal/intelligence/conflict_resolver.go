@@ -458,51 +458,69 @@ func (cr *ConflictResolver) generateGenericStrategies(_ *Conflict) []ResolutionS
 
 // Helper methods
 
-func (cr *ConflictResolver) calculateStrategyConfidence(conflict *Conflict, strategy ResolutionStrategy) float64 {
+// Helper function to get base confidence from strategy weights
+func (cr *ConflictResolver) getBaseConfidenceFromWeights(conflict *Conflict, strategy ResolutionStrategy) float64 {
 	baseConfidence := 0.5
 
-	// Adjust based on conflict type and strategy type compatibility
 	if weights, exists := cr.strategyWeights[conflict.Type]; exists {
 		if weight, exists := weights[strategy.Type]; exists {
 			baseConfidence = weight
 		}
 	}
 
-	// Adjust based on conflict severity
+	return baseConfidence
+}
+
+// Helper function to adjust confidence based on severity
+func (cr *ConflictResolver) adjustConfidenceForSeverity(baseConfidence float64, conflict *Conflict, strategy ResolutionStrategy) float64 {
 	switch conflict.Severity {
 	case SeverityCritical:
 		if strategy.Type == ResolutionManualReview {
-			baseConfidence += 0.2
+			return baseConfidence + 0.2
 		}
 	case SeverityHigh:
 		if strategy.Type == ResolutionAcceptHighest || strategy.Type == ResolutionManualReview {
-			baseConfidence += 0.1
+			return baseConfidence + 0.1
 		}
 	case SeverityMedium:
 		if strategy.Type == ResolutionMerge || strategy.Type == ResolutionContextual {
-			baseConfidence += 0.1
+			return baseConfidence + 0.1
 		}
 	case SeverityLow:
 		if strategy.Type == ResolutionAcceptLatest || strategy.Type == ResolutionMerge {
-			baseConfidence += 0.05
+			return baseConfidence + 0.05
 		}
 	case SeverityInfo:
-		baseConfidence += 0.02 // Small boost for informational conflicts
+		return baseConfidence + 0.02 // Small boost for informational conflicts
 	}
+
+	return baseConfidence
+}
+
+// Helper function to clamp confidence within valid bounds
+func (cr *ConflictResolver) clampConfidence(confidence float64) float64 {
+	if confidence > 1.0 {
+		return 1.0
+	}
+	if confidence < 0.0 {
+		return 0.0
+	}
+	return confidence
+}
+
+func (cr *ConflictResolver) calculateStrategyConfidence(conflict *Conflict, strategy ResolutionStrategy) float64 {
+	// Get base confidence from strategy weights
+	baseConfidence := cr.getBaseConfidenceFromWeights(conflict, strategy)
+
+	// Adjust based on conflict severity
+	baseConfidence = cr.adjustConfidenceForSeverity(baseConfidence, conflict, strategy)
 
 	// Adjust based on conflict confidence
 	confidenceBonus := (conflict.Confidence - 0.5) * 0.2
 	baseConfidence += confidenceBonus
 
 	// Ensure confidence is within bounds
-	if baseConfidence > 1.0 {
-		baseConfidence = 1.0
-	}
-	if baseConfidence < 0.0 {
-		baseConfidence = 0.0
-	}
-
-	return baseConfidence
+	return cr.clampConfidence(baseConfidence)
 }
 
 func (cr *ConflictResolver) buildConflictContext(conflict *Conflict) ConflictContext {
