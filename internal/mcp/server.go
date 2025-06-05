@@ -3447,6 +3447,36 @@ func (ms *MemoryServer) handleExportProject(ctx context.Context, params map[stri
 
 // handleImportContext imports conversation context from external source
 func (ms *MemoryServer) handleImportContext(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	importParams, err := ms.parseImportParams(params)
+	if err != nil {
+		return nil, err
+	}
+
+	importedChunks, err := ms.importChunksBySource(ctx, importParams)
+	if err != nil {
+		return nil, err
+	}
+
+	storedCount, err := ms.storeImportedChunks(ctx, importedChunks, importParams)
+	if err != nil {
+		return nil, err
+	}
+
+	return ms.buildImportResponse(importParams, importedChunks, storedCount), nil
+}
+
+// importParams holds parsed import parameters
+type importParams struct {
+	source           string
+	data             string
+	repository       string
+	sessionID        string
+	chunkingStrategy string
+	metadata         map[string]interface{}
+}
+
+// parseImportParams extracts and validates import parameters
+func (ms *MemoryServer) parseImportParams(params map[string]interface{}) (*importParams, error) {
 	source, ok := params["source"].(string)
 	if !ok {
 		return nil, errors.New("source is required")
@@ -3472,79 +3502,83 @@ func (ms *MemoryServer) handleImportContext(ctx context.Context, params map[stri
 		chunkingStrategy = strategy
 	}
 
-	// Parse metadata if provided
 	metadata := map[string]interface{}{}
 	if meta, exists := params["metadata"].(map[string]interface{}); exists {
 		metadata = meta
 	}
 
-	var importedChunks []types.ConversationChunk
-	var err error
+	return &importParams{
+		source:           source,
+		data:             data,
+		repository:       repository,
+		sessionID:        sessionID,
+		chunkingStrategy: chunkingStrategy,
+		metadata:         metadata,
+	}, nil
+}
 
-	switch source {
+// importChunksBySource imports chunks based on source type
+func (ms *MemoryServer) importChunksBySource(ctx context.Context, params *importParams) ([]types.ConversationChunk, error) {
+	switch params.source {
 	case types.SourceConversation:
-		// Import conversation text
-		importedChunks, err = ms.importConversationText(ctx, data, repository, chunkingStrategy, metadata)
-		if err != nil {
-			return nil, fmt.Errorf("failed to import conversation: %w", err)
-		}
-
+		return ms.importConversationText(ctx, params.data, params.repository, params.chunkingStrategy, params.metadata)
 	case "file":
-		// Import file content
-		importedChunks, err = ms.importFileContent(ctx, data, repository, chunkingStrategy, metadata)
-		if err != nil {
-			return nil, fmt.Errorf("failed to import file: %w", err)
-		}
-
+		return ms.importFileContent(ctx, params.data, params.repository, params.chunkingStrategy, params.metadata)
 	case "archive":
-		// Import from base64 encoded archive
-		importedChunks, err = ms.importArchiveData(ctx, data, repository, metadata)
-		if err != nil {
-			return nil, fmt.Errorf("failed to import archive: %w", err)
-		}
-
+		return ms.importArchiveData(ctx, params.data, params.repository, params.metadata)
 	default:
-		return nil, fmt.Errorf("unsupported source type: %s", source)
+		return nil, fmt.Errorf("unsupported source type: %s", params.source)
 	}
+}
 
-	// Create repository-scoped session ID for imported chunks
-	repositoryScopedSessionID := ms.createRepositoryScopedSessionID(repository, sessionID)
-	logging.Info("Created repository-scoped session for import", "original_session", sessionID, "scoped_session", repositoryScopedSessionID, "repository", repository)
+// storeImportedChunks stores imported chunks with embeddings
+func (ms *MemoryServer) storeImportedChunks(ctx context.Context, chunks []types.ConversationChunk, params *importParams) (int, error) {
+	repositoryScopedSessionID := ms.createRepositoryScopedSessionID(params.repository, params.sessionID)
+	logging.Info("Created repository-scoped session for import", "original_session", params.sessionID, "scoped_session", repositoryScopedSessionID, "repository", params.repository)
 
-	// Store imported chunks with repository-scoped session ID
 	storedCount := 0
-	for i := range importedChunks {
-		chunk := &importedChunks[i]
-		// Set repository-scoped session ID for multi-tenant isolation
+	for i := range chunks {
+		chunk := &chunks[i]
 		chunk.SessionID = repositoryScopedSessionID
 
-		// Generate embedding for the chunk
-		embedding, err := ms.container.GetEmbeddingService().GenerateEmbedding(ctx, chunk.Content)
-		if err != nil {
-			log.Printf("Failed to generate embedding for chunk %s: %v", chunk.ID, err)
-			continue
-		}
-
-		chunk.Embeddings = embedding
-
-		// Store chunk
-		if err := ms.container.GetVectorStore().Store(ctx, chunk); err != nil {
-			log.Printf("Failed to store chunk %s: %v", chunk.ID, err)
+		if err := ms.processAndStoreChunk(ctx, chunk); err != nil {
+			log.Printf("Failed to process chunk %s: %v", chunk.ID, err)
 			continue
 		}
 
 		storedCount++
 	}
 
+	return storedCount, nil
+}
+
+// processAndStoreChunk generates embedding and stores a single chunk
+func (ms *MemoryServer) processAndStoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
+	embedding, err := ms.container.GetEmbeddingService().GenerateEmbedding(ctx, chunk.Content)
+	if err != nil {
+		return fmt.Errorf("failed to generate embedding: %w", err)
+	}
+
+	chunk.Embeddings = embedding
+
+	if err := ms.container.GetVectorStore().Store(ctx, chunk); err != nil {
+		return fmt.Errorf("failed to store chunk: %w", err)
+	}
+
+	return nil
+}
+
+// buildImportResponse creates the import response structure
+func (ms *MemoryServer) buildImportResponse(params *importParams, chunks []types.ConversationChunk, storedCount int) map[string]interface{} {
 	return map[string]interface{}{
-		"source":            source,
-		"repository":        repository,
-		"chunks_processed":  len(importedChunks),
+		"source":            params.source,
+		"repository":        params.repository,
+		"chunks_processed":  len(chunks),
 		"chunks_stored":     storedCount,
-		"chunking_strategy": chunkingStrategy,
-		"session_id":        sessionID,
+		"chunking_strategy": params.chunkingStrategy,
+		"session_id":        params.sessionID,
 		"import_date":       time.Now().Format(time.RFC3339),
-	}, nil
+	}
 }
 
 // Helper methods for import functionality
@@ -3788,55 +3822,86 @@ func (ms *MemoryServer) handleMemoryLink(ctx context.Context, params map[string]
 
 // handleGetRelationships retrieves relationships for a memory chunk
 func (ms *MemoryServer) handleGetRelationships(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	// Extract parameters
-	chunkID, ok := params["chunk_id"].(string)
-	if !ok || chunkID == "" {
-		return nil, errors.New("chunk_id is required")
+	chunkID, err := ms.validateChunkID(params)
+	if err != nil {
+		return nil, err
 	}
 
-	// Build query
-	query := types.NewRelationshipQuery(chunkID)
-
-	if direction, ok := params["direction"].(string); ok {
-		query.Direction = direction
-	}
-
-	if minConfidence, ok := params["min_confidence"].(float64); ok {
-		query.MinConfidence = minConfidence
-	}
-
-	if maxDepth, ok := params["max_depth"].(float64); ok {
-		query.MaxDepth = int(maxDepth)
-	}
-
-	if includeChunks, ok := params["include_chunks"].(bool); ok {
-		query.IncludeChunks = includeChunks
-	}
-
-	if limit, ok := params["limit"].(float64); ok {
-		query.Limit = int(limit)
-	}
-
-	if relationTypesRaw, ok := params["relation_types"].([]interface{}); ok {
-		relationTypes := make([]types.RelationType, 0, len(relationTypesRaw))
-		for _, rt := range relationTypesRaw {
-			if rtStr, ok := rt.(string); ok {
-				relationTypes = append(relationTypes, types.RelationType(rtStr))
-			}
-		}
-		query.RelationTypes = relationTypes
-	}
-
-	// Get storage from container
-	storage := ms.container.VectorStore
-
-	// Get relationships
-	rels, err := storage.GetRelationships(ctx, query)
+	query := ms.buildRelationshipQuery(params, chunkID)
+	rels, err := ms.container.VectorStore.GetRelationships(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get relationships: %w", err)
 	}
 
-	// Format response
+	return ms.formatRelationshipResponse(rels, chunkID, query), nil
+}
+
+// validateChunkID extracts and validates chunk ID from parameters
+func (ms *MemoryServer) validateChunkID(params map[string]interface{}) (string, error) {
+	chunkID, ok := params["chunk_id"].(string)
+	if !ok || chunkID == "" {
+		return "", errors.New("chunk_id is required")
+	}
+	return chunkID, nil
+}
+
+// buildRelationshipQuery constructs relationship query from parameters
+func (ms *MemoryServer) buildRelationshipQuery(params map[string]interface{}, chunkID string) *types.RelationshipQuery {
+	query := types.NewRelationshipQuery(chunkID)
+
+	ms.setQueryDirection(params, query)
+	ms.setQueryLimits(params, query)
+	ms.setQueryOptions(params, query)
+	ms.setQueryRelationTypes(params, query)
+
+	return query
+}
+
+// setQueryDirection sets the query direction if provided
+func (ms *MemoryServer) setQueryDirection(params map[string]interface{}, query *types.RelationshipQuery) {
+	if direction, ok := params["direction"].(string); ok {
+		query.Direction = direction
+	}
+}
+
+// setQueryLimits sets numeric limits for the query
+func (ms *MemoryServer) setQueryLimits(params map[string]interface{}, query *types.RelationshipQuery) {
+	if minConfidence, ok := params["min_confidence"].(float64); ok {
+		query.MinConfidence = minConfidence
+	}
+	if maxDepth, ok := params["max_depth"].(float64); ok {
+		query.MaxDepth = int(maxDepth)
+	}
+	if limit, ok := params["limit"].(float64); ok {
+		query.Limit = int(limit)
+	}
+}
+
+// setQueryOptions sets boolean options for the query
+func (ms *MemoryServer) setQueryOptions(params map[string]interface{}, query *types.RelationshipQuery) {
+	if includeChunks, ok := params["include_chunks"].(bool); ok {
+		query.IncludeChunks = includeChunks
+	}
+}
+
+// setQueryRelationTypes sets relation types filter if provided
+func (ms *MemoryServer) setQueryRelationTypes(params map[string]interface{}, query *types.RelationshipQuery) {
+	relationTypesRaw, ok := params["relation_types"].([]interface{})
+	if !ok {
+		return
+	}
+
+	relationTypes := make([]types.RelationType, 0, len(relationTypesRaw))
+	for _, rt := range relationTypesRaw {
+		if rtStr, ok := rt.(string); ok {
+			relationTypes = append(relationTypes, types.RelationType(rtStr))
+		}
+	}
+	query.RelationTypes = relationTypes
+}
+
+// formatRelationshipResponse formats the relationship query results
+func (ms *MemoryServer) formatRelationshipResponse(rels []types.RelationshipResult, chunkID string, query *types.RelationshipQuery) map[string]interface{} {
 	result := map[string]interface{}{
 		"chunk_id":      chunkID,
 		"relationships": make([]map[string]interface{}, len(rels)),
@@ -3845,43 +3910,52 @@ func (ms *MemoryServer) handleGetRelationships(ctx context.Context, params map[s
 	}
 
 	for i := range rels {
-		rel := &rels[i]
-		relData := map[string]interface{}{
-			"relationship_id":   rel.Relationship.ID,
-			"source_chunk_id":   rel.Relationship.SourceChunkID,
-			"target_chunk_id":   rel.Relationship.TargetChunkID,
-			"relation_type":     string(rel.Relationship.RelationType),
-			"confidence":        rel.Relationship.Confidence,
-			"confidence_source": string(rel.Relationship.ConfidenceSource),
-			"created_at":        rel.Relationship.CreatedAt.Format(time.RFC3339),
-			"validation_count":  rel.Relationship.ValidationCount,
-		}
-
-		if rel.Relationship.LastValidated != nil {
-			relData["last_validated"] = rel.Relationship.LastValidated.Format(time.RFC3339)
-		}
-
-		if query.IncludeChunks {
-			if rel.SourceChunk != nil {
-				relData["source_chunk"] = map[string]interface{}{
-					"id":      rel.SourceChunk.ID,
-					"type":    string(rel.SourceChunk.Type),
-					"summary": rel.SourceChunk.Summary,
-				}
-			}
-			if rel.TargetChunk != nil {
-				relData["target_chunk"] = map[string]interface{}{
-					"id":      rel.TargetChunk.ID,
-					"type":    string(rel.TargetChunk.Type),
-					"summary": rel.TargetChunk.Summary,
-				}
-			}
-		}
-
-		result["relationships"].([]map[string]interface{})[i] = relData
+		result["relationships"].([]map[string]interface{})[i] = ms.formatSingleRelationship(&rels[i], query.IncludeChunks)
 	}
 
-	return result, nil
+	return result
+}
+
+// formatSingleRelationship formats a single relationship with optional chunk info
+func (ms *MemoryServer) formatSingleRelationship(rel *types.RelationshipResult, includeChunks bool) map[string]interface{} {
+	relData := map[string]interface{}{
+		"relationship_id":   rel.Relationship.ID,
+		"source_chunk_id":   rel.Relationship.SourceChunkID,
+		"target_chunk_id":   rel.Relationship.TargetChunkID,
+		"relation_type":     string(rel.Relationship.RelationType),
+		"confidence":        rel.Relationship.Confidence,
+		"confidence_source": string(rel.Relationship.ConfidenceSource),
+		"created_at":        rel.Relationship.CreatedAt.Format(time.RFC3339),
+		"validation_count":  rel.Relationship.ValidationCount,
+	}
+
+	if rel.Relationship.LastValidated != nil {
+		relData["last_validated"] = rel.Relationship.LastValidated.Format(time.RFC3339)
+	}
+
+	if includeChunks {
+		ms.addChunkDetails(relData, rel)
+	}
+
+	return relData
+}
+
+// addChunkDetails adds source and target chunk details to relationship data
+func (ms *MemoryServer) addChunkDetails(relData map[string]interface{}, rel *types.RelationshipResult) {
+	if rel.SourceChunk != nil {
+		relData["source_chunk"] = map[string]interface{}{
+			"id":      rel.SourceChunk.ID,
+			"type":    string(rel.SourceChunk.Type),
+			"summary": rel.SourceChunk.Summary,
+		}
+	}
+	if rel.TargetChunk != nil {
+		relData["target_chunk"] = map[string]interface{}{
+			"id":      rel.TargetChunk.ID,
+			"type":    string(rel.TargetChunk.Type),
+			"summary": rel.TargetChunk.Summary,
+		}
+	}
 }
 
 // handleTraverseGraph traverses the knowledge graph from a starting chunk
@@ -4723,15 +4797,15 @@ func (ms *MemoryServer) filterStrategiesByType(strategies []intelligence.Resolut
 }
 
 // buildConflictResolutionResponse constructs the final response for conflict resolution
-func (ms *MemoryServer) buildConflictResolutionResponse(config *conflictResolutionConfig, conflicts []intelligence.Conflict, recommendations []intelligence.ResolutionRecommendation) map[string]interface{} {
+func (ms *MemoryServer) buildConflictResolutionResponse(resolutionConfig *conflictResolutionConfig, conflicts []intelligence.Conflict, recommendations []intelligence.ResolutionRecommendation) map[string]interface{} {
 	return map[string]interface{}{
-		"repository":                  config.Repository,
-		"conflict_ids_requested":      config.ConflictIDs,
+		"repository":                  resolutionConfig.Repository,
+		"conflict_ids_requested":      resolutionConfig.ConflictIDs,
 		"conflicts_found":             len(conflicts),
 		"recommendations":             recommendations,
 		"analysis_timestamp":          time.Now().Format(time.RFC3339),
-		"include_detailed_steps":      config.IncludeDetailedSteps,
-		"max_strategies_per_conflict": config.MaxStrategies,
+		"include_detailed_steps":      resolutionConfig.IncludeDetailedSteps,
+		"max_strategies_per_conflict": resolutionConfig.MaxStrategies,
 		"summary":                     ms.buildConflictSummary(recommendations, conflicts),
 		"next_steps":                  ms.generateConflictResolutionNextSteps(recommendations),
 	}
@@ -4788,13 +4862,13 @@ func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params
 	logging.Info("MCP TOOL: memory_resolve_conflicts called", "params", params)
 
 	// Parse parameters
-	config, err := ms.parseConflictResolutionParams(params)
+	resolutionConfig, err := ms.parseConflictResolutionParams(params)
 	if err != nil {
 		return nil, err
 	}
 
 	// Get conflicts for the specified IDs
-	requestedConflicts, totalConflicts, err := ms.getRequestedConflicts(ctx, config.ConflictIDs, config.Repository)
+	requestedConflicts, totalConflicts, err := ms.getRequestedConflicts(ctx, resolutionConfig.ConflictIDs, resolutionConfig.Repository)
 	if err != nil {
 		return nil, err
 	}
@@ -4802,22 +4876,22 @@ func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params
 	if len(requestedConflicts) == 0 {
 		return map[string]interface{}{
 			"message":                 "No conflicts found with the specified IDs",
-			"conflict_ids_requested":  config.ConflictIDs,
+			"conflict_ids_requested":  resolutionConfig.ConflictIDs,
 			"total_current_conflicts": totalConflicts,
 		}, nil
 	}
 
 	// Generate and customize recommendations
-	recommendations, err := ms.generateConflictRecommendations(ctx, requestedConflicts, config)
+	recommendations, err := ms.generateConflictRecommendations(ctx, requestedConflicts, resolutionConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	// Build final response
-	result := ms.buildConflictResolutionResponse(config, requestedConflicts, recommendations)
+	result := ms.buildConflictResolutionResponse(resolutionConfig, requestedConflicts, recommendations)
 
 	logging.Info("memory_resolve_conflicts completed",
-		"repository", config.Repository,
+		"repository", resolutionConfig.Repository,
 		"conflicts_processed", len(requestedConflicts),
 		"recommendations_generated", len(recommendations))
 	return result, nil
@@ -5208,15 +5282,15 @@ func (ms *MemoryServer) calculateOverallEffectiveness(chunks []types.Conversatio
 
 // calculateTypeVariety measures the variety of chunk types
 func (ms *MemoryServer) calculateTypeVariety(chunks []types.ConversationChunk) float64 {
-	types := make(map[types.ChunkType]bool)
+	chunkTypes := make(map[types.ChunkType]bool)
 	for i := range chunks {
 		chunk := &chunks[i]
-		types[chunk.Type] = true
+		chunkTypes[chunk.Type] = true
 	}
 
 	// Maximum variety is having all 6 main types
 	maxTypes := 6.0
-	return float64(len(types)) / maxTypes
+	return float64(len(chunkTypes)) / maxTypes
 }
 
 // getChunksForTimeframe retrieves chunks for a specific timeframe
@@ -5244,8 +5318,8 @@ func (ms *MemoryServer) getChunksForTimeframe(ctx context.Context, repository, t
 		embeddings := make([]float64, 1536) // Default embedding size
 		results, err := ms.container.GetVectorStore().Search(ctx, query, embeddings)
 		if err == nil {
-			for _, result := range results.Results {
-				chunks = append(chunks, result.Chunk)
+			for i := range results.Results {
+				chunks = append(chunks, results.Results[i].Chunk)
 			}
 		}
 	} else {
@@ -5272,9 +5346,9 @@ func (ms *MemoryServer) getChunksForTimeframe(ctx context.Context, repository, t
 			cutoff = time.Time{} // No filtering
 		}
 
-		for _, chunk := range chunks {
-			if cutoff.IsZero() || chunk.Timestamp.After(cutoff) {
-				filteredChunks = append(filteredChunks, chunk)
+		for i := range chunks {
+			if cutoff.IsZero() || chunks[i].Timestamp.After(cutoff) {
+				filteredChunks = append(filteredChunks, chunks[i])
 			}
 		}
 		chunks = filteredChunks
@@ -5288,31 +5362,31 @@ func (ms *MemoryServer) detectConflictsSimple(chunks []types.ConversationChunk) 
 	conflicts := []map[string]interface{}{}
 
 	// Simple conflict detection based on contradictory outcomes for similar content
-	for i, chunk1 := range chunks {
-		for j, chunk2 := range chunks {
-			if i >= j || chunk1.SessionID == chunk2.SessionID {
+	for i := range chunks {
+		for j := range chunks {
+			if i >= j || chunks[i].SessionID == chunks[j].SessionID {
 				continue
 			}
 
 			// Check for similar summaries with different outcomes
-			if ms.areSimilarSummaries(chunk1.Summary, chunk2.Summary) &&
-				chunk1.Metadata.Outcome != chunk2.Metadata.Outcome &&
-				(chunk1.Metadata.Outcome == types.OutcomeSuccess || chunk1.Metadata.Outcome == types.OutcomeFailed) &&
-				(chunk2.Metadata.Outcome == types.OutcomeSuccess || chunk2.Metadata.Outcome == types.OutcomeFailed) {
+			if ms.areSimilarSummaries(chunks[i].Summary, chunks[j].Summary) &&
+				chunks[i].Metadata.Outcome != chunks[j].Metadata.Outcome &&
+				(chunks[i].Metadata.Outcome == types.OutcomeSuccess || chunks[i].Metadata.Outcome == types.OutcomeFailed) &&
+				(chunks[j].Metadata.Outcome == types.OutcomeSuccess || chunks[j].Metadata.Outcome == types.OutcomeFailed) {
 				conflicts = append(conflicts, map[string]interface{}{
 					"type":        "outcome_conflict",
 					"description": "Similar issues with different outcomes",
 					"chunk1": map[string]interface{}{
-						"id":        chunk1.ID,
-						"summary":   chunk1.Summary,
-						"outcome":   string(chunk1.Metadata.Outcome),
-						"timestamp": chunk1.Timestamp.Format(time.RFC3339),
+						"id":        chunks[i].ID,
+						"summary":   chunks[i].Summary,
+						"outcome":   string(chunks[i].Metadata.Outcome),
+						"timestamp": chunks[i].Timestamp.Format(time.RFC3339),
 					},
 					"chunk2": map[string]interface{}{
-						"id":        chunk2.ID,
-						"summary":   chunk2.Summary,
-						"outcome":   string(chunk2.Metadata.Outcome),
-						"timestamp": chunk2.Timestamp.Format(time.RFC3339),
+						"id":        chunks[j].ID,
+						"summary":   chunks[j].Summary,
+						"outcome":   string(chunks[j].Metadata.Outcome),
+						"timestamp": chunks[j].Timestamp.Format(time.RFC3339),
 					},
 					"severity": types.PriorityMedium,
 				})
@@ -5328,33 +5402,33 @@ func (ms *MemoryServer) findContradictoryDecisions(chunks []types.ConversationCh
 	contradictions := []map[string]interface{}{}
 
 	decisions := []types.ConversationChunk{}
-	for _, chunk := range chunks {
-		if chunk.Type == types.ChunkTypeArchitectureDecision {
-			decisions = append(decisions, chunk)
+	for i := range chunks {
+		if chunks[i].Type == types.ChunkTypeArchitectureDecision {
+			decisions = append(decisions, chunks[i])
 		}
 	}
 
 	// Look for decisions that might contradict each other
-	for i, decision1 := range decisions {
-		for j, decision2 := range decisions {
+	for i := range decisions {
+		for j := range decisions {
 			if i >= j {
 				continue
 			}
 
 			// Simple keyword-based contradiction detection
-			if ms.hasContradictoryKeywords(decision1.Content, decision2.Content) {
+			if ms.hasContradictoryKeywords(decisions[i].Content, decisions[j].Content) {
 				contradictions = append(contradictions, map[string]interface{}{
 					"type":        "architecture_contradiction",
 					"description": "Potentially contradictory architectural decisions",
 					"decision1": map[string]interface{}{
-						"id":        decision1.ID,
-						"summary":   decision1.Summary,
-						"timestamp": decision1.Timestamp.Format(time.RFC3339),
+						"id":        decisions[i].ID,
+						"summary":   decisions[i].Summary,
+						"timestamp": decisions[i].Timestamp.Format(time.RFC3339),
 					},
 					"decision2": map[string]interface{}{
-						"id":        decision2.ID,
-						"summary":   decision2.Summary,
-						"timestamp": decision2.Timestamp.Format(time.RFC3339),
+						"id":        decisions[j].ID,
+						"summary":   decisions[j].Summary,
+						"timestamp": decisions[j].Timestamp.Format(time.RFC3339),
 					},
 					"severity": types.PriorityHigh,
 				})
@@ -5481,8 +5555,8 @@ func (ms *MemoryServer) analyzeSessionFlow(chunks []types.ConversationChunk) map
 	}
 
 	stages := []string{}
-	for _, chunk := range sortedChunks {
-		stages = append(stages, string(chunk.Type))
+	for i := range sortedChunks {
+		stages = append(stages, string(sortedChunks[i].Type))
 	}
 
 	// Determine overall flow pattern
@@ -5534,9 +5608,9 @@ func (ms *MemoryServer) generateContinuationSuggestions(sessionChunks, _ []types
 
 	// Check for recent problems without solutions
 	recentProblems := []types.ConversationChunk{}
-	for _, chunk := range sessionChunks {
-		if chunk.Type == types.ChunkTypeProblem {
-			recentProblems = append(recentProblems, chunk)
+	for i := range sessionChunks {
+		if sessionChunks[i].Type == types.ChunkTypeProblem {
+			recentProblems = append(recentProblems, sessionChunks[i])
 		}
 	}
 
@@ -5552,8 +5626,8 @@ func (ms *MemoryServer) generateContinuationSuggestions(sessionChunks, _ []types
 
 	// Suggest documentation if session had many changes
 	codeChangeCount := 0
-	for _, chunk := range sessionChunks {
-		if chunk.Type == types.ChunkTypeCodeChange {
+	for i := range sessionChunks {
+		if sessionChunks[i].Type == types.ChunkTypeCodeChange {
 			codeChangeCount++
 		}
 	}
@@ -5599,10 +5673,10 @@ func (ms *MemoryServer) calculateContinuationReadiness(chunks []types.Conversati
 
 	// Boost readiness if there are clear next steps
 	hasNextSteps := false
-	for _, chunk := range chunks {
-		if strings.Contains(strings.ToLower(chunk.Content), "next") ||
-			strings.Contains(strings.ToLower(chunk.Content), "todo") ||
-			strings.Contains(strings.ToLower(chunk.Content), "continue") {
+	for i := range chunks {
+		if strings.Contains(strings.ToLower(chunks[i].Content), "next") ||
+			strings.Contains(strings.ToLower(chunks[i].Content), "todo") ||
+			strings.Contains(strings.ToLower(chunks[i].Content), "continue") {
 			hasNextSteps = true
 			break
 		}
@@ -5647,7 +5721,7 @@ func (ms *MemoryServer) handleCreateThread(ctx context.Context, params map[strin
 	}
 
 	// Build and return response
-	result := ms.buildCreateThreadResponse(thread, len(chunks))
+	result := ms.buildCreateThreadResponse(thread)
 	logging.Info("memory_create_thread completed successfully", "thread_id", thread.ID, "chunk_count", len(chunks))
 	return result, nil
 }
@@ -5759,7 +5833,7 @@ func (ms *MemoryServer) applyThreadMetadataOverrides(ctx context.Context, thread
 }
 
 // buildCreateThreadResponse builds the response for thread creation
-func (ms *MemoryServer) buildCreateThreadResponse(thread *threading.MemoryThread, chunkCount int) map[string]interface{} {
+func (ms *MemoryServer) buildCreateThreadResponse(thread *threading.MemoryThread) map[string]interface{} {
 	return map[string]interface{}{
 		"thread_id":   thread.ID,
 		"title":       thread.Title,
@@ -6102,9 +6176,9 @@ func (ms *MemoryServer) handleAnalyzeCrossRepoPatterns(ctx context.Context, para
 			// Filter for recent chunks (last 7 days for RecencyRecent)
 			cutoff := time.Now().AddDate(0, 0, -7)
 			var recentChunks []types.ConversationChunk
-			for _, chunk := range chunks {
-				if chunk.Timestamp.After(cutoff) {
-					recentChunks = append(recentChunks, chunk)
+			for i := range chunks {
+				if chunks[i].Timestamp.After(cutoff) {
+					recentChunks = append(recentChunks, chunks[i])
 				}
 			}
 			chunks = recentChunks
@@ -6181,9 +6255,9 @@ func (ms *MemoryServer) handleFindSimilarRepositories(ctx context.Context, param
 		// Filter for recent chunks (last 7 days for RecencyRecent)
 		cutoff := time.Now().AddDate(0, 0, -7)
 		var recentChunks []types.ConversationChunk
-		for _, chunk := range chunks {
-			if chunk.Timestamp.After(cutoff) {
-				recentChunks = append(recentChunks, chunk)
+		for i := range chunks {
+			if chunks[i].Timestamp.After(cutoff) {
+				recentChunks = append(recentChunks, chunks[i])
 			}
 		}
 		chunks = recentChunks
@@ -6367,12 +6441,12 @@ func (ms *MemoryServer) validateMultiRepoSearchParams(params map[string]interfac
 }
 
 // extractMultiRepoSearchParams extracts optional parameters for multi-repo search
-func (ms *MemoryServer) extractMultiRepoSearchParams(config *multiRepoSearchConfig, params map[string]interface{}) {
+func (ms *MemoryServer) extractMultiRepoSearchParams(searchConfig *multiRepoSearchConfig, params map[string]interface{}) {
 	// Extract repositories
 	if reposInterface, ok := params["repositories"].([]interface{}); ok {
 		for _, repoInterface := range reposInterface {
 			if repo, ok := repoInterface.(string); ok {
-				config.Repositories = append(config.Repositories, repo)
+				searchConfig.Repositories = append(searchConfig.Repositories, repo)
 			}
 		}
 	}
@@ -6381,7 +6455,7 @@ func (ms *MemoryServer) extractMultiRepoSearchParams(config *multiRepoSearchConf
 	if techInterface, ok := params["tech_stacks"].([]interface{}); ok {
 		for _, techInterface := range techInterface {
 			if tech, ok := techInterface.(string); ok {
-				config.TechStacks = append(config.TechStacks, tech)
+				searchConfig.TechStacks = append(searchConfig.TechStacks, tech)
 			}
 		}
 	}
@@ -6390,7 +6464,7 @@ func (ms *MemoryServer) extractMultiRepoSearchParams(config *multiRepoSearchConf
 	if frameworkInterface, ok := params["frameworks"].([]interface{}); ok {
 		for _, fwInterface := range frameworkInterface {
 			if fw, ok := fwInterface.(string); ok {
-				config.Frameworks = append(config.Frameworks, fw)
+				searchConfig.Frameworks = append(searchConfig.Frameworks, fw)
 			}
 		}
 	}
@@ -6399,49 +6473,49 @@ func (ms *MemoryServer) extractMultiRepoSearchParams(config *multiRepoSearchConf
 	if typesInterface, ok := params["pattern_types"].([]interface{}); ok {
 		for _, typeInterface := range typesInterface {
 			if patternType, ok := typeInterface.(string); ok {
-				config.PatternTypes = append(config.PatternTypes, patternType)
+				searchConfig.PatternTypes = append(searchConfig.PatternTypes, patternType)
 			}
 		}
 	}
 
 	// Extract numeric parameters
 	if conf, ok := params["min_confidence"].(float64); ok {
-		config.MinConfidence = conf
+		searchConfig.MinConfidence = conf
 	}
 
 	if maxVal, ok := params["max_results"].(float64); ok {
-		config.MaxResults = int(maxVal)
+		searchConfig.MaxResults = int(maxVal)
 	}
 
 	if include, ok := params["include_similar"].(bool); ok {
-		config.IncludeSimilar = include
+		searchConfig.IncludeSimilar = include
 	}
 }
 
 // executeMultiRepoSearch creates and executes multi-repository search
-func (ms *MemoryServer) executeMultiRepoSearch(ctx context.Context, config *multiRepoSearchConfig) ([]intelligence.MultiRepoResult, error) {
+func (ms *MemoryServer) executeMultiRepoSearch(ctx context.Context, searchConfig *multiRepoSearchConfig) ([]intelligence.MultiRepoResult, error) {
 	multiRepoEngine := ms.container.GetMultiRepoEngine()
 
 	// Create multi-repository query
 	multiQuery := intelligence.MultiRepoQuery{
-		Query:          config.Query,
-		Repositories:   config.Repositories,
-		TechStacks:     config.TechStacks,
-		Frameworks:     config.Frameworks,
-		MinConfidence:  config.MinConfidence,
-		MaxResults:     config.MaxResults,
-		IncludeSimilar: config.IncludeSimilar,
+		Query:          searchConfig.Query,
+		Repositories:   searchConfig.Repositories,
+		TechStacks:     searchConfig.TechStacks,
+		Frameworks:     searchConfig.Frameworks,
+		MinConfidence:  searchConfig.MinConfidence,
+		MaxResults:     searchConfig.MaxResults,
+		IncludeSimilar: searchConfig.IncludeSimilar,
 	}
 
 	// Convert pattern type strings to PatternType
-	for _, pt := range config.PatternTypes {
+	for _, pt := range searchConfig.PatternTypes {
 		multiQuery.PatternTypes = append(multiQuery.PatternTypes, intelligence.PatternType(pt))
 	}
 
 	// Execute multi-repository search
 	results, err := multiRepoEngine.QueryMultiRepo(ctx, &multiQuery)
 	if err != nil {
-		logging.Error("Failed to search multi-repo", "query", config.Query, "error", err)
+		logging.Error("Failed to search multi-repo", "query", searchConfig.Query, "error", err)
 		return nil, fmt.Errorf("failed to search multi-repo: %w", err)
 	}
 
@@ -6466,46 +6540,46 @@ func (ms *MemoryServer) formatMultiRepoResults(results []intelligence.MultiRepoR
 // formatPatternResults formats pattern results for response
 func (ms *MemoryServer) formatPatternResults(patterns []intelligence.CrossRepoPattern) []map[string]interface{} {
 	formattedPatterns := make([]map[string]interface{}, 0, len(patterns))
-	for _, pattern := range patterns {
+	for i := range patterns {
 		formattedPatterns = append(formattedPatterns, map[string]interface{}{
-			"id":           pattern.ID,
-			"name":         pattern.Name,
-			"description":  pattern.Description,
-			"repositories": pattern.Repositories,
-			"frequency":    pattern.Frequency,
-			"success_rate": pattern.SuccessRate,
-			"confidence":   pattern.Confidence,
-			"keywords":     pattern.Keywords,
-			"tech_stacks":  pattern.TechStacks,
-			"frameworks":   pattern.Frameworks,
-			"pattern_type": string(pattern.PatternType),
-			"created_at":   pattern.CreatedAt.Format(time.RFC3339),
-			"last_used":    pattern.LastUsed.Format(time.RFC3339),
+			"id":           patterns[i].ID,
+			"name":         patterns[i].Name,
+			"description":  patterns[i].Description,
+			"repositories": patterns[i].Repositories,
+			"frequency":    patterns[i].Frequency,
+			"success_rate": patterns[i].SuccessRate,
+			"confidence":   patterns[i].Confidence,
+			"keywords":     patterns[i].Keywords,
+			"tech_stacks":  patterns[i].TechStacks,
+			"frameworks":   patterns[i].Frameworks,
+			"pattern_type": string(patterns[i].PatternType),
+			"created_at":   patterns[i].CreatedAt.Format(time.RFC3339),
+			"last_used":    patterns[i].LastUsed.Format(time.RFC3339),
 		})
 	}
 	return formattedPatterns
 }
 
 // buildMultiRepoSearchResponse builds the final response for multi-repo search
-func (ms *MemoryServer) buildMultiRepoSearchResponse(config *multiRepoSearchConfig, searchResults []map[string]interface{}) map[string]interface{} {
+func (ms *MemoryServer) buildMultiRepoSearchResponse(searchConfig *multiRepoSearchConfig, searchResults []map[string]interface{}) map[string]interface{} {
 	response := map[string]interface{}{
-		"query":      config.Query,
-		"session_id": config.SessionID,
+		"query":      searchConfig.Query,
+		"session_id": searchConfig.SessionID,
 		"filter_criteria": map[string]interface{}{
-			"repositories":    config.Repositories,
-			"tech_stacks":     config.TechStacks,
-			"frameworks":      config.Frameworks,
-			"pattern_types":   config.PatternTypes,
-			"min_confidence":  config.MinConfidence,
-			"max_results":     config.MaxResults,
-			"include_similar": config.IncludeSimilar,
+			"repositories":    searchConfig.Repositories,
+			"tech_stacks":     searchConfig.TechStacks,
+			"frameworks":      searchConfig.Frameworks,
+			"pattern_types":   searchConfig.PatternTypes,
+			"min_confidence":  searchConfig.MinConfidence,
+			"max_results":     searchConfig.MaxResults,
+			"include_similar": searchConfig.IncludeSimilar,
 		},
 		"results":       searchResults,
 		"total_results": len(searchResults),
 		"timestamp":     time.Now().Format(time.RFC3339),
 	}
 
-	logging.Info("memory_search_multi_repo completed successfully", "query", config.Query, "session_id", config.SessionID, "results", len(searchResults))
+	logging.Info("memory_search_multi_repo completed successfully", "query", searchConfig.Query, "session_id", searchConfig.SessionID, "results", len(searchResults))
 	return response
 }
 
@@ -6535,14 +6609,14 @@ func (ms *MemoryServer) handleMemoryHealthDashboard(ctx context.Context, params 
 }
 
 // validateHealthDashboardParams validates required parameters for health dashboard
-func (ms *MemoryServer) validateHealthDashboardParams(params map[string]interface{}) (string, string, error) {
+func (ms *MemoryServer) validateHealthDashboardParams(params map[string]interface{}) (repository string, sessionID string, err error) {
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_health_dashboard failed: missing repository parameter")
 		return "", "", errors.New("repository is required")
 	}
 
-	sessionID, ok := params["session_id"].(string)
+	sessionID, ok = params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_health_dashboard failed: missing session_id parameter")
 		return "", "", errors.New("session_id is required")
@@ -6552,18 +6626,18 @@ func (ms *MemoryServer) validateHealthDashboardParams(params map[string]interfac
 }
 
 // parseHealthDashboardOptions parses optional parameters for health dashboard
-func (ms *MemoryServer) parseHealthDashboardOptions(params map[string]interface{}) (string, bool, bool) {
-	timeframe := types.TimeframeMonth
+func (ms *MemoryServer) parseHealthDashboardOptions(params map[string]interface{}) (timeframe string, includeDetails bool, includeRecommendations bool) {
+	timeframe = types.TimeframeMonth
 	if tf, ok := params["timeframe"].(string); ok && tf != "" {
 		timeframe = tf
 	}
 
-	includeDetails := true
+	includeDetails = true
 	if details, ok := params["include_details"].(bool); ok {
 		includeDetails = details
 	}
 
-	includeRecommendations := true
+	includeRecommendations = true
 	if recs, ok := params["include_recommendations"].(bool); ok {
 		includeRecommendations = recs
 	}
@@ -6608,9 +6682,9 @@ func (ms *MemoryServer) getChunksForHealthAnalysis(ctx context.Context, reposito
 
 	// Filter by timeframe
 	var filteredChunks []types.ConversationChunk
-	for _, chunk := range chunks {
-		if since.IsZero() || chunk.Timestamp.After(since) {
-			filteredChunks = append(filteredChunks, chunk)
+	for i := range chunks {
+		if since.IsZero() || chunks[i].Timestamp.After(since) {
+			filteredChunks = append(filteredChunks, chunks[i])
 		}
 	}
 
@@ -6659,18 +6733,18 @@ func (ms *MemoryServer) generateHealthReport(chunks []types.ConversationChunk, _
 
 	cutoffDate := time.Now().AddDate(0, -1, 0) // 1 month ago
 
-	for _, chunk := range chunks {
+	for i := range chunks {
 		// Count outcomes
-		outcomes[chunk.Metadata.Outcome]++
+		outcomes[chunks[i].Metadata.Outcome]++
 
 		// Count types
-		chunkTypes[chunk.Type]++
+		chunkTypes[chunks[i].Type]++
 
 		// Count difficulties
-		difficulties[chunk.Metadata.Difficulty]++
+		difficulties[chunks[i].Metadata.Difficulty]++
 
 		// Age analysis
-		if chunk.Timestamp.Before(cutoffDate) {
+		if chunks[i].Timestamp.Before(cutoffDate) {
 			oldChunks++
 		} else {
 			recentChunks++
@@ -6678,12 +6752,12 @@ func (ms *MemoryServer) generateHealthReport(chunks []types.ConversationChunk, _
 
 		// Calculate effectiveness using analytics
 		analytics := ms.container.GetMemoryAnalytics()
-		effectiveness := analytics.CalculateEffectivenessScore(&chunk)
+		effectiveness := analytics.CalculateEffectivenessScore(&chunks[i])
 		effectivenessScores = append(effectivenessScores, effectiveness)
 		totalEffectiveness += effectiveness
 
 		// Check accessibility (has summary and good metadata)
-		if chunk.Summary != "" && len(chunk.Metadata.Tags) > 0 {
+		if chunks[i].Summary != "" && len(chunks[i].Metadata.Tags) > 0 {
 			accessibleChunks++
 		}
 	}
@@ -6789,8 +6863,8 @@ func calculateAvgAge(chunks []types.ConversationChunk) float64 {
 	}
 
 	totalDays := 0.0
-	for _, chunk := range chunks {
-		days := time.Since(chunk.Timestamp).Hours() / 24
+	for i := range chunks {
+		days := time.Since(chunks[i].Timestamp).Hours() / 24
 		totalDays += days
 	}
 
@@ -6820,8 +6894,8 @@ func getHealthStatus(score float64) string {
 
 func countChunksWithSummaries(chunks []types.ConversationChunk) int {
 	count := 0
-	for _, chunk := range chunks {
-		if chunk.Summary != "" {
+	for i := range chunks {
+		if chunks[i].Summary != "" {
 			count++
 		}
 	}
@@ -6830,8 +6904,8 @@ func countChunksWithSummaries(chunks []types.ConversationChunk) int {
 
 func countChunksWithTags(chunks []types.ConversationChunk) int {
 	count := 0
-	for _, chunk := range chunks {
-		if len(chunk.Metadata.Tags) > 0 {
+	for i := range chunks {
+		if len(chunks[i].Metadata.Tags) > 0 {
 			count++
 		}
 	}
@@ -6840,8 +6914,8 @@ func countChunksWithTags(chunks []types.ConversationChunk) int {
 
 func countChunksWithFiles(chunks []types.ConversationChunk) int {
 	count := 0
-	for _, chunk := range chunks {
-		if len(chunk.Metadata.FilesModified) > 0 {
+	for i := range chunks {
+		if len(chunks[i].Metadata.FilesModified) > 0 {
 			count++
 		}
 	}
@@ -6899,18 +6973,18 @@ func getRecentHighImpactChunks(chunks []types.ConversationChunk, limit int) []ma
 	recentCutoff := time.Now().AddDate(0, 0, -7) // Last week
 	var recentChunks []types.ConversationChunk
 
-	for _, chunk := range chunks {
-		if chunk.Timestamp.After(recentCutoff) {
+	for i := range chunks {
+		if chunks[i].Timestamp.After(recentCutoff) {
 			// Check for high-impact indicators
 			hasHighImpact := false
-			for _, tag := range chunk.Metadata.Tags {
+			for _, tag := range chunks[i].Metadata.Tags {
 				if tag == "high-impact" || tag == "architecture" || tag == "critical" {
 					hasHighImpact = true
 					break
 				}
 			}
-			if hasHighImpact || chunk.Type == types.ChunkTypeArchitectureDecision {
-				recentChunks = append(recentChunks, chunk)
+			if hasHighImpact || chunks[i].Type == types.ChunkTypeArchitectureDecision {
+				recentChunks = append(recentChunks, chunks[i])
 			}
 		}
 	}
@@ -6942,9 +7016,9 @@ func getOutdatedChunks(chunks []types.ConversationChunk, limit int) []map[string
 	cutoff := time.Now().AddDate(0, -3, 0)
 	var outdatedChunks []types.ConversationChunk
 
-	for _, chunk := range chunks {
-		if chunk.Timestamp.Before(cutoff) && chunk.Metadata.Outcome == types.OutcomeInProgress {
-			outdatedChunks = append(outdatedChunks, chunk)
+	for i := range chunks {
+		if chunks[i].Timestamp.Before(cutoff) && chunks[i].Metadata.Outcome == types.OutcomeInProgress {
+			outdatedChunks = append(outdatedChunks, chunks[i])
 		}
 	}
 
@@ -7116,11 +7190,11 @@ func (ms *MemoryServer) handleMemoryDecayManagement(ctx context.Context, params 
 	case "run_decay":
 		result, err = ms.handleRunDecay(ctx, repository, sessionID, previewOnly, intelligentMode)
 	case "configure":
-		config, hasConfig := params["config"].(map[string]interface{})
+		decayConfig, hasConfig := params["config"].(map[string]interface{})
 		if !hasConfig {
 			return nil, errors.New("config is required for configure action")
 		}
-		result = ms.handleDecayConfiguration(ctx, repository, sessionID, config)
+		result = ms.handleDecayConfiguration(ctx, repository, sessionID, decayConfig)
 		err = nil
 	default:
 		return nil, fmt.Errorf("unknown action: %s. Valid actions are: 'run_decay', 'configure', 'status', 'preview'", action)
@@ -7166,19 +7240,19 @@ func (ms *MemoryServer) handleDecayStatus(ctx context.Context, repository, sessi
 	var oldChunks, staleChunks, candidatesForSummarization, candidatesForDeletion int
 	var totalAge time.Duration
 
-	for _, chunk := range chunks {
-		age := now.Sub(chunk.Timestamp)
+	for i := range chunks {
+		age := now.Sub(chunks[i].Timestamp)
 		totalAge += age
 
 		if age > 30*24*time.Hour { // Older than 30 days
 			oldChunks++
 		}
-		if age > 7*24*time.Hour && chunk.Metadata.Outcome == types.OutcomeInProgress { // Stale in-progress items
+		if age > 7*24*time.Hour && chunks[i].Metadata.Outcome == types.OutcomeInProgress { // Stale in-progress items
 			staleChunks++
 		}
 
 		// Estimate decay score
-		score := ms.estimateDecayScore(chunk, age)
+		score := ms.estimateDecayScore(chunks[i], age)
 		if score < 0.4 {
 			candidatesForSummarization++
 		}
@@ -7241,23 +7315,23 @@ func (ms *MemoryServer) handleDecayPreview(ctx context.Context, repository, sess
 	toDelete := make([]map[string]interface{}, 0)
 	toUpdate := make([]map[string]interface{}, 0)
 
-	for _, chunk := range chunks {
-		age := now.Sub(chunk.Timestamp)
+	for i := range chunks {
+		age := now.Sub(chunks[i].Timestamp)
 
 		// Skip recent memories (less than 7 days old)
 		if age < 7*24*time.Hour {
 			continue
 		}
 
-		score := ms.estimateDecayScore(chunk, age)
+		score := ms.estimateDecayScore(chunks[i], age)
 
 		chunkInfo := map[string]interface{}{
-			"id":          chunk.ID,
-			"type":        string(chunk.Type),
-			"summary":     chunk.Summary,
+			"id":          chunks[i].ID,
+			"type":        string(chunks[i].Type),
+			"summary":     chunks[i].Summary,
 			"age_days":    int(age.Hours() / 24),
 			"decay_score": score,
-			"created_at":  chunk.Timestamp.Format(time.RFC3339),
+			"created_at":  chunks[i].Timestamp.Format(time.RFC3339),
 		}
 
 		switch {
@@ -7327,30 +7401,30 @@ func (ms *MemoryServer) handleRunDecay(ctx context.Context, repository, sessionI
 }
 
 // handleDecayConfiguration handles decay configuration updates
-func (ms *MemoryServer) handleDecayConfiguration(_ context.Context, repository, sessionID string, config map[string]interface{}) map[string]interface{} {
+func (ms *MemoryServer) handleDecayConfiguration(_ context.Context, repository, sessionID string, decayConfig map[string]interface{}) map[string]interface{} {
 	// Parse configuration
 	strategy := "adaptive"
-	if s, ok := config["strategy"].(string); ok && s != "" {
+	if s, ok := decayConfig["strategy"].(string); ok && s != "" {
 		strategy = s
 	}
 
 	baseDecayRate := 0.1
-	if rate, ok := config["base_decay_rate"].(float64); ok {
+	if rate, ok := decayConfig["base_decay_rate"].(float64); ok {
 		baseDecayRate = rate
 	}
 
 	summarizationThreshold := 0.4
-	if threshold, ok := config["summarization_threshold"].(float64); ok {
+	if threshold, ok := decayConfig["summarization_threshold"].(float64); ok {
 		summarizationThreshold = threshold
 	}
 
 	deletionThreshold := 0.1
-	if threshold, ok := config["deletion_threshold"].(float64); ok {
+	if threshold, ok := decayConfig["deletion_threshold"].(float64); ok {
 		deletionThreshold = threshold
 	}
 
 	retentionPeriodDays := 7.0
-	if days, ok := config["retention_period_days"].(float64); ok {
+	if days, ok := decayConfig["retention_period_days"].(float64); ok {
 		retentionPeriodDays = days
 	}
 
@@ -7498,16 +7572,16 @@ func (ms *MemoryServer) searchRelatedRepositories(ctx context.Context, relaxedQu
 // filterChunksBySession filters chunks by the given session ID (supports both regular and composite session IDs)
 func (ms *MemoryServer) filterChunksBySession(chunks []types.ConversationChunk, sessionID string) []types.ConversationChunk {
 	var filtered []types.ConversationChunk
-	for _, chunk := range chunks {
+	for i := range chunks {
 		// Support both direct match and repository-scoped matching
-		if chunk.SessionID == sessionID {
-			filtered = append(filtered, chunk)
+		if chunks[i].SessionID == sessionID {
+			filtered = append(filtered, chunks[i])
 		} else if strings.Contains(sessionID, "::") {
 			// For composite sessionID, also check if chunk's sessionID matches the session part
 			expectedSession := ms.extractSessionFromComposite(sessionID)
 			expectedRepo := ms.extractRepositoryFromComposite(sessionID)
-			if chunk.SessionID == expectedSession && chunk.Metadata.Repository == expectedRepo {
-				filtered = append(filtered, chunk)
+			if chunks[i].SessionID == expectedSession && chunks[i].Metadata.Repository == expectedRepo {
+				filtered = append(filtered, chunks[i])
 			}
 		}
 	}
@@ -7525,11 +7599,11 @@ func (ms *MemoryServer) findMostRecentSessionID(chunks []types.ConversationChunk
 	latestRepository := chunks[0].Metadata.Repository
 	latestTime := chunks[0].Timestamp
 
-	for _, chunk := range chunks {
-		if chunk.Timestamp.After(latestTime) {
-			latestTime = chunk.Timestamp
-			latestSessionID = chunk.SessionID
-			latestRepository = chunk.Metadata.Repository
+	for i := range chunks {
+		if chunks[i].Timestamp.After(latestTime) {
+			latestTime = chunks[i].Timestamp
+			latestSessionID = chunks[i].SessionID
+			latestRepository = chunks[i].Metadata.Repository
 		}
 	}
 
@@ -7982,14 +8056,14 @@ func (ms *MemoryServer) buildSearchResultsForCitation(ctx context.Context, chunk
 func (ms *MemoryServer) generateCitationsFromResults(ctx context.Context, results []types.SearchResult, query, citationStyle string, groupSources bool) (*intelligence.ResponseCitations, error) {
 	citationManager := intelligence.NewCitationManager(ms.container.VectorStore)
 
-	config := intelligence.DefaultCitationConfig()
-	config.CitationStyle = citationStyle
-	config.GroupSimilarSources = groupSources
+	citationConfig := intelligence.DefaultCitationConfig()
+	citationConfig.CitationStyle = citationStyle
+	citationConfig.GroupSimilarSources = groupSources
 	if citationStyle == "apa" {
-		config.IncludeTimestamps = true
-		config.IncludeRepository = true
+		citationConfig.IncludeTimestamps = true
+		citationConfig.IncludeRepository = true
 	}
-	citationManager.SetConfig(config)
+	citationManager.SetConfig(citationConfig)
 
 	citations, err := citationManager.GenerateCitations(ctx, results, query)
 	if err != nil {
@@ -8054,31 +8128,31 @@ func (ms *MemoryServer) handleCreateInlineCitation(ctx context.Context, params m
 
 	// Create citation manager with inline format
 	citationManager := intelligence.NewCitationManager(ms.container.VectorStore)
-	config := intelligence.DefaultCitationConfig()
+	citationConfig := intelligence.DefaultCitationConfig()
 
 	// Configure inline format based on requested format
 	switch format {
 	case "superscript":
-		config.CustomFormats["inline"] = intelligence.CitationFormat{
+		citationConfig.CustomFormats["inline"] = intelligence.CitationFormat{
 			Template:  "^{id}",
 			Fields:    []string{"id"},
 			Separator: ",",
 		}
 	case "parenthetical":
-		config.CustomFormats["inline"] = intelligence.CitationFormat{
+		citationConfig.CustomFormats["inline"] = intelligence.CitationFormat{
 			Template:  "({id})",
 			Fields:    []string{"id"},
 			Separator: ", ",
 		}
 	default: // bracket
-		config.CustomFormats["inline"] = intelligence.CitationFormat{
+		citationConfig.CustomFormats["inline"] = intelligence.CitationFormat{
 			Template:  "[{id}]",
 			Fields:    []string{"id"},
 			Separator: ", ",
 		}
 	}
 
-	citationManager.SetConfig(config)
+	citationManager.SetConfig(citationConfig)
 
 	// For demonstration, create a simple inline reference
 	// In production, this would reference the actual stored citations
@@ -9382,9 +9456,9 @@ func (ms *MemoryServer) handleGetBulkProgress(ctx context.Context, params map[st
 	}
 
 	// Format errors for response
-	errors := make([]map[string]interface{}, len(progress.Errors))
+	bulkErrors := make([]map[string]interface{}, len(progress.Errors))
 	for i, err := range progress.Errors {
-		errors[i] = map[string]interface{}{
+		bulkErrors[i] = map[string]interface{}{
 			"item_index": err.ItemIndex,
 			"item_id":    err.ItemID,
 			"error":      err.Error,
@@ -9406,7 +9480,7 @@ func (ms *MemoryServer) handleGetBulkProgress(ctx context.Context, params map[st
 		"start_time":        progress.StartTime.Format(time.RFC3339),
 		"elapsed_time":      progress.ElapsedTime.String(),
 		"estimated_time":    progress.EstimatedTime.String(),
-		"errors":            errors,
+		"errors":            bulkErrors,
 		"validation_errors": progress.ValidationErrors,
 	}, nil
 }
@@ -9477,27 +9551,27 @@ func (ms *MemoryServer) validateCreateTaskParams(params map[string]interface{}) 
 }
 
 // setTaskDefaults sets optional parameters with defaults
-func (ms *MemoryServer) setTaskDefaults(config *createTaskConfig, params map[string]interface{}) {
+func (ms *MemoryServer) setTaskDefaults(taskConfig *createTaskConfig, params map[string]interface{}) {
 	if repo, ok := params["repository"].(string); ok && repo != "" {
-		config.Repository = repo
+		taskConfig.Repository = repo
 	}
 
 	if p, ok := params["priority"].(string); ok && p != "" {
-		config.Priority = p
+		taskConfig.Priority = p
 	}
 
 	if s, ok := params["status"].(string); ok && s != "" {
-		config.Status = types.TaskStatus(s)
+		taskConfig.Status = types.TaskStatus(s)
 	}
 }
 
 // buildTaskMetadata builds metadata for task chunk
-func (ms *MemoryServer) buildTaskMetadata(config *createTaskConfig, params map[string]interface{}) types.ChunkMetadata {
+func (ms *MemoryServer) buildTaskMetadata(taskConfig *createTaskConfig, params map[string]interface{}) types.ChunkMetadata {
 	metadata := types.ChunkMetadata{
-		Repository:   config.Repository,
+		Repository:   taskConfig.Repository,
 		Tags:         extractStringArray(params["tags"]),
-		TaskStatus:   &config.Status,
-		TaskPriority: &config.Priority,
+		TaskStatus:   &taskConfig.Status,
+		TaskPriority: &taskConfig.Priority,
 		Outcome:      types.OutcomeInProgress,
 		Difficulty:   types.DifficultyModerate,
 	}
@@ -9540,12 +9614,12 @@ func (ms *MemoryServer) setTaskDependencies(metadata *types.ChunkMetadata, param
 }
 
 // createAndStoreTaskChunk creates task chunk and stores it
-func (ms *MemoryServer) createAndStoreTaskChunk(ctx context.Context, config *createTaskConfig, metadata types.ChunkMetadata) (*types.ConversationChunk, error) {
+func (ms *MemoryServer) createAndStoreTaskChunk(ctx context.Context, taskConfig *createTaskConfig, metadata types.ChunkMetadata) (*types.ConversationChunk, error) {
 	// Create task content from title and description
-	content := fmt.Sprintf("TASK: %s\n\nDESCRIPTION:\n%s", config.Title, config.Description)
+	content := fmt.Sprintf("TASK: %s\n\nDESCRIPTION:\n%s", taskConfig.Title, taskConfig.Description)
 
 	// Create conversation chunk with task type
-	chunk, err := types.NewConversationChunk(config.SessionID, content, types.ChunkTypeTask, metadata)
+	chunk, err := types.NewConversationChunk(taskConfig.SessionID, content, types.ChunkTypeTask, metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create task chunk: %w", err)
 	}
@@ -9566,25 +9640,25 @@ func (ms *MemoryServer) createAndStoreTaskChunk(ctx context.Context, config *cre
 }
 
 // finalizeTaskCreation logs audit event and returns response
-func (ms *MemoryServer) finalizeTaskCreation(ctx context.Context, chunk *types.ConversationChunk, config *createTaskConfig) (interface{}, error) {
+func (ms *MemoryServer) finalizeTaskCreation(ctx context.Context, chunk *types.ConversationChunk, taskConfig *createTaskConfig) (interface{}, error) {
 	// Audit log
 	ms.container.GetAuditLogger().LogEvent(ctx, audit.EventTypeMemoryStore, "create_task", "task", chunk.ID, map[string]interface{}{
 		"task_id":    chunk.ID,
-		"title":      config.Title,
-		"priority":   config.Priority,
-		"status":     config.Status,
-		"repository": config.Repository,
+		"title":      taskConfig.Title,
+		"priority":   taskConfig.Priority,
+		"status":     taskConfig.Status,
+		"repository": taskConfig.Repository,
 	})
 
-	logging.Info("memory_create_task completed successfully", "task_id", chunk.ID, "title", config.Title)
+	logging.Info("memory_create_task completed successfully", "task_id", chunk.ID, "title", taskConfig.Title)
 	return map[string]interface{}{
 		"task_id":    chunk.ID,
-		"title":      config.Title,
-		"status":     string(config.Status),
-		"priority":   config.Priority,
+		"title":      taskConfig.Title,
+		"status":     string(taskConfig.Status),
+		"priority":   taskConfig.Priority,
 		"created_at": chunk.Timestamp.Format(time.RFC3339),
-		"repository": config.Repository,
-		"session_id": config.SessionID,
+		"repository": taskConfig.Repository,
+		"session_id": taskConfig.SessionID,
 	}, nil
 }
 
@@ -9644,13 +9718,13 @@ func (ms *MemoryServer) handleGetTaskStatus(ctx context.Context, params map[stri
 
 	// Filter tasks based on additional criteria
 	tasks := make([]interface{}, 0, len(allChunks))
-	for _, chunk := range allChunks {
-		if chunk.Type == types.ChunkTypeTask {
+	for i := range allChunks {
+		if allChunks[i].Type == types.ChunkTypeTask {
 			// Apply additional filters
-			if filters["repository"] != nil && chunk.Metadata.Repository != filters["repository"].(string) {
+			if filters["repository"] != nil && allChunks[i].Metadata.Repository != filters["repository"].(string) {
 				continue
 			}
-			tasks = append(tasks, ms.formatTaskResponse(chunk))
+			tasks = append(tasks, ms.formatTaskResponse(allChunks[i]))
 		}
 	}
 
@@ -9856,8 +9930,8 @@ func (ms *MemoryServer) handleListTasks(ctx context.Context, params map[string]i
 
 	// Format response
 	tasks := make([]interface{}, 0, len(chunks))
-	for _, chunk := range chunks {
-		tasks = append(tasks, ms.formatTaskResponse(chunk))
+	for i := range chunks {
+		tasks = append(tasks, ms.formatTaskResponse(chunks[i]))
 	}
 
 	logging.Info("memory_list_tasks completed successfully", "tasks_found", len(tasks))
@@ -10316,9 +10390,9 @@ func (ms *MemoryServer) handleTaskCompletionStats(ctx context.Context, args map[
 	// Add repository breakdown if we have completed work
 	if len(completedWork) > 0 {
 		repoStats := make(map[string]int)
-		for _, chunk := range completedWork {
-			if chunk.Metadata.Repository != "" {
-				repoStats[chunk.Metadata.Repository]++
+		for i := range completedWork {
+			if completedWork[i].Metadata.Repository != "" {
+				repoStats[completedWork[i].Metadata.Repository]++
 			}
 		}
 		stats["by_repository"] = repoStats
@@ -10408,9 +10482,9 @@ func (ms *MemoryServer) handleDeleteExpired(ctx context.Context, options map[str
 
 	// Find expired chunks
 	var expiredIDs []string
-	for _, chunk := range chunks {
-		if chunk.Timestamp.Before(cutoffTime) {
-			expiredIDs = append(expiredIDs, chunk.ID)
+	for i := range chunks {
+		if chunks[i].Timestamp.Before(cutoffTime) {
+			expiredIDs = append(expiredIDs, chunks[i].ID)
 		}
 	}
 
@@ -10490,9 +10564,9 @@ func (ms *MemoryServer) discoverRepositories(ctx context.Context) []string {
 	// Get chunks from global and try to discover repositories
 	globalChunks, err := ms.container.GetVectorStore().ListByRepository(ctx, "_global", 1000, 0)
 	if err == nil {
-		for _, chunk := range globalChunks {
-			if chunk.Metadata.Repository != "" && chunk.Metadata.Repository != "_global" {
-				repoSet[chunk.Metadata.Repository] = true
+		for i := range globalChunks {
+			if globalChunks[i].Metadata.Repository != "" && globalChunks[i].Metadata.Repository != "_global" {
+				repoSet[globalChunks[i].Metadata.Repository] = true
 			}
 		}
 	}
