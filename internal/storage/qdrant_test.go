@@ -101,7 +101,8 @@ func (m *MockQdrantStore) GetByID(ctx context.Context, id string) (*types.Conver
 func (m *MockQdrantStore) ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error) {
 	// First, collect all matching chunks
 	var allChunks []types.ConversationChunk
-	for _, chunk := range m.chunks {
+	for chunkID := range m.chunks {
+		chunk := m.chunks[chunkID]
 		if chunk.Metadata.Repository == repository {
 			allChunks = append(allChunks, chunk)
 		}
@@ -127,7 +128,8 @@ func (m *MockQdrantStore) ListByRepository(ctx context.Context, repository strin
 
 func (m *MockQdrantStore) ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error) {
 	chunks := []types.ConversationChunk{}
-	for _, chunk := range m.chunks {
+	for chunkID := range m.chunks {
+		chunk := m.chunks[chunkID]
 		if chunk.SessionID == sessionID {
 			chunks = append(chunks, chunk)
 		}
@@ -167,7 +169,8 @@ func (m *MockQdrantStore) GetStats(ctx context.Context) (*StoreStats, error) {
 		StorageSize:  int64(len(m.chunks) * 1000), // Mock size
 	}
 
-	for _, chunk := range m.chunks {
+	for chunkID := range m.chunks {
+		chunk := m.chunks[chunkID]
 		stats.ChunksByType[string(chunk.Type)]++
 		stats.ChunksByRepo[chunk.Metadata.Repository]++
 	}
@@ -178,7 +181,8 @@ func (m *MockQdrantStore) GetStats(ctx context.Context) (*StoreStats, error) {
 func (m *MockQdrantStore) Cleanup(ctx context.Context, retentionDays int) (int, error) {
 	cutoff := time.Now().AddDate(0, 0, -retentionDays)
 	deleted := 0
-	for id, chunk := range m.chunks {
+	for id := range m.chunks {
+		chunk := m.chunks[id]
 		if chunk.Timestamp.Before(cutoff) {
 			delete(m.chunks, id)
 			deleted++
@@ -194,8 +198,8 @@ func (m *MockQdrantStore) Close() error {
 // New interface methods
 func (m *MockQdrantStore) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) {
 	chunks := make([]types.ConversationChunk, 0, len(m.chunks))
-	for _, chunk := range m.chunks {
-		chunks = append(chunks, chunk)
+	for chunkID := range m.chunks {
+		chunks = append(chunks, m.chunks[chunkID])
 	}
 	return chunks, nil
 }
@@ -226,7 +230,8 @@ func (m *MockQdrantStore) BatchStore(ctx context.Context, chunks []types.Convers
 		ProcessedIDs: []string{},
 	}
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := chunks[i]
 		if err := m.Store(ctx, chunk); err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, err.Error())

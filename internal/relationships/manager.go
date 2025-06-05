@@ -154,7 +154,8 @@ func (m *Manager) DetectRelationships(ctx context.Context, newChunk *types.Conve
 	var detected []Relationship
 
 	// Check for continuation (same session, close in time)
-	for _, existing := range existingChunks {
+	for i := range existingChunks {
+		existing := existingChunks[i]
 		if existing.SessionID == newChunk.SessionID {
 			timeDiff := newChunk.Timestamp.Sub(existing.Timestamp)
 			if timeDiff > 0 && timeDiff < 30*time.Minute {

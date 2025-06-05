@@ -17,7 +17,7 @@ const (
 	// Authentication and authorization errors
 	ErrorCodeUnauthorized  ErrorCode = "UNAUTHORIZED"
 	ErrorCodeForbidden     ErrorCode = "FORBIDDEN"
-	ErrorCodeInvalidAPIKey ErrorCode = "INVALID_API_KEY" //nolint:gosec // This is an error code, not credentials
+	ErrorCodeInvalidAPIKey ErrorCode = "INVALID_API_KEY" // #nosec G101 Error code constant, not credentials
 
 	// Validation errors
 	ErrorCodeValidationError ErrorCode = "VALIDATION_ERROR"

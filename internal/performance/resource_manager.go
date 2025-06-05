@@ -2,6 +2,7 @@ package performance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -374,19 +375,19 @@ func NewResourceManager(ctx context.Context, config *ResourceManagerConfig) *Res
 // CreatePool creates a new resource pool
 func (rm *ResourceManager) CreatePool(name string, config *ResourcePoolConfig, factory ResourceFactory) (*ResourcePool, error) {
 	if !rm.enabled {
-		return nil, fmt.Errorf("resource manager is disabled")
+		return nil, errors.New("resource manager is disabled")
 	}
 
 	rm.mutex.Lock()
 	defer rm.mutex.Unlock()
 
 	if _, exists := rm.pools[name]; exists {
-		return nil, fmt.Errorf("pool already exists: %s", name)
+		return nil, errors.New("pool already exists: " + name)
 	}
 
 	pool, err := NewResourcePool(rm.ctx, name, config, factory)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create pool: %w", err)
+		return nil, errors.New("failed to create pool: " + err.Error())
 	}
 
 	rm.pools[name] = pool
@@ -408,7 +409,7 @@ func (rm *ResourceManager) GetPool(name string) (*ResourcePool, bool) {
 func (rm *ResourceManager) GetResource(poolName string, timeout time.Duration) (*Resource, error) {
 	pool, exists := rm.GetPool(poolName)
 	if !exists {
-		return nil, fmt.Errorf("pool not found: %s", poolName)
+		return nil, errors.New("pool not found: " + poolName)
 	}
 
 	ctx, cancel := context.WithTimeout(rm.ctx, timeout)
@@ -420,7 +421,7 @@ func (rm *ResourceManager) GetResource(poolName string, timeout time.Duration) (
 // ReleaseResource returns a resource to its pool
 func (rm *ResourceManager) ReleaseResource(resource *Resource) error {
 	if resource == nil {
-		return fmt.Errorf("resource is nil")
+		return errors.New("resource is nil")
 	}
 
 	// Find the pool that owns this resource
@@ -430,7 +431,7 @@ func (rm *ResourceManager) ReleaseResource(resource *Resource) error {
 		}
 	}
 
-	return fmt.Errorf("no pool found for resource: %s", resource.ID)
+	return errors.New("no pool found for resource: " + resource.ID)
 }
 
 // GetGlobalStatistics returns aggregated statistics across all pools
@@ -483,7 +484,7 @@ func NewResourcePool(ctx context.Context, name string, config *ResourcePoolConfi
 	}
 
 	if factory == nil {
-		return nil, fmt.Errorf("resource factory is required")
+		return nil, errors.New("resource factory is required")
 	}
 
 	poolCtx, cancel := context.WithCancel(ctx)
@@ -530,7 +531,7 @@ func NewResourcePool(ctx context.Context, name string, config *ResourcePoolConfi
 	// Pre-warm the pool if configured
 	if config.PreWarming {
 		if err := pool.preWarm(); err != nil {
-			return nil, fmt.Errorf("failed to pre-warm pool: %w", err)
+			return nil, errors.New("failed to pre-warm pool: " + err.Error())
 		}
 	}
 
@@ -543,7 +544,7 @@ func NewResourcePool(ctx context.Context, name string, config *ResourcePoolConfi
 // AcquireResource acquires a resource from the pool
 func (rp *ResourcePool) AcquireResource(ctx context.Context) (*Resource, error) {
 	if !rp.enabled {
-		return nil, fmt.Errorf("resource pool is disabled")
+		return nil, errors.New("resource pool is disabled")
 	}
 
 	start := time.Now()
@@ -554,7 +555,7 @@ func (rp *ResourcePool) AcquireResource(ctx context.Context) (*Resource, error) 
 	// Check circuit breaker
 	if rp.circuitBreaker != nil && !rp.circuitBreaker.CanExecute() {
 		atomic.AddInt64(&rp.statistics.TotalErrors, 1)
-		return nil, fmt.Errorf("circuit breaker is open")
+		return nil, errors.New("circuit breaker is open")
 	}
 
 	// Try to get an available resource
@@ -579,7 +580,7 @@ func (rp *ResourcePool) AcquireResource(ctx context.Context) (*Resource, error) 
 
 	case <-time.After(rp.AcquisitionTimeout):
 		atomic.AddInt64(&rp.statistics.TotalTimeouts, 1)
-		return nil, fmt.Errorf("timeout acquiring resource from pool: %s", rp.Name)
+		return nil, errors.New("timeout acquiring resource from pool: " + rp.Name)
 
 	case <-ctx.Done():
 		return nil, ctx.Err()
@@ -589,14 +590,14 @@ func (rp *ResourcePool) AcquireResource(ctx context.Context) (*Resource, error) 
 // ReleaseResource returns a resource to the pool
 func (rp *ResourcePool) ReleaseResource(resource *Resource) error {
 	if resource == nil {
-		return fmt.Errorf("resource is nil")
+		return errors.New("resource is nil")
 	}
 
 	resource.mutex.Lock()
 	defer resource.mutex.Unlock()
 
 	if resource.Status != StatusInUse {
-		return fmt.Errorf("resource is not in use: %s", resource.ID)
+		return errors.New("resource is not in use: " + resource.ID)
 	}
 
 	// Check if resource has exceeded its lifetime
@@ -657,7 +658,7 @@ func (rp *ResourcePool) createNewResource(ctx context.Context) (*Resource, error
 	defer rp.mutex.Unlock()
 
 	if rp.CurrentSize >= rp.MaxSize {
-		return nil, fmt.Errorf("pool has reached maximum size: %d", rp.MaxSize)
+		return nil, errors.New("pool has reached maximum size: " + fmt.Sprint(rp.MaxSize))
 	}
 
 	resource, err := rp.factory.CreateResource(ctx, map[string]interface{}{
@@ -1143,7 +1144,7 @@ func NewRoundRobinLoadBalancer() *RoundRobinLoadBalancer {
 
 func (rrb *RoundRobinLoadBalancer) SelectResource(resources []*Resource, criteria map[string]interface{}) (*Resource, error) {
 	if len(resources) == 0 {
-		return nil, fmt.Errorf("no resources available")
+		return nil, errors.New("no resources available")
 	}
 
 	index := atomic.AddInt64(&rrb.current, 1) % int64(len(resources))

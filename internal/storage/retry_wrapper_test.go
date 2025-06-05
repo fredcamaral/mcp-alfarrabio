@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
 
 func TestRetryWrapper_SuccessfulOperations(t *testing.T) {
@@ -47,7 +48,7 @@ func TestRetryWrapper_SuccessfulOperations(t *testing.T) {
 			},
 		}
 
-		mockStore.On("Store", ctx, chunk).Return(nil).Once()
+		mockStore.On("Store", ctx, &chunk).Return(nil).Once()
 
 		err := wrapper.Store(ctx, &chunk)
 		assert.NoError(t, err)
@@ -84,8 +85,8 @@ func TestRetryWrapper_RetryLogic(t *testing.T) {
 		}
 
 		// First call fails, second succeeds
-		mockStore.On("Store", ctx, chunk).Return(errors.New("temporary failure")).Once()
-		mockStore.On("Store", ctx, chunk).Return(nil).Once()
+		mockStore.On("Store", ctx, &chunk).Return(errors.New("temporary failure")).Once()
+		mockStore.On("Store", ctx, &chunk).Return(nil).Once()
 
 		err := wrapper.Store(ctx, &chunk)
 		assert.NoError(t, err)
@@ -109,7 +110,7 @@ func TestRetryWrapper_RetryLogic(t *testing.T) {
 
 		persistentError := errors.New("timeout")
 		// Fail on initial call + retry attempts (MaxAttempts=2) = 2 total calls
-		mockStore.On("Store", ctx, chunk).Return(persistentError).Times(2)
+		mockStore.On("Store", ctx, &chunk).Return(persistentError).Times(2)
 
 		err := wrapper.Store(ctx, &chunk)
 		assert.Error(t, err)
@@ -145,8 +146,8 @@ func TestRetryWrapper_Search(t *testing.T) {
 		}
 
 		// Fail first, succeed second
-		mockStore.On("Search", ctx, query, embeddings).Return((*types.SearchResults)(nil), errors.New("search failed")).Once()
-		mockStore.On("Search", ctx, query, embeddings).Return(expectedResults, nil).Once()
+		mockStore.On("Search", ctx, mock.AnythingOfType("*types.MemoryQuery"), embeddings).Return((*types.SearchResults)(nil), errors.New("search failed")).Once()
+		mockStore.On("Search", ctx, mock.AnythingOfType("*types.MemoryQuery"), embeddings).Return(expectedResults, nil).Once()
 
 		results, err := wrapper.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
@@ -234,8 +235,8 @@ func TestRetryWrapper_AllMethods(t *testing.T) {
 			Content: "Updated content",
 		}
 
-		mockStore.On("Update", ctx, chunk).Return(errors.New("update failed")).Once()
-		mockStore.On("Update", ctx, chunk).Return(nil).Once()
+		mockStore.On("Update", ctx, &chunk).Return(errors.New("update failed")).Once()
+		mockStore.On("Update", ctx, &chunk).Return(nil).Once()
 
 		err := wrapper.Update(ctx, &chunk)
 		assert.NoError(t, err)
@@ -407,8 +408,8 @@ func TestRetryWrapper_TimeoutBehavior(t *testing.T) {
 		start := time.Now()
 
 		// Fail once, then succeed
-		mockStore.On("Store", ctx, chunk).Return(errors.New("timeout failure")).Once()
-		mockStore.On("Store", ctx, chunk).Return(nil).Once()
+		mockStore.On("Store", ctx, &chunk).Return(errors.New("timeout failure")).Once()
+		mockStore.On("Store", ctx, &chunk).Return(nil).Once()
 
 		err := wrapper.Store(ctx, &chunk)
 		elapsed := time.Since(start)

@@ -171,7 +171,12 @@ func (qs *QdrantStore) Search(ctx context.Context, query *types.MemoryQuery, emb
 			if query.Limit < 0 {
 				return qdrant.PtrOf(uint64(0))
 			}
-			return qdrant.PtrOf(uint64(query.Limit)) //nolint:gosec // Safe conversion after bounds check
+			// Safe conversion with bounds checking to prevent overflow
+			const maxSafeInt = 9223372036854775807 // math.MaxInt64
+			if query.Limit > maxSafeInt {
+				return qdrant.PtrOf(uint64(maxSafeInt))
+			}
+			return qdrant.PtrOf(uint64(query.Limit)) // #nosec G115 Safe conversion after explicit bounds checking
 		}(),
 		WithPayload:    qdrant.NewWithPayload(true),
 		Filter:         filter,

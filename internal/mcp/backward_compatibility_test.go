@@ -124,7 +124,7 @@ func TestBulkOperationCompatibility(t *testing.T) {
 	}
 
 	for _, tc := range testCases {
-		t.Run(fmt.Sprintf("bulk_%s", tc.operation), func(t *testing.T) {
+		t.Run("bulk_"+tc.operation, func(t *testing.T) {
 			params := map[string]interface{}{
 				"operation": tc.operation,
 			}

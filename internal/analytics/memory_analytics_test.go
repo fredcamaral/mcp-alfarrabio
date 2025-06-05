@@ -3,7 +3,6 @@ package analytics
 import (
 	"context"
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -34,7 +33,7 @@ func (m *MockStore) storeChunk(chunk *types.ConversationChunk) error {
 func (m *MockStore) GetByID(_ context.Context, id string) (*types.ConversationChunk, error) {
 	chunk, exists := m.chunks[id]
 	if !exists {
-		return nil, fmt.Errorf("chunk not found")
+		return nil, errors.New("chunk not found")
 	}
 	return chunk, nil
 }

@@ -66,7 +66,8 @@ func (p *PatternStorageAdapter) ListPatterns(ctx context.Context, patternType *i
 	}
 
 	patterns := make([]intelligence.Pattern, 0, len(chunks))
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := chunks[i]
 		pattern := intelligence.Pattern{
 			ID:          chunk.ID,
 			Name:        "Pattern_" + chunk.ID[:8],

@@ -249,11 +249,11 @@ func (tt *TodoTracker) extractTags(session *TodoSession, todo TodoItem) []string
 	tags := make([]string, 0)
 
 	// Add priority as tag
-	tags = append(tags, fmt.Sprintf("priority-%s", todo.Priority))
+	tags = append(tags, "priority-"+todo.Priority)
 
 	// Add repository
 	if session.Repository != "" {
-		tags = append(tags, fmt.Sprintf("repo-%s", session.Repository))
+		tags = append(tags, "repo-"+session.Repository)
 	}
 
 	// Extract technology tags from tools used
@@ -375,7 +375,7 @@ func (tt *TodoTracker) createSessionSummary(session *TodoSession) {
 
 	timeSpentMinutes := int(time.Since(session.StartTime).Minutes())
 	metadata := types.ChunkMetadata{
-		Tags:          []string{"session-summary", fmt.Sprintf("repo-%s", session.Repository)},
+		Tags:          []string{"session-summary", "repo-" + session.Repository},
 		Difficulty:    tt.assessSessionDifficulty(session),
 		Outcome:       session.Status,
 		TimeSpent:     &timeSpentMinutes,

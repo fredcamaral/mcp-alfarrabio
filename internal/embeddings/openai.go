@@ -5,6 +5,7 @@ package embeddings
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"log"
 	"mcp-memory/internal/config"
@@ -125,7 +126,7 @@ func NewOpenAIEmbeddingService(cfg *config.OpenAIConfig) *OpenAIEmbeddingService
 // GenerateEmbedding generates an embedding for a single text
 func (oes *OpenAIEmbeddingService) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
 	if text == "" {
-		return nil, fmt.Errorf("text cannot be empty")
+		return nil, errors.New("text cannot be empty")
 	}
 
 	// Check cache first
@@ -156,7 +157,7 @@ func (oes *OpenAIEmbeddingService) GenerateEmbedding(ctx context.Context, text s
 	}
 
 	if len(resp.Data) == 0 {
-		return nil, fmt.Errorf("no embeddings returned")
+		return nil, errors.New("no embeddings returned")
 	}
 
 	embedding := resp.Data[0].Embedding
@@ -176,7 +177,7 @@ func (oes *OpenAIEmbeddingService) GenerateEmbedding(ctx context.Context, text s
 // GenerateBatchEmbeddings generates embeddings for multiple texts
 func (oes *OpenAIEmbeddingService) GenerateBatchEmbeddings(ctx context.Context, texts []string) ([][]float64, error) {
 	if len(texts) == 0 {
-		return nil, fmt.Errorf("texts cannot be empty")
+		return nil, errors.New("texts cannot be empty")
 	}
 
 	// Filter out cached embeddings and prepare uncached texts

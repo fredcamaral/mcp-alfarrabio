@@ -448,13 +448,13 @@ func (se *SearchExplainer) generateRelevanceExplanation(rel *RelevanceExplanatio
 
 	// Use query parameters to enhance explanation
 	if query.Repository != nil && chunk.Metadata.Repository == *query.Repository {
-		factors = append(factors, fmt.Sprintf("it's from the requested repository: %s", *query.Repository))
+		factors = append(factors, "it's from the requested repository: "+*query.Repository)
 	}
 
 	if len(query.Types) > 0 {
 		for _, queryType := range query.Types {
 			if chunk.Type == queryType {
-				factors = append(factors, fmt.Sprintf("it matches the requested type: %s", queryType))
+				factors = append(factors, "it matches the requested type: "+string(queryType))
 				break
 			}
 		}

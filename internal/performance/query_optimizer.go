@@ -4,8 +4,8 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -279,7 +279,7 @@ func (qo *QueryOptimizer) generateVectorSearchSteps(query string, execCtx *Query
 			Parameters:  map[string]interface{}{"model": "text-embedding-ada-002", "cache_enabled": true},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("embedding:%s", qo.hashQuery(query)),
+			CacheKey:    "embedding:" + qo.hashQuery(query),
 		},
 		{
 			ID:          generateID(),
@@ -290,7 +290,7 @@ func (qo *QueryOptimizer) generateVectorSearchSteps(query string, execCtx *Query
 			Parameters:  map[string]interface{}{"top_k": 50, "ef_search": 128, "use_index": true},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("vector_search:%s", qo.hashQuery(query)),
+			CacheKey:    "vector_search:" + qo.hashQuery(query),
 		},
 		{
 			ID:          generateID(),
@@ -319,7 +319,7 @@ func (qo *QueryOptimizer) generateTextSearchSteps(query string, execCtx *QueryEx
 			Parameters:  map[string]interface{}{"tokenize": true, "stemming": true, "stop_words": true},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("text_analysis:%s", qo.hashQuery(query)),
+			CacheKey:    "text_analysis:" + qo.hashQuery(query),
 		},
 		{
 			ID:          generateID(),
@@ -330,7 +330,7 @@ func (qo *QueryOptimizer) generateTextSearchSteps(query string, execCtx *QueryEx
 			Parameters:  map[string]interface{}{"fuzzy": true, "boost_fields": []string{"title", "tags"}},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("text_search:%s", qo.hashQuery(query)),
+			CacheKey:    "text_search:" + qo.hashQuery(query),
 		},
 		{
 			ID:          generateID(),
@@ -359,7 +359,7 @@ func (qo *QueryOptimizer) generateFilterSteps(query string, execCtx *QueryExecut
 			Parameters:  map[string]interface{}{"validate": true},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("filter_parse:%s", qo.hashQuery(query)),
+			CacheKey:    "filter_parse:" + qo.hashQuery(query),
 		},
 		{
 			ID:          generateID(),
@@ -380,7 +380,7 @@ func (qo *QueryOptimizer) generateFilterSteps(query string, execCtx *QueryExecut
 			Parameters:  map[string]interface{}{"batch_size": 1000, "use_index": true},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("filter_result:%s", qo.hashQuery(query)),
+			CacheKey:    "filter_result:" + qo.hashQuery(query),
 		},
 	}
 
@@ -399,7 +399,7 @@ func (qo *QueryOptimizer) generateAggregationSteps(query string, execCtx *QueryE
 			Parameters:  map[string]interface{}{"validate_fields": true},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("agg_parse:%s", qo.hashQuery(query)),
+			CacheKey:    "agg_parse:" + qo.hashQuery(query),
 		},
 		{
 			ID:          generateID(),
@@ -420,7 +420,7 @@ func (qo *QueryOptimizer) generateAggregationSteps(query string, execCtx *QueryE
 			Parameters:  map[string]interface{}{"in_memory": true, "spill_to_disk": false},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("agg_result:%s", qo.hashQuery(query)),
+			CacheKey:    "agg_result:" + qo.hashQuery(query),
 		},
 	}
 
@@ -468,7 +468,7 @@ func (qo *QueryOptimizer) generateJoinSteps(query string, execCtx *QueryExecutio
 			Parameters:  map[string]interface{}{"validate_keys": true},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("join_parse:%s", qo.hashQuery(query)),
+			CacheKey:    "join_parse:" + qo.hashQuery(query),
 		},
 		{
 			ID:          generateID(),
@@ -489,7 +489,7 @@ func (qo *QueryOptimizer) generateJoinSteps(query string, execCtx *QueryExecutio
 			Parameters:  map[string]interface{}{"algorithm": "hash_join", "batch_size": 1000},
 			DependsOn:   []string{},
 			CanCache:    true,
-			CacheKey:    fmt.Sprintf("join_result:%s", qo.hashQuery(query)),
+			CacheKey:    "join_result:" + qo.hashQuery(query),
 		},
 	}
 
@@ -734,7 +734,7 @@ func (qo *QueryOptimizer) GetOptimizationSuggestions() []map[string]interface{} 
 			suggestions = append(suggestions, map[string]interface{}{
 				"type":         "low_success_rate",
 				"query_hash":   queryHash,
-				"success_rate": fmt.Sprintf("%.2f%%", successRate*100),
+				"success_rate": strconv.FormatFloat(successRate*100, 'f', 2, 64) + "%",
 				"suggestion":   "Review error patterns and add error handling",
 				"priority":     "medium",
 			})
@@ -811,7 +811,7 @@ func (qo *QueryOptimizer) createBasicPlan(query string, queryType QueryType) *Qu
 }
 
 func (qo *QueryOptimizer) generateCacheKey(query string, execCtx *QueryExecutionContext) string {
-	return fmt.Sprintf("query:%s:%s:%s", qo.hashQuery(query), execCtx.Repository, execCtx.UserID)
+	return "query:" + qo.hashQuery(query) + ":" + execCtx.Repository + ":" + execCtx.UserID
 }
 
 func (qo *QueryOptimizer) determineCacheTTL(queryType QueryType) time.Duration {
@@ -905,7 +905,7 @@ func (qo *QueryOptimizer) updateOptimizationStats(success bool) {
 }
 
 func generateID() string {
-	return fmt.Sprintf("opt_%d", time.Now().UnixNano())
+	return "opt_" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
 func getEnvBool(key string, defaultValue bool) bool {

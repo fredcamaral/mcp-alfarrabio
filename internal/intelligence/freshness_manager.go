@@ -564,7 +564,7 @@ func (fm *FreshnessManager) checkTechnologyVersionAlert(chunk *types.Conversatio
 	return &FreshnessAlert{
 		Type:         "technology_version_stale",
 		Severity:     "high",
-		Message:      fmt.Sprintf("%s version information may be outdated", tech),
+		Message:      tech + " version information may be outdated",
 		Reason:       "Technology reference is " + strconv.Itoa(daysOld) + " days old",
 		Detected:     time.Now(),
 		ActionNeeded: "Verify current version compatibility",

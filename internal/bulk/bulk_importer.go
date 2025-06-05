@@ -265,7 +265,7 @@ func (imp *Importer) importArchive(ctx context.Context, data string, options *Im
 		return imp.extractAndImportZip(ctx, archiveData, options, result)
 	}
 
-	return nil, fmt.Errorf("unsupported archive format - only tar.gz and zip are supported")
+	return nil, errors.New("unsupported archive format - only tar.gz and zip are supported")
 }
 
 // parseMarkdown parses markdown content into conversation chunks
@@ -405,7 +405,7 @@ func (imp *Importer) parseCSVRecord(header, record []string, options *ImportOpti
 	// Extract required fields
 	content := data["content"]
 	if content == "" {
-		return nil, fmt.Errorf("content field is required")
+		return nil, errors.New("content field is required")
 	}
 
 	sessionID := data["session_id"]
@@ -516,7 +516,7 @@ func (imp *Importer) convertConversationData(data map[string]interface{}, option
 		return imp.convertSingleContentFormat(content, options)
 	}
 
-	return nil, fmt.Errorf("unrecognized conversation data format")
+	return nil, errors.New("unrecognized conversation data format")
 }
 
 // convertMessagesFormat handles message array format
@@ -552,7 +552,7 @@ func (imp *Importer) convertSingleContentFormat(content string, options *ImportO
 func (imp *Importer) convertMessageToChunk(message map[string]interface{}, options *ImportOptions, index int) (*types.ConversationChunk, error) {
 	content, ok := message["content"].(string)
 	if !ok {
-		return nil, fmt.Errorf("message content must be a string")
+		return nil, errors.New("message content must be a string")
 	}
 
 	role, _ := message["role"].(string)
@@ -626,7 +626,7 @@ func (imp *Importer) handleConflict(policy ConflictPolicy, result *ImportResult)
 	case ConflictPolicyFail:
 		// For now, validate that we have valid chunks to import
 		if len(result.Chunks) == 0 {
-			return fmt.Errorf("no valid chunks to import")
+			return errors.New("no valid chunks to import")
 		}
 		// TODO: Check for actual conflicts in storage
 	default:

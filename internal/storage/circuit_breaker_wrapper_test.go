@@ -190,7 +190,7 @@ func TestCircuitBreakerWrapper_SuccessfulOperations(t *testing.T) {
 			},
 		}
 
-		mockStore.On("Store", ctx, chunk).Return(nil).Once()
+		mockStore.On("Store", ctx, mock.AnythingOfType("*types.ConversationChunk")).Return(nil).Once()
 
 		err := wrapper.Store(ctx, &chunk)
 		assert.NoError(t, err)
@@ -219,7 +219,7 @@ func TestCircuitBreakerWrapper_SuccessfulOperations(t *testing.T) {
 			Total:   0,
 		}
 
-		mockStore.On("Search", ctx, query, embeddings).Return(expectedResults, nil).Once()
+		mockStore.On("Search", ctx, &query, embeddings).Return(expectedResults, nil).Once()
 
 		results, err := wrapper.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
@@ -257,7 +257,7 @@ func TestCircuitBreakerWrapper_FailureHandling(t *testing.T) {
 
 		// Mock failures
 		testError := errors.New("store operation failed")
-		mockStore.On("Store", ctx, chunk).Return(testError).Times(2)
+		mockStore.On("Store", ctx, &chunk).Return(testError).Times(2)
 
 		// First failure
 		err := wrapper.Store(ctx, &chunk)
@@ -327,7 +327,7 @@ func TestCircuitBreakerWrapper_AllMethods(t *testing.T) {
 
 	t.Run("Update", func(t *testing.T) {
 		chunk := types.ConversationChunk{ID: "update-test", Content: "Updated content"}
-		mockStore.On("Update", ctx, chunk).Return(nil).Once()
+		mockStore.On("Update", ctx, &chunk).Return(nil).Once()
 
 		err := wrapper.Update(ctx, &chunk)
 		assert.NoError(t, err)
@@ -423,7 +423,7 @@ func TestCircuitBreakerWrapper_AllMethods(t *testing.T) {
 
 	t.Run("StoreChunk", func(t *testing.T) {
 		chunk := types.ConversationChunk{ID: "store-chunk-test"}
-		mockStore.On("StoreChunk", ctx, chunk).Return(nil).Once()
+		mockStore.On("StoreChunk", ctx, &chunk).Return(nil).Once()
 
 		err := wrapper.StoreChunk(ctx, &chunk)
 		assert.NoError(t, err)

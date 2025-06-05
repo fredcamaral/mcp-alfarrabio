@@ -192,7 +192,8 @@ func (cs *ContextSuggester) AnalyzeContext(ctx context.Context, sessionID, repos
 	suggestions := make([]ContextSuggestion, 0)
 
 	// Generate suggestions for each trigger type
-	for suggestionType, trigger := range cs.triggers {
+	for suggestionType := range cs.triggers {
+		trigger := cs.triggers[suggestionType]
 		if cs.shouldTrigger(currentContent, toolUsed, currentFlow, &trigger) {
 			typeSuggestions, err := cs.generateSuggestions(ctx, suggestionType, &trigger, repository, currentContent)
 			if err != nil {
@@ -289,7 +290,8 @@ func (cs *ContextSuggester) generateSimilarProblemSuggestions(ctx context.Contex
 
 	suggestions := make([]ContextSuggestion, 0)
 
-	for _, chunk := range similarChunks {
+	for i := range similarChunks {
+		chunk := similarChunks[i]
 		// Look for associated solution chunks
 		solutionChunks, err := cs.findAssociatedSolutions(ctx, &chunk)
 		if err != nil {
@@ -402,7 +404,8 @@ func (cs *ContextSuggester) generatePastDecisionSuggestions(ctx context.Context,
 
 	suggestions := make([]ContextSuggestion, 0)
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := chunks[i]
 		relevance := cs.calculateRelevance(content, chunk.Content)
 
 		if relevance >= trigger.MinRelevance {
@@ -622,7 +625,8 @@ func (cs *ContextSuggester) generateFlowBasedSuggestions(ctx context.Context, tr
 
 	// Filter by confidence and relevance
 	filtered := make([]ContextSuggestion, 0)
-	for _, suggestion := range suggestions {
+	for i := range suggestions {
+		suggestion := suggestions[i]
 		if confidence > 0.5 && suggestion.Relevance >= trigger.MinRelevance {
 			suggestion.Context["flow_confidence"] = confidence
 			suggestion.Context["detected_flow"] = string(currentFlow)
@@ -643,7 +647,8 @@ func (cs *ContextSuggester) generateProblemFlowSuggestions(ctx context.Context, 
 	}
 
 	suggestions := make([]ContextSuggestion, 0)
-	for _, problemChunk := range similarProblems {
+	for i := range similarProblems {
+		problemChunk := similarProblems[i]
 		// Look for associated solutions
 		solutions, err := cs.findAssociatedSolutions(ctx, &problemChunk)
 		if err != nil || len(solutions) == 0 {
@@ -688,7 +693,8 @@ func (cs *ContextSuggester) generateInvestigationFlowSuggestions(ctx context.Con
 	}
 
 	suggestions := make([]ContextSuggestion, 0)
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := chunks[i]
 		if chunk.Metadata.Outcome == types.OutcomeSuccess {
 			suggestion := ContextSuggestion{
 				ID:            generateSuggestionID(),
@@ -727,7 +733,8 @@ func (cs *ContextSuggester) generateSolutionFlowSuggestions(ctx context.Context,
 	}
 
 	suggestions := make([]ContextSuggestion, 0)
-	for _, solution := range solutions {
+	for i := range solutions {
+		solution := solutions[i]
 		if solution.Metadata.Outcome == types.OutcomeSuccess {
 			suggestion := ContextSuggestion{
 				ID:            generateSuggestionID(),
@@ -769,7 +776,8 @@ func (cs *ContextSuggester) generateVerificationFlowSuggestions(ctx context.Cont
 	}
 
 	suggestions := make([]ContextSuggestion, 0)
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := chunks[i]
 		suggestion := ContextSuggestion{
 			ID:            generateSuggestionID(),
 			Type:          SuggestionTypeFlowBased,
@@ -809,7 +817,8 @@ func (cs *ContextSuggester) generateDebuggingContextSuggestions(ctx context.Cont
 	}
 
 	suggestions := make([]ContextSuggestion, 0)
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := chunks[i]
 		if chunk.Metadata.Outcome == types.OutcomeSuccess {
 			suggestion := ContextSuggestion{
 				ID:            generateSuggestionID(),
@@ -852,7 +861,8 @@ func (cs *ContextSuggester) generateImplementationContextSuggestions(ctx context
 	}
 
 	suggestions := make([]ContextSuggestion, 0)
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := chunks[i]
 		if chunk.Metadata.Outcome == types.OutcomeSuccess && len(chunk.Metadata.FilesModified) > 0 {
 			suggestion := ContextSuggestion{
 				ID:            generateSuggestionID(),

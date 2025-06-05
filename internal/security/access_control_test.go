@@ -444,7 +444,7 @@ func TestAccessControlManager_Repository(t *testing.T) {
 
 	// Check that permission was granted
 	assert.Len(t, user.Permissions, 1)
-	assert.Equal(t, fmt.Sprintf("repository:%s", repo.ID), user.Permissions[0].Resource)
+	assert.Equal(t, "repository:"+repo.ID, user.Permissions[0].Resource)
 	assert.Equal(t, "*", user.Permissions[0].Action)
 	assert.Equal(t, AccessLevelRead, user.Permissions[0].Level)
 
@@ -668,7 +668,7 @@ func BenchmarkCheckAccess(b *testing.B) {
 	user, _ := acm.CreateUser("benchuser", "bench@example.com")
 	for i := 0; i < 10; i++ {
 		_ = acm.GrantPermission(user.ID, Permission{
-			Resource: fmt.Sprintf("repository:repo%d", i),
+			Resource: "repository:repo" + fmt.Sprint(i),
 			Action:   "read",
 			Level:    AccessLevelRead,
 		})

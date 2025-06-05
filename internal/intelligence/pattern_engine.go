@@ -225,7 +225,7 @@ func (pe *PatternEngine) LearnPattern(ctx context.Context, chunks []types.Conver
 		Steps:       steps,
 		Context:     features,
 		Examples: []PatternExample{{
-			ID:           fmt.Sprintf("%s_example_1", generatePatternID()),
+			ID:           generatePatternID() + "_example_1",
 			ChunkIDs:     extractChunkIDs(chunks),
 			Conversation: chunks,
 			Outcome:      outcome,
@@ -331,7 +331,7 @@ func (pe *PatternEngine) inferPatternType(chunks []types.ConversationChunk, _ ma
 func (pe *PatternEngine) generatePatternName(chunks []types.ConversationChunk, _ map[string]any) string {
 	keywords := pe.extractKeywords(chunks)
 	if len(keywords) > 0 {
-		return fmt.Sprintf("%s Pattern", strings.ToUpper(keywords[0][:1])+keywords[0][1:])
+		return strings.ToUpper(keywords[0][:1]) + keywords[0][1:] + " Pattern"
 	}
 	return "Generic Pattern"
 }

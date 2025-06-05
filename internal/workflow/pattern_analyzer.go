@@ -271,19 +271,19 @@ func (pa *PatternAnalyzer) updateSuccessPattern(patternType PatternType, tools [
 func (pa *PatternAnalyzer) generatePatternDescription(patternType PatternType, tools []string) string {
 	switch patternType {
 	case PatternInvestigative:
-		return fmt.Sprintf("Investigative approach: %s", strings.Join(tools, " → "))
+		return "Investigative approach: " + strings.Join(tools, " → ")
 	case PatternBuildFix:
-		return fmt.Sprintf("Build-fix cycle: %s", strings.Join(tools, " → "))
+		return "Build-fix cycle: " + strings.Join(tools, " → ")
 	case PatternTestDriven:
-		return fmt.Sprintf("Test-driven development: %s", strings.Join(tools, " → "))
+		return "Test-driven development: " + strings.Join(tools, " → ")
 	case PatternExploration:
-		return fmt.Sprintf("Code exploration: %s", strings.Join(tools, " → "))
+		return "Code exploration: " + strings.Join(tools, " → ")
 	case PatternConfiguration:
-		return fmt.Sprintf("Configuration management: %s", strings.Join(tools, " → "))
+		return "Configuration management: " + strings.Join(tools, " → ")
 	case PatternDebug:
-		return fmt.Sprintf("Debugging workflow: %s", strings.Join(tools, " → "))
+		return "Debugging workflow: " + strings.Join(tools, " → ")
 	default:
-		return fmt.Sprintf("Pattern: %s", strings.Join(tools, " → "))
+		return "Pattern: " + strings.Join(tools, " → ")
 	}
 }
 
@@ -292,10 +292,11 @@ func (pa *PatternAnalyzer) recalculateSuccessRate(pattern *SuccessPattern) {
 	total := 0
 	successful := 0
 
-	for _, sequence := range pa.sequences {
+	for i := range pa.sequences {
+		sequence := pa.sequences[i]
 		tools := make([]string, len(sequence.Tools))
-		for i, tool := range sequence.Tools {
-			tools[i] = tool.Tool
+		for j, tool := range sequence.Tools {
+			tools[j] = tool.Tool
 		}
 
 		if pa.DetectPatternType(tools) == pattern.Type {

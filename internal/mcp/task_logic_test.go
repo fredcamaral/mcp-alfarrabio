@@ -191,7 +191,7 @@ func TestTaskMetadataBuildingLogic(t *testing.T) {
 func buildMetadataTestCases() []struct {
 	name     string
 	params   map[string]interface{}
-	expected func(metadata types.ChunkMetadata) bool
+	expected func(metadata *types.ChunkMetadata) bool
 } {
 	return []struct {
 		name     string
@@ -208,7 +208,7 @@ func buildMetadataTestCases() []struct {
 func createBasicMetadataTestCase() struct {
 	name     string
 	params   map[string]interface{}
-	expected func(metadata types.ChunkMetadata) bool
+	expected func(metadata *types.ChunkMetadata) bool
 } {
 	return struct {
 		name     string
@@ -229,7 +229,7 @@ func createBasicMetadataTestCase() struct {
 func createOptionalFieldsTestCase() struct {
 	name     string
 	params   map[string]interface{}
-	expected func(metadata types.ChunkMetadata) bool
+	expected func(metadata *types.ChunkMetadata) bool
 } {
 	return struct {
 		name     string
@@ -254,7 +254,7 @@ func createOptionalFieldsTestCase() struct {
 func createTagsTestCase() struct {
 	name     string
 	params   map[string]interface{}
-	expected func(metadata types.ChunkMetadata) bool
+	expected func(metadata *types.ChunkMetadata) bool
 } {
 	return struct {
 		name     string

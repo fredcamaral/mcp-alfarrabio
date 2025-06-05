@@ -589,7 +589,7 @@ func (bsr *BasicSequenceRecognizer) generateActionDescription(action string) str
 		return desc
 	}
 
-	return fmt.Sprintf("Perform action: %s", action)
+	return "Perform action: " + action
 }
 
 func (bsr *BasicSequenceRecognizer) extractSequenceContext(chunks []types.ConversationChunk) map[string]any {

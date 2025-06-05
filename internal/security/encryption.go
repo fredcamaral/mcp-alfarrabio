@@ -199,7 +199,7 @@ func (em *EncryptionManager) EncryptSensitiveFields(content string) (string, err
 			// Replace with encrypted placeholder
 			encryptedPlaceholder := "[ENCRYPTED:" + fieldType + ":" + encrypted.Data + "]"
 			result = strings.ReplaceAll(result, original,
-					strings.Replace(original, sensitiveValue, encryptedPlaceholder, 1))
+				strings.Replace(original, sensitiveValue, encryptedPlaceholder, 1))
 		}
 	}
 

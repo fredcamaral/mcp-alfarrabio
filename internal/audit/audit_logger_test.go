@@ -2,6 +2,7 @@ package audit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -44,7 +45,7 @@ func TestAuditLogger_LogEvent(t *testing.T) {
 
 	// Log an error
 	logger.LogError(ctx, EventTypeError, "Failed to store chunk", "memory",
-		fmt.Errorf("database connection failed"), nil)
+		errors.New("database connection failed"), nil)
 
 	// Force flush
 	logger.mu.Lock()
@@ -105,7 +106,7 @@ func TestAuditLogger_Search(t *testing.T) {
 	logger.LogEvent(ctx, EventTypeMemoryStore, "Store chunk 1", "memory", "chunk-1", nil)
 	logger.LogEvent(ctx, EventTypeMemoryStore, "Store chunk 2", "memory", "chunk-2", nil)
 	logger.LogEvent(ctx, EventTypeMemorySearch, "Search memories", "memory", "", nil)
-	logger.LogError(ctx, EventTypeError, "Test error", "system", fmt.Errorf("test error"), nil)
+	logger.LogError(ctx, EventTypeError, "Test error", "system", errors.New("test error"), nil)
 
 	// Force flush
 	logger.mu.Lock()

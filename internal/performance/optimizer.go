@@ -4,6 +4,7 @@ package performance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
@@ -536,7 +537,7 @@ func (po *PerformanceOptimizer) applyRule(ctx context.Context, rule *Optimizatio
 		return po.OptimizeQueries(ctx)
 	}
 
-	return fmt.Errorf("unknown optimization action: %s", rule.Action)
+	return errors.New("unknown optimization action: " + rule.Action)
 }
 
 func (po *PerformanceOptimizer) cleanupCaches() {
@@ -661,7 +662,7 @@ func (cp *ConnectionPool) Get() (any, error) {
 			return conn, nil
 		}
 
-		return nil, fmt.Errorf("connection pool exhausted")
+		return nil, errors.New("connection pool exhausted")
 	}
 }
 

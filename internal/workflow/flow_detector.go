@@ -94,10 +94,10 @@ func NewFlowDetector() *FlowDetector {
 // NewEntityExtractor creates a new entity extractor
 func NewEntityExtractor() *EntityExtractor {
 	return &EntityExtractor{
-		filePattern:    regexp.MustCompile(`[\w\-_/]+\.\w+`),
+		filePattern:    regexp.MustCompile(`[\w\-/]+\.\w+`),
 		errorPattern:   regexp.MustCompile(`(?i)(error|exception|failed|failure):?\s*([A-Z_][A-Z0-9_]*|\w+)`),
 		commandPattern: regexp.MustCompile(`[\$>]\s*([a-zA-Z][a-zA-Z0-9\-_]*(?:\s+[^\n]*)?)`),
-		urlPattern:     regexp.MustCompile(`https?://[^\s]+`),
+		urlPattern:     regexp.MustCompile(`https?://\S+`),
 	}
 }
 
@@ -341,7 +341,8 @@ func (fd *FlowDetector) generateSessionSummary(session *ConversationSession) Ses
 	flowDurations := make(map[types.ConversationFlow]time.Duration)
 	flowCounts := make(map[types.ConversationFlow]int)
 
-	for _, segment := range session.Segments {
+	for i := range session.Segments {
+		segment := session.Segments[i]
 		duration := segment.EndTime.Sub(segment.StartTime)
 		flowDurations[segment.Flow] += duration
 		flowCounts[segment.Flow]++
@@ -403,7 +404,8 @@ func (fd *FlowDetector) extractKeywords(content string) []string {
 func (fd *FlowDetector) extractTechnologies(session *ConversationSession) []string {
 	techMap := make(map[string]bool)
 
-	for _, segment := range session.Segments {
+	for i := range session.Segments {
+		segment := session.Segments[i]
 		for _, entity := range segment.Entities {
 			// Check file extensions
 			switch {
@@ -443,7 +445,8 @@ func (fd *FlowDetector) extractTechnologies(session *ConversationSession) []stri
 func (fd *FlowDetector) extractDecisions(session *ConversationSession) []string {
 	decisions := make([]string, 0)
 
-	for _, segment := range session.Segments {
+	for i := range session.Segments {
+		segment := session.Segments[i]
 		if segment.Flow != types.FlowSolution {
 			continue
 		}

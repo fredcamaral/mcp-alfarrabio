@@ -401,7 +401,7 @@ func TestContextSuggester_BuildDescriptions(t *testing.T) {
 			SuccessRate: 0.85,
 			Frequency:   10,
 		}
-		desc := suggester.buildSuccessfulPatternDescription(pattern)
+		desc := suggester.buildSuccessfulPatternDescription(&pattern)
 		assert.Contains(t, desc, "Test pattern")
 		assert.Contains(t, desc, "85.0%")
 		assert.Contains(t, desc, "10 times")

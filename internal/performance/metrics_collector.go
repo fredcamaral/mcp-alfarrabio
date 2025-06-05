@@ -2,6 +2,7 @@ package performance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"runtime"
@@ -499,11 +500,11 @@ func (mc *MetricsCollectorV2) GetMetricSeries(name string, duration time.Duratio
 func (mc *MetricsCollectorV2) GetAggregatedMetrics(metricName string, aggregationType MetricAggregationType, window time.Duration) (*PerformanceMetricV2, error) {
 	series, exists := mc.GetMetricSeries(metricName, window)
 	if !exists {
-		return nil, fmt.Errorf("metric series not found: %s", metricName)
+		return nil, errors.New("metric series not found: " + metricName)
 	}
 
 	if len(series.Points) == 0 {
-		return nil, fmt.Errorf("no data points in series for metric: %s", metricName)
+		return nil, errors.New("no data points in series for metric: " + metricName)
 	}
 
 	aggregatedValue, err := mc.aggregateValues(series.Points, aggregationType)
@@ -884,7 +885,7 @@ func (mc *MetricsCollectorV2) calculateSeriesStatistics(points []*MetricDataPoin
 
 func (mc *MetricsCollectorV2) aggregateValues(points []*MetricDataPoint, aggregationType MetricAggregationType) (float64, error) {
 	if len(points) == 0 {
-		return 0, fmt.Errorf("no data points to aggregate")
+		return 0, errors.New("no data points to aggregate")
 	}
 
 	values := mc.extractValues(points)
@@ -920,7 +921,7 @@ func (mc *MetricsCollectorV2) computeAggregation(values []float64, aggregationTy
 	case AggregationHistogram:
 		return float64(len(values)), nil
 	default:
-		return 0, fmt.Errorf("unsupported aggregation type: %s", aggregationType)
+		return 0, errors.New("unsupported aggregation type: " + string(aggregationType))
 	}
 }
 

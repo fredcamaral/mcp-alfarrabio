@@ -3,7 +3,7 @@ package performance
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 )
@@ -434,13 +434,13 @@ func (cm *CacheManager) writeThrough(key string, value interface{}, policy *Cach
 	if cm.distributedEnabled {
 		if err := cm.l2Cache.Set(key, value, policy); err != nil {
 			// Return error for L2 failures in write-through mode
-			return fmt.Errorf("failed to write to L2 cache: %w", err)
+			return errors.New("failed to write to L2 cache: " + err.Error())
 		}
 	}
 
 	if err := cm.l3Cache.Set(key, value, policy); err != nil {
 		// Return error for L3 failures in write-through mode
-		return fmt.Errorf("failed to write to L3 cache: %w", err)
+		return errors.New("failed to write to L3 cache: " + err.Error())
 	}
 
 	cm.updateStatistics(CacheLevelL1, "write", 0)
@@ -456,10 +456,10 @@ func (cm *CacheManager) writeThrough(key string, value interface{}, policy *Cach
 func (cm *CacheManager) writeBack(key string, value interface{}, policy *CachePolicy) error {
 	// Validate inputs
 	if key == "" {
-		return fmt.Errorf("cache key cannot be empty")
+		return errors.New("cache key cannot be empty")
 	}
 	if value == nil {
-		return fmt.Errorf("cache value cannot be nil")
+		return errors.New("cache value cannot be nil")
 	}
 
 	// Write to L1 immediately (AdvancedCache.Set doesn't return error)

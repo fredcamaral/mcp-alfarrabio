@@ -3,6 +3,7 @@ package persistence
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -31,14 +32,14 @@ func NewMockVectorStorage() *MockVectorStorage {
 
 func (m *MockVectorStorage) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) {
 	if m.shouldError {
-		return nil, fmt.Errorf("mock error")
+		return nil, errors.New("mock error")
 	}
 	return m.chunks, nil
 }
 
 func (m *MockVectorStorage) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
 	if m.shouldError {
-		return fmt.Errorf("mock error")
+		return errors.New("mock error")
 	}
 	m.chunks = append(m.chunks, *chunk)
 	return nil
@@ -46,7 +47,7 @@ func (m *MockVectorStorage) StoreChunk(ctx context.Context, chunk *types.Convers
 
 func (m *MockVectorStorage) DeleteCollection(ctx context.Context, collection string) error {
 	if m.shouldError {
-		return fmt.Errorf("mock error")
+		return errors.New("mock error")
 	}
 	delete(m.collections, collection)
 	return nil
@@ -54,7 +55,7 @@ func (m *MockVectorStorage) DeleteCollection(ctx context.Context, collection str
 
 func (m *MockVectorStorage) ListCollections(ctx context.Context) ([]string, error) {
 	if m.shouldError {
-		return nil, fmt.Errorf("mock error")
+		return nil, errors.New("mock error")
 	}
 	collections := make([]string, 0, len(m.collections))
 	for collection := range m.collections {

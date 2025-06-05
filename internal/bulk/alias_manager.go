@@ -2,6 +2,7 @@ package bulk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"mcp-memory/internal/storage"
@@ -142,12 +143,12 @@ func NewAliasManager(vectorStore storage.VectorStore, logger *log.Logger) *Alias
 func (am *AliasManager) CreateAlias(ctx context.Context, alias *Alias) (*Alias, error) {
 	// Validate alias
 	if err := am.validateAlias(alias); err != nil {
-		return nil, fmt.Errorf("invalid alias: %w", err)
+		return nil, errors.New("invalid alias: " + err.Error())
 	}
 
 	// Check for name conflicts
 	if existing := am.findAliasByName(alias.Name); existing != nil {
-		return nil, fmt.Errorf("alias with name '%s' already exists", alias.Name)
+		return nil, errors.New("alias with name '" + alias.Name + "' already exists")
 	}
 
 	// Generate ID if not provided
@@ -179,7 +180,7 @@ func (am *AliasManager) UpdateAlias(ctx context.Context, aliasID string, updates
 	existing, exists := am.aliases[aliasID]
 	if !exists {
 		am.aliasesMux.Unlock()
-		return nil, fmt.Errorf("alias %s not found", aliasID)
+		return nil, errors.New("alias " + aliasID + " not found")
 	}
 
 	// Preserve creation info
@@ -192,14 +193,14 @@ func (am *AliasManager) UpdateAlias(ctx context.Context, aliasID string, updates
 	// Validate updates
 	if err := am.validateAlias(updates); err != nil {
 		am.aliasesMux.Unlock()
-		return nil, fmt.Errorf("invalid alias update: %w", err)
+		return nil, errors.New("invalid alias update: " + err.Error())
 	}
 
 	// Check for name conflicts (exclude current alias)
 	if existing.Name != updates.Name {
 		if conflicting := am.findAliasByNameExcluding(updates.Name, aliasID); conflicting != nil {
 			am.aliasesMux.Unlock()
-			return nil, fmt.Errorf("alias with name '%s' already exists", updates.Name)
+			return nil, errors.New("alias with name '" + updates.Name + "' already exists")
 		}
 	}
 
@@ -221,7 +222,7 @@ func (am *AliasManager) DeleteAlias(ctx context.Context, aliasID string) error {
 	_, exists := am.aliases[aliasID]
 	if !exists {
 		am.aliasesMux.Unlock()
-		return fmt.Errorf("alias %s not found", aliasID)
+		return errors.New("alias " + aliasID + " not found")
 	}
 
 	delete(am.aliases, aliasID)
@@ -242,7 +243,7 @@ func (am *AliasManager) GetAlias(aliasID string) (*Alias, error) {
 
 	alias, exists := am.aliases[aliasID]
 	if !exists {
-		return nil, fmt.Errorf("alias %s not found", aliasID)
+		return nil, errors.New("alias " + aliasID + " not found")
 	}
 
 	return alias, nil
@@ -256,7 +257,7 @@ func (am *AliasManager) ResolveAlias(ctx context.Context, aliasName string) (*Al
 		alias = am.findAliasByID(aliasName)
 	}
 	if alias == nil {
-		return nil, fmt.Errorf("alias '%s' not found", aliasName)
+		return nil, errors.New("alias '" + aliasName + "' not found")
 	}
 
 	// Update access tracking
@@ -265,7 +266,7 @@ func (am *AliasManager) ResolveAlias(ctx context.Context, aliasName string) (*Al
 	// Resolve based on target type
 	chunks, err := am.resolveTarget(ctx, alias.Target)
 	if err != nil {
-		return nil, fmt.Errorf("failed to resolve alias target: %w", err)
+		return nil, errors.New("failed to resolve alias target: " + err.Error())
 	}
 
 	result := &AliasResult{
@@ -340,15 +341,15 @@ type AliasListFilter struct {
 
 func (am *AliasManager) validateAlias(alias *Alias) error {
 	if alias.Name == "" {
-		return fmt.Errorf("alias name cannot be empty")
+		return errors.New("alias name cannot be empty")
 	}
 
 	if !am.isValidAliasName(alias.Name) {
-		return fmt.Errorf("invalid alias name format: %s", alias.Name)
+		return errors.New("invalid alias name format: " + alias.Name)
 	}
 
 	if alias.Type == "" {
-		return fmt.Errorf("alias type cannot be empty")
+		return errors.New("alias type cannot be empty")
 	}
 
 	return am.validateTarget(alias.Target)
@@ -364,22 +365,22 @@ func (am *AliasManager) validateTarget(target AliasTarget) error {
 	switch target.Type {
 	case TargetTypeChunks:
 		if len(target.ChunkIDs) == 0 {
-			return fmt.Errorf("chunk target must have at least one chunk ID")
+			return errors.New("chunk target must have at least one chunk ID")
 		}
 	case TargetTypeQuery:
 		if target.Query == nil || target.Query.Query == "" {
-			return fmt.Errorf("query target must have a query")
+			return errors.New("query target must have a query")
 		}
 	case TargetTypeFilter:
 		if target.Filter == nil {
-			return fmt.Errorf("filter target must have filter criteria")
+			return errors.New("filter target must have filter criteria")
 		}
 	case TargetTypeCollection:
 		if target.Collection == nil || target.Collection.Name == "" {
-			return fmt.Errorf("collection target must have a name")
+			return errors.New("collection target must have a name")
 		}
 	default:
-		return fmt.Errorf("invalid target type: %s", target.Type)
+		return errors.New("invalid target type: " + string(target.Type))
 	}
 	return nil
 }
@@ -446,7 +447,7 @@ func (am *AliasManager) resolveTarget(ctx context.Context, target AliasTarget) (
 	case TargetTypeCollection:
 		return am.resolveCollectionTarget(ctx, target.Collection)
 	default:
-		return nil, fmt.Errorf("unsupported target type: %s", target.Type)
+		return nil, errors.New("unsupported target type: " + string(target.Type))
 	}
 }
 

@@ -330,15 +330,16 @@ func (bm *BackupManager) validateRestoredCount(restoredCount, expectedCount int)
 
 // ListBackups returns a list of available backups
 func (bm *BackupManager) ListBackups() ([]BackupMetadata, error) {
-	var backups []BackupMetadata
-
 	entries, err := os.ReadDir(bm.backupDir)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return backups, nil
+			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to read backup directory: %w", err)
 	}
+
+	// Pre-allocate slice with estimated capacity
+	backups := make([]BackupMetadata, 0, len(entries))
 
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".meta.json") {
@@ -443,7 +444,8 @@ func (bm *BackupManager) MigrateData(ctx context.Context, fromVersion, toVersion
 	}
 
 	// Store migrated chunks
-	for _, chunk := range migratedChunks {
+	for i := range migratedChunks {
+		chunk := migratedChunks[i]
 		if err := bm.storage.StoreChunk(ctx, &chunk); err != nil {
 			// If migration fails, we could restore from backup
 			return fmt.Errorf("failed to store migrated chunk %s: %w", chunk.ID, err)

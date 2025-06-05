@@ -4,6 +4,7 @@ package bulk
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"mcp-memory/internal/storage"
@@ -185,7 +186,7 @@ func (m *Manager) GetProgress(operationID string) (*Progress, error) {
 	op, exists := m.operations[operationID]
 	if !exists {
 		m.operationsMux.RUnlock()
-		return nil, fmt.Errorf("operation %s not found", operationID)
+		return nil, errors.New("operation " + operationID + " not found")
 	}
 
 	// Build progress while holding the read lock to avoid races
@@ -202,7 +203,7 @@ func (m *Manager) CancelOperation(operationID string) error {
 
 	op, exists := m.operations[operationID]
 	if !exists {
-		return fmt.Errorf("operation %s not found", operationID)
+		return errors.New("operation " + operationID + " not found")
 	}
 
 	// Mark as cancelled (actual cancellation would require context cancellation)
@@ -243,7 +244,7 @@ func (m *Manager) processOperation(ctx context.Context, operationID string) erro
 	op, exists := m.operations[operationID]
 	if !exists {
 		m.operationsMux.Unlock()
-		return fmt.Errorf("operation %s not found", operationID)
+		return errors.New("operation " + operationID + " not found")
 	}
 	now := time.Now().UTC()
 	op.StartedAt = &now
@@ -287,7 +288,7 @@ func (m *Manager) processOperation(ctx context.Context, operationID string) erro
 	case OperationDelete:
 		return m.executeBulkDelete(ctx, op, progress)
 	default:
-		return fmt.Errorf("unsupported operation: %s", op.Operation)
+		return errors.New("unsupported operation: " + string(op.Operation))
 	}
 }
 
@@ -305,7 +306,7 @@ func (m *Manager) validateOperation(op *Request, progress *Progress) error {
 	}
 
 	if len(progress.ValidationErrors) > 0 && !op.Options.ContinueOnError {
-		return fmt.Errorf("validation failed with %d errors", len(progress.ValidationErrors))
+		return errors.New("validation failed with " + fmt.Sprint(len(progress.ValidationErrors)) + " errors")
 	}
 
 	return nil
@@ -321,18 +322,18 @@ func (m *Manager) performDryRun(op *Request, progress *Progress) error {
 		if len(op.Chunks) == 0 {
 			progress.Status = StatusFailed
 			m.notifyProgress(op, progress)
-			return fmt.Errorf("no chunks provided for %s operation", op.Operation)
+			return errors.New("no chunks provided for " + string(op.Operation) + " operation")
 		}
 	case OperationDelete:
 		if len(op.IDs) == 0 {
 			progress.Status = StatusFailed
 			m.notifyProgress(op, progress)
-			return fmt.Errorf("no IDs provided for delete operation")
+			return errors.New("no IDs provided for delete operation")
 		}
 	default:
 		progress.Status = StatusFailed
 		m.notifyProgress(op, progress)
-		return fmt.Errorf("unknown operation: %s", op.Operation)
+		return errors.New("unknown operation: " + string(op.Operation))
 	}
 
 	progress.Status = StatusCompleted
@@ -524,7 +525,7 @@ func (req *OperationRequest) ToRequest() (Request, error) {
 	case OperationStore, OperationUpdate, OperationDelete:
 		// Valid operation
 	default:
-		return Request{}, fmt.Errorf("invalid operation: %s", req.Operation)
+		return Request{}, errors.New("invalid operation: " + req.Operation)
 	}
 
 	conflictPolicy := ConflictPolicySkip

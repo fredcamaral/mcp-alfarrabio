@@ -64,7 +64,8 @@ func (m *SimpleMockVectorStore) Search(ctx context.Context, query *types.MemoryQ
 		capacity = query.Limit
 	}
 	results := make([]types.SearchResult, 0, capacity)
-	for _, chunk := range m.chunks {
+	for chunkID := range m.chunks {
+		chunk := m.chunks[chunkID]
 		// Apply repository filter
 		if query.Repository != nil && chunk.Metadata.Repository != *query.Repository {
 			continue
@@ -122,7 +123,8 @@ func (m *SimpleMockVectorStore) ListByRepository(ctx context.Context, repository
 	results := make([]types.ConversationChunk, 0, limit)
 	count := 0
 
-	for _, chunk := range m.chunks {
+	for chunkID := range m.chunks {
+		chunk := m.chunks[chunkID]
 		if chunk.Metadata.Repository == repository {
 			if count >= offset {
 				results = append(results, chunk)
@@ -140,7 +142,8 @@ func (m *SimpleMockVectorStore) ListByRepository(ctx context.Context, repository
 func (m *SimpleMockVectorStore) ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error) {
 	results := make([]types.ConversationChunk, 0, len(m.chunks))
 
-	for _, chunk := range m.chunks {
+	for chunkID := range m.chunks {
+		chunk := m.chunks[chunkID]
 		if chunk.SessionID == sessionID {
 			results = append(results, chunk)
 		}
@@ -187,8 +190,8 @@ func (m *SimpleMockVectorStore) Close() error {
 
 func (m *SimpleMockVectorStore) GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error) {
 	results := make([]types.ConversationChunk, 0, len(m.chunks))
-	for _, chunk := range m.chunks {
-		results = append(results, chunk)
+	for chunkID := range m.chunks {
+		results = append(results, m.chunks[chunkID])
 	}
 	return results, nil
 }
@@ -205,7 +208,8 @@ func (m *SimpleMockVectorStore) FindSimilar(ctx context.Context, content string,
 	results := make([]types.ConversationChunk, 0, limit)
 	count := 0
 
-	for _, chunk := range m.chunks {
+	for chunkID := range m.chunks {
+		chunk := m.chunks[chunkID]
 		if chunkType != nil && chunk.Type != *chunkType {
 			continue
 		}

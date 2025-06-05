@@ -101,7 +101,8 @@ func (rd *RelationshipDetector) DetectRelationships(ctx context.Context, chunk *
 
 	// Filter by minimum confidence
 	filtered := make([]types.MemoryRelationship, 0)
-	for _, rel := range result.RelationshipsDetected {
+	for i := range result.RelationshipsDetected {
+		rel := result.RelationshipsDetected[i]
 		if rel.Confidence >= config.MinConfidence {
 			filtered = append(filtered, rel)
 		}
@@ -120,7 +121,8 @@ func (rd *RelationshipDetector) AutoDetectAndStore(ctx context.Context, chunk *t
 	}
 
 	// Store detected relationships
-	for _, relationship := range result.RelationshipsDetected {
+	for i := range result.RelationshipsDetected {
+		relationship := result.RelationshipsDetected[i]
 		_, err := rd.storage.StoreRelationship(ctx,
 			relationship.SourceChunkID,
 			relationship.TargetChunkID,
