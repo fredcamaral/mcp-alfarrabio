@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -658,7 +659,7 @@ func (rp *ResourcePool) createNewResource(ctx context.Context) (*Resource, error
 	defer rp.mutex.Unlock()
 
 	if rp.CurrentSize >= rp.MaxSize {
-		return nil, errors.New("pool has reached maximum size: " + fmt.Sprint(rp.MaxSize))
+		return nil, errors.New("pool has reached maximum size: " + strconv.Itoa(rp.MaxSize))
 	}
 
 	resource, err := rp.factory.CreateResource(ctx, map[string]interface{}{

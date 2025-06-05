@@ -130,7 +130,7 @@ func (h *MCPErrorHandler) WrapInternalError(operation string, err error) *Standa
 		return nil
 	}
 
-	message := fmt.Sprintf("Failed to %s", operation)
+	message := "Failed to " + operation
 	return NewInternalError(message, err).WithTraceID(h.traceIDGenerator())
 }
 
@@ -148,7 +148,7 @@ func (h *MCPErrorHandler) WrapDatabaseError(operation string, err error) *Standa
 	return &StandardError{
 		ErrorInfo: ErrorDetails{
 			Code:    ErrorCodeDatabaseError,
-			Message: fmt.Sprintf("Database operation failed: %s", operation),
+			Message: "Database operation failed: " + operation,
 			Details: details,
 			TraceID: h.traceIDGenerator(),
 		},
@@ -170,7 +170,7 @@ func (h *MCPErrorHandler) WrapEmbeddingError(operation string, err error) *Stand
 	return &StandardError{
 		ErrorInfo: ErrorDetails{
 			Code:    ErrorCodeEmbeddingError,
-			Message: fmt.Sprintf("Embedding service failed: %s", operation),
+			Message: "Embedding service failed: " + operation,
 			Details: details,
 			TraceID: h.traceIDGenerator(),
 		},

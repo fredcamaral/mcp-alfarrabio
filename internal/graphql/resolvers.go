@@ -1,6 +1,7 @@
 package graphql
 
 import (
+	"errors"
 	"fmt"
 	"lerian-mcp-memory/internal/di"
 	"lerian-mcp-memory/internal/workflow"
@@ -351,7 +352,7 @@ func (s *Schema) storeChunkResolver(container *di.Container) graphql.FieldResolv
 			return &processedChunks[0], nil
 		}
 
-		return nil, fmt.Errorf("no chunks processed")
+		return nil, errors.New("no chunks processed")
 	}
 }
 
@@ -368,7 +369,7 @@ func (s *Schema) storeDecisionResolver(container *di.Container) graphql.FieldRes
 			SessionID: input["sessionId"].(string),
 			Timestamp: time.Now(),
 			Type:      types.ChunkTypeArchitectureDecision,
-			Summary:   fmt.Sprintf("Decision: %s", input["decision"].(string)),
+			Summary:   "Decision: " + input["decision"].(string),
 			Metadata: types.ChunkMetadata{
 				Repository: getStringOrDefault(input, "repository", "_global"),
 			},

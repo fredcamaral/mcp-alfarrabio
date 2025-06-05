@@ -1,9 +1,9 @@
 package intelligence
 
 import (
-	"fmt"
 	"math"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -105,7 +105,7 @@ func (bsr *BasicSequenceRecognizer) LearnFromSequence(chunks []types.Conversatio
 		Steps:       bsr.convertActionsToSteps(actions, chunks),
 		Context:     bsr.extractSequenceContext(chunks),
 		Examples: []PatternExample{{
-			ID:           fmt.Sprintf("%s_example_%d", generatePatternID(), time.Now().Unix()),
+			ID:           generatePatternID() + "_example_" + strconv.FormatInt(time.Now().Unix(), 10),
 			ChunkIDs:     extractChunkIDs(chunks),
 			Conversation: chunks,
 			Outcome:      outcome,
@@ -417,7 +417,7 @@ func (bsr *BasicSequenceRecognizer) generateSequenceName(sequenceType PatternTyp
 }
 
 func (bsr *BasicSequenceRecognizer) generateSequenceDescription(sequenceType PatternType, outcome PatternOutcome) string {
-	baseDesc := fmt.Sprintf("A %s sequence", sequenceType)
+	baseDesc := "A " + string(sequenceType) + " sequence"
 
 	switch outcome {
 	case OutcomeSuccess:

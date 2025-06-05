@@ -2,10 +2,12 @@ package decay
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math"
 	"lerian-mcp-memory/pkg/types"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -90,7 +92,7 @@ func NewDefaultSummarizer() *DefaultSummarizer {
 // Summarize creates a summary of multiple chunks
 func (s *DefaultSummarizer) Summarize(ctx context.Context, chunks []types.ConversationChunk) (string, error) {
 	if len(chunks) == 0 {
-		return "", fmt.Errorf("no chunks to summarize")
+		return "", errors.New("no chunks to summarize")
 	}
 
 	// Sort chunks by timestamp
@@ -117,26 +119,26 @@ func (s *DefaultSummarizer) Summarize(ctx context.Context, chunks []types.Conver
 	// Add type summary
 	typeInfo := make([]string, 0, len(typeCounts))
 	for chunkType, count := range typeCounts {
-		typeInfo = append(typeInfo, fmt.Sprintf("%d %s", count, chunkType))
+		typeInfo = append(typeInfo, strconv.Itoa(count)+" "+string(chunkType))
 	}
-	summaryParts = append(summaryParts, fmt.Sprintf("Contains: %s", strings.Join(typeInfo, ", ")))
+	summaryParts = append(summaryParts, "Contains: "+strings.Join(typeInfo, ", "))
 
 	// Extract key topics
 	topics := s.extractKeyTopics(chunks)
 	if len(topics) > 0 {
-		summaryParts = append(summaryParts, fmt.Sprintf("Key topics: %s", strings.Join(topics, ", ")))
+		summaryParts = append(summaryParts, "Key topics: "+strings.Join(topics, ", "))
 	}
 
 	// Extract outcomes
 	outcomes := s.extractOutcomes(chunks)
 	if len(outcomes) > 0 {
-		summaryParts = append(summaryParts, fmt.Sprintf("Outcomes: %s", strings.Join(outcomes, "; ")))
+		summaryParts = append(summaryParts, "Outcomes: "+strings.Join(outcomes, "; "))
 	}
 
 	// Extract tools used
 	tools := s.extractTools(chunks)
 	if len(tools) > 0 {
-		summaryParts = append(summaryParts, fmt.Sprintf("Tools used: %s", strings.Join(tools, ", ")))
+		summaryParts = append(summaryParts, "Tools used: "+strings.Join(tools, ", "))
 	}
 
 	return strings.Join(summaryParts, ". "), nil
@@ -145,7 +147,7 @@ func (s *DefaultSummarizer) Summarize(ctx context.Context, chunks []types.Conver
 // SummarizeChain creates a summary chunk from a chain of related chunks
 func (s *DefaultSummarizer) SummarizeChain(ctx context.Context, chunks []types.ConversationChunk) (types.ConversationChunk, error) {
 	if len(chunks) == 0 {
-		return types.ConversationChunk{}, fmt.Errorf("no chunks to summarize")
+		return types.ConversationChunk{}, errors.New("no chunks to summarize")
 	}
 
 	// Create summary content
@@ -373,7 +375,7 @@ func NewLLMSummarizer(embeddingGen EmbeddingGenerator) *LLMSummarizer {
 // Summarize uses LLM to create an intelligent summary
 func (l *LLMSummarizer) Summarize(ctx context.Context, chunks []types.ConversationChunk) (string, error) {
 	if len(chunks) == 0 {
-		return "", fmt.Errorf("no chunks to summarize")
+		return "", errors.New("no chunks to summarize")
 	}
 
 	// Sort chunks chronologically for coherent narrative
@@ -737,12 +739,12 @@ func (l *LLMSummarizer) generateIntelligentSummary(narrative NarrativeFlow, crit
 			phaseDesc = append(phaseDesc, fmt.Sprintf("%s (%s)",
 				string(phase.Type), formatDuration(phaseDuration)))
 		}
-		parts = append(parts, fmt.Sprintf("Flow: %s", strings.Join(phaseDesc, " → ")))
+		parts = append(parts, "Flow: "+strings.Join(phaseDesc, " → "))
 	}
 
 	// Add critical outcomes
 	if len(critical.Solutions) > 0 {
-		parts = append(parts, fmt.Sprintf("Implemented %d successful solutions", len(critical.Solutions)))
+		parts = append(parts, "Implemented "+strconv.Itoa(len(critical.Solutions))+" successful solutions")
 	}
 
 	if len(critical.Decisions) > 0 {
@@ -752,7 +754,7 @@ func (l *LLMSummarizer) generateIntelligentSummary(narrative NarrativeFlow, crit
 				decisionDesc = append(decisionDesc, critical.Decisions[i].Summary)
 			}
 		}
-		parts = append(parts, fmt.Sprintf("Key decisions: %s", strings.Join(decisionDesc, "; ")))
+		parts = append(parts, "Key decisions: "+strings.Join(decisionDesc, "; "))
 	}
 
 	// Add key learnings
@@ -763,12 +765,12 @@ func (l *LLMSummarizer) generateIntelligentSummary(narrative NarrativeFlow, crit
 				learningDesc = append(learningDesc, critical.Learnings[i].Summary)
 			}
 		}
-		parts = append(parts, fmt.Sprintf("Learnings: %s", strings.Join(learningDesc, "; ")))
+		parts = append(parts, "Learnings: "+strings.Join(learningDesc, "; "))
 	}
 
 	// Add technology context
 	if len(critical.Technologies) > 0 {
-		parts = append(parts, fmt.Sprintf("Technologies: %s", strings.Join(critical.Technologies, ", ")))
+		parts = append(parts, "Technologies: "+strings.Join(critical.Technologies, ", "))
 	}
 
 	// Add key events if significant
@@ -781,7 +783,7 @@ func (l *LLMSummarizer) generateIntelligentSummary(narrative NarrativeFlow, crit
 		for eventType, count := range eventCount {
 			eventDesc = append(eventDesc, fmt.Sprintf("%d %s", count, eventType))
 		}
-		parts = append(parts, fmt.Sprintf("Events: %s", strings.Join(eventDesc, ", ")))
+		parts = append(parts, "Events: "+strings.Join(eventDesc, ", "))
 	}
 
 	return strings.Join(parts, ". ")

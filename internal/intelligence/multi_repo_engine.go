@@ -3,7 +3,6 @@ package intelligence
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"sort"
 	"strconv"
@@ -259,7 +258,7 @@ func (mre *MultiRepoEngine) AnalyzeCrossRepoPatterns(ctx context.Context) error 
 			continue
 		}
 		crossPattern := &CrossRepoPattern{
-			ID:           fmt.Sprintf("cross_%s_%d", sanitizeID(patternName), time.Now().Unix()),
+			ID:           "cross_" + sanitizeID(patternName) + "_" + strconv.FormatInt(time.Now().Unix(), 10),
 			Name:         patternName,
 			Description:  "Cross-repository pattern: " + patternName,
 			Repositories: make([]string, 0),

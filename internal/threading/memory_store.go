@@ -2,6 +2,7 @@ package threading
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -23,11 +24,11 @@ func NewInMemoryThreadStore() *InMemoryThreadStore {
 // StoreThread stores a thread in memory
 func (s *InMemoryThreadStore) StoreThread(ctx context.Context, thread *MemoryThread) error {
 	if thread == nil {
-		return fmt.Errorf("thread cannot be nil")
+		return errors.New("thread cannot be nil")
 	}
 
 	if thread.ID == "" {
-		return fmt.Errorf("thread ID cannot be empty")
+		return errors.New("thread ID cannot be empty")
 	}
 
 	s.mutex.Lock()
@@ -46,7 +47,7 @@ func (s *InMemoryThreadStore) StoreThread(ctx context.Context, thread *MemoryThr
 // GetThread retrieves a thread by ID
 func (s *InMemoryThreadStore) GetThread(ctx context.Context, threadID string) (*MemoryThread, error) {
 	if threadID == "" {
-		return nil, fmt.Errorf("thread ID cannot be empty")
+		return nil, errors.New("thread ID cannot be empty")
 	}
 
 	s.mutex.RLock()
@@ -97,7 +98,7 @@ func (s *InMemoryThreadStore) GetActiveThreads(ctx context.Context, repository s
 // UpdateThreadStatus updates the status of a thread
 func (s *InMemoryThreadStore) UpdateThreadStatus(ctx context.Context, threadID string, status ThreadStatus) error {
 	if threadID == "" {
-		return fmt.Errorf("thread ID cannot be empty")
+		return errors.New("thread ID cannot be empty")
 	}
 
 	s.mutex.Lock()
@@ -123,7 +124,7 @@ func (s *InMemoryThreadStore) UpdateThreadStatus(ctx context.Context, threadID s
 // DeleteThread removes a thread
 func (s *InMemoryThreadStore) DeleteThread(ctx context.Context, threadID string) error {
 	if threadID == "" {
-		return fmt.Errorf("thread ID cannot be empty")
+		return errors.New("thread ID cannot be empty")
 	}
 
 	s.mutex.Lock()

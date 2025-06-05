@@ -3,10 +3,11 @@ package decay
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"lerian-mcp-memory/pkg/types"
 	"log"
 	"math"
-	"lerian-mcp-memory/pkg/types"
 	"sort"
 	"sync"
 	"time"
@@ -137,7 +138,7 @@ func (m *MemoryDecayManager) Start(ctx context.Context) error {
 	m.mu.Lock()
 	if m.running {
 		m.mu.Unlock()
-		return fmt.Errorf("decay manager already running")
+		return errors.New("decay manager already running")
 	}
 	m.running = true
 	m.mu.Unlock()

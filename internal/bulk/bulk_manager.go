@@ -5,10 +5,10 @@ package bulk
 import (
 	"context"
 	"errors"
-	"fmt"
-	"log"
 	"lerian-mcp-memory/internal/storage"
 	"lerian-mcp-memory/pkg/types"
+	"log"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -306,7 +306,7 @@ func (m *Manager) validateOperation(op *Request, progress *Progress) error {
 	}
 
 	if len(progress.ValidationErrors) > 0 && !op.Options.ContinueOnError {
-		return errors.New("validation failed with " + fmt.Sprint(len(progress.ValidationErrors)) + " errors")
+		return errors.New("validation failed with " + strconv.Itoa(len(progress.ValidationErrors)) + " errors")
 	}
 
 	return nil
@@ -498,7 +498,7 @@ func (m *Manager) notifyProgress(op *Request, progress *Progress) {
 // Utility functions
 
 func generateOperationID() string {
-	return fmt.Sprintf("bulk_%d", time.Now().UnixNano())
+	return "bulk_" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }
 
 func timePtr(t time.Time) *time.Time {

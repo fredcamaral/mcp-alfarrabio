@@ -4,6 +4,7 @@ package chunking
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"lerian-mcp-memory/internal/config"
 	"lerian-mcp-memory/internal/embeddings"
@@ -176,7 +177,7 @@ func (cs *Service) ShouldCreateChunk(chunkingContext *types.ChunkingContext) boo
 // CreateChunk creates a conversation chunk from the current context
 func (cs *Service) CreateChunk(ctx context.Context, sessionID, content string, metadata *types.ChunkMetadata) (*types.ConversationChunk, error) {
 	if content == "" {
-		return nil, fmt.Errorf("content cannot be empty")
+		return nil, errors.New("content cannot be empty")
 	}
 
 	// Analyze content to determine chunk type
@@ -499,21 +500,21 @@ func (cs *Service) prepareContentForEmbedding(chunk *types.ConversationChunk) st
 	parts := []string{}
 
 	// Include chunk type for context
-	parts = append(parts, fmt.Sprintf("Type: %s", chunk.Type))
+	parts = append(parts, "Type: "+string(chunk.Type))
 
 	// Include summary if available (cleaned)
 	if chunk.Summary != "" {
 		cleanSummary := cs.cleanContentForEmbedding(chunk.Summary)
-		parts = append(parts, fmt.Sprintf("Summary: %s", cleanSummary))
+		parts = append(parts, "Summary: "+cleanSummary)
 	}
 
 	// Include main content (cleaned)
 	cleanContent := cs.cleanContentForEmbedding(chunk.Content)
-	parts = append(parts, fmt.Sprintf("Content: %s", cleanContent))
+	parts = append(parts, "Content: "+cleanContent)
 
 	// Include relevant metadata
 	if chunk.Metadata.Repository != "" {
-		parts = append(parts, fmt.Sprintf("Repository: %s", chunk.Metadata.Repository))
+		parts = append(parts, "Repository: "+chunk.Metadata.Repository)
 	}
 
 	if len(chunk.Metadata.Tags) > 0 {
@@ -522,7 +523,7 @@ func (cs *Service) prepareContentForEmbedding(chunk *types.ConversationChunk) st
 		for i, tag := range chunk.Metadata.Tags {
 			cleanTags[i] = cs.cleanContentForEmbedding(tag)
 		}
-		parts = append(parts, fmt.Sprintf("Tags: %s", strings.Join(cleanTags, ", ")))
+		parts = append(parts, "Tags: "+strings.Join(cleanTags, ", "))
 	}
 
 	combined := strings.Join(parts, " ")
@@ -670,7 +671,7 @@ func (cs *Service) UpdateContext(updates map[string]interface{}) {
 // ProcessConversation processes a conversation into multiple chunks intelligently
 func (cs *Service) ProcessConversation(ctx context.Context, sessionID, conversation string, baseMetadata *types.ChunkMetadata) ([]types.ConversationChunk, error) {
 	if conversation == "" {
-		return nil, fmt.Errorf("conversation cannot be empty")
+		return nil, errors.New("conversation cannot be empty")
 	}
 
 	chunks := []types.ConversationChunk{}
@@ -775,7 +776,7 @@ func (cs *Service) createSummaryChunk(ctx context.Context, sessionID string, chu
 	contentParts := []string{"Summary of recent conversation:"}
 	for i := range chunks {
 		if chunks[i].Summary != "" {
-			contentParts = append(contentParts, fmt.Sprintf("- %s", chunks[i].Summary))
+			contentParts = append(contentParts, "- "+chunks[i].Summary)
 		}
 	}
 
@@ -836,7 +837,7 @@ func (cs *Service) createSessionSummary(ctx context.Context, sessionID string, c
 		for tool := range toolsUsed {
 			tools = append(tools, tool)
 		}
-		contentParts = append(contentParts, fmt.Sprintf("Tools used: %s", strings.Join(tools, ", ")))
+		contentParts = append(contentParts, "Tools used: "+strings.Join(tools, ", "))
 	}
 
 	if len(filesModified) > 0 {

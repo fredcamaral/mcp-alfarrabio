@@ -2,6 +2,7 @@ package chains
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 )
@@ -25,7 +26,7 @@ func NewInMemoryChainStore() *InMemoryChainStore {
 // StoreChain stores a memory chain
 func (s *InMemoryChainStore) StoreChain(_ context.Context, chain *MemoryChain) error {
 	if chain == nil || chain.ID == "" {
-		return fmt.Errorf("invalid chain")
+		return errors.New("invalid chain")
 	}
 
 	s.mu.Lock()
@@ -92,7 +93,7 @@ func (s *InMemoryChainStore) GetChainsByChunkID(_ context.Context, chunkID strin
 // UpdateChain updates an existing chain
 func (s *InMemoryChainStore) UpdateChain(_ context.Context, chain *MemoryChain) error {
 	if chain == nil || chain.ID == "" {
-		return fmt.Errorf("invalid chain")
+		return errors.New("invalid chain")
 	}
 
 	s.mu.Lock()

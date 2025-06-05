@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -138,7 +139,7 @@ func (sh *ShutdownHook) CreateHTTPServerShutdown(name string, server interface{}
 			sh.logger.Info("Shutting down HTTP server", "name", name)
 			return srv.Shutdown(ctx)
 		}
-		return fmt.Errorf("server does not implement Shutdown method")
+		return errors.New("server does not implement Shutdown method")
 	}
 }
 
@@ -149,7 +150,7 @@ func (sh *ShutdownHook) CreateDatabaseShutdown(name string, db interface{}) func
 			sh.logger.Info("Closing database connection", "name", name)
 			return closer.Close()
 		}
-		return fmt.Errorf("database does not implement Close method")
+		return errors.New("database does not implement Close method")
 	}
 }
 
@@ -194,6 +195,6 @@ func (sh *ShutdownHook) CreateConnectionPoolShutdown(name string, pool interface
 			return closer.Close()
 		}
 
-		return fmt.Errorf("connection pool does not implement Drain or Close method")
+		return errors.New("connection pool does not implement Drain or Close method")
 	}
 }

@@ -7,8 +7,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
-	"math"
 	"lerian-mcp-memory/internal/audit"
 	"lerian-mcp-memory/internal/bulk"
 	"lerian-mcp-memory/internal/config"
@@ -20,6 +18,8 @@ import (
 	"lerian-mcp-memory/internal/threading"
 	"lerian-mcp-memory/internal/workflow"
 	"lerian-mcp-memory/pkg/types"
+	"log"
+	"math"
 	"os"
 	"os/exec"
 	"regexp"
@@ -1348,13 +1348,13 @@ func (ms *MemoryServer) validateStoreChunkParams(params map[string]interface{}) 
 	content, ok = params["content"].(string)
 	if !ok || content == "" {
 		logging.Error("memory_store_chunk failed: missing content parameter")
-		return "", "", fmt.Errorf("content parameter is required and must be non-empty string. Example: {\"content\": \"Fixed authentication bug by updating JWT validation\", \"session_id\": \"auth-fix-session\"}")
+		return "", "", errors.New("content parameter is required and must be non-empty string. Example: {\"content\": \"Fixed authentication bug by updating JWT validation\", \"session_id\": \"auth-fix-session\"}")
 	}
 
 	sessionID, ok = params["session_id"].(string)
 	if !ok || sessionID == "" {
 		logging.Error("memory_store_chunk failed: missing session_id parameter")
-		return "", "", fmt.Errorf("session_id parameter is required and must be non-empty string. Use descriptive session IDs. Example: {\"session_id\": \"bug-fix-2024\", \"content\": \"Solution details\"}")
+		return "", "", errors.New("session_id parameter is required and must be non-empty string. Use descriptive session IDs. Example: {\"session_id\": \"bug-fix-2024\", \"content\": \"Solution details\"}")
 	}
 
 	return content, sessionID, nil
@@ -1504,7 +1504,7 @@ func (ms *MemoryServer) validateSearchParams(params map[string]interface{}) (str
 	query, ok := params["query"].(string)
 	if !ok || query == "" {
 		logging.Error("memory_search failed: missing query parameter")
-		return "", fmt.Errorf("query parameter is required and must be non-empty string. Use specific search terms. Example: {\"query\": \"authentication bug fix\", \"repository\": \"github.com/user/repo\"}")
+		return "", errors.New("query parameter is required and must be non-empty string. Use specific search terms. Example: {\"query\": \"authentication bug fix\", \"repository\": \"github.com/user/repo\"}")
 	}
 	return query, nil
 }
@@ -1811,7 +1811,7 @@ func (ms *MemoryServer) handleGetContext(ctx context.Context, params map[string]
 	repository, ok := params["repository"].(string)
 	if !ok || repository == "" {
 		logging.Error("memory_get_context failed: missing repository parameter")
-		return nil, fmt.Errorf("repository parameter is required and must be non-empty string. Use full repository URLs. Example: {\"repository\": \"github.com/user/project\", \"recent_days\": 7}")
+		return nil, errors.New("repository parameter is required and must be non-empty string. Use full repository URLs. Example: {\"repository\": \"github.com/user/project\", \"recent_days\": 7}")
 	}
 
 	recentDays := 7
@@ -2288,10 +2288,10 @@ func (ms *MemoryServer) validateStoreDecisionParams(params map[string]interface{
 
 // buildDecisionContent creates formatted decision content
 func (ms *MemoryServer) buildDecisionContent(decision, rationale string, params map[string]interface{}) string {
-	content := fmt.Sprintf("ARCHITECTURAL DECISION: %s\n\nRATIONALE: %s", decision, rationale)
+	content := "ARCHITECTURAL DECISION: " + decision + "\n\nRATIONALE: " + rationale
 
 	if decisionContext, ok := params["context"].(string); ok && decisionContext != "" {
-		content += fmt.Sprintf("\n\nCONTEXT: %s", decisionContext)
+		content += "\n\nCONTEXT: " + decisionContext
 	}
 
 	return content
@@ -2598,7 +2598,7 @@ func (ms *MemoryServer) analyzePatterns(chunks []types.ConversationChunk) []stri
 	// Find common patterns (tags that appear multiple times)
 	for tag, count := range tagCounts {
 		if count >= 3 { // Threshold for pattern
-			patterns = append(patterns, fmt.Sprintf("%s (appears %d times)", tag, count))
+			patterns = append(patterns, tag+" (appears "+strconv.Itoa(count)+" times)")
 		}
 	}
 
@@ -3363,7 +3363,7 @@ func predictOptimalTiming(analysis *patternAnalysisResult, totalChunks int, conf
 	if dayConfidence >= confidenceThreshold {
 		return map[string]interface{}{
 			"type":       "timing",
-			"prediction": fmt.Sprintf("Best day for this type of work: %s", bestDay),
+			"prediction": "Best day for this type of work: " + bestDay,
 			"confidence": dayConfidence,
 			"basis":      fmt.Sprintf("%d similar activities occurred on %s", maxDayCount, bestDay),
 		}
@@ -3538,11 +3538,11 @@ func (ms *MemoryServer) exportToMarkdown(chunks []types.ConversationChunk, expor
 
 	for i := range chunks {
 		chunk := &chunks[i]
-		markdown.WriteString(fmt.Sprintf("## %s\n\n", chunk.Summary))
+		markdown.WriteString("## " + chunk.Summary + "\n\n")
 		markdown.WriteString(fmt.Sprintf("**ID:** %s\n", chunk.ID))
 		markdown.WriteString(fmt.Sprintf("**Type:** %s\n", chunk.Type))
 		markdown.WriteString(fmt.Sprintf("**Timestamp:** %s\n\n", chunk.Timestamp.Format("2006-01-02 15:04:05")))
-		markdown.WriteString(fmt.Sprintf("%s\n\n", chunk.Content))
+		markdown.WriteString(chunk.Content + "\n\n")
 
 		if len(chunk.Metadata.Tags) > 0 {
 			markdown.WriteString(fmt.Sprintf("**Tags:** %s\n\n", strings.Join(chunk.Metadata.Tags, ", ")))
@@ -9270,12 +9270,12 @@ func (ms *MemoryServer) handleSecureBulkDelete(ctx context.Context, params map[s
 	// Parse IDs to delete
 	idsInterface, ok := params["ids"]
 	if !ok {
-		return nil, fmt.Errorf("ids parameter is required for bulk delete. Example: {\"ids\": [\"chunk-id-1\", \"chunk-id-2\"], \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("ids parameter is required for bulk delete. Example: {\"ids\": [\"chunk-id-1\", \"chunk-id-2\"], \"repository\": \"github.com/user/repo\"}")
 	}
 
 	idsSlice, ok := idsInterface.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("ids parameter must be an array of strings. Example: {\"ids\": [\"chunk-id-1\", \"chunk-id-2\"], \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("ids parameter must be an array of strings. Example: {\"ids\": [\"chunk-id-1\", \"chunk-id-2\"], \"repository\": \"github.com/user/repo\"}")
 	}
 
 	if len(idsSlice) == 0 {
@@ -9364,7 +9364,7 @@ func (ms *MemoryServer) handleSecureSearch(ctx context.Context, params map[strin
 	// Parse search query
 	query, ok := params["query"].(string)
 	if !ok || query == "" {
-		return nil, fmt.Errorf("query parameter is required for search. Example: {\"query\": \"authentication bug fix\", \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("query parameter is required for search. Example: {\"query\": \"authentication bug fix\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	// Create memory query with strict repository isolation
@@ -9451,7 +9451,7 @@ func (ms *MemoryServer) handleSecureFindSimilar(ctx context.Context, params map[
 	// Parse problem description
 	problem, ok := params["problem"].(string)
 	if !ok || problem == "" {
-		return nil, fmt.Errorf("problem parameter is required for find_similar. Example: {\"problem\": \"authentication timeout error\", \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("problem parameter is required for find_similar. Example: {\"problem\": \"authentication timeout error\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	// Use the secure search with problem as query
@@ -10716,7 +10716,7 @@ func (ms *MemoryServer) handleTodoWrite(ctx context.Context, args map[string]int
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"todos\": [...]} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"todos\": [...]}")
+		return nil, errors.New("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"todos\": [...]} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"todos\": [...]}")
 	}
 
 	todosRaw, ok := args["todos"]
@@ -10753,7 +10753,7 @@ func (ms *MemoryServer) handleTodoRead(ctx context.Context, args map[string]inte
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
+		return nil, errors.New("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
 	}
 
 	// session_id is now OPTIONAL - when not provided, return ALL todos for repository
@@ -10828,7 +10828,7 @@ func (ms *MemoryServer) handleTodoUpdate(ctx context.Context, args map[string]in
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"tool_name\": \"Edit\"} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"tool_name\": \"Edit\"}")
+		return nil, errors.New("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"tool_name\": \"Edit\"} or {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\", \"tool_name\": \"Edit\"}")
 	}
 
 	// session_id is now OPTIONAL for repository-wide task updates
@@ -10839,7 +10839,7 @@ func (ms *MemoryServer) handleTodoUpdate(ctx context.Context, args map[string]in
 
 	toolName, ok := args["tool_name"].(string)
 	if !ok {
-		return nil, fmt.Errorf("tool_name parameter is required. Example: {\"tool_name\": \"Edit\", \"repository\": \"github.com/user/repo\"} or {\"tool_name\": \"Edit\", \"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("tool_name parameter is required. Example: {\"tool_name\": \"Edit\", \"repository\": \"github.com/user/repo\"} or {\"tool_name\": \"Edit\", \"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	toolContext, ok := args["tool_context"].(map[string]interface{})
@@ -10860,12 +10860,12 @@ func (ms *MemoryServer) handleSessionCreate(ctx context.Context, args map[string
 	_ = ctx // Context unused but required by handler interface
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
+		return nil, errors.New("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
 	}
 
 	// Create session by accessing it (auto-created in TodoTracker)
@@ -10885,12 +10885,12 @@ func (ms *MemoryServer) handleSessionEnd(ctx context.Context, args map[string]in
 	_ = ctx // Context unused but required by handler interface
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
+		return nil, errors.New("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
 	}
 
 	outcomeStr, ok := args["outcome"].(string)
@@ -10924,7 +10924,7 @@ func (ms *MemoryServer) handleSessionList(ctx context.Context, args map[string]i
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"}")
 	}
 
 	// Get active sessions filtered by repository
@@ -10942,12 +10942,12 @@ func (ms *MemoryServer) handleWorkflowAnalyze(ctx context.Context, args map[stri
 	_ = ctx // Context unused but required by handler interface
 	sessionID, ok := args["session_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("session_id parameter is required for multi-tenant isolation. Example: {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	repository, ok := args["repository"].(string)
 	if !ok {
-		return nil, fmt.Errorf("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
+		return nil, errors.New("repository parameter is required for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"my-session\"}")
 	}
 
 	session, exists := ms.todoTracker.GetActiveSession(sessionID, repository)

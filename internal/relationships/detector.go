@@ -2,6 +2,7 @@ package relationships
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"lerian-mcp-memory/pkg/types"
 	"regexp"
@@ -141,7 +142,7 @@ func (rd *RelationshipDetector) AutoDetectAndStore(ctx context.Context, chunk *t
 // findCandidateChunks finds chunks that could potentially have relationships with the given chunk
 func (rd *RelationshipDetector) findCandidateChunks(ctx context.Context, chunk *types.ConversationChunk, config *DetectionConfig) ([]*types.ConversationChunk, error) {
 	if chunk == nil {
-		return nil, fmt.Errorf("chunk cannot be nil")
+		return nil, errors.New("chunk cannot be nil")
 	}
 
 	candidates := make([]*types.ConversationChunk, 0)

@@ -4,6 +4,7 @@ package relationships
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -51,15 +52,15 @@ func NewManager() *Manager {
 // AddRelationship creates a new relationship between chunks
 func (m *Manager) AddRelationship(ctx context.Context, from, to string, relType RelationshipType, strength float64, relContext string) (*Relationship, error) {
 	if from == "" || to == "" {
-		return nil, fmt.Errorf("both from and to chunk IDs are required")
+		return nil, errors.New("both from and to chunk IDs are required")
 	}
 
 	if from == to {
-		return nil, fmt.Errorf("cannot create relationship to self")
+		return nil, errors.New("cannot create relationship to self")
 	}
 
 	if strength < 0 || strength > 1 {
-		return nil, fmt.Errorf("strength must be between 0 and 1")
+		return nil, errors.New("strength must be between 0 and 1")
 	}
 
 	rel := &Relationship{

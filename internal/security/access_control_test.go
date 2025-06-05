@@ -2,7 +2,7 @@ package security
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 	"testing"
 	"time"
 
@@ -668,7 +668,7 @@ func BenchmarkCheckAccess(b *testing.B) {
 	user, _ := acm.CreateUser("benchuser", "bench@example.com")
 	for i := 0; i < 10; i++ {
 		_ = acm.GrantPermission(user.ID, Permission{
-			Resource: "repository:repo" + fmt.Sprint(i),
+			Resource: "repository:repo" + strconv.Itoa(i),
 			Action:   "read",
 			Level:    AccessLevelRead,
 		})

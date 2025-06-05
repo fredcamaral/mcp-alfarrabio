@@ -12,10 +12,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"lerian-mcp-memory/pkg/types"
+	"log"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -455,7 +456,7 @@ func (imp *Importer) parseCSVRecord(header, record []string, options *ImportOpti
 
 	// Create chunk
 	chunk := &types.ConversationChunk{
-		ID:        fmt.Sprintf("imported_%d_%d", time.Now().Unix(), lineNum),
+		ID:        "imported_" + strconv.FormatInt(time.Now().Unix(), 10) + "_" + strconv.Itoa(lineNum),
 		SessionID: sessionID,
 		Timestamp: timestamp,
 		Type:      chunkType,
@@ -488,11 +489,11 @@ func (imp *Importer) createChunkFromTextWithType(text string, chunkType types.Ch
 
 	// Add import metadata
 	if options.Metadata.SourceSystem != "" {
-		metadata.Tags = append(metadata.Tags, fmt.Sprintf("source:%s", options.Metadata.SourceSystem))
+		metadata.Tags = append(metadata.Tags, "source:"+options.Metadata.SourceSystem)
 	}
 
 	chunk := &types.ConversationChunk{
-		ID:        fmt.Sprintf("imported_%d_%d", time.Now().Unix(), index),
+		ID:        "imported_" + strconv.FormatInt(time.Now().Unix(), 10) + "_" + strconv.Itoa(index),
 		SessionID: sessionID,
 		Timestamp: time.Now().UTC(),
 		Type:      chunkType,

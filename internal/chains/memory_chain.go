@@ -3,9 +3,11 @@ package chains
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"lerian-mcp-memory/pkg/types"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 )
@@ -90,7 +92,7 @@ func NewChainBuilder(store ChainStore, analyzer ChainAnalyzer) *ChainBuilder {
 // CreateChain creates a new memory chain
 func (cb *ChainBuilder) CreateChain(ctx context.Context, name, description string, initialChunks []*types.ConversationChunk) (*MemoryChain, error) {
 	if len(initialChunks) < 2 {
-		return nil, fmt.Errorf("chain must have at least 2 chunks")
+		return nil, errors.New("chain must have at least 2 chunks")
 	}
 
 	// Create chain
@@ -150,7 +152,7 @@ func (cb *ChainBuilder) AddToChain(ctx context.Context, chainID string, chunk *t
 	// Check if chunk already in chain
 	for _, id := range chain.ChunkIDs {
 		if id == chunk.ID {
-			return fmt.Errorf("chunk already in chain")
+			return errors.New("chunk already in chain")
 		}
 	}
 
@@ -188,14 +190,14 @@ func (cb *ChainBuilder) AddToChain(ctx context.Context, chainID string, chunk *t
 // AutoCreateChain automatically creates chains based on chunk relationships
 func (cb *ChainBuilder) AutoCreateChain(ctx context.Context, chunks []*types.ConversationChunk) (*MemoryChain, error) {
 	if len(chunks) < 2 {
-		return nil, fmt.Errorf("need at least 2 chunks for auto-chain creation")
+		return nil, errors.New("need at least 2 chunks for auto-chain creation")
 	}
 
 	// Get suggested name and description
 	name, description, err := cb.analyzer.SuggestChainName(ctx, chunks)
 	if err != nil {
 		// Fallback name
-		name = fmt.Sprintf("Chain-%s", time.Now().Format("2006-01-02-15:04"))
+		name = "Chain-" + time.Now().Format("2006-01-02-15:04")
 		description = "Automatically created memory chain"
 	}
 
@@ -393,7 +395,7 @@ func extractChunkIDs(chunks []*types.ConversationChunk) []string {
 }
 
 func generateChainID() string {
-	return fmt.Sprintf("chain_%d_%s", time.Now().Unix(), generateRandomString(8))
+	return "chain_" + strconv.FormatInt(time.Now().Unix(), 10) + "_" + generateRandomString(8)
 }
 
 func generateRandomString(length int) string {

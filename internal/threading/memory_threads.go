@@ -3,12 +3,14 @@ package threading
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math"
 	"lerian-mcp-memory/internal/chains"
 	"lerian-mcp-memory/internal/relationships"
 	"lerian-mcp-memory/pkg/types"
+	"math"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -123,7 +125,7 @@ func NewThreadManager(chainBuilder *chains.ChainBuilder, relationshipMgr *relati
 // CreateThread creates a new memory thread from related chunks
 func (tm *ThreadManager) CreateThread(ctx context.Context, chunks []types.ConversationChunk, threadType ThreadType) (*MemoryThread, error) {
 	if len(chunks) == 0 {
-		return nil, fmt.Errorf("cannot create thread from empty chunks")
+		return nil, errors.New("cannot create thread from empty chunks")
 	}
 
 	// Sort chunks by timestamp
@@ -381,17 +383,17 @@ func (tm *ThreadManager) generateThreadTitle(chunks []types.ConversationChunk, t
 
 	switch threadType {
 	case ThreadTypeProblemSolving:
-		return fmt.Sprintf("Problem: %s", firstSummary)
+		return "Problem: " + firstSummary
 	case ThreadTypeFeature:
-		return fmt.Sprintf("Feature: %s", firstSummary)
+		return "Feature: " + firstSummary
 	case ThreadTypeDebugging:
-		return fmt.Sprintf("Debug: %s", firstSummary)
+		return "Debug: " + firstSummary
 	case ThreadTypeArchitecture:
-		return fmt.Sprintf("Architecture: %s", firstSummary)
+		return "Architecture: " + firstSummary
 	case ThreadTypeConversation:
-		return fmt.Sprintf("Discussion: %s", firstSummary)
+		return "Discussion: " + firstSummary
 	case ThreadTypeWorkflow:
-		return fmt.Sprintf("Workflow: %s", firstSummary)
+		return "Workflow: " + firstSummary
 	default:
 		return firstSummary
 	}
@@ -407,9 +409,9 @@ func (tm *ThreadManager) generateThreadDescription(chunks []types.ConversationCh
 	// Add session info
 	sessions := tm.extractSessionIDs(chunks)
 	if len(sessions) == 1 {
-		description += fmt.Sprintf(" from session %s", sessions[0])
+		description += " from session " + sessions[0]
 	} else {
-		description += fmt.Sprintf(" spanning %d sessions", len(sessions))
+		description += " spanning " + strconv.Itoa(len(sessions)) + " sessions"
 	}
 
 	// Add time span

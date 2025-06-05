@@ -770,7 +770,7 @@ func (cd *ConflictDetector) generateTemporalDescription(timeDiff time.Duration, 
 }
 
 func (cd *ConflictDetector) generateOutcomeDescription(outcome1, outcome2 types.Outcome) string {
-	return fmt.Sprintf("Conflicting outcomes: %s vs %s", outcome1, outcome2)
+	return "Conflicting outcomes: " + string(outcome1) + " vs " + string(outcome2)
 }
 
 func (cd *ConflictDetector) generateDecisionDescription(conflictPoints []ConflictPoint) string {
@@ -792,7 +792,7 @@ func (cd *ConflictDetector) extractEvidence(content1, content2 string) []string 
 	for _, s1 := range sentences1 {
 		for _, s2 := range sentences2 {
 			if cd.areSentencesConflicting(s1, s2) {
-				evidence = append(evidence, fmt.Sprintf("'%s' vs '%s'", strings.TrimSpace(s1), strings.TrimSpace(s2)))
+				evidence = append(evidence, "'"+strings.TrimSpace(s1)+"' vs '"+strings.TrimSpace(s2)+"'")
 			}
 		}
 	}

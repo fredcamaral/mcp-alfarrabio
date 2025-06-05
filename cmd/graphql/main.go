@@ -5,10 +5,10 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"lerian-mcp-memory/internal/config"
 	"lerian-mcp-memory/internal/di"
 	mcpgraphql "lerian-mcp-memory/internal/graphql"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
@@ -90,7 +90,7 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:         fmt.Sprintf(":%s", port),
+		Addr:         ":" + port,
 		Handler:      corsHandler,
 		ReadTimeout:  15 * time.Second,
 		WriteTimeout: 15 * time.Second,

@@ -497,7 +497,7 @@ func (bm *BackupManager) VerifyIntegrity(ctx context.Context) error {
 
 		// Additional integrity checks
 		if chunks[i].ID == "" {
-			return fmt.Errorf("chunk has empty ID")
+			return errors.New("chunk has empty ID")
 		}
 
 		if chunks[i].Timestamp.IsZero() {

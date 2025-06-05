@@ -18,10 +18,10 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
-      - mcp_network
+      - lerian_mcp_network
 
   # MCP Memory Server with integrated WebUI
-  lerian-mcp-memory-server:
+  lerian-mcp-memory:
     build:
       context: .
       dockerfile: Dockerfile
@@ -80,11 +80,11 @@ services:
       retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: 40s
     networks:
-      - mcp_network
+      - lerian_mcp_network
 
 # Networks
 networks:
-  mcp_network:
+  lerian_mcp_network:
     driver: bridge
 
 # Volumes - CRITICAL: These contain all your memory data. NEVER DELETE!

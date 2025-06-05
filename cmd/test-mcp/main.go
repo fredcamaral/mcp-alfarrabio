@@ -6,9 +6,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"lerian-mcp-memory/internal/config"
 	"lerian-mcp-memory/internal/mcp"
+	"log"
 	"os"
 
 	"github.com/fredcamaral/gomcp-sdk/protocol"

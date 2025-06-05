@@ -2,7 +2,6 @@ package intelligence
 
 import (
 	"context"
-	"fmt"
 	"sort"
 	"time"
 )
@@ -670,7 +669,7 @@ func (cr *ConflictResolver) generatePatternStrategies(conflict *Conflict) []Reso
 	mergeTitle := "Merge Pattern Information"
 	mergeDesc := "Combine insights from conflicting patterns"
 	if conflict.Severity == SeverityHigh || conflict.Severity == SeverityCritical {
-		mergeDesc = fmt.Sprintf("Carefully merge %s conflict: %s", conflict.Type, conflict.Description)
+		mergeDesc = "Carefully merge " + string(conflict.Type) + " conflict: " + conflict.Description
 	}
 
 	strategies = append(strategies, ResolutionStrategy{
@@ -698,7 +697,7 @@ func (cr *ConflictResolver) generatePatternStrategies(conflict *Conflict) []Reso
 	contextTitle := "Context-Based Pattern Selection"
 	contextDesc := "Choose pattern based on specific context"
 	if len(conflict.ConflictPoints) > 0 {
-		contextDesc = fmt.Sprintf("Resolve conflict on '%s' using context", conflict.ConflictPoints[0].Aspect)
+		contextDesc = "Resolve conflict on '" + conflict.ConflictPoints[0].Aspect + "' using context"
 	}
 
 	strategies = append(strategies, ResolutionStrategy{

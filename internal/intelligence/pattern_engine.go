@@ -338,7 +338,7 @@ func (pe *PatternEngine) generatePatternName(chunks []types.ConversationChunk, _
 
 func (pe *PatternEngine) generatePatternDescription(chunks []types.ConversationChunk, features map[string]any) string {
 	patternType := pe.inferPatternType(chunks, features)
-	return fmt.Sprintf("Automatically learned %s pattern from conversation", patternType)
+	return "Automatically learned " + string(patternType) + " pattern from conversation"
 }
 
 func (pe *PatternEngine) calculatePatternConfidence(chunks []types.ConversationChunk, features map[string]any) float64 {

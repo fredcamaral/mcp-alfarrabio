@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/fredcamaral/gomcp-sdk/protocol"
@@ -276,8 +277,8 @@ func (e *StandardError) WriteHTTPError(w http.ResponseWriter) {
 	if e.ErrorInfo.Code == ErrorCodeRateLimited {
 		if rateLimitDetail, ok := e.ErrorInfo.Details.(RateLimitDetail); ok {
 			w.Header().Set("Retry-After", fmt.Sprintf("%.0f", rateLimitDetail.RetryAfter.Seconds()))
-			w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", rateLimitDetail.Limit))
-			w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", rateLimitDetail.Remaining))
+			w.Header().Set("X-RateLimit-Limit", strconv.Itoa(rateLimitDetail.Limit))
+			w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(rateLimitDetail.Remaining))
 		}
 	}
 

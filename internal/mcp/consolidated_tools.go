@@ -495,18 +495,18 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 func (ms *MemoryServer) handleMemoryCreate(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"store_chunk\", \"options\": {\"content\": \"Bug fix summary\", \"session_id\": \"session-123\", \"repository\": \"github.com/user/repo\"}}")
+		return nil, errors.New("operation parameter is required. Example: {\"operation\": \"store_chunk\", \"options\": {\"content\": \"Bug fix summary\", \"session_id\": \"session-123\", \"repository\": \"github.com/user/repo\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"content\": \"text\", \"session_id\": \"session-123\", \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"content\": \"text\", \"session_id\": \"session-123\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all create operations
 	repository, ok := options["repository"].(string)
 	if !ok || repository == "" {
-		return nil, fmt.Errorf("repository parameter is required for all create operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"content\": \"content-text\", \"session_id\": \"session-123\"} or use \"global\" for cross-project architecture decisions")
+		return nil, errors.New("repository parameter is required for all create operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"content\": \"content-text\", \"session_id\": \"session-123\"} or use \"global\" for cross-project architecture decisions")
 	}
 
 	// Allow global storage for architecture decisions but log for security monitoring
@@ -556,12 +556,12 @@ func (ms *MemoryServer) handleMemoryRead(ctx context.Context, args map[string]in
 func (ms *MemoryServer) validateReadOperationParams(args map[string]interface{}) (operation string, options map[string]interface{}, err error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return "", nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"search\", \"options\": {\"query\": \"how to fix build errors\", \"repository\": \"github.com/user/repo\"}}")
+		return "", nil, errors.New("operation parameter is required. Example: {\"operation\": \"search\", \"options\": {\"query\": \"how to fix build errors\", \"repository\": \"github.com/user/repo\"}}")
 	}
 
 	options, ok = args["options"].(map[string]interface{})
 	if !ok {
-		return "", nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"query\": \"search term\", \"repository\": \"github.com/user/repo\"}")
+		return "", nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"query\": \"search term\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	return operation, options, nil
@@ -571,7 +571,7 @@ func (ms *MemoryServer) validateReadOperationParams(args map[string]interface{})
 func (ms *MemoryServer) validateAndLogRepository(options map[string]interface{}, operation string) (string, error) {
 	repository, ok := options["repository"].(string)
 	if !ok || repository == "" {
-		return "", fmt.Errorf("repository parameter is required for all read operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\"} or use \"global\" for cross-project architecture decisions")
+		return "", errors.New("repository parameter is required for all read operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\"} or use \"global\" for cross-project architecture decisions")
 	}
 
 	if repository == GlobalRepository {
@@ -659,18 +659,18 @@ func (ms *MemoryServer) handleMemoryUpdate(ctx context.Context, args map[string]
 func (ms *MemoryServer) handleMemoryDelete(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-id-1\"]}}")
+		return nil, errors.New("operation parameter is required. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-id-1\"]}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for security. Example: {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-id-1\", \"chunk-id-2\"]}")
+		return nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for security. Example: {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-id-1\", \"chunk-id-2\"]}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all delete operations
 	repository, ok := options["repository"].(string)
 	if !ok || repository == "" {
-		return nil, fmt.Errorf("repository parameter is required for all delete operations for multi-tenant security. Example: {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-ids-to-delete\"]}")
+		return nil, errors.New("repository parameter is required for all delete operations for multi-tenant security. Example: {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-ids-to-delete\"]}")
 	}
 
 	switch operation {
@@ -680,7 +680,7 @@ func (ms *MemoryServer) handleMemoryDelete(ctx context.Context, args map[string]
 		return ms.handleDeleteExpired(ctx, options, repository)
 	case "delete_by_filter":
 		// Future implementation with repository scoping
-		return nil, fmt.Errorf("delete_by_filter operation not yet implemented. Alternative: Use memory_read with repository filter to search for matching chunks, then memory_delete with bulk_delete operation. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"filtered-chunk-ids\"]}}")
+		return nil, errors.New("delete_by_filter operation not yet implemented. Alternative: Use memory_read with repository filter to search for matching chunks, then memory_delete with bulk_delete operation. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"filtered-chunk-ids\"]}}")
 	default:
 		validOps := []string{"bulk_delete", "delete_expired", "delete_by_filter"}
 		return nil, fmt.Errorf("unsupported delete operation '%s'. Valid operations: %s. Example: {\"operation\": \"bulk_delete\", \"options\": {\"repository\": \"github.com/user/repo\", \"ids\": [\"chunk-ids\"]}}", operation, strings.Join(validOps, ", "))
@@ -691,18 +691,18 @@ func (ms *MemoryServer) handleMemoryDelete(ctx context.Context, args map[string]
 func (ms *MemoryServer) handleMemoryAnalyze(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"health_dashboard\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
+		return nil, errors.New("operation parameter is required. Example: {\"operation\": \"health_dashboard\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+		return nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all analyze operations
 	repository, ok := options["repository"].(string)
 	if !ok || repository == "" {
-		return nil, fmt.Errorf("repository parameter is required for all analyze operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository architecture analysis")
+		return nil, errors.New("repository parameter is required for all analyze operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository architecture analysis")
 	}
 
 	// Allow global analysis for cross-repository insights but log for security monitoring
@@ -735,18 +735,18 @@ func (ms *MemoryServer) handleMemoryAnalyze(ctx context.Context, args map[string
 func (ms *MemoryServer) handleMemoryIntelligence(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"auto_insights\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
+		return nil, errors.New("operation parameter is required. Example: {\"operation\": \"auto_insights\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+		return nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all intelligence operations
 	repository, ok := options["repository"].(string)
 	if !ok || repository == "" {
-		return nil, fmt.Errorf("repository parameter is required for all intelligence operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository AI insights and architecture patterns")
+		return nil, errors.New("repository parameter is required for all intelligence operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository AI insights and architecture patterns")
 	}
 
 	// Allow global intelligence for cross-repository insights but log for security monitoring
@@ -771,12 +771,12 @@ func (ms *MemoryServer) handleMemoryIntelligence(ctx context.Context, args map[s
 func (ms *MemoryServer) handleMemoryTasks(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. DECISION GUIDE: For todo operations, omit session_id for cross-session continuity (recommended). Example: {\"operation\": \"todo_write\", \"options\": {\"repository\": \"github.com/user/repo\", \"todos\": [...]}} or {\"operation\": \"todo_write\", \"options\": {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"todos\": [...]}}")
+		return nil, errors.New("operation parameter is required. DECISION GUIDE: For todo operations, omit session_id for cross-session continuity (recommended). Example: {\"operation\": \"todo_write\", \"options\": {\"repository\": \"github.com/user/repo\", \"todos\": [...]}} or {\"operation\": \"todo_write\", \"options\": {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\", \"todos\": [...]}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository. DECISION GUIDE: OMIT session_id for cross-session continuity (recommended), INCLUDE for session isolation. Example: {\"repository\": \"github.com/user/repo\"} or {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository. DECISION GUIDE: OMIT session_id for cross-session continuity (recommended), INCLUDE for session isolation. Example: {\"repository\": \"github.com/user/repo\"} or {\"session_id\": \"my-session\", \"repository\": \"github.com/user/repo\"}")
 	}
 
 	switch operation {
@@ -805,18 +805,18 @@ func (ms *MemoryServer) handleMemoryTasks(ctx context.Context, args map[string]i
 func (ms *MemoryServer) handleMemoryTransfer(ctx context.Context, args map[string]interface{}) (interface{}, error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"export_project\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
+		return nil, errors.New("operation parameter is required. Example: {\"operation\": \"export_project\", \"options\": {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}}")
 	}
 
 	options, ok := args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
+		return nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"}")
 	}
 
 	// SECURITY: Repository parameter is MANDATORY for all transfer operations
 	repository, ok := options["repository"].(string)
 	if !ok || repository == "" {
-		return nil, fmt.Errorf("repository parameter is required for all transfer operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository data transfer and architecture continuity")
+		return nil, errors.New("repository parameter is required for all transfer operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"session_id\": \"session-123\"} or use \"global\" for cross-repository data transfer and architecture continuity")
 	}
 
 	// Allow global transfer for cross-repository continuity but log for security monitoring
@@ -854,7 +854,7 @@ func (ms *MemoryServer) validateSystemOperationParams(args map[string]interface{
 	var ok bool
 	operation, ok = args["operation"].(string)
 	if !ok {
-		return "", nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}")
+		return "", nil, errors.New("operation parameter is required. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}")
 	}
 
 	options, ok = args["options"].(map[string]interface{})
@@ -902,7 +902,7 @@ func (ms *MemoryServer) handleHealthOperation(ctx context.Context, options map[s
 func (ms *MemoryServer) handleStatusOperation(ctx context.Context, options map[string]interface{}, repository string, hasRepo bool) (interface{}, error) {
 	// Status operations require repository for multi-tenant isolation
 	if !hasRepo || repository == "" {
-		return nil, fmt.Errorf("repository parameter is required for status operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"}")
+		return nil, errors.New("repository parameter is required for status operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"}")
 	}
 	return ms.handleMemoryStatus(ctx, options)
 }
@@ -911,7 +911,7 @@ func (ms *MemoryServer) handleStatusOperation(ctx context.Context, options map[s
 func (ms *MemoryServer) handleCitationOperation(ctx context.Context, options map[string]interface{}, repository string, hasRepo bool) (interface{}, error) {
 	// Citations require repository for proper scoping
 	if !hasRepo || repository == "" {
-		return nil, fmt.Errorf("repository parameter is required for citation generation for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\", \"chunk_ids\": [\"id1\", \"id2\"]}")
+		return nil, errors.New("repository parameter is required for citation generation for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\", \"chunk_ids\": [\"id1\", \"id2\"]}")
 	}
 	return ms.handleGenerateCitations(ctx, options)
 }

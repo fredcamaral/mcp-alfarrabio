@@ -5,10 +5,11 @@ package embeddings
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
-	"log"
 	"lerian-mcp-memory/internal/config"
+	"log"
 	"os"
 	"strconv"
 	"sync"
@@ -282,7 +283,7 @@ func (oes *OpenAIEmbeddingService) HealthCheck(ctx context.Context) error {
 func (oes *OpenAIEmbeddingService) getCacheKey(text string) string {
 	// Create a hash of the text for consistent caching
 	hash := sha256.Sum256([]byte(oes.config.EmbeddingModel + "|" + text))
-	return fmt.Sprintf("%x", hash)
+	return hex.EncodeToString(hash[:])
 }
 
 func (oes *OpenAIEmbeddingService) getFromCache(key string) []float64 {

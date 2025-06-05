@@ -3,6 +3,7 @@ package workflow
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -342,14 +343,14 @@ func (pa *PatternAnalyzer) inferSwitchReason(usage ToolUsage) string {
 		return "exploring new codebase"
 	case "Read":
 		if filepath, exists := usage.Context["file_path"]; exists {
-			if strings.Contains(fmt.Sprintf("%v", filepath), "README") {
+			if strings.Contains(fmt.Sprint(filepath), "README") {
 				return "reading project documentation"
 			}
 		}
 		return "investigating files"
 	case "Bash":
 		if cmd, exists := usage.Context["command"]; exists {
-			cmdStr := fmt.Sprintf("%v", cmd)
+			cmdStr := fmt.Sprint(cmd)
 			if strings.Contains(cmdStr, "cd") {
 				return "changing directories"
 			}
@@ -372,7 +373,7 @@ func (pa *PatternAnalyzer) extractSequenceTags(sequence *ToolSequence) []string 
 
 	// Add repository tag
 	if sequence.Repository != UnknownRepository {
-		tags = append(tags, fmt.Sprintf("repo-%s", sequence.Repository))
+		tags = append(tags, "repo-"+sequence.Repository)
 	}
 
 	// Add pattern type tag
@@ -402,7 +403,7 @@ func (pa *PatternAnalyzer) extractSequenceTags(sequence *ToolSequence) []string 
 
 	for tool, count := range toolCounts {
 		if count > 3 {
-			tags = append(tags, fmt.Sprintf("heavy-%s", strings.ToLower(tool)))
+			tags = append(tags, "heavy-"+strings.ToLower(tool))
 		}
 	}
 
@@ -444,5 +445,5 @@ func (pa *PatternAnalyzer) GetPatternRecommendations(currentTools []string, _ st
 
 // generateID creates a unique ID for sequences
 func generateID() string {
-	return fmt.Sprintf("seq-%d", time.Now().UnixNano())
+	return "seq-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 }

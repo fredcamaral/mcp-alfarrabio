@@ -2,10 +2,11 @@ package chains
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"math"
 	"lerian-mcp-memory/internal/embeddings"
 	"lerian-mcp-memory/pkg/types"
+	"math"
 	"strings"
 	"time"
 )
@@ -43,7 +44,7 @@ func (a *DefaultChainAnalyzer) AnalyzeRelationship(_ context.Context, chunk1, ch
 // SuggestChainName suggests a name and description for a chain
 func (a *DefaultChainAnalyzer) SuggestChainName(_ context.Context, chunks []*types.ConversationChunk) (name, description string, err error) {
 	if len(chunks) == 0 {
-		return "", "", fmt.Errorf("no chunks provided")
+		return "", "", errors.New("no chunks provided")
 	}
 
 	// Find common concepts from tags
@@ -239,7 +240,7 @@ func (a *DefaultChainAnalyzer) generateChainName(topConcept, theme, repository s
 		return fmt.Sprintf("%s in %s", theme, repository)
 	}
 
-	return fmt.Sprintf("%s Chain", theme)
+	return theme + " Chain"
 }
 
 // generateChainDescription generates a description for the chain

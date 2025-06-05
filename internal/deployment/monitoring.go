@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"runtime"
@@ -138,7 +139,7 @@ func (mm *MonitoringManager) Start(ctx context.Context) error {
 	mm.mutex.Lock()
 	if mm.enabled {
 		mm.mutex.Unlock()
-		return fmt.Errorf("monitoring already started")
+		return errors.New("monitoring already started")
 	}
 	mm.enabled = true
 	mm.mutex.Unlock()
@@ -154,7 +155,7 @@ func (mm *MonitoringManager) Stop() error {
 	mm.mutex.Lock()
 	if !mm.enabled {
 		mm.mutex.Unlock()
-		return fmt.Errorf("monitoring not started")
+		return errors.New("monitoring not started")
 	}
 	mm.enabled = false
 	mm.mutex.Unlock()
