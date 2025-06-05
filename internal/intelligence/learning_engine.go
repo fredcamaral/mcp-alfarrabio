@@ -168,19 +168,19 @@ func (le *LearningEngine) LearnFromConversation(ctx context.Context, chunks []ty
 	}
 
 	// Store event
-	le.addEvent(event)
+	le.addEvent(&event)
 
 	// Learn patterns
-	err := le.learnPatterns(ctx, chunks, event)
+	err := le.learnPatterns(ctx, chunks, &event)
 	if err != nil {
 		return fmt.Errorf("failed to learn patterns: %w", err)
 	}
 
 	// Update metrics
-	le.updateMetrics(event)
+	le.updateMetrics(&event)
 
 	// Adapt behavior based on learning
-	err = le.adaptBehavior(ctx, event)
+	err = le.adaptBehavior(ctx, &event)
 	if err != nil {
 		return fmt.Errorf("failed to adapt behavior: %w", err)
 	}
@@ -210,7 +210,7 @@ func (le *LearningEngine) LearnFromFeedback(ctx context.Context, chunkID string,
 		ChunkIDs:  []string{chunkID},
 	}
 
-	le.addEvent(event)
+	le.addEvent(&event)
 
 	// Adjust confidence and weights based on feedback
 	le.adjustFromFeedback(ctx, chunkID, feedback)
@@ -388,20 +388,20 @@ func (le *LearningEngine) initializeDefaults() {
 }
 
 func (le *LearningEngine) extractConversationContext(chunks []types.ConversationChunk) map[string]any {
-	context := make(map[string]any)
+	convContext := make(map[string]any)
 
-	context["chunk_count"] = len(chunks)
-	context["has_code"] = le.containsCode(chunks)
-	context["has_errors"] = le.containsErrors(chunks)
-	context["conversation_type"] = le.inferConversationType(chunks)
+	convContext["chunk_count"] = len(chunks)
+	convContext["has_code"] = le.containsCode(chunks)
+	convContext["has_errors"] = le.containsErrors(chunks)
+	convContext["conversation_type"] = le.inferConversationType(chunks)
 
 	if len(chunks) > 0 {
-		context["start_time"] = chunks[0].Timestamp
-		context["end_time"] = chunks[len(chunks)-1].Timestamp
-		context["duration"] = chunks[len(chunks)-1].Timestamp.Sub(chunks[0].Timestamp).Seconds()
+		convContext["start_time"] = chunks[0].Timestamp
+		convContext["end_time"] = chunks[len(chunks)-1].Timestamp
+		convContext["duration"] = chunks[len(chunks)-1].Timestamp.Sub(chunks[0].Timestamp).Seconds()
 	}
 
-	return context
+	return convContext
 }
 
 func (le *LearningEngine) isSuccessfulOutcome(outcome string) bool {
@@ -434,8 +434,8 @@ func (le *LearningEngine) calculateConversationMetrics(chunks []types.Conversati
 	return metrics
 }
 
-func (le *LearningEngine) addEvent(event LearningEvent) {
-	le.events = append(le.events, event)
+func (le *LearningEngine) addEvent(event *LearningEvent) {
+	le.events = append(le.events, *event)
 
 	// Limit events to maxEvents
 	if len(le.events) > le.maxEvents {
@@ -443,7 +443,7 @@ func (le *LearningEngine) addEvent(event LearningEvent) {
 	}
 }
 
-func (le *LearningEngine) learnPatterns(ctx context.Context, chunks []types.ConversationChunk, event LearningEvent) error {
+func (le *LearningEngine) learnPatterns(ctx context.Context, chunks []types.ConversationChunk, event *LearningEvent) error {
 	if le.patternEngine == nil {
 		return nil
 	}
@@ -459,7 +459,7 @@ func (le *LearningEngine) learnPatterns(ctx context.Context, chunks []types.Conv
 	return le.patternEngine.LearnPattern(ctx, chunks, outcome)
 }
 
-func (le *LearningEngine) updateMetrics(event LearningEvent) {
+func (le *LearningEngine) updateMetrics(event *LearningEvent) {
 	// Update or create metrics based on the event
 	for metricName, value := range event.Metrics {
 		if existing, exists := le.metrics[metricName]; exists {
@@ -491,7 +491,7 @@ func (le *LearningEngine) updateMetrics(event LearningEvent) {
 	}
 }
 
-func (le *LearningEngine) adaptBehavior(ctx context.Context, event LearningEvent) error {
+func (le *LearningEngine) adaptBehavior(ctx context.Context, event *LearningEvent) error {
 	// Apply adaptation rules based on the event
 	for _, rule := range le.adaptationRules {
 		if !rule.IsActive {
@@ -608,7 +608,8 @@ func (le *LearningEngine) analyzePerformance(events []LearningEvent) Performance
 	totalResponseTime := 0.0
 	patternEvents := 0
 
-	for _, event := range events {
+	for i := range events {
+		event := &events[i]
 		if event.Success {
 			successCount++
 		}
@@ -630,7 +631,7 @@ func (le *LearningEngine) analyzePerformance(events []LearningEvent) Performance
 	}
 }
 
-func (le *LearningEngine) ruleMatches(rule *AdaptationRule, event LearningEvent) bool {
+func (le *LearningEngine) ruleMatches(rule *AdaptationRule, event *LearningEvent) bool {
 	// Simple rule matching - in practice, this would be more sophisticated
 	switch rule.Condition {
 	case "pattern_success_rate > 0.8":
@@ -646,7 +647,7 @@ func (le *LearningEngine) ruleMatches(rule *AdaptationRule, event LearningEvent)
 	return false
 }
 
-func (le *LearningEngine) applyRule(_ context.Context, rule *AdaptationRule, _ LearningEvent) error {
+func (le *LearningEngine) applyRule(_ context.Context, rule *AdaptationRule, _ *LearningEvent) error {
 	// Apply the rule's action
 	switch rule.Action {
 	case "increase_pattern_confidence":
@@ -667,8 +668,8 @@ func (le *LearningEngine) applyRule(_ context.Context, rule *AdaptationRule, _ L
 // Utility methods
 
 func (le *LearningEngine) containsCode(chunks []types.ConversationChunk) bool {
-	for _, chunk := range chunks {
-		if strings.Contains(chunk.Content, "```") {
+	for i := range chunks {
+		if strings.Contains(chunks[i].Content, "```") {
 			return true
 		}
 	}
@@ -676,7 +677,8 @@ func (le *LearningEngine) containsCode(chunks []types.ConversationChunk) bool {
 }
 
 func (le *LearningEngine) containsErrors(chunks []types.ConversationChunk) bool {
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		content := strings.ToLower(chunk.Content)
 		if strings.Contains(content, "error") || strings.Contains(content, "exception") {
 			return true
@@ -700,7 +702,8 @@ func (le *LearningEngine) inferConversationType(chunks []types.ConversationChunk
 	// Look at chunk types
 	problemCount := 0
 	solutionCount := 0
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		switch chunk.Type {
 		case types.ChunkTypeProblem:
 			problemCount++
@@ -738,7 +741,8 @@ func (le *LearningEngine) calculateAvgChunkLength(chunks []types.ConversationChu
 	}
 
 	totalLength := 0
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		totalLength += len(chunk.Content)
 	}
 
@@ -751,7 +755,8 @@ func (le *LearningEngine) calculateCodeDensity(chunks []types.ConversationChunk)
 	}
 
 	codeChunks := 0
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		if strings.Contains(chunk.Content, "```") {
 			codeChunks++
 		}
@@ -766,8 +771,9 @@ func (le *LearningEngine) calculateErrorDensity(chunks []types.ConversationChunk
 	}
 
 	errorChunks := 0
-	for _, chunk := range chunks {
-		if le.containsErrors([]types.ConversationChunk{chunk}) {
+	for i := range chunks {
+		chunk := &chunks[i]
+		if le.containsErrors([]types.ConversationChunk{*chunk}) {
 			errorChunks++
 		}
 	}
@@ -775,7 +781,7 @@ func (le *LearningEngine) calculateErrorDensity(chunks []types.ConversationChunk
 	return float64(errorChunks) / float64(len(chunks))
 }
 
-// Enable/Disable learning
+// EnableLearning enables the learning functionality of the engine
 func (le *LearningEngine) EnableLearning() {
 	le.isLearning = true
 }

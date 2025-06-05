@@ -147,23 +147,11 @@ func (ma *MemoryAnalytics) CalculateEffectivenessScore(chunk *types.Conversation
 func (ma *MemoryAnalytics) estimateSuccessRateForNewChunk(chunk *types.ConversationChunk) float64 {
 	switch chunk.Type {
 	case types.ChunkTypeTask:
-		// High priority completed tasks have very high estimated success
-		if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted {
-			if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == TaskPriorityHigh {
-				return 0.9 // Very high success rate for completed high-priority tasks
-			}
-			return 0.8 // High success rate for completed tasks
-		}
-		// Active tasks have moderate success potential
-		return 0.6
+		return ma.estimateTaskSuccessRate(chunk)
 	case types.ChunkTypeTaskUpdate:
 		return 0.7 // Updates are generally valuable
 	case types.ChunkTypeTaskProgress:
-		// High progress indicates likely success
-		if chunk.Metadata.TaskProgress != nil && *chunk.Metadata.TaskProgress >= 80 {
-			return 0.8
-		}
-		return 0.6
+		return ma.estimateTaskProgressSuccessRate(chunk)
 	case types.ChunkTypeSolution:
 		return 0.8 // Solutions are generally successful
 	case types.ChunkTypeArchitectureDecision:
@@ -181,6 +169,29 @@ func (ma *MemoryAnalytics) estimateSuccessRateForNewChunk(chunk *types.Conversat
 	default:
 		return 0.5 // Neutral default
 	}
+}
+
+// estimateTaskSuccessRate calculates success rate for task chunks based on status and priority
+func (ma *MemoryAnalytics) estimateTaskSuccessRate(chunk *types.ConversationChunk) float64 {
+	// Check if task is completed
+	if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted {
+		// High priority completed tasks have very high estimated success
+		if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == TaskPriorityHigh {
+			return 0.9 // Very high success rate for completed high-priority tasks
+		}
+		return 0.8 // High success rate for completed tasks
+	}
+	// Active tasks have moderate success potential
+	return 0.6
+}
+
+// estimateTaskProgressSuccessRate calculates success rate for task progress chunks
+func (ma *MemoryAnalytics) estimateTaskProgressSuccessRate(chunk *types.ConversationChunk) float64 {
+	// High progress indicates likely success
+	if chunk.Metadata.TaskProgress != nil && *chunk.Metadata.TaskProgress >= 80 {
+		return 0.8
+	}
+	return 0.6
 }
 
 // estimateAccessPotentialForNewChunk estimates how likely a chunk is to be accessed
@@ -232,30 +243,45 @@ func (ma *MemoryAnalytics) calculateTypeEffectivenessScore(chunk *types.Conversa
 		return 0.15 // Verification shows completion
 	case types.ChunkTypeDiscussion, types.ChunkTypeSessionSummary, types.ChunkTypeQuestion:
 		return 0.1 // Neutral for conversational types
-	// Task-oriented chunk types with enhanced scoring
 	case types.ChunkTypeTask:
-		baseScore := 0.12 // Increased base score for tasks
-		if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted {
-			baseScore += 0.15 // Higher bonus for completed tasks
-			// Additional bonus for high priority completed tasks
-			if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == TaskPriorityHigh {
-				baseScore += 0.08
-			}
-		} else if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == TaskPriorityHigh {
-			baseScore += 0.05 // Bonus for high priority tasks even if not completed
-		}
-		return baseScore
+		return ma.calculateTaskEffectivenessScore(chunk)
 	case types.ChunkTypeTaskUpdate:
 		return 0.15 // Increased score for updates - they show engagement and progress
 	case types.ChunkTypeTaskProgress:
-		baseScore := 0.12 // Increased base score for progress tracking
-		if chunk.Metadata.TaskProgress != nil && *chunk.Metadata.TaskProgress >= 80 {
-			baseScore += 0.10 // Higher bonus for high progress
-		}
-		return baseScore
+		return ma.calculateTaskProgressEffectivenessScore(chunk)
 	default:
 		return 0.1 // Default for unknown types
 	}
+}
+
+// calculateTaskEffectivenessScore calculates effectiveness score for task chunks
+func (ma *MemoryAnalytics) calculateTaskEffectivenessScore(chunk *types.ConversationChunk) float64 {
+	baseScore := 0.12 // Increased base score for tasks
+	
+	// Check if task is completed
+	if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted {
+		baseScore += 0.15 // Higher bonus for completed tasks
+		// Additional bonus for high priority completed tasks
+		if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == TaskPriorityHigh {
+			baseScore += 0.08
+		}
+	} else if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == TaskPriorityHigh {
+		baseScore += 0.05 // Bonus for high priority tasks even if not completed
+	}
+	
+	return baseScore
+}
+
+// calculateTaskProgressEffectivenessScore calculates effectiveness score for task progress chunks
+func (ma *MemoryAnalytics) calculateTaskProgressEffectivenessScore(chunk *types.ConversationChunk) float64 {
+	baseScore := 0.12 // Increased base score for progress tracking
+	
+	// Bonus for high progress
+	if chunk.Metadata.TaskProgress != nil && *chunk.Metadata.TaskProgress >= 80 {
+		baseScore += 0.10 // Higher bonus for high progress
+	}
+	
+	return baseScore
 }
 
 // calculateRecencyScore calculates the recency component of effectiveness score
@@ -341,7 +367,7 @@ func (ma *MemoryAnalytics) UpdateChunkAnalytics(ctx context.Context, chunkID str
 	chunk.Metadata.ExtendedMetadata[types.EMKeyEffectivenessScore] = effectivenessScore
 
 	// Update the chunk in storage
-	return ma.store.Update(ctx, *chunk)
+	return ma.store.Update(ctx, chunk)
 }
 
 // MarkObsolete marks a memory as obsolete
@@ -359,7 +385,7 @@ func (ma *MemoryAnalytics) MarkObsolete(ctx context.Context, chunkID, reason str
 	chunk.Metadata.ExtendedMetadata[types.EMKeyArchivedAt] = time.Now().Format(time.RFC3339)
 	chunk.Metadata.ExtendedMetadata["obsolete_reason"] = reason
 
-	return ma.store.Update(ctx, *chunk)
+	return ma.store.Update(ctx, chunk)
 }
 
 // GetTopMemories returns the most effective memories

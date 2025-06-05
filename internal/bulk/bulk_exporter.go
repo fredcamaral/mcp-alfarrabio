@@ -225,96 +225,116 @@ func (exp *Exporter) queryChunks(ctx context.Context, filter *ExportFilter) ([]t
 
 // matchesFilter checks if a chunk matches the filter criteria
 func (exp *Exporter) matchesFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
-	// Session ID filter
-	if len(filter.SessionIDs) > 0 {
-		found := false
-		for _, sessionID := range filter.SessionIDs {
-			if chunk.SessionID == sessionID {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
+	return exp.matchesSessionFilter(chunk, filter) &&
+		exp.matchesChunkTypeFilter(chunk, filter) &&
+		exp.matchesDateRangeFilter(chunk, filter) &&
+		exp.matchesTagsFilter(chunk, filter) &&
+		exp.matchesOutcomeFilter(chunk, filter) &&
+		exp.matchesDifficultyFilter(chunk, filter) &&
+		exp.matchesContentFilter(chunk, filter)
+}
+
+// matchesSessionFilter checks if chunk matches session ID filter
+func (exp *Exporter) matchesSessionFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
+	if len(filter.SessionIDs) == 0 {
+		return true
 	}
 
-	// Chunk type filter
-	if len(filter.ChunkTypes) > 0 {
-		found := false
-		for _, chunkType := range filter.ChunkTypes {
-			if chunk.Type == chunkType {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
+	for _, sessionID := range filter.SessionIDs {
+		if chunk.SessionID == sessionID {
+			return true
 		}
 	}
+	return false
+}
 
-	// Date range filter
-	if filter.DateRange != nil {
-		if filter.DateRange.Start != nil && chunk.Timestamp.Before(*filter.DateRange.Start) {
-			return false
-		}
-		if filter.DateRange.End != nil && chunk.Timestamp.After(*filter.DateRange.End) {
-			return false
-		}
+// matchesChunkTypeFilter checks if chunk matches chunk type filter
+func (exp *Exporter) matchesChunkTypeFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
+	if len(filter.ChunkTypes) == 0 {
+		return true
 	}
 
-	// Tags filter
-	if len(filter.Tags) > 0 {
-		for _, filterTag := range filter.Tags {
-			found := false
-			for _, chunkTag := range chunk.Metadata.Tags {
-				if chunkTag == filterTag {
-					found = true
-					break
-				}
-			}
-			if !found {
-				return false
-			}
+	for _, chunkType := range filter.ChunkTypes {
+		if chunk.Type == chunkType {
+			return true
 		}
 	}
+	return false
+}
 
-	// Outcome filter
-	if len(filter.Outcomes) > 0 {
-		found := false
-		for _, outcome := range filter.Outcomes {
-			if chunk.Metadata.Outcome == outcome {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
+// matchesDateRangeFilter checks if chunk matches date range filter
+func (exp *Exporter) matchesDateRangeFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
+	if filter.DateRange == nil {
+		return true
 	}
 
-	// Difficulty filter
-	if len(filter.Difficulties) > 0 {
-		found := false
-		for _, difficulty := range filter.Difficulties {
-			if chunk.Metadata.Difficulty == difficulty {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
+	if filter.DateRange.Start != nil && chunk.Timestamp.Before(*filter.DateRange.Start) {
+		return false
 	}
-
-	// Content filter (regex)
-	if filter.ContentFilter != nil {
-		if matched, _ := regexp.MatchString(*filter.ContentFilter, chunk.Content); !matched {
-			return false
-		}
+	if filter.DateRange.End != nil && chunk.Timestamp.After(*filter.DateRange.End) {
+		return false
 	}
-
 	return true
+}
+
+// matchesTagsFilter checks if chunk matches all required tags filter
+func (exp *Exporter) matchesTagsFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
+	if len(filter.Tags) == 0 {
+		return true
+	}
+
+	// All filter tags must be present in chunk
+	for _, filterTag := range filter.Tags {
+		found := false
+		for _, chunkTag := range chunk.Metadata.Tags {
+			if chunkTag == filterTag {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// matchesOutcomeFilter checks if chunk matches outcome filter
+func (exp *Exporter) matchesOutcomeFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
+	if len(filter.Outcomes) == 0 {
+		return true
+	}
+
+	for _, outcome := range filter.Outcomes {
+		if chunk.Metadata.Outcome == outcome {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesDifficultyFilter checks if chunk matches difficulty filter
+func (exp *Exporter) matchesDifficultyFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
+	if len(filter.Difficulties) == 0 {
+		return true
+	}
+
+	for _, difficulty := range filter.Difficulties {
+		if chunk.Metadata.Difficulty == difficulty {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesContentFilter checks if chunk matches content regex filter
+func (exp *Exporter) matchesContentFilter(chunk *types.ConversationChunk, filter *ExportFilter) bool {
+	if filter.ContentFilter == nil {
+		return true
+	}
+
+	matched, _ := regexp.MatchString(*filter.ContentFilter, chunk.Content)
+	return matched
 }
 
 // sortChunks sorts chunks based on the sorting criteria

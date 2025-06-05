@@ -385,51 +385,79 @@ func (acm *AccessControlManager) matchesRule(rule AccessRule, action, resource s
 }
 
 func (acm *AccessControlManager) evaluateCondition(condition Condition, user *User) bool {
-	var fieldValue interface{}
+	fieldValue := acm.extractFieldValue(condition.Field, user)
+	return acm.evaluateOperator(condition.Operator, fieldValue, condition.Value)
+}
 
-	switch condition.Field {
+// extractFieldValue extracts the field value from the user based on the field name
+func (acm *AccessControlManager) extractFieldValue(field string, user *User) interface{} {
+	switch field {
 	case "user.id":
-		fieldValue = user.ID
+		return user.ID
 	case "user.username":
-		fieldValue = user.Username
+		return user.Username
 	case "user.email":
-		fieldValue = user.Email
+		return user.Email
 	case "user.repositories":
-		fieldValue = user.Repositories
+		return user.Repositories
 	default:
-		if metadata, exists := user.Metadata[condition.Field]; exists {
-			fieldValue = metadata
+		if metadata, exists := user.Metadata[field]; exists {
+			return metadata
 		}
+		return nil
 	}
+}
 
-	switch condition.Operator {
+// evaluateOperator evaluates the condition operator against field and target values
+func (acm *AccessControlManager) evaluateOperator(operator string, fieldValue interface{}, targetValue interface{}) bool {
+	switch operator {
 	case "equals":
-		return fieldValue == condition.Value
+		return fieldValue == targetValue
 	case "contains":
-		if str, ok := fieldValue.(string); ok {
-			if target, ok := condition.Value.(string); ok {
-				return strings.Contains(str, target)
-			}
-		}
-		if slice, ok := fieldValue.([]string); ok {
-			if target, ok := condition.Value.(string); ok {
-				for _, item := range slice {
-					if item == target {
-						return true
-					}
-				}
-			}
-		}
+		return acm.evaluateContains(fieldValue, targetValue)
 	case "in":
-		if slice, ok := condition.Value.([]interface{}); ok {
-			for _, item := range slice {
-				if item == fieldValue {
-					return true
-				}
+		return acm.evaluateIn(fieldValue, targetValue)
+	default:
+		return false
+	}
+}
+
+// evaluateContains evaluates the "contains" operator for strings and slices
+func (acm *AccessControlManager) evaluateContains(fieldValue interface{}, targetValue interface{}) bool {
+	if str, ok := fieldValue.(string); ok {
+		if target, ok := targetValue.(string); ok {
+			return strings.Contains(str, target)
+		}
+	}
+	
+	if slice, ok := fieldValue.([]string); ok {
+		if target, ok := targetValue.(string); ok {
+			return acm.sliceContainsString(slice, target)
+		}
+	}
+	
+	return false
+}
+
+// evaluateIn evaluates the "in" operator for checking membership in a slice
+func (acm *AccessControlManager) evaluateIn(fieldValue interface{}, targetValue interface{}) bool {
+	if slice, ok := targetValue.([]interface{}); ok {
+		for _, item := range slice {
+			if item == fieldValue {
+				return true
 			}
 		}
 	}
+	return false
+}
 
+// sliceContainsString checks if a string slice contains a specific string
+func (acm *AccessControlManager) sliceContainsString(slice []string, target string) bool {
+	for _, item := range slice {
+		if item == target {
+			return true
+		}
+	}
 	return false
 }
 
@@ -471,7 +499,7 @@ func generateSecureToken() string {
 	return hex.EncodeToString(hash[:])
 }
 
-// Enable/Disable access control
+// Enable turns on access control for the manager
 func (acm *AccessControlManager) Enable() {
 	acm.enabled = true
 }

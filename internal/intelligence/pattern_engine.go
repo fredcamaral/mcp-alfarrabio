@@ -84,7 +84,7 @@ const (
 
 // PatternMatcher defines the interface for pattern matching algorithms
 type PatternMatcher interface {
-	MatchPattern(chunks []types.ConversationChunk, pattern Pattern) float64
+	MatchPattern(chunks []types.ConversationChunk, pattern *Pattern) float64
 	ExtractFeatures(chunks []types.ConversationChunk) map[string]any
 	IdentifySequence(chunks []types.ConversationChunk) []PatternStep
 }
@@ -97,10 +97,10 @@ type SequenceRecognizer interface {
 
 // PatternStorage interface for storing and retrieving patterns
 type PatternStorage interface {
-	StorePattern(ctx context.Context, pattern Pattern) error
+	StorePattern(ctx context.Context, pattern *Pattern) error
 	GetPattern(ctx context.Context, id string) (*Pattern, error)
 	ListPatterns(ctx context.Context, patternType *PatternType) ([]Pattern, error)
-	UpdatePattern(ctx context.Context, pattern Pattern) error
+	UpdatePattern(ctx context.Context, pattern *Pattern) error
 	DeletePattern(ctx context.Context, id string) error
 	SearchPatterns(ctx context.Context, query string, limit int) ([]Pattern, error)
 }
@@ -168,21 +168,23 @@ func (pe *PatternEngine) RecognizePatterns(ctx context.Context, chunks []types.C
 	// Match against stored patterns
 	storedPatterns, err := pe.storage.ListPatterns(ctx, nil)
 	if err == nil {
-		for _, pattern := range storedPatterns {
+		for i := range storedPatterns {
+			pattern := &storedPatterns[i]
 			confidence := pe.matcher.MatchPattern(chunks, pattern)
 			if confidence >= pe.minConfidence {
 				pattern.Confidence = confidence
-				recognizedPatterns = append(recognizedPatterns, pattern)
+				recognizedPatterns = append(recognizedPatterns, *pattern)
 			}
 		}
 	}
 
 	// Match against built-in patterns
-	for _, pattern := range pe.builtInPatterns {
+	for i := range pe.builtInPatterns {
+		pattern := &pe.builtInPatterns[i]
 		confidence := pe.matcher.MatchPattern(chunks, pattern)
 		if confidence >= pe.minConfidence {
 			pattern.Confidence = confidence
-			recognizedPatterns = append(recognizedPatterns, pattern)
+			recognizedPatterns = append(recognizedPatterns, *pattern)
 		}
 	}
 
@@ -240,19 +242,19 @@ func (pe *PatternEngine) LearnPattern(ctx context.Context, chunks []types.Conver
 	if err == nil && len(existingPatterns) > 0 {
 		// Update existing pattern
 		existing := existingPatterns[0]
-		if pe.matcher.MatchPattern(chunks, existing) > 0.8 {
+		if pe.matcher.MatchPattern(chunks, &existing) > 0.8 {
 			existing.Frequency++
 			existing.SuccessRate = (existing.SuccessRate*float64(existing.Frequency-1) + pe.calculateSuccessRate(outcome)) / float64(existing.Frequency)
 			existing.Examples = append(existing.Examples, pattern.Examples[0])
 			existing.UpdatedAt = time.Now()
 			existing.LastUsed = time.Now()
 
-			return pe.storage.UpdatePattern(ctx, existing)
+			return pe.storage.UpdatePattern(ctx, &existing)
 		}
 	}
 
 	// Store new pattern
-	return pe.storage.StorePattern(ctx, pattern)
+	return pe.storage.StorePattern(ctx, &pattern)
 }
 
 // GetPatternSuggestions returns patterns that might be relevant to current context
@@ -275,11 +277,12 @@ func (pe *PatternEngine) GetPatternSuggestions(ctx context.Context, currentChunk
 
 	var scoredPatterns []patternScore
 
-	for _, pattern := range allPatterns {
+	for i := range allPatterns {
+		pattern := &allPatterns[i]
 		relevance := pe.calculateRelevance(currentChunks, pattern)
 		if relevance > 0.3 {
 			scoredPatterns = append(scoredPatterns, patternScore{
-				pattern:   pattern,
+				pattern:   *pattern,
 				relevance: relevance,
 			})
 		}
@@ -292,10 +295,11 @@ func (pe *PatternEngine) GetPatternSuggestions(ctx context.Context, currentChunk
 
 	// Return top patterns
 	result := make([]Pattern, 0, limit)
-	for i, scored := range scoredPatterns {
+	for i := range scoredPatterns {
 		if i >= limit {
 			break
 		}
+		scored := &scoredPatterns[i]
 		scored.pattern.Confidence = scored.relevance
 		result = append(result, scored.pattern)
 	}
@@ -410,7 +414,8 @@ func (pe *PatternEngine) extractKeywords(chunks []types.ConversationChunk) []str
 func (pe *PatternEngine) extractTriggers(chunks []types.ConversationChunk) []string {
 	var triggers []string
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		if pe.problemRegex.MatchString(chunk.Content) {
 			triggers = append(triggers, "problem_identified")
 		}
@@ -428,7 +433,8 @@ func (pe *PatternEngine) extractTriggers(chunks []types.ConversationChunk) []str
 func (pe *PatternEngine) extractOutcomes(chunks []types.ConversationChunk) []string {
 	var outcomes []string
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		if pe.solutionRegex.MatchString(chunk.Content) {
 			outcomes = append(outcomes, "solution_found")
 		}
@@ -440,7 +446,7 @@ func (pe *PatternEngine) extractOutcomes(chunks []types.ConversationChunk) []str
 	return unique(outcomes)
 }
 
-func (pe *PatternEngine) calculateRelevance(currentChunks []types.ConversationChunk, pattern Pattern) float64 {
+func (pe *PatternEngine) calculateRelevance(currentChunks []types.ConversationChunk, pattern *Pattern) float64 {
 	// Calculate keyword overlap
 	currentKeywords := pe.extractKeywords(currentChunks)
 	keywordOverlap := calculateOverlap(currentKeywords, pattern.Keywords)
@@ -459,7 +465,8 @@ func (pe *PatternEngine) calculateRelevance(currentChunks []types.ConversationCh
 
 func extractText(chunks []types.ConversationChunk) string {
 	texts := make([]string, 0, len(chunks))
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		texts = append(texts, chunk.Content)
 	}
 	return strings.Join(texts, " ")
@@ -467,7 +474,8 @@ func extractText(chunks []types.ConversationChunk) string {
 
 func extractChunkIDs(chunks []types.ConversationChunk) []string {
 	ids := make([]string, 0, len(chunks))
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		ids = append(ids, chunk.ID)
 	}
 	return ids

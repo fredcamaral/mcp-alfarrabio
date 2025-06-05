@@ -772,41 +772,31 @@ func (tm *ThreadManager) generateNextSteps(chunks []types.ConversationChunk, thr
 	// Generic next steps based on last outcome
 	switch lastChunk.Metadata.Outcome {
 	case types.OutcomeInProgress:
-		steps = append(steps, "Continue working on the current task")
-		steps = append(steps, "Update progress with latest findings")
+		steps = append(steps, "Continue working on the current task", "Update progress with latest findings")
 	case types.OutcomeFailed:
-		steps = append(steps, "Analyze the failure and identify root cause")
-		steps = append(steps, "Consider alternative approaches")
+		steps = append(steps, "Analyze the failure and identify root cause", "Consider alternative approaches")
 	case types.OutcomeAbandoned:
-		steps = append(steps, "Reconsider the abandoned approach")
-		steps = append(steps, "Evaluate if circumstances have changed")
+		steps = append(steps, "Reconsider the abandoned approach", "Evaluate if circumstances have changed")
 	case types.OutcomeSuccess:
-		steps = append(steps, "Document the successful solution")
-		steps = append(steps, "Consider if there are related tasks")
+		steps = append(steps, "Document the successful solution", "Consider if there are related tasks")
 	}
 
 	// Thread-type specific suggestions
 	switch threadType {
 	case ThreadTypeConversation:
-		steps = append(steps, "Continue the conversation flow")
-		steps = append(steps, "Address any open questions")
+		steps = append(steps, "Continue the conversation flow", "Address any open questions")
 	case ThreadTypeProblemSolving:
 		if lastChunk.Type == types.ChunkTypeProblem {
-			steps = append(steps, "Research similar problems in memory")
-			steps = append(steps, "Break down the problem into smaller parts")
+			steps = append(steps, "Research similar problems in memory", "Break down the problem into smaller parts")
 		}
 	case ThreadTypeFeature:
-		steps = append(steps, "Plan the feature implementation")
-		steps = append(steps, "Consider testing strategy")
+		steps = append(steps, "Plan the feature implementation", "Consider testing strategy")
 	case ThreadTypeDebugging:
-		steps = append(steps, "Reproduce the issue consistently")
-		steps = append(steps, "Check logs and error messages")
+		steps = append(steps, "Reproduce the issue consistently", "Check logs and error messages")
 	case ThreadTypeArchitecture:
-		steps = append(steps, "Document architectural decisions")
-		steps = append(steps, "Consider long-term implications")
+		steps = append(steps, "Document architectural decisions", "Consider long-term implications")
 	case ThreadTypeWorkflow:
-		steps = append(steps, "Follow established workflow patterns")
-		steps = append(steps, "Update process documentation")
+		steps = append(steps, "Follow established workflow patterns", "Update process documentation")
 	}
 
 	return steps

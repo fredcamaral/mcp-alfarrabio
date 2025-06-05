@@ -254,10 +254,10 @@ func (mm *MonitoringManager) collectMetrics(ctx context.Context) {
 // checkAlerts evaluates alert rules against current metrics
 func (mm *MonitoringManager) checkAlerts() {
 	snapshot := mm.GetSnapshot()
-	mm.alerts.EvaluateRules(snapshot)
+	mm.alerts.EvaluateRules(&snapshot)
 }
 
-// Counter methods
+// IncrementCounter increments a counter metric by 1
 func (mc *MetricsCollector) IncrementCounter(name string) {
 	mc.AddToCounter(name, 1)
 }
@@ -274,7 +274,7 @@ func (mc *MetricsCollector) GetCounter(name string) int64 {
 	return mc.counters[name]
 }
 
-// Gauge methods
+// SetGauge sets a gauge metric to the specified value
 func (mc *MetricsCollector) SetGauge(name string, value float64) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
@@ -287,7 +287,7 @@ func (mc *MetricsCollector) GetGauge(name string) float64 {
 	return mc.gauges[name]
 }
 
-// Histogram methods
+// RecordHistogram records a value in a histogram metric
 func (mc *MetricsCollector) RecordHistogram(name string, value float64) {
 	mc.mutex.Lock()
 	defer mc.mutex.Unlock()
@@ -418,13 +418,13 @@ func (mm *MonitoringManager) HTTPHandler() http.HandlerFunc {
 	}
 }
 
-// Alert management methods
-func (am *AlertManager) AddRule(rule AlertRule) {
+// AddRule adds an alert rule to the alert manager
+func (am *AlertManager) AddRule(rule *AlertRule) {
 	am.mutex.Lock()
 	defer am.mutex.Unlock()
 
 	rule.cooldown = 5 * time.Minute // Default cooldown
-	am.rules = append(am.rules, rule)
+	am.rules = append(am.rules, *rule)
 	am.logger.Info("Added alert rule", "name", rule.Name)
 }
 
@@ -434,7 +434,7 @@ func (am *AlertManager) AddCallback(callback AlertCallback) {
 	am.callbacks = append(am.callbacks, callback)
 }
 
-func (am *AlertManager) EvaluateRules(snapshot MetricSnapshot) {
+func (am *AlertManager) EvaluateRules(snapshot *MetricSnapshot) {
 	am.mutex.RLock()
 	rules := make([]AlertRule, len(am.rules))
 	copy(rules, am.rules)
@@ -442,7 +442,8 @@ func (am *AlertManager) EvaluateRules(snapshot MetricSnapshot) {
 	copy(callbacks, am.callbacks)
 	am.mutex.RUnlock()
 
-	for i, rule := range rules {
+	for i := range rules {
+		rule := &rules[i]
 		if !rule.Enabled {
 			continue
 		}
@@ -485,7 +486,7 @@ func (am *AlertManager) EvaluateRules(snapshot MetricSnapshot) {
 
 		if triggered {
 			alert := Alert{
-				Rule:        rule,
+				Rule:        *rule,
 				Value:       value,
 				Timestamp:   snapshot.Timestamp,
 				Description: fmt.Sprintf("Metric %s is %f, threshold is %f", rule.MetricName, value, rule.Threshold),

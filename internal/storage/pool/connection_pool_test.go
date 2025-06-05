@@ -341,7 +341,7 @@ func TestConnectionPool_Concurrent(t *testing.T) {
 
 	ctx := context.Background()
 	var wg sync.WaitGroup
-	errors := make(chan error, 100)
+	errorChan := make(chan error, 100)
 
 	// Run concurrent operations
 	for i := 0; i < 20; i++ {
@@ -351,7 +351,7 @@ func TestConnectionPool_Concurrent(t *testing.T) {
 			for j := 0; j < 10; j++ {
 				conn, err := pool.Get(ctx)
 				if err != nil {
-					errors <- err
+					errorChan <- err
 					return
 				}
 
@@ -359,7 +359,7 @@ func TestConnectionPool_Concurrent(t *testing.T) {
 				time.Sleep(time.Millisecond)
 
 				if err := pool.Put(conn); err != nil {
-					errors <- err
+					errorChan <- err
 					return
 				}
 			}
@@ -367,10 +367,10 @@ func TestConnectionPool_Concurrent(t *testing.T) {
 	}
 
 	wg.Wait()
-	close(errors)
+	close(errorChan)
 
 	// Check for errors
-	for err := range errors {
+	for err := range errorChan {
 		t.Errorf("Concurrent operation error: %v", err)
 	}
 

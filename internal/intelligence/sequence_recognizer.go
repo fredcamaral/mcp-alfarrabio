@@ -129,14 +129,15 @@ func (bsr *BasicSequenceRecognizer) LearnFromSequence(chunks []types.Conversatio
 func (bsr *BasicSequenceRecognizer) extractActionSequence(chunks []types.ConversationChunk) []string {
 	actions := make([]string, 0, len(chunks))
 
-	for _, chunk := range chunks {
-		action := bsr.identifyChunkAction(chunk)
+	for i := range chunks {
+		action := bsr.identifyChunkAction(chunks[i])
 		actions = append(actions, action)
 	}
 
 	return actions
 }
 
+//nolint:gocritic // hugeParam: large struct parameter needed for processing
 func (bsr *BasicSequenceRecognizer) identifyChunkAction(chunk types.ConversationChunk) string {
 	content := strings.ToLower(chunk.Content)
 
@@ -271,7 +272,7 @@ func (bsr *BasicSequenceRecognizer) identifyCustomSequence(chunks []types.Conver
 	return nil
 }
 
-func (bsr *BasicSequenceRecognizer) calculateSequenceSimilarity(actions []string, template []string) float64 {
+func (bsr *BasicSequenceRecognizer) calculateSequenceSimilarity(actions, template []string) float64 {
 	if len(actions) == 0 || len(template) == 0 {
 		return 0.0
 	}
@@ -507,8 +508,8 @@ func (bsr *BasicSequenceRecognizer) extractSequenceKeywords(chunks []types.Conve
 func (bsr *BasicSequenceRecognizer) extractSequenceTriggers(chunks []types.ConversationChunk) []string {
 	var triggers []string
 
-	for _, chunk := range chunks {
-		content := strings.ToLower(chunk.Content)
+	for i := range chunks {
+		content := strings.ToLower(chunks[i].Content)
 
 		if regexp.MustCompile(`(?i)(error|issue|problem)`).MatchString(content) {
 			triggers = append(triggers, "problem_detected")
@@ -527,8 +528,8 @@ func (bsr *BasicSequenceRecognizer) extractSequenceTriggers(chunks []types.Conve
 func (bsr *BasicSequenceRecognizer) extractSequenceOutcomes(chunks []types.ConversationChunk, outcome PatternOutcome) []string {
 	outcomes := []string{string(outcome)}
 
-	for _, chunk := range chunks {
-		content := strings.ToLower(chunk.Content)
+	for i := range chunks {
+		content := strings.ToLower(chunks[i].Content)
 
 		if regexp.MustCompile(`(?i)(complete|done|finished|success)`).MatchString(content) {
 			outcomes = append(outcomes, "task_completed")
@@ -609,8 +610,8 @@ func (bsr *BasicSequenceRecognizer) extractSequenceContext(chunks []types.Conver
 }
 
 func (bsr *BasicSequenceRecognizer) containsCode(chunks []types.ConversationChunk) bool {
-	for _, chunk := range chunks {
-		if strings.Contains(chunk.Content, "```") {
+	for i := range chunks {
+		if strings.Contains(chunks[i].Content, "```") {
 			return true
 		}
 	}
@@ -618,8 +619,8 @@ func (bsr *BasicSequenceRecognizer) containsCode(chunks []types.ConversationChun
 }
 
 func (bsr *BasicSequenceRecognizer) containsErrors(chunks []types.ConversationChunk) bool {
-	for _, chunk := range chunks {
-		if regexp.MustCompile(`(?i)(error|exception|fail)`).MatchString(chunk.Content) {
+	for i := range chunks {
+		if regexp.MustCompile(`(?i)(error|exception|fail)`).MatchString(chunks[i].Content) {
 			return true
 		}
 	}
@@ -630,8 +631,8 @@ func (bsr *BasicSequenceRecognizer) calculateRoleDistribution(chunks []types.Con
 	typeCount := make(map[string]int)
 	total := len(chunks)
 
-	for _, chunk := range chunks {
-		typeCount[string(chunk.Type)]++
+	for i := range chunks {
+		typeCount[string(chunks[i].Type)]++
 	}
 
 	distribution := make(map[string]float64)

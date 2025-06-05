@@ -240,7 +240,7 @@ func TestQueryMultiRepo(t *testing.T) {
 		MaxResults:    10,
 	}
 
-	results, err := multiRepoEngine.QueryMultiRepo(context.Background(), query)
+	results, err := multiRepoEngine.QueryMultiRepo(context.Background(), &query)
 	if err != nil {
 		t.Fatalf("Expected no error querying multi-repo, got %v", err)
 	}
@@ -262,7 +262,7 @@ func TestQueryMultiRepo(t *testing.T) {
 		MaxResults:    10,
 	}
 
-	postgresResults, err := multiRepoEngine.QueryMultiRepo(context.Background(), postgresQuery)
+	postgresResults, err := multiRepoEngine.QueryMultiRepo(context.Background(), &postgresQuery)
 	if err != nil {
 		t.Fatalf("Expected no error querying PostgreSQL repos, got %v", err)
 	}
@@ -323,15 +323,15 @@ func TestGetSimilarRepositories(t *testing.T) {
 	}
 
 	// Check that go-api-2 is in the results (more similar due to same language and some tech overlap)
-	foundGoApi2 := false
+	foundGoAPI2 := false
 	for _, repo := range similar {
 		if repo.ID == "go-api-2" {
-			foundGoApi2 = true
+			foundGoAPI2 = true
 			break
 		}
 	}
 
-	if !foundGoApi2 {
+	if !foundGoAPI2 {
 		t.Error("Expected to find go-api-2 as similar repository")
 	}
 }

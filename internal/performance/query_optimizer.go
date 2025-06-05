@@ -160,7 +160,7 @@ func NewQueryOptimizer(cacheConfig CacheConfig) *QueryOptimizer {
 }
 
 // OptimizeQuery creates an optimized execution plan for a query
-func (qo *QueryOptimizer) OptimizeQuery(ctx context.Context, query string, queryType QueryType, execCtx QueryExecutionContext) (*QueryPlan, error) {
+func (qo *QueryOptimizer) OptimizeQuery(ctx context.Context, query string, queryType QueryType, execCtx *QueryExecutionContext) (*QueryPlan, error) {
 	if !qo.enabled {
 		return qo.createBasicPlan(query, queryType), nil
 	}
@@ -189,7 +189,7 @@ func (qo *QueryOptimizer) OptimizeQuery(ctx context.Context, query string, query
 }
 
 // generateOptimizedPlan creates an optimized query plan using rules and heuristics
-func (qo *QueryOptimizer) generateOptimizedPlan(_ context.Context, query string, queryType QueryType, queryHash string, execCtx QueryExecutionContext) (*QueryPlan, error) {
+func (qo *QueryOptimizer) generateOptimizedPlan(_ context.Context, query string, queryType QueryType, queryHash string, execCtx *QueryExecutionContext) (*QueryPlan, error) {
 	startTime := time.Now()
 	defer func() {
 		qo.avgOptimizationTime = time.Since(startTime)
@@ -234,7 +234,7 @@ func (qo *QueryOptimizer) generateOptimizedPlan(_ context.Context, query string,
 }
 
 // generateExecutionSteps creates optimized execution steps for the query
-func (qo *QueryOptimizer) generateExecutionSteps(query string, queryType QueryType, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateExecutionSteps(query string, queryType QueryType, execCtx *QueryExecutionContext) []QueryStep {
 	var steps []QueryStep
 
 	switch queryType {
@@ -258,7 +258,7 @@ func (qo *QueryOptimizer) generateExecutionSteps(query string, queryType QueryTy
 }
 
 // generateVectorSearchSteps creates optimized steps for vector search queries
-func (qo *QueryOptimizer) generateVectorSearchSteps(query string, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateVectorSearchSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
 	steps := []QueryStep{
 		{
 			ID:          generateID(),
@@ -308,7 +308,7 @@ func (qo *QueryOptimizer) generateVectorSearchSteps(query string, execCtx QueryE
 }
 
 // generateTextSearchSteps creates optimized steps for text search queries
-func (qo *QueryOptimizer) generateTextSearchSteps(query string, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateTextSearchSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
 	steps := []QueryStep{
 		{
 			ID:          generateID(),
@@ -348,7 +348,7 @@ func (qo *QueryOptimizer) generateTextSearchSteps(query string, execCtx QueryExe
 }
 
 // generateFilterSteps creates optimized steps for filter queries
-func (qo *QueryOptimizer) generateFilterSteps(query string, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateFilterSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
 	steps := []QueryStep{
 		{
 			ID:          generateID(),
@@ -388,7 +388,7 @@ func (qo *QueryOptimizer) generateFilterSteps(query string, execCtx QueryExecuti
 }
 
 // generateAggregationSteps creates optimized steps for aggregation queries
-func (qo *QueryOptimizer) generateAggregationSteps(query string, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateAggregationSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
 	steps := []QueryStep{
 		{
 			ID:          generateID(),
@@ -428,7 +428,7 @@ func (qo *QueryOptimizer) generateAggregationSteps(query string, execCtx QueryEx
 }
 
 // generateHybridSearchSteps creates optimized steps for hybrid search queries
-func (qo *QueryOptimizer) generateHybridSearchSteps(query string, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateHybridSearchSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
 	vectorSteps := qo.generateVectorSearchSteps(query, execCtx)
 	textSteps := qo.generateTextSearchSteps(query, execCtx)
 
@@ -457,7 +457,7 @@ func (qo *QueryOptimizer) generateHybridSearchSteps(query string, execCtx QueryE
 }
 
 // generateJoinSteps creates optimized steps for join queries
-func (qo *QueryOptimizer) generateJoinSteps(query string, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateJoinSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
 	steps := []QueryStep{
 		{
 			ID:          generateID(),
@@ -497,7 +497,7 @@ func (qo *QueryOptimizer) generateJoinSteps(query string, execCtx QueryExecution
 }
 
 // generateGenericSteps creates basic steps for unknown query types
-func (qo *QueryOptimizer) generateGenericSteps(_ string, execCtx QueryExecutionContext) []QueryStep {
+func (qo *QueryOptimizer) generateGenericSteps(_ string, execCtx *QueryExecutionContext) []QueryStep {
 	// Use context timeout if available, otherwise default to 30s
 	timeout := "30s"
 	if execCtx.Timeout > 0 {
@@ -553,7 +553,7 @@ func (qo *QueryOptimizer) optimizeStepOrder(steps []QueryStep) []QueryStep {
 }
 
 // applyOptimizationRules applies registered optimization rules to the plan
-func (qo *QueryOptimizer) applyOptimizationRules(plan *QueryPlan, query string, execCtx QueryExecutionContext) {
+func (qo *QueryOptimizer) applyOptimizationRules(plan *QueryPlan, query string, execCtx *QueryExecutionContext) {
 	qo.rulesMutex.RLock()
 	defer qo.rulesMutex.RUnlock()
 
@@ -570,7 +570,7 @@ func (qo *QueryOptimizer) applyOptimizationRules(plan *QueryPlan, query string, 
 }
 
 // ruleMatches checks if an optimization rule applies to the current query
-func (qo *QueryOptimizer) ruleMatches(rule *QueryOptimizationRule, query string, queryType QueryType, execCtx QueryExecutionContext) bool {
+func (qo *QueryOptimizer) ruleMatches(rule *QueryOptimizationRule, query string, queryType QueryType, execCtx *QueryExecutionContext) bool {
 	// Simple pattern matching - in production, use more sophisticated matching
 	if rule.Pattern != "" && !strings.Contains(query, rule.Pattern) {
 		return false
@@ -810,7 +810,7 @@ func (qo *QueryOptimizer) createBasicPlan(query string, queryType QueryType) *Qu
 	}
 }
 
-func (qo *QueryOptimizer) generateCacheKey(query string, execCtx QueryExecutionContext) string {
+func (qo *QueryOptimizer) generateCacheKey(query string, execCtx *QueryExecutionContext) string {
 	return fmt.Sprintf("query:%s:%s:%s", qo.hashQuery(query), execCtx.Repository, execCtx.UserID)
 }
 
@@ -833,7 +833,7 @@ func (qo *QueryOptimizer) determineCacheTTL(queryType QueryType) time.Duration {
 	}
 }
 
-func (qo *QueryOptimizer) determineOptimalParallelism(execCtx QueryExecutionContext) int {
+func (qo *QueryOptimizer) determineOptimalParallelism(execCtx *QueryExecutionContext) int {
 	if execCtx.Priority > 8 {
 		return qo.parallelismThreshold * 2
 	} else if execCtx.Priority > 5 {
@@ -871,7 +871,7 @@ func (qo *QueryOptimizer) generateIndexHints(_ string, queryType QueryType) []st
 	return hints
 }
 
-func (qo *QueryOptimizer) generateOptimizationParameters(queryType QueryType, execCtx QueryExecutionContext) map[string]interface{} {
+func (qo *QueryOptimizer) generateOptimizationParameters(queryType QueryType, execCtx *QueryExecutionContext) map[string]interface{} {
 	params := make(map[string]interface{})
 
 	params["query_type"] = string(queryType)
@@ -883,7 +883,7 @@ func (qo *QueryOptimizer) generateOptimizationParameters(queryType QueryType, ex
 	return params
 }
 
-func (qo *QueryOptimizer) generateOptimizationTag(queryType QueryType, execCtx QueryExecutionContext) string {
+func (qo *QueryOptimizer) generateOptimizationTag(queryType QueryType, execCtx *QueryExecutionContext) string {
 	tag := string(queryType)
 
 	if execCtx.Priority > 8 {

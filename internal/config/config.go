@@ -242,62 +242,85 @@ func loadQdrantConfig(config *Config) {
 
 // loadQdrantBasicConfig loads basic Qdrant settings
 func loadQdrantBasicConfig(config *Config) {
-	// Qdrant configuration - check both prefixed and non-prefixed env vars
-	if host := os.Getenv("MCP_MEMORY_QDRANT_HOST"); host != "" {
-		config.Qdrant.Host = host
-	} else if host := os.Getenv("QDRANT_HOST"); host != "" {
-		config.Qdrant.Host = host
-	}
+	loadQdrantConnectionSettings(config)
+	loadQdrantServiceSettings(config)
+}
 
-	if port := os.Getenv("MCP_MEMORY_QDRANT_PORT"); port != "" {
-		if p, err := strconv.Atoi(port); err == nil {
-			config.Qdrant.Port = p
-		}
-	} else if port := os.Getenv("QDRANT_PORT"); port != "" {
-		if p, err := strconv.Atoi(port); err == nil {
-			config.Qdrant.Port = p
-		}
-	}
+// loadQdrantConnectionSettings loads host, port, API key, and TLS settings
+func loadQdrantConnectionSettings(config *Config) {
+	config.Qdrant.Host = getStringEnvWithFallback("MCP_MEMORY_QDRANT_HOST", "QDRANT_HOST", config.Qdrant.Host)
+	config.Qdrant.Port = getIntEnvWithFallback("MCP_MEMORY_QDRANT_PORT", "QDRANT_PORT", config.Qdrant.Port)
+	config.Qdrant.APIKey = getStringEnvWithFallback("MCP_MEMORY_QDRANT_API_KEY", "QDRANT_API_KEY", config.Qdrant.APIKey)
+	config.Qdrant.UseTLS = getBoolEnvWithFallback("MCP_MEMORY_QDRANT_USE_TLS", "QDRANT_USE_TLS", config.Qdrant.UseTLS)
+	config.Qdrant.Collection = getStringEnvWithFallback("MCP_MEMORY_QDRANT_COLLECTION", "QDRANT_COLLECTION", config.Qdrant.Collection)
+}
 
-	if apiKey := os.Getenv("MCP_MEMORY_QDRANT_API_KEY"); apiKey != "" {
-		config.Qdrant.APIKey = apiKey
-	} else if apiKey := os.Getenv("QDRANT_API_KEY"); apiKey != "" {
-		config.Qdrant.APIKey = apiKey
-	}
+// loadQdrantServiceSettings loads service-related settings like health check, retry, and timeout
+func loadQdrantServiceSettings(config *Config) {
+	config.Qdrant.HealthCheck = getBoolEnvWithDefault("MCP_MEMORY_QDRANT_HEALTH_CHECK", config.Qdrant.HealthCheck)
+	config.Qdrant.RetryAttempts = getIntEnvWithDefault("MCP_MEMORY_QDRANT_RETRY_ATTEMPTS", config.Qdrant.RetryAttempts)
+	config.Qdrant.TimeoutSeconds = getIntEnvWithDefault("MCP_MEMORY_QDRANT_TIMEOUT_SECONDS", config.Qdrant.TimeoutSeconds)
+}
 
-	if useTLS := os.Getenv("MCP_MEMORY_QDRANT_USE_TLS"); useTLS != "" {
-		if tls, err := strconv.ParseBool(useTLS); err == nil {
-			config.Qdrant.UseTLS = tls
-		}
-	} else if useTLS := os.Getenv("QDRANT_USE_TLS"); useTLS != "" {
-		if tls, err := strconv.ParseBool(useTLS); err == nil {
-			config.Qdrant.UseTLS = tls
-		}
+// getStringEnvWithFallback gets string environment variable with fallback to alternate key
+func getStringEnvWithFallback(primaryKey, fallbackKey, defaultValue string) string {
+	if value := os.Getenv(primaryKey); value != "" {
+		return value
 	}
-
-	if collection := os.Getenv("MCP_MEMORY_QDRANT_COLLECTION"); collection != "" {
-		config.Qdrant.Collection = collection
-	} else if collection := os.Getenv("QDRANT_COLLECTION"); collection != "" {
-		config.Qdrant.Collection = collection
+	if value := os.Getenv(fallbackKey); value != "" {
+		return value
 	}
+	return defaultValue
+}
 
-	if healthCheck := os.Getenv("MCP_MEMORY_QDRANT_HEALTH_CHECK"); healthCheck != "" {
-		if hc, err := strconv.ParseBool(healthCheck); err == nil {
-			config.Qdrant.HealthCheck = hc
+// getIntEnvWithFallback gets integer environment variable with fallback to alternate key
+func getIntEnvWithFallback(primaryKey, fallbackKey string, defaultValue int) int {
+	if value := os.Getenv(primaryKey); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
 		}
 	}
-
-	if retryAttempts := os.Getenv("MCP_MEMORY_QDRANT_RETRY_ATTEMPTS"); retryAttempts != "" {
-		if ra, err := strconv.Atoi(retryAttempts); err == nil {
-			config.Qdrant.RetryAttempts = ra
+	if value := os.Getenv(fallbackKey); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
 		}
 	}
+	return defaultValue
+}
 
-	if timeoutSeconds := os.Getenv("MCP_MEMORY_QDRANT_TIMEOUT_SECONDS"); timeoutSeconds != "" {
-		if ts, err := strconv.Atoi(timeoutSeconds); err == nil {
-			config.Qdrant.TimeoutSeconds = ts
+// getBoolEnvWithFallback gets boolean environment variable with fallback to alternate key
+func getBoolEnvWithFallback(primaryKey, fallbackKey string, defaultValue bool) bool {
+	if value := os.Getenv(primaryKey); value != "" {
+		if parsed, err := strconv.ParseBool(value); err == nil {
+			return parsed
 		}
 	}
+	if value := os.Getenv(fallbackKey); value != "" {
+		if parsed, err := strconv.ParseBool(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
+// getBoolEnvWithDefault gets boolean environment variable with default value
+func getBoolEnvWithDefault(key string, defaultValue bool) bool {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.ParseBool(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
+// getIntEnvWithDefault gets integer environment variable with default value
+func getIntEnvWithDefault(key string, defaultValue int) int {
+	if value := os.Getenv(key); value != "" {
+		if parsed, err := strconv.Atoi(value); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
 }
 
 // loadQdrantDockerConfig loads Docker-related Qdrant settings
@@ -443,15 +466,42 @@ func loadPerformanceConfig(config *Config) {
 
 // Validate validates the configuration
 func (c *Config) Validate() error {
-	// Validate server config
+	if err := c.validateServerConfig(); err != nil {
+		return err
+	}
+
+	if err := c.validateQdrantConfig(); err != nil {
+		return err
+	}
+
+	if err := c.validateOpenAIConfig(); err != nil {
+		return err
+	}
+
+	if err := c.validateStorageConfig(); err != nil {
+		return err
+	}
+
+	if err := c.validateChunkingConfig(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateServerConfig validates server configuration settings
+func (c *Config) validateServerConfig() error {
 	if c.Server.Port < 1 || c.Server.Port > 65535 {
 		return fmt.Errorf("invalid server port: %d", c.Server.Port)
 	}
 	if c.Server.Host == "" {
 		return errors.New("server host cannot be empty")
 	}
+	return nil
+}
 
-	// Validate Qdrant config
+// validateQdrantConfig validates Qdrant vector database configuration
+func (c *Config) validateQdrantConfig() error {
 	if c.Qdrant.Host == "" {
 		return errors.New("qdrant host cannot be empty")
 	}
@@ -464,21 +514,30 @@ func (c *Config) Validate() error {
 	if c.Qdrant.Docker.Enabled && c.Qdrant.Docker.ContainerName == "" {
 		return errors.New("docker container name cannot be empty when docker is enabled")
 	}
+	return nil
+}
 
-	// Validate OpenAI config
+// validateOpenAIConfig validates OpenAI API configuration
+func (c *Config) validateOpenAIConfig() error {
 	if c.OpenAI.APIKey == "" {
 		return errors.New("OpenAI API key is required")
 	}
 	if c.OpenAI.EmbeddingModel == "" {
 		return errors.New("OpenAI embedding model cannot be empty")
 	}
+	return nil
+}
 
-	// Validate storage config
+// validateStorageConfig validates storage configuration settings
+func (c *Config) validateStorageConfig() error {
 	if c.Storage.RetentionDays <= 0 {
 		return errors.New("retention days must be positive")
 	}
+	return nil
+}
 
-	// Validate chunking config
+// validateChunkingConfig validates chunking algorithm configuration
+func (c *Config) validateChunkingConfig() error {
 	if c.Chunking.MinContentLength <= 0 {
 		return errors.New("min content length must be positive")
 	}
@@ -488,7 +547,6 @@ func (c *Config) Validate() error {
 	if c.Chunking.SimilarityThreshold < 0 || c.Chunking.SimilarityThreshold > 1 {
 		return errors.New("similarity threshold must be between 0 and 1")
 	}
-
 	return nil
 }
 
@@ -506,7 +564,7 @@ func (c *Config) GetDataDir() (string, error) {
 	}
 
 	// Create directory if it doesn't exist
-	if err := os.MkdirAll(absPath, 0750); err != nil {
+	if err := os.MkdirAll(absPath, 0o750); err != nil {
 		return "", fmt.Errorf("failed to create data directory: %w", err)
 	}
 

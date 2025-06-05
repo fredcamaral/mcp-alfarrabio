@@ -23,16 +23,16 @@ func NewMockMemoryStore() *MockMemoryStore {
 
 func (m *MockMemoryStore) GetAllChunks(ctx context.Context, repository string) ([]types.ConversationChunk, error) {
 	chunks := make([]types.ConversationChunk, 0)
-	for _, chunk := range m.chunks {
-		if repository == "" || chunk.Metadata.Repository == repository {
-			chunks = append(chunks, chunk)
+	for id := range m.chunks {
+		if repository == "" || m.chunks[id].Metadata.Repository == repository {
+			chunks = append(chunks, m.chunks[id])
 		}
 	}
 	return chunks, nil
 }
 
-func (m *MockMemoryStore) UpdateChunk(ctx context.Context, chunk types.ConversationChunk) error {
-	m.chunks[chunk.ID] = chunk
+func (m *MockMemoryStore) UpdateChunk(ctx context.Context, chunk *types.ConversationChunk) error {
+	m.chunks[chunk.ID] = *chunk
 	m.updates++
 	return nil
 }
@@ -43,8 +43,8 @@ func (m *MockMemoryStore) DeleteChunk(ctx context.Context, chunkID string) error
 	return nil
 }
 
-func (m *MockMemoryStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
-	m.chunks[chunk.ID] = chunk
+func (m *MockMemoryStore) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
+	m.chunks[chunk.ID] = *chunk
 	return nil
 }
 
@@ -125,7 +125,7 @@ func TestMemoryDecayManager_CalculateScore(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			score := manager.calculateChunkScore(tt.chunk)
+			score := manager.calculateChunkScore(&tt.chunk)
 			if score < tt.minScore || score > tt.maxScore {
 				t.Errorf("Expected score between %f and %f, got %f", tt.minScore, tt.maxScore, score)
 			}
@@ -157,8 +157,8 @@ func TestMemoryDecayManager_RunDecay(t *testing.T) {
 		createTestChunk("important", 30*24*time.Hour, types.ChunkTypeArchitectureDecision), // Old but important
 	}
 
-	for _, chunk := range chunks {
-		_ = store.StoreChunk(ctx, chunk)
+	for i := range chunks {
+		_ = store.StoreChunk(ctx, &chunks[i])
 	}
 
 	// Run decay
@@ -230,7 +230,7 @@ func TestMemoryDecayManager_Summarization(t *testing.T) {
 			Summary:   fmt.Sprintf("Summary %d", i),
 			Metadata:  types.ChunkMetadata{},
 		}
-		_ = store.StoreChunk(ctx, chunk)
+		_ = store.StoreChunk(ctx, &chunk)
 	}
 
 	// Run decay

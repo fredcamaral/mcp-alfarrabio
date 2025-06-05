@@ -115,7 +115,7 @@ func (qs *QdrantStore) Initialize(ctx context.Context) error {
 }
 
 // Store saves a conversation chunk to Qdrant
-func (qs *QdrantStore) Store(ctx context.Context, chunk types.ConversationChunk) error {
+func (qs *QdrantStore) Store(ctx context.Context, chunk *types.ConversationChunk) error {
 	start := time.Now()
 	defer qs.updateMetrics("store", start)
 
@@ -149,7 +149,7 @@ func (qs *QdrantStore) Store(ctx context.Context, chunk types.ConversationChunk)
 }
 
 // Search performs similarity search in Qdrant
-func (qs *QdrantStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
+func (qs *QdrantStore) Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	start := time.Now()
 	defer qs.updateMetrics("search", start)
 
@@ -171,7 +171,7 @@ func (qs *QdrantStore) Search(ctx context.Context, query types.MemoryQuery, embe
 			if query.Limit < 0 {
 				return qdrant.PtrOf(uint64(0))
 			}
-			return qdrant.PtrOf(uint64(query.Limit))
+			return qdrant.PtrOf(uint64(query.Limit)) //nolint:gosec // Safe conversion after bounds check
 		}(),
 		WithPayload:    qdrant.NewWithPayload(true),
 		Filter:         filter,
@@ -220,7 +220,7 @@ func (qs *QdrantStore) GetByID(ctx context.Context, id string) (*types.Conversat
 	// Get point by ID
 	points, err := qs.client.Get(ctx, &qdrant.GetPoints{
 		CollectionName: qs.collectionName,
-		Ids:            []*qdrant.PointId{qs.stringToPointId(id)},
+		Ids:            []*qdrant.PointId{qs.stringToPointID(id)},
 		WithPayload:    &qdrant.WithPayloadSelector{SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true}},
 		WithVectors:    &qdrant.WithVectorsSelector{SelectorOptions: &qdrant.WithVectorsSelector_Enable{Enable: true}},
 	})
@@ -284,14 +284,14 @@ func (qs *QdrantStore) ListByRepository(ctx context.Context, repository string, 
 		return nil, fmt.Errorf("failed to list chunks by repository: %w", err)
 	}
 
-	allChunks := make([]types.ConversationChunk, 0, len(points))
+	allChunks := make([]*types.ConversationChunk, 0, len(points))
 	for _, point := range points {
 		chunk, err := qs.pointToChunk(point)
 		if err != nil {
 			log.Printf("Failed to convert point to chunk: %v, point_id: %v", err, point.GetId())
 			continue
 		}
-		allChunks = append(allChunks, *chunk)
+		allChunks = append(allChunks, chunk)
 	}
 
 	// Sort by timestamp (newest first)
@@ -306,7 +306,11 @@ func (qs *QdrantStore) ListByRepository(ctx context.Context, repository string, 
 		if end > len(allChunks) {
 			end = len(allChunks)
 		}
-		chunks = allChunks[offset:end]
+		// Convert back to values for the slice (since interface expects values)
+		chunks = make([]types.ConversationChunk, end-offset)
+		for i := offset; i < end; i++ {
+			chunks[i-offset] = *allChunks[i]
+		}
 	}
 
 	return chunks, nil
@@ -345,20 +349,26 @@ func (qs *QdrantStore) ListBySession(ctx context.Context, sessionID string) ([]t
 		return nil, fmt.Errorf("failed to list chunks by session: %w", err)
 	}
 
-	chunks := make([]types.ConversationChunk, 0, len(points))
+	chunkPtrs := make([]*types.ConversationChunk, 0, len(points))
 	for _, point := range points {
 		chunk, err := qs.pointToChunk(point)
 		if err != nil {
 			logging.Error("Failed to convert point to chunk", "error", err, "point_id", point.GetId())
 			continue
 		}
-		chunks = append(chunks, *chunk)
+		chunkPtrs = append(chunkPtrs, chunk)
 	}
 
 	// Sort by timestamp (oldest first for session)
-	sort.Slice(chunks, func(i, j int) bool {
-		return chunks[i].Timestamp.Before(chunks[j].Timestamp)
+	sort.Slice(chunkPtrs, func(i, j int) bool {
+		return chunkPtrs[i].Timestamp.Before(chunkPtrs[j].Timestamp)
 	})
+
+	// Convert to values for return (since interface expects values)
+	chunks := make([]types.ConversationChunk, len(chunkPtrs))
+	for i, chunk := range chunkPtrs {
+		chunks[i] = *chunk
+	}
 
 	return chunks, nil
 }
@@ -373,7 +383,7 @@ func (qs *QdrantStore) Delete(ctx context.Context, id string) error {
 		Points: &qdrant.PointsSelector{
 			PointsSelectorOneOf: &qdrant.PointsSelector_Points{
 				Points: &qdrant.PointsIdsList{
-					Ids: []*qdrant.PointId{qs.stringToPointId(id)},
+					Ids: []*qdrant.PointId{qs.stringToPointID(id)},
 				},
 			},
 		},
@@ -388,7 +398,7 @@ func (qs *QdrantStore) Delete(ctx context.Context, id string) error {
 }
 
 // Update modifies an existing chunk
-func (qs *QdrantStore) Update(ctx context.Context, chunk types.ConversationChunk) error {
+func (qs *QdrantStore) Update(ctx context.Context, chunk *types.ConversationChunk) error {
 	start := time.Now()
 	defer qs.updateMetrics("update", start)
 
@@ -673,7 +683,7 @@ func (qs *QdrantStore) Close() error {
 // Helper methods
 
 // chunkToPoint converts a ConversationChunk to Qdrant PointStruct
-func (qs *QdrantStore) chunkToPoint(chunk types.ConversationChunk) *qdrant.PointStruct {
+func (qs *QdrantStore) chunkToPoint(chunk *types.ConversationChunk) *qdrant.PointStruct {
 	payload := map[string]*qdrant.Value{
 		"content":    qs.stringToValue(chunk.Content),
 		"summary":    qs.stringToValue(chunk.Summary),
@@ -702,7 +712,7 @@ func (qs *QdrantStore) chunkToPoint(chunk types.ConversationChunk) *qdrant.Point
 	}
 
 	return &qdrant.PointStruct{
-		Id:      qs.stringToPointId(chunk.ID),
+		Id:      qs.stringToPointID(chunk.ID),
 		Vectors: &qdrant.Vectors{VectorsOptions: &qdrant.Vectors_Vector{Vector: &qdrant.Vector{Data: qs.float64ToFloat32(chunk.Embeddings)}}},
 		Payload: payload,
 	}
@@ -742,7 +752,7 @@ func (qs *QdrantStore) buildChunkFromPayload(id string, embeddings []float64, pa
 // pointToChunk converts a Qdrant point to ConversationChunk
 func (qs *QdrantStore) pointToChunk(point *qdrant.RetrievedPoint) (*types.ConversationChunk, error) {
 	payload := point.GetPayload()
-	id := qs.pointIdToString(point.GetId())
+	id := qs.pointIDToString(point.GetId())
 
 	// Extract vectors from RetrievedPoint
 	var embeddings []float64
@@ -758,7 +768,7 @@ func (qs *QdrantStore) pointToChunk(point *qdrant.RetrievedPoint) (*types.Conver
 // scoredPointToChunk converts a Qdrant ScoredPoint to ConversationChunk
 func (qs *QdrantStore) scoredPointToChunk(point *qdrant.ScoredPoint) (*types.ConversationChunk, error) {
 	payload := point.GetPayload()
-	id := qs.pointIdToString(point.GetId())
+	id := qs.pointIDToString(point.GetId())
 
 	// Extract vectors from ScoredPoint
 	var embeddings []float64
@@ -772,7 +782,7 @@ func (qs *QdrantStore) scoredPointToChunk(point *qdrant.ScoredPoint) (*types.Con
 }
 
 // buildFilter creates a Qdrant filter from MemoryQuery with enhanced repository support
-func (qs *QdrantStore) buildFilter(query types.MemoryQuery) *qdrant.Filter {
+func (qs *QdrantStore) buildFilter(query *types.MemoryQuery) *qdrant.Filter {
 	conditions := make([]*qdrant.Condition, 0)
 
 	// Enhanced Repository filter with global support
@@ -890,11 +900,11 @@ func (qs *QdrantStore) stringSliceToValue(slice []string) *qdrant.Value {
 	}}
 }
 
-func (qs *QdrantStore) stringToPointId(s string) *qdrant.PointId {
+func (qs *QdrantStore) stringToPointID(s string) *qdrant.PointId {
 	return &qdrant.PointId{PointIdOptions: &qdrant.PointId_Uuid{Uuid: s}}
 }
 
-func (qs *QdrantStore) pointIdToString(id *qdrant.PointId) string {
+func (qs *QdrantStore) pointIDToString(id *qdrant.PointId) string {
 	if uuid := id.GetUuid(); uuid != "" {
 		return uuid
 	}
@@ -972,14 +982,20 @@ func (qs *QdrantStore) GetAllChunks(ctx context.Context) ([]types.ConversationCh
 		return nil, fmt.Errorf("failed to get all chunks: %w", err)
 	}
 
-	chunks := make([]types.ConversationChunk, 0, len(points))
+	chunkPtrs := make([]*types.ConversationChunk, 0, len(points))
 	for _, point := range points {
 		chunk, err := qs.pointToChunk(point)
 		if err != nil {
 			logging.Error("Failed to convert point to chunk", "error", err, "point_id", point.GetId())
 			continue
 		}
-		chunks = append(chunks, *chunk)
+		chunkPtrs = append(chunkPtrs, chunk)
+	}
+
+	// Convert to values for return (since interface expects values)
+	chunks := make([]types.ConversationChunk, len(chunkPtrs))
+	for i, chunk := range chunkPtrs {
+		chunks[i] = *chunk
 	}
 
 	logging.Debug("Retrieved all chunks", "count", len(chunks))
@@ -1033,12 +1049,12 @@ func (qs *QdrantStore) FindSimilar(ctx context.Context, content string, chunkTyp
 }
 
 // StoreChunk is an alias for Store for backward compatibility
-func (qs *QdrantStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+func (qs *QdrantStore) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
 	return qs.Store(ctx, chunk)
 }
 
 // BatchStore stores multiple chunks in a single operation
-func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error) {
+func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
 	start := time.Now()
 	defer qs.updateMetrics("batch_store", start)
 
@@ -1051,7 +1067,8 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []types.Conversati
 	processedIDs := make([]string, 0, len(chunks))
 	errors := make([]string, 0)
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := chunks[i]
 		if err := chunk.Validate(); err != nil {
 			errors = append(errors, fmt.Sprintf("invalid chunk %s: %v", chunk.ID, err))
 			continue
@@ -1112,7 +1129,7 @@ func (qs *QdrantStore) BatchDelete(ctx context.Context, ids []string) (*BatchRes
 	// Convert string IDs to PointIds
 	pointIds := make([]*qdrant.PointId, len(ids))
 	for i, id := range ids {
-		pointIds[i] = qs.stringToPointId(id)
+		pointIds[i] = qs.stringToPointID(id)
 	}
 
 	// Perform batch delete
@@ -1159,7 +1176,7 @@ func (qs *QdrantStore) StoreRelationship(ctx context.Context, sourceID, targetID
 }
 
 // GetRelationships finds relationships for a chunk
-func (qs *QdrantStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (qs *QdrantStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	return qs.relationshipStore.GetRelationships(ctx, query)
 }
 

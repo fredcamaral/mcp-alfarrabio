@@ -22,12 +22,12 @@ func (m *MockVectorStore) Initialize(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) Store(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockVectorStore) Store(ctx context.Context, chunk *types.ConversationChunk) error {
 	args := m.Called(ctx, chunk)
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
+func (m *MockVectorStore) Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	args := m.Called(ctx, query, embeddings)
 	return args.Get(0).(*types.SearchResults), args.Error(1)
 }
@@ -55,7 +55,7 @@ func (m *MockVectorStore) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) Update(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockVectorStore) Update(ctx context.Context, chunk *types.ConversationChunk) error {
 	args := m.Called(ctx, chunk)
 	return args.Error(0)
 }
@@ -100,12 +100,12 @@ func (m *MockVectorStore) FindSimilar(ctx context.Context, content string, chunk
 	return args.Get(0).([]types.ConversationChunk), args.Error(1)
 }
 
-func (m *MockVectorStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockVectorStore) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
 	args := m.Called(ctx, chunk)
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error) {
+func (m *MockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
 	args := m.Called(ctx, chunks)
 	return args.Get(0).(*BatchResult), args.Error(1)
 }
@@ -124,7 +124,7 @@ func (m *MockVectorStore) StoreRelationship(ctx context.Context, sourceID, targe
 	return args.Get(0).(*types.MemoryRelationship), args.Error(1)
 }
 
-func (m *MockVectorStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (m *MockVectorStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	args := m.Called(ctx, query)
 	return args.Get(0).([]types.RelationshipResult), args.Error(1)
 }
@@ -192,7 +192,7 @@ func TestCircuitBreakerWrapper_SuccessfulOperations(t *testing.T) {
 
 		mockStore.On("Store", ctx, chunk).Return(nil).Once()
 
-		err := wrapper.Store(ctx, chunk)
+		err := wrapper.Store(ctx, &chunk)
 		assert.NoError(t, err)
 		mockStore.AssertExpectations(t)
 	})
@@ -221,7 +221,7 @@ func TestCircuitBreakerWrapper_SuccessfulOperations(t *testing.T) {
 
 		mockStore.On("Search", ctx, query, embeddings).Return(expectedResults, nil).Once()
 
-		results, err := wrapper.Search(ctx, query, embeddings)
+		results, err := wrapper.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedResults, results)
 		mockStore.AssertExpectations(t)
@@ -260,17 +260,17 @@ func TestCircuitBreakerWrapper_FailureHandling(t *testing.T) {
 		mockStore.On("Store", ctx, chunk).Return(testError).Times(2)
 
 		// First failure
-		err := wrapper.Store(ctx, chunk)
+		err := wrapper.Store(ctx, &chunk)
 		assert.Error(t, err)
 		assert.Equal(t, testError, err)
 
 		// Second failure - should trigger circuit breaker
-		err = wrapper.Store(ctx, chunk)
+		err = wrapper.Store(ctx, &chunk)
 		assert.Error(t, err)
 		assert.Equal(t, testError, err)
 
 		// Third attempt - circuit breaker should be open
-		err = wrapper.Store(ctx, chunk)
+		err = wrapper.Store(ctx, &chunk)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "circuit breaker is open")
 
@@ -329,7 +329,7 @@ func TestCircuitBreakerWrapper_AllMethods(t *testing.T) {
 		chunk := types.ConversationChunk{ID: "update-test", Content: "Updated content"}
 		mockStore.On("Update", ctx, chunk).Return(nil).Once()
 
-		err := wrapper.Update(ctx, chunk)
+		err := wrapper.Update(ctx, &chunk)
 		assert.NoError(t, err)
 		mockStore.AssertExpectations(t)
 	})
@@ -425,13 +425,13 @@ func TestCircuitBreakerWrapper_AllMethods(t *testing.T) {
 		chunk := types.ConversationChunk{ID: "store-chunk-test"}
 		mockStore.On("StoreChunk", ctx, chunk).Return(nil).Once()
 
-		err := wrapper.StoreChunk(ctx, chunk)
+		err := wrapper.StoreChunk(ctx, &chunk)
 		assert.NoError(t, err)
 		mockStore.AssertExpectations(t)
 	})
 
 	t.Run("BatchStore", func(t *testing.T) {
-		chunks := []types.ConversationChunk{
+		chunks := []*types.ConversationChunk{
 			{ID: "batch1"}, {ID: "batch2"},
 		}
 		expectedResult := &BatchResult{

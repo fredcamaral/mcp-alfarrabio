@@ -20,7 +20,7 @@ func NewPatternStorageAdapter(store VectorStore) intelligence.PatternStorage {
 }
 
 // StorePattern stores a pattern (converted to chunk format)
-func (p *PatternStorageAdapter) StorePattern(ctx context.Context, pattern intelligence.Pattern) error {
+func (p *PatternStorageAdapter) StorePattern(ctx context.Context, pattern *intelligence.Pattern) error {
 	// Convert pattern to conversation chunk for storage
 	chunk := types.ConversationChunk{
 		ID:        pattern.ID,
@@ -36,7 +36,7 @@ func (p *PatternStorageAdapter) StorePattern(ctx context.Context, pattern intell
 		Embeddings: []float64{},
 	}
 
-	return p.store.Store(ctx, chunk)
+	return p.store.Store(ctx, &chunk)
 }
 
 // GetPattern gets a pattern by ID
@@ -80,7 +80,7 @@ func (p *PatternStorageAdapter) ListPatterns(ctx context.Context, patternType *i
 }
 
 // UpdatePattern updates an existing pattern
-func (p *PatternStorageAdapter) UpdatePattern(ctx context.Context, pattern intelligence.Pattern) error {
+func (p *PatternStorageAdapter) UpdatePattern(ctx context.Context, pattern *intelligence.Pattern) error {
 	// Convert pattern to chunk and update
 	chunk := types.ConversationChunk{
 		ID:        pattern.ID,
@@ -95,7 +95,7 @@ func (p *PatternStorageAdapter) UpdatePattern(ctx context.Context, pattern intel
 		Embeddings: []float64{},
 	}
 
-	return p.store.Update(ctx, chunk)
+	return p.store.Update(ctx, &chunk)
 }
 
 // DeletePattern deletes a pattern by ID

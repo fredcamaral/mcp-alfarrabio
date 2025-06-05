@@ -121,7 +121,7 @@ func (r *RetryableVectorStore) Initialize(ctx context.Context) error {
 }
 
 // Store stores a chunk with retries
-func (r *RetryableVectorStore) Store(ctx context.Context, chunk types.ConversationChunk) error {
+func (r *RetryableVectorStore) Store(ctx context.Context, chunk *types.ConversationChunk) error {
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		return r.store.Store(ctx, chunk)
 	})
@@ -132,7 +132,7 @@ func (r *RetryableVectorStore) Store(ctx context.Context, chunk types.Conversati
 }
 
 // Search performs search with retries
-func (r *RetryableVectorStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
+func (r *RetryableVectorStore) Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	var results *types.SearchResults
 
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
@@ -207,7 +207,7 @@ func (r *RetryableVectorStore) Delete(ctx context.Context, id string) error {
 }
 
 // Update updates a chunk with retries
-func (r *RetryableVectorStore) Update(ctx context.Context, chunk types.ConversationChunk) error {
+func (r *RetryableVectorStore) Update(ctx context.Context, chunk *types.ConversationChunk) error {
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		return r.store.Update(ctx, chunk)
 	})
@@ -350,7 +350,7 @@ func (r *RetryableVectorStore) FindSimilar(ctx context.Context, content string, 
 }
 
 // StoreChunk stores chunk with retries
-func (r *RetryableVectorStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+func (r *RetryableVectorStore) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {
 		return r.store.StoreChunk(ctx, chunk)
 	})
@@ -361,7 +361,7 @@ func (r *RetryableVectorStore) StoreChunk(ctx context.Context, chunk types.Conve
 }
 
 // BatchStore stores chunks in batch with retries
-func (r *RetryableVectorStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error) {
+func (r *RetryableVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
 	var result *BatchResult
 
 	retryResult := r.retrier.Do(ctx, func(ctx context.Context) error {
@@ -411,7 +411,7 @@ func (r *RetryableVectorStore) StoreRelationship(ctx context.Context, sourceID, 
 }
 
 // GetRelationships gets relationships with retries
-func (r *RetryableVectorStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (r *RetryableVectorStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	var relationships []types.RelationshipResult
 
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {

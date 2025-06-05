@@ -176,8 +176,8 @@ func (e *StandardError) WithTraceID(traceID string) *StandardError {
 }
 
 // WithProtocol adds protocol information to the error
-func (e *StandardError) WithProtocol(protocol string) *StandardError {
-	e.ErrorInfo.Protocol = protocol
+func (e *StandardError) WithProtocol(protocolName string) *StandardError {
+	e.ErrorInfo.Protocol = protocolName
 	return e
 }
 
@@ -303,7 +303,7 @@ var (
 	ErrServiceUnavailable = NewStandardError(ErrorCodeServiceUnavailable, "Service temporarily unavailable", nil)
 )
 
-// Helper functions for error checking
+// IsValidationError checks if the error is a validation-related error
 func IsValidationError(err *StandardError) bool {
 	return err.ErrorInfo.Code == ErrorCodeValidationError ||
 		err.ErrorInfo.Code == ErrorCodeRequiredField ||

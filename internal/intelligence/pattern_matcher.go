@@ -34,7 +34,7 @@ func NewBasicPatternMatcher() *BasicPatternMatcher {
 }
 
 // MatchPattern calculates how well chunks match a given pattern
-func (bpm *BasicPatternMatcher) MatchPattern(chunks []types.ConversationChunk, pattern Pattern) float64 {
+func (bpm *BasicPatternMatcher) MatchPattern(chunks []types.ConversationChunk, pattern *Pattern) float64 {
 	if len(chunks) == 0 {
 		return 0.0
 	}
@@ -95,7 +95,8 @@ func (bpm *BasicPatternMatcher) ExtractFeatures(chunks []types.ConversationChunk
 func (bpm *BasicPatternMatcher) IdentifySequence(chunks []types.ConversationChunk) []PatternStep {
 	steps := make([]PatternStep, 0, len(chunks))
 
-	for i, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		action := bpm.identifyAction(chunk.Content)
 		confidence := bpm.calculateStepConfidence(chunk, chunks)
 
@@ -116,7 +117,7 @@ func (bpm *BasicPatternMatcher) IdentifySequence(chunks []types.ConversationChun
 
 // Helper methods for pattern matching
 
-func (bpm *BasicPatternMatcher) calculateKeywordMatch(features map[string]any, pattern Pattern) float64 {
+func (bpm *BasicPatternMatcher) calculateKeywordMatch(features map[string]any, pattern *Pattern) float64 {
 	// Extract keywords from features
 	currentKeywords := make([]string, 0)
 
@@ -130,7 +131,7 @@ func (bpm *BasicPatternMatcher) calculateKeywordMatch(features map[string]any, p
 	return calculateOverlap(currentKeywords, pattern.Keywords)
 }
 
-func (bpm *BasicPatternMatcher) calculateSequenceMatch(currentSequence []PatternStep, patternSteps []PatternStep) float64 {
+func (bpm *BasicPatternMatcher) calculateSequenceMatch(currentSequence, patternSteps []PatternStep) float64 {
 	if len(currentSequence) == 0 || len(patternSteps) == 0 {
 		return 0.0
 	}
@@ -148,7 +149,7 @@ func (bpm *BasicPatternMatcher) calculateSequenceMatch(currentSequence []Pattern
 	return float64(matches) / float64(math.Max(float64(len(currentSequence)), float64(len(patternSteps))))
 }
 
-func (bpm *BasicPatternMatcher) calculateContextMatch(currentFeatures map[string]any, patternContext map[string]any) float64 {
+func (bpm *BasicPatternMatcher) calculateContextMatch(currentFeatures, patternContext map[string]any) float64 {
 	if len(patternContext) == 0 {
 		return 0.5 // Neutral score for patterns without context
 	}
@@ -286,7 +287,8 @@ func (bpm *BasicPatternMatcher) calculateRoleDistribution(chunks []types.Convers
 	typeCount := make(map[string]int)
 	total := len(chunks)
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		typeCount[string(chunk.Type)]++
 	}
 
@@ -323,7 +325,7 @@ func (bpm *BasicPatternMatcher) identifyAction(content string) string {
 	return "general_interaction"
 }
 
-func (bpm *BasicPatternMatcher) calculateStepConfidence(chunk types.ConversationChunk, _ []types.ConversationChunk) float64 {
+func (bpm *BasicPatternMatcher) calculateStepConfidence(chunk *types.ConversationChunk, _ []types.ConversationChunk) float64 {
 	// Base confidence on chunk properties
 	baseConfidence := 0.5
 
@@ -364,7 +366,7 @@ func (bpm *BasicPatternMatcher) generateStepDescription(action, _ string) string
 	}
 }
 
-func (bpm *BasicPatternMatcher) extractStepContext(chunk types.ConversationChunk) map[string]any {
+func (bpm *BasicPatternMatcher) extractStepContext(chunk *types.ConversationChunk) map[string]any {
 	context := make(map[string]any)
 
 	context["type"] = string(chunk.Type)

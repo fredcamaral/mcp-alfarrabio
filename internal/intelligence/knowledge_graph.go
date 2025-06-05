@@ -167,20 +167,20 @@ func (gb *GraphBuilder) BuildFromChunks(ctx context.Context, chunks []types.Conv
 	}
 
 	// First pass: create nodes for chunks and extract entities
-	for _, chunk := range chunks {
-		err := gb.addChunkNode(chunk)
+	for i := range chunks {
+		err := gb.addChunkNode(&chunks[i])
 		if err != nil {
 			return fmt.Errorf("failed to add chunk node: %w", err)
 		}
 
 		// Extract and add concept nodes
-		err = gb.extractAndAddConcepts(chunk)
+		err = gb.extractAndAddConcepts(&chunks[i])
 		if err != nil {
 			return fmt.Errorf("failed to extract concepts: %w", err)
 		}
 
 		// Extract and add entity nodes
-		err = gb.extractAndAddEntities(chunk)
+		err = gb.extractAndAddEntities(&chunks[i])
 		if err != nil {
 			return fmt.Errorf("failed to extract entities: %w", err)
 		}
@@ -240,7 +240,7 @@ func (gb *GraphBuilder) AddRelation(relation *KnowledgeRelation) error {
 }
 
 // QueryGraph queries the knowledge graph
-func (gb *GraphBuilder) QueryGraph(query GraphQuery) ([]*KnowledgeNode, error) {
+func (gb *GraphBuilder) QueryGraph(query *GraphQuery) ([]*KnowledgeNode, error) {
 	var results []*KnowledgeNode
 
 	// Filter nodes by type
@@ -305,7 +305,7 @@ func (gb *GraphBuilder) GetRelatedNodes(nodeID string, maxDepth int) ([]*Knowled
 
 // Helper methods
 
-func (gb *GraphBuilder) addChunkNode(chunk types.ConversationChunk) error {
+func (gb *GraphBuilder) addChunkNode(chunk *types.ConversationChunk) error {
 	node := &KnowledgeNode{
 		ID:          "chunk_" + chunk.ID,
 		Type:        NodeTypeChunk,
@@ -331,7 +331,7 @@ func (gb *GraphBuilder) addChunkNode(chunk types.ConversationChunk) error {
 	return gb.AddNode(node)
 }
 
-func (gb *GraphBuilder) extractAndAddConcepts(chunk types.ConversationChunk) error {
+func (gb *GraphBuilder) extractAndAddConcepts(chunk *types.ConversationChunk) error {
 	concepts, err := gb.conceptExtractor.ExtractConcepts(chunk.Content)
 	if err != nil {
 		return err
@@ -346,7 +346,7 @@ func (gb *GraphBuilder) extractAndAddConcepts(chunk types.ConversationChunk) err
 	return nil
 }
 
-func (gb *GraphBuilder) processConcept(concept Concept, chunk types.ConversationChunk) error {
+func (gb *GraphBuilder) processConcept(concept Concept, chunk *types.ConversationChunk) error {
 	if concept.Confidence < gb.minConfidence {
 		return nil
 	}
@@ -368,7 +368,7 @@ func (gb *GraphBuilder) updateExistingConcept(node *KnowledgeNode, concept Conce
 	return nil
 }
 
-func (gb *GraphBuilder) createConceptNode(concept Concept, chunk types.ConversationChunk) error {
+func (gb *GraphBuilder) createConceptNode(concept Concept, chunk *types.ConversationChunk) error {
 	node := &KnowledgeNode{
 		ID:          "concept_" + gb.generateNodeID(concept.Name),
 		Type:        NodeTypeConcept,
@@ -392,7 +392,7 @@ func (gb *GraphBuilder) createConceptNode(concept Concept, chunk types.Conversat
 	return gb.addConceptRelation(chunk, node, concept)
 }
 
-func (gb *GraphBuilder) addConceptRelation(chunk types.ConversationChunk, node *KnowledgeNode, concept Concept) error {
+func (gb *GraphBuilder) addConceptRelation(chunk *types.ConversationChunk, node *KnowledgeNode, concept Concept) error {
 	relation := &KnowledgeRelation{
 		ID:         "rel_" + chunk.ID + "_" + node.ID,
 		FromNodeID: "chunk_" + chunk.ID,
@@ -410,7 +410,7 @@ func (gb *GraphBuilder) addConceptRelation(chunk types.ConversationChunk, node *
 	return gb.AddRelation(relation)
 }
 
-func (gb *GraphBuilder) extractAndAddEntities(chunk types.ConversationChunk) error {
+func (gb *GraphBuilder) extractAndAddEntities(chunk *types.ConversationChunk) error {
 	// Extract files
 	files := gb.entityExtractor.ExtractFiles(chunk.Content)
 	for _, file := range files {
@@ -506,7 +506,8 @@ func (gb *GraphBuilder) identifyRelations(chunks []types.ConversationChunk) erro
 	}
 
 	// Identify problem-solution relationships
-	for i, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		if chunk.Type == types.ChunkTypeProblem {
 			// Look for solutions in subsequent chunks
 			for j := i + 1; j < len(chunks) && j < i+5; j++ {
@@ -516,7 +517,7 @@ func (gb *GraphBuilder) identifyRelations(chunks []types.ConversationChunk) erro
 						FromNodeID: "chunk_" + chunks[j].ID,
 						ToNodeID:   "chunk_" + chunk.ID,
 						Type:       RelationSolves,
-						Weight:     gb.calculateSolutionRelevance(chunk, chunks[j]),
+						Weight:     gb.calculateSolutionRelevance(chunk, &chunks[j]),
 						Confidence: 0.8,
 						Properties: map[string]any{
 							"distance": j - i,
@@ -604,7 +605,7 @@ func (gb *GraphBuilder) generateNodeID(name string) string {
 	return hex.EncodeToString([]byte(strings.ToLower(strings.ReplaceAll(name, " ", "_"))))
 }
 
-func (gb *GraphBuilder) generateChunkDescription(chunk types.ConversationChunk) string {
+func (gb *GraphBuilder) generateChunkDescription(chunk *types.ConversationChunk) string {
 	summary := chunk.Summary
 	if summary == "" {
 		words := strings.Fields(chunk.Content)
@@ -617,7 +618,7 @@ func (gb *GraphBuilder) generateChunkDescription(chunk types.ConversationChunk) 
 	return string(chunk.Type) + " chunk: " + summary
 }
 
-func (gb *GraphBuilder) extractTags(chunk types.ConversationChunk) []string {
+func (gb *GraphBuilder) extractTags(chunk *types.ConversationChunk) []string {
 	var tags []string
 
 	tags = append(tags, string(chunk.Type))
@@ -656,7 +657,7 @@ func (gb *GraphBuilder) nodeMatchesKeywords(node *KnowledgeNode, keywords []stri
 	return false
 }
 
-func (gb *GraphBuilder) calculateSolutionRelevance(problem, solution types.ConversationChunk) float64 {
+func (gb *GraphBuilder) calculateSolutionRelevance(problem, solution *types.ConversationChunk) float64 {
 	// Simple keyword overlap calculation
 	problemWords := strings.Fields(strings.ToLower(problem.Content))
 	solutionWords := strings.Fields(strings.ToLower(solution.Content))

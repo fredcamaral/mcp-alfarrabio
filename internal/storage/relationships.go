@@ -80,7 +80,7 @@ func (rs *RelationshipStore) Initialize(ctx context.Context) error {
 }
 
 // Store saves a memory relationship
-func (rs *RelationshipStore) Store(ctx context.Context, relationship types.MemoryRelationship) error {
+func (rs *RelationshipStore) Store(ctx context.Context, relationship *types.MemoryRelationship) error {
 	start := time.Now()
 	defer rs.updateMetrics("store", start)
 
@@ -111,7 +111,7 @@ func (rs *RelationshipStore) StoreRelationship(ctx context.Context, sourceID, ta
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
 	}
 
-	if err := rs.Store(ctx, *relationship); err != nil {
+	if err := rs.Store(ctx, relationship); err != nil {
 		return nil, err
 	}
 
@@ -121,7 +121,7 @@ func (rs *RelationshipStore) StoreRelationship(ctx context.Context, sourceID, ta
 		if err != nil {
 			return nil, fmt.Errorf("failed to create inverse relationship: %w", err)
 		}
-		if err := rs.Store(ctx, *inverseRelationship); err != nil {
+		if err := rs.Store(ctx, inverseRelationship); err != nil {
 			return nil, fmt.Errorf("failed to store inverse relationship: %w", err)
 		}
 	}
@@ -130,7 +130,7 @@ func (rs *RelationshipStore) StoreRelationship(ctx context.Context, sourceID, ta
 }
 
 // GetRelationships finds relationships for a chunk
-func (rs *RelationshipStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (rs *RelationshipStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	start := time.Now()
 	defer rs.updateMetrics("get_relationships", start)
 
@@ -234,13 +234,14 @@ func (rs *RelationshipStore) TraverseGraph(ctx context.Context, startChunkID str
 		query := types.NewRelationshipQuery(chunkID)
 		query.RelationTypes = relationTypes
 		query.MaxDepth = 1 // Only direct relationships
-		relationships, err := rs.GetRelationships(ctx, *query)
+		relationships, err := rs.GetRelationships(ctx, query)
 		if err != nil {
 			return
 		}
 
 		// Follow each relationship
-		for _, rel := range relationships {
+		for i := range relationships {
+			rel := &relationships[i]
 			relationship := rel.Relationship
 			var targetID string
 
@@ -329,7 +330,7 @@ func (rs *RelationshipStore) UpdateRelationship(ctx context.Context, relationshi
 	}
 
 	// Store updated relationship
-	return rs.Store(ctx, *relationship)
+	return rs.Store(ctx, relationship)
 }
 
 // GetByID retrieves a relationship by ID
@@ -377,7 +378,7 @@ func (rs *RelationshipStore) Delete(ctx context.Context, id string) error {
 // Helper methods
 
 // relationshipToPoint converts a MemoryRelationship to Qdrant point
-func (rs *RelationshipStore) relationshipToPoint(relationship types.MemoryRelationship) *qdrant.PointStruct {
+func (rs *RelationshipStore) relationshipToPoint(relationship *types.MemoryRelationship) *qdrant.PointStruct {
 	payload := map[string]*qdrant.Value{
 		"source_chunk_id":   rs.stringToValue(relationship.SourceChunkID),
 		"target_chunk_id":   rs.stringToValue(relationship.TargetChunkID),
@@ -490,7 +491,7 @@ func (rs *RelationshipStore) pointToRelationship(point *qdrant.RetrievedPoint) (
 }
 
 // buildRelationshipFilter creates a filter for relationship queries
-func (rs *RelationshipStore) buildRelationshipFilter(query types.RelationshipQuery) *qdrant.Filter {
+func (rs *RelationshipStore) buildRelationshipFilter(query *types.RelationshipQuery) *qdrant.Filter {
 	conditions := make([]*qdrant.Condition, 0)
 
 	// Direction-based filtering
@@ -650,8 +651,8 @@ func (rs *RelationshipStore) determinePathType(chunkIDs []string, relationships 
 
 	// Analyze relationship types to determine path type
 	relationTypes := make(map[types.RelationType]int)
-	for _, rel := range relationships {
-		relationTypes[rel.Relationship.RelationType]++
+	for i := range relationships {
+		relationTypes[relationships[i].Relationship.RelationType]++
 	}
 
 	// Enhanced heuristics considering both relationships and path characteristics

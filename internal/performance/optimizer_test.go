@@ -144,7 +144,7 @@ func TestMetricsRecording(t *testing.T) {
 		Threshold: 200.0,
 	}
 
-	optimizer.RecordMetric(metric)
+	optimizer.RecordMetric(&metric)
 
 	metrics := optimizer.GetMetrics()
 
@@ -179,7 +179,7 @@ func TestOptimizationRules(t *testing.T) {
 		Priority:   5,
 	}
 
-	optimizer.AddOptimizationRule(rule)
+	optimizer.AddOptimizationRule(&rule)
 
 	// Add a metric that should trigger the rule
 	metric := PerformanceMetric{
@@ -190,7 +190,7 @@ func TestOptimizationRules(t *testing.T) {
 		Threshold: 200.0,
 	}
 
-	optimizer.RecordMetric(metric)
+	optimizer.RecordMetric(&metric)
 
 	// Apply optimizations
 	err := optimizer.ApplyOptimizations(context.Background())
@@ -310,7 +310,7 @@ func TestPerformanceReport(t *testing.T) {
 		Value:     100.0,
 		Threshold: 200.0,
 	}
-	optimizer.RecordMetric(metric)
+	optimizer.RecordMetric(&metric)
 
 	rule := OptimizationRule{
 		ID:       "test_rule",
@@ -318,7 +318,7 @@ func TestPerformanceReport(t *testing.T) {
 		Enabled:  true,
 		IsActive: true,
 	}
-	optimizer.AddOptimizationRule(rule)
+	optimizer.AddOptimizationRule(&rule)
 
 	// Generate report
 	report := optimizer.GetPerformanceReport()

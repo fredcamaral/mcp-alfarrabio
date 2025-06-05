@@ -36,11 +36,11 @@ func (m *MockVectorStorage) GetAllChunks(ctx context.Context) ([]types.Conversat
 	return m.chunks, nil
 }
 
-func (m *MockVectorStorage) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockVectorStorage) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
 	if m.shouldError {
 		return fmt.Errorf("mock error")
 	}
-	m.chunks = append(m.chunks, chunk)
+	m.chunks = append(m.chunks, *chunk)
 	return nil
 }
 
@@ -184,7 +184,7 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 			assert.FileExists(t, metadataFile)
 
 			// Verify metadata content
-			metadataData, err := os.ReadFile(metadataFile) //nolint:gosec // Test file in temp directory
+			metadataData, err := os.ReadFile(metadataFile)
 			require.NoError(t, err)
 
 			var loadedMetadata BackupMetadata
@@ -247,7 +247,7 @@ func TestBackupManager_RestoreBackup_Errors(t *testing.T) {
 			setup: func() string {
 				backupFile := filepath.Join(tempDir, "invalid.tar.gz")
 				metadataFile := backupFile + ".meta.json"
-				err := os.WriteFile(metadataFile, []byte("invalid json"), 0600)
+				err := os.WriteFile(metadataFile, []byte("invalid json"), 0o600)
 				require.NoError(t, err)
 				return backupFile
 			},
@@ -262,7 +262,7 @@ func TestBackupManager_RestoreBackup_Errors(t *testing.T) {
 				}
 				metadataData, _ := json.Marshal(metadata)
 				metadataFile := backupFile + ".meta.json"
-				err := os.WriteFile(metadataFile, metadataData, 0600)
+				err := os.WriteFile(metadataFile, metadataData, 0o600)
 				require.NoError(t, err)
 				return backupFile
 			},
@@ -335,7 +335,7 @@ func TestBackupManager_CleanupOldBackups(t *testing.T) {
 	oldTime := time.Now().AddDate(0, 0, -1)
 	metadata.CreatedAt = oldTime
 	metadataData, _ := json.Marshal(metadata)
-	err = os.WriteFile(metadataFile, metadataData, 0600)
+	err = os.WriteFile(metadataFile, metadataData, 0o600)
 	require.NoError(t, err)
 
 	// Run cleanup

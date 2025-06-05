@@ -225,8 +225,9 @@ func (fm *FreshnessManager) CheckRepositoryFreshness(ctx context.Context, reposi
 	staleCount := 0
 	alertsGenerated := 0
 
-	for _, chunk := range chunks {
-		status, err := fm.CheckFreshness(ctx, &chunk)
+	for i := range chunks {
+		chunk := &chunks[i]
+		status, err := fm.CheckFreshness(ctx, chunk)
 		if err != nil {
 			continue // Skip errors, don't fail entire batch
 		}
@@ -264,7 +265,7 @@ func (fm *FreshnessManager) CheckRepositoryFreshness(ctx context.Context, reposi
 }
 
 // MarkRefreshed marks a memory as recently refreshed/validated
-func (fm *FreshnessManager) MarkRefreshed(ctx context.Context, chunkID string, validationNotes string) error {
+func (fm *FreshnessManager) MarkRefreshed(ctx context.Context, chunkID, validationNotes string) error {
 	chunk, err := fm.storage.GetByID(ctx, chunkID)
 	if err != nil {
 		return fmt.Errorf("chunk not found: %w", err)
@@ -285,7 +286,7 @@ func (fm *FreshnessManager) MarkRefreshed(ctx context.Context, chunkID string, v
 		chunk.Metadata.Quality.CalculateOverallQuality()
 	}
 
-	return fm.storage.Update(ctx, *chunk)
+	return fm.storage.Update(ctx, chunk)
 }
 
 // GetStaleMemories returns memories that are considered stale
@@ -299,11 +300,12 @@ func (fm *FreshnessManager) GetStaleMemories(ctx context.Context, repository str
 	staleChunks := make([]types.ConversationChunk, 0)
 	cutoffTime := time.Now().AddDate(0, 0, -thresholdDays)
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		if chunk.Timestamp.Before(cutoffTime) {
 			// Check if it's actually stale based on type and content
-			if fm.isStale(&chunk, int(time.Since(chunk.Timestamp).Hours()/24)) {
-				staleChunks = append(staleChunks, chunk)
+			if fm.isStale(chunk, int(time.Since(chunk.Timestamp).Hours()/24)) {
+				staleChunks = append(staleChunks, *chunk)
 			}
 		}
 	}
@@ -693,7 +695,8 @@ func (fm *FreshnessManager) generateFreshnessSummary(results []ChunkFreshnessRes
 	}
 
 	// Process results to build summary
-	for _, result := range results {
+	for i := range results {
+		result := &results[i]
 		// By repository
 		repoStats := summary.ByRepository[result.Repository]
 		repoStats.TotalChunks++

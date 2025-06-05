@@ -106,9 +106,21 @@ func main() {
 }
 
 func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string) error {
-	// Create HTTP handler that processes MCP requests
-	mux := http.NewServeMux()
+	// Initialize core components
+	wsHub, memoryServer, err := initializeServerComponents(ctx)
+	if err != nil {
+		return err
+	}
 
+	// Setup HTTP routes
+	mux := setupHTTPRoutes(ctx, mcpServer, wsHub, memoryServer)
+
+	// Create and start HTTP server
+	return startAndRunHTTPServer(ctx, mux, addr)
+}
+
+// initializeServerComponents initializes WebSocket hub and memory server
+func initializeServerComponents(ctx context.Context) (*mcpwebsocket.Hub, *mcp.MemoryServer, error) {
 	// Create WebSocket hub for real-time updates
 	wsHub := mcpwebsocket.NewHub()
 	go wsHub.Run(ctx)
@@ -116,47 +128,55 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	// Create memory server instance to access DI container
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		return fmt.Errorf("failed to load config for GraphQL: %w", err)
+		return nil, nil, fmt.Errorf("failed to load config for GraphQL: %w", err)
 	}
 
 	memoryServer, err := mcp.NewMemoryServer(cfg) //nolint:contextcheck // Constructor doesn't need context, Start() method does
 	if err != nil {
-		return fmt.Errorf("failed to create memory server for GraphQL: %w", err)
+		return nil, nil, fmt.Errorf("failed to create memory server for GraphQL: %w", err)
 	}
 
 	// Initialize memory server
 	if err := memoryServer.Start(ctx); err != nil {
-		return fmt.Errorf("failed to start memory server for GraphQL: %w", err)
+		return nil, nil, fmt.Errorf("failed to start memory server for GraphQL: %w", err)
 	}
 
 	// Set the WebSocket hub in the memory server for broadcasting
 	memoryServer.SetWebSocketHub(wsHub)
 
-	// Create GraphQL schema using the DI container
+	return wsHub, memoryServer, nil
+}
+
+// setupHTTPRoutes configures all HTTP routes and handlers
+func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwebsocket.Hub, memoryServer *mcp.MemoryServer) *http.ServeMux {
+	mux := http.NewServeMux()
+
+	// Setup GraphQL endpoint
+	setupGraphQLHandler(mux, memoryServer)
+
+	// Setup MCP endpoint
+	setupMCPHandler(mux, mcpServer)
+
+	// Setup SSE endpoint
+	setupSSEHandler(mux, mcpServer)
+
+	// Setup WebSocket endpoint
+	setupWebSocketHandler(mux, ctx, wsHub)
+
+	// Setup health check endpoint
+	setupHealthHandler(mux)
+
+	return mux
+}
+
+// setupGraphQLHandler configures the GraphQL endpoint
+func setupGraphQLHandler(mux *http.ServeMux, memoryServer *mcp.MemoryServer) {
 	container := memoryServer.GetContainer()
 	schema, err := mcpgraphql.NewSchema(container)
 	if err != nil {
 		log.Printf("Warning: Failed to create GraphQL schema: %v", err)
 		// Add a fallback GraphQL endpoint
-		mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-			w.Header().Set("Content-Type", "application/json")
-
-			if r.Method == methodOptions {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-
-			w.WriteHeader(http.StatusServiceUnavailable)
-			if err := json.NewEncoder(w).Encode(map[string]string{
-				"error":   "GraphQL service unavailable",
-				"message": fmt.Sprintf("Schema creation failed: %v", err),
-			}); err != nil {
-				log.Printf("Error encoding GraphQL error response: %v", err)
-			}
-		})
+		mux.HandleFunc("/graphql", createFallbackGraphQLHandler(err))
 	} else {
 		// Create GraphQL handler with the schema
 		graphqlSchema := schema.GetSchema()
@@ -168,23 +188,53 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 		})
 
 		// Add GraphQL endpoint with CORS
-		mux.HandleFunc("/graphql", func(w http.ResponseWriter, r *http.Request) {
-			// CORS headers
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-			if r.Method == methodOptions {
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-
-			// Delegate to GraphQL handler
-			h.ServeHTTP(w, r)
-		})
+		mux.HandleFunc("/graphql", createGraphQLHandler(h))
 	}
+}
 
-	// Handle MCP-over-HTTP requests
+// createFallbackGraphQLHandler creates a fallback handler when GraphQL schema creation fails
+func createFallbackGraphQLHandler(schemaErr error) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Content-Type", "application/json")
+
+		if r.Method == methodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		w.WriteHeader(http.StatusServiceUnavailable)
+		if err := json.NewEncoder(w).Encode(map[string]string{
+			"error":   "GraphQL service unavailable",
+			"message": fmt.Sprintf("Schema creation failed: %v", schemaErr),
+		}); err != nil {
+			log.Printf("Error encoding GraphQL error response: %v", err)
+		}
+	}
+}
+
+// createGraphQLHandler creates the main GraphQL handler
+func createGraphQLHandler(h *handler.Handler) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// CORS headers
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+
+		if r.Method == methodOptions {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+
+		// Delegate to GraphQL handler
+		h.ServeHTTP(w, r)
+	}
+}
+
+// setupMCPHandler configures the MCP-over-HTTP endpoint
+func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
 		// Set CORS headers for remote access
 		w.Header().Set("Access-Control-Allow-Origin", "*")
@@ -218,8 +268,10 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 			log.Printf("Error encoding response: %v", err)
 		}
 	})
+}
 
-	// Server-Sent Events endpoint for bidirectional MCP communication
+// setupSSEHandler configures the Server-Sent Events endpoint
+func setupSSEHandler(mux *http.ServeMux, mcpServer *server.Server) {
 	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
 		// Handle CORS preflight
 		if r.Method == methodOptions {
@@ -232,24 +284,7 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 
 		// Handle POST requests for MCP JSON-RPC
 		if r.Method == "POST" {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
-			w.Header().Set("Content-Type", "application/json")
-
-			// Parse JSON-RPC request
-			var req protocol.JSONRPCRequest
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
-				return
-			}
-
-			// Process MCP request
-			resp := mcpServer.HandleRequest(r.Context(), &req)
-
-			// Send JSON-RPC response
-			w.WriteHeader(http.StatusOK)
-			if err := json.NewEncoder(w).Encode(resp); err != nil {
-				log.Printf("Error encoding SSE response: %v", err)
-			}
+			handleSSEPost(w, r, mcpServer)
 			return
 		}
 
@@ -259,40 +294,70 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 			return
 		}
 
-		// Set SSE headers
-		w.Header().Set("Content-Type", "text/event-stream")
-		w.Header().Set("Cache-Control", "no-cache")
-		w.Header().Set("Connection", "keep-alive")
-		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Headers", "Cache-Control")
+		handleSSEStream(w, r)
+	})
+}
 
-		// Keep connection alive
-		flusher, ok := w.(http.Flusher)
-		if !ok {
-			http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+// handleSSEPost handles POST requests to the SSE endpoint
+func handleSSEPost(w http.ResponseWriter, r *http.Request, mcpServer *server.Server) {
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Content-Type", "application/json")
+
+	// Parse JSON-RPC request
+	var req protocol.JSONRPCRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
+		return
+	}
+
+	// Process MCP request
+	resp := mcpServer.HandleRequest(r.Context(), &req)
+
+	// Send JSON-RPC response
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(resp); err != nil {
+		log.Printf("Error encoding SSE response: %v", err)
+	}
+}
+
+// handleSSEStream handles GET requests for SSE streaming
+func handleSSEStream(w http.ResponseWriter, r *http.Request) {
+	// Set SSE headers
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control")
+
+	// Keep connection alive
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		return
+	}
+
+	// Send initial connection message
+	_, _ = fmt.Fprintf(w, "data: {\"type\":\"connected\",\"server\":\"mcp-memory\",\"protocols\":[\"json-rpc\",\"sse\"]}\n\n")
+	flusher.Flush()
+
+	// Keep connection open and send periodic heartbeats
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			// Send heartbeat
+			_, _ = fmt.Fprintf(w, "data: {\"type\":\"heartbeat\",\"timestamp\":\"%s\"}\n\n", time.Now().UTC().Format(time.RFC3339))
+			flusher.Flush()
+		case <-r.Context().Done():
 			return
 		}
+	}
+}
 
-		// Send initial connection message
-		_, _ = fmt.Fprintf(w, "data: {\"type\":\"connected\",\"server\":\"mcp-memory\",\"protocols\":[\"json-rpc\",\"sse\"]}\n\n")
-		flusher.Flush()
-
-		// Keep connection open and send periodic heartbeats
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ticker.C:
-				// Send heartbeat
-				_, _ = fmt.Fprintf(w, "data: {\"type\":\"heartbeat\",\"timestamp\":\"%s\"}\n\n", time.Now().UTC().Format(time.RFC3339))
-				flusher.Flush()
-			case <-r.Context().Done():
-				return
-			}
-		}
-	})
-
+// setupWebSocketHandler configures the WebSocket endpoint
+func setupWebSocketHandler(mux *http.ServeMux, ctx context.Context, wsHub *mcpwebsocket.Hub) {
 	// WebSocket upgrader
 	var upgrader = websocket.Upgrader{
 		CheckOrigin: func(_ *http.Request) bool {
@@ -333,13 +398,18 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 
 		log.Printf("WebSocket client %s connected from %s", clientID, r.RemoteAddr)
 	})
+}
 
-	// Health check endpoint
+// setupHealthHandler configures the health check endpoint
+func setupHealthHandler(mux *http.ServeMux) {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "mcp-memory", "mode": "development with hot-reload"}`)
 	})
+}
 
+// startAndRunHTTPServer creates and runs the HTTP server
+func startAndRunHTTPServer(ctx context.Context, mux *http.ServeMux, addr string) error {
 	httpServer := &http.Server{
 		Addr:              addr,
 		Handler:           mux,

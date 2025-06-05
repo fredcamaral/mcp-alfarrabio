@@ -78,7 +78,7 @@ func TestDetectGitRepository(t *testing.T) {
 	if result != "" {
 		// If we detected a repository, it should be a valid format
 		assert.True(t,
-			len(result) > 0 && result[0:1] != " " && result[len(result)-1:] != " ",
+			result != "" && result[0:1] != " " && result[len(result)-1:] != " ",
 			"detected repository should not have leading/trailing whitespace",
 		)
 

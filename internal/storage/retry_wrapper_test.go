@@ -49,7 +49,7 @@ func TestRetryWrapper_SuccessfulOperations(t *testing.T) {
 
 		mockStore.On("Store", ctx, chunk).Return(nil).Once()
 
-		err := wrapper.Store(ctx, chunk)
+		err := wrapper.Store(ctx, &chunk)
 		assert.NoError(t, err)
 		mockStore.AssertExpectations(t)
 	})
@@ -87,7 +87,7 @@ func TestRetryWrapper_RetryLogic(t *testing.T) {
 		mockStore.On("Store", ctx, chunk).Return(errors.New("temporary failure")).Once()
 		mockStore.On("Store", ctx, chunk).Return(nil).Once()
 
-		err := wrapper.Store(ctx, chunk)
+		err := wrapper.Store(ctx, &chunk)
 		assert.NoError(t, err)
 		mockStore.AssertExpectations(t)
 	})
@@ -111,7 +111,7 @@ func TestRetryWrapper_RetryLogic(t *testing.T) {
 		// Fail on initial call + retry attempts (MaxAttempts=2) = 2 total calls
 		mockStore.On("Store", ctx, chunk).Return(persistentError).Times(2)
 
-		err := wrapper.Store(ctx, chunk)
+		err := wrapper.Store(ctx, &chunk)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "timeout")
 		mockStore.AssertExpectations(t)
@@ -148,7 +148,7 @@ func TestRetryWrapper_Search(t *testing.T) {
 		mockStore.On("Search", ctx, query, embeddings).Return((*types.SearchResults)(nil), errors.New("search failed")).Once()
 		mockStore.On("Search", ctx, query, embeddings).Return(expectedResults, nil).Once()
 
-		results, err := wrapper.Search(ctx, query, embeddings)
+		results, err := wrapper.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
 		assert.Equal(t, expectedResults, results)
 		mockStore.AssertExpectations(t)
@@ -237,7 +237,7 @@ func TestRetryWrapper_AllMethods(t *testing.T) {
 		mockStore.On("Update", ctx, chunk).Return(errors.New("update failed")).Once()
 		mockStore.On("Update", ctx, chunk).Return(nil).Once()
 
-		err := wrapper.Update(ctx, chunk)
+		err := wrapper.Update(ctx, &chunk)
 		assert.NoError(t, err)
 		mockStore.AssertExpectations(t)
 	})
@@ -298,7 +298,7 @@ func TestRetryWrapper_AllMethods(t *testing.T) {
 	t.Run("BatchStore with retry", func(t *testing.T) {
 		mockStore := new(MockVectorStore)
 		wrapper := NewRetryableVectorStore(mockStore, retryConfig)
-		chunks := []types.ConversationChunk{
+		chunks := []*types.ConversationChunk{
 			{ID: "batch-retry1"}, {ID: "batch-retry2"},
 		}
 		expectedResult := &BatchResult{
@@ -369,7 +369,7 @@ func TestRetryWrapper_NonRetriableErrors(t *testing.T) {
 
 		// Context is cancelled before Store is called, so no expectations on mockStore
 
-		err := wrapper.Store(cancelCtx, chunk)
+		err := wrapper.Store(cancelCtx, &chunk)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "context cancel")
 		// Don't assert expectations as Store should not be called
@@ -410,7 +410,7 @@ func TestRetryWrapper_TimeoutBehavior(t *testing.T) {
 		mockStore.On("Store", ctx, chunk).Return(errors.New("timeout failure")).Once()
 		mockStore.On("Store", ctx, chunk).Return(nil).Once()
 
-		err := wrapper.Store(ctx, chunk)
+		err := wrapper.Store(ctx, &chunk)
 		elapsed := time.Since(start)
 
 		assert.NoError(t, err)

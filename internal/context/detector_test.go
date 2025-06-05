@@ -128,7 +128,7 @@ func TestDetector_detectProjectType(t *testing.T) {
 
 			// Create test files
 			for _, file := range tt.files {
-				if err := os.WriteFile(filepath.Join(tmpDir, file), []byte("test"), 0600); err != nil {
+				if err := os.WriteFile(filepath.Join(tmpDir, file), []byte("test"), 0o600); err != nil {
 					t.Fatalf("Failed to create test file: %v", err)
 				}
 			}

@@ -89,7 +89,7 @@ func (tt *TodoTracker) ProcessTodoWrite(ctx context.Context, sessionID, reposito
 }
 
 // ProcessToolUsage tracks tool usage during todo work
-func (tt *TodoTracker) ProcessToolUsage(sessionID, repository, toolName string, context map[string]interface{}) {
+func (tt *TodoTracker) ProcessToolUsage(sessionID, repository, toolName string, toolContext map[string]interface{}) {
 	key := tt.createSessionKey(repository, sessionID)
 	if session, exists := tt.activeSessions[key]; exists {
 		// Add tool to used tools list
@@ -101,12 +101,12 @@ func (tt *TodoTracker) ProcessToolUsage(sessionID, repository, toolName string, 
 		session.ToolsUsed = append(session.ToolsUsed, toolName)
 
 		// Extract file information from tool context
-		if files := tt.extractFilesFromContext(context); len(files) > 0 {
+		if files := tt.extractFilesFromContext(toolContext); len(files) > 0 {
 			session.FilesChanged = append(session.FilesChanged, files...)
 		}
 
 		// Update work context with tool usage
-		tt.updateWorkContext(session, toolName, context)
+		tt.updateWorkContext(session, toolName, toolContext)
 	}
 }
 
@@ -219,14 +219,14 @@ func (tt *TodoTracker) getOrCreateSession(sessionID, repository string) *TodoSes
 }
 
 // extractFilesFromContext extracts file paths from tool usage context
-func (tt *TodoTracker) extractFilesFromContext(context map[string]interface{}) []string {
+func (tt *TodoTracker) extractFilesFromContext(toolContext map[string]interface{}) []string {
 	files := make([]string, 0)
 
 	// Look for common file path keys
 	fileKeys := []string{"file_path", "filepath", "path", "filename"}
 
 	for _, key := range fileKeys {
-		if value, exists := context[key]; exists {
+		if value, exists := toolContext[key]; exists {
 			if filePath, ok := value.(string); ok && filePath != "" {
 				files = append(files, filePath)
 			}
@@ -237,9 +237,9 @@ func (tt *TodoTracker) extractFilesFromContext(context map[string]interface{}) [
 }
 
 // updateWorkContext updates the session's work context with tool information
-func (tt *TodoTracker) updateWorkContext(session *TodoSession, toolName string, context map[string]interface{}) {
+func (tt *TodoTracker) updateWorkContext(session *TodoSession, toolName string, toolContext map[string]interface{}) {
 	// Add tool usage information to work context
-	contextJSON, _ := json.Marshal(context)
+	contextJSON, _ := json.Marshal(toolContext)
 	addition := fmt.Sprintf("[%s] %s: %s\n", time.Now().Format("15:04"), toolName, string(contextJSON))
 	session.WorkContext += addition
 }

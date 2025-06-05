@@ -146,8 +146,8 @@ func TestVectorStoreSearchFiltering(t *testing.T) {
 	}
 
 	// Store all chunks
-	for _, chunk := range chunks {
-		err := store.Store(ctx, chunk)
+	for i := range chunks {
+		err := store.Store(ctx, &chunks[i])
 		assert.NoError(t, err)
 	}
 
@@ -160,7 +160,7 @@ func TestVectorStoreSearchFiltering(t *testing.T) {
 		}
 		embeddings := []float64{0.1, 0.2, 0.3}
 
-		results, err := store.Search(ctx, query, embeddings)
+		results, err := store.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, results.Total) // Should find test-1 and test-3
 
@@ -177,7 +177,7 @@ func TestVectorStoreSearchFiltering(t *testing.T) {
 		}
 		embeddings := []float64{0.1, 0.2, 0.3}
 
-		results, err := store.Search(ctx, query, embeddings)
+		results, err := store.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, results.Total) // Should find test-1 and test-2
 
@@ -200,7 +200,7 @@ func TestVectorStoreSearchFiltering(t *testing.T) {
 		}
 		embeddings := []float64{0.1, 0.2, 0.3}
 
-		results, err := store.Search(ctx, query, embeddings)
+		results, err := store.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, results.Total) // Should find only test-3
 
@@ -229,7 +229,7 @@ func TestVectorStoreEdgeCases(t *testing.T) {
 				Difficulty: types.DifficultySimple,
 			},
 		}
-		err := store.Store(ctx, chunk)
+		err := store.Store(ctx, &chunk)
 		assert.NoError(t, err)
 
 		// Search for non-matching repository
@@ -241,7 +241,7 @@ func TestVectorStoreEdgeCases(t *testing.T) {
 		}
 		embeddings := []float64{0.1, 0.2}
 
-		results, err := store.Search(ctx, query, embeddings)
+		results, err := store.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, results.Total)
 		assert.Empty(t, results.Results)
@@ -255,7 +255,7 @@ func TestVectorStoreEdgeCases(t *testing.T) {
 		}
 		embeddings := []float64{0.1, 0.2}
 
-		results, err := store.Search(ctx, query, embeddings)
+		results, err := store.Search(ctx, &query, embeddings)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, results.Total)
 		assert.Empty(t, results.Results)
@@ -284,7 +284,7 @@ func TestVectorStoreValidation(t *testing.T) {
 			Content: "Some content",
 		}
 
-		err := store.Store(ctx, invalidChunk)
+		err := store.Store(ctx, &invalidChunk)
 		assert.Error(t, err)
 	})
 
@@ -303,7 +303,7 @@ func TestVectorStoreValidation(t *testing.T) {
 			},
 		}
 
-		err := store.Store(ctx, invalidChunk)
+		err := store.Store(ctx, &invalidChunk)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "embeddings")
 	})
@@ -314,7 +314,7 @@ func TestVectorStoreValidation(t *testing.T) {
 			// Missing other required fields
 		}
 
-		err := store.Update(ctx, invalidChunk)
+		err := store.Update(ctx, &invalidChunk)
 		assert.Error(t, err)
 	})
 }
@@ -337,7 +337,7 @@ func TestVectorStoreQueryTime(t *testing.T) {
 			Difficulty: types.DifficultySimple,
 		},
 	}
-	err := store.Store(ctx, chunk)
+	err := store.Store(ctx, &chunk)
 	assert.NoError(t, err)
 
 	query := types.MemoryQuery{
@@ -347,7 +347,7 @@ func TestVectorStoreQueryTime(t *testing.T) {
 	embeddings := []float64{0.1, 0.2}
 
 	start := time.Now()
-	results, err := store.Search(ctx, query, embeddings)
+	results, err := store.Search(ctx, &query, embeddings)
 	elapsed := time.Since(start)
 
 	assert.NoError(t, err)

@@ -11,16 +11,16 @@ import (
 
 // MockPatternStorage implements PatternStorage for testing
 type MockPatternStorage struct {
-	patterns map[string]Pattern
+	patterns map[string]*Pattern
 }
 
 func NewMockPatternStorage() *MockPatternStorage {
 	return &MockPatternStorage{
-		patterns: make(map[string]Pattern),
+		patterns: make(map[string]*Pattern),
 	}
 }
 
-func (m *MockPatternStorage) StorePattern(ctx context.Context, pattern Pattern) error {
+func (m *MockPatternStorage) StorePattern(ctx context.Context, pattern *Pattern) error {
 	m.patterns[pattern.ID] = pattern
 	return nil
 }
@@ -30,20 +30,20 @@ func (m *MockPatternStorage) GetPattern(ctx context.Context, id string) (*Patter
 	if !exists {
 		return nil, fmt.Errorf("pattern not found: %s", id)
 	}
-	return &pattern, nil
+	return pattern, nil
 }
 
 func (m *MockPatternStorage) ListPatterns(ctx context.Context, patternType *PatternType) ([]Pattern, error) {
 	var result []Pattern
 	for _, pattern := range m.patterns {
 		if patternType == nil || pattern.Type == *patternType {
-			result = append(result, pattern)
+			result = append(result, *pattern)
 		}
 	}
 	return result, nil
 }
 
-func (m *MockPatternStorage) UpdatePattern(ctx context.Context, pattern Pattern) error {
+func (m *MockPatternStorage) UpdatePattern(ctx context.Context, pattern *Pattern) error {
 	m.patterns[pattern.ID] = pattern
 	return nil
 }
@@ -65,7 +65,7 @@ func (m *MockPatternStorage) SearchPatterns(ctx context.Context, query string, l
 		if count >= limit {
 			break
 		}
-		result = append(result, pattern)
+		result = append(result, *pattern)
 		count++
 	}
 	return result, nil
@@ -198,7 +198,7 @@ func TestGetPatternSuggestions(t *testing.T) {
 		UpdatedAt:   time.Now(),
 	}
 
-	err := storage.StorePattern(context.Background(), testPattern)
+	err := storage.StorePattern(context.Background(), &testPattern)
 	if err != nil {
 		t.Fatalf("Expected no error storing pattern, got %v", err)
 	}

@@ -49,7 +49,7 @@ func NewManager() *Manager {
 }
 
 // AddRelationship creates a new relationship between chunks
-func (m *Manager) AddRelationship(ctx context.Context, from, to string, relType RelationshipType, strength float64, context string) (*Relationship, error) {
+func (m *Manager) AddRelationship(ctx context.Context, from, to string, relType RelationshipType, strength float64, relContext string) (*Relationship, error) {
 	if from == "" || to == "" {
 		return nil, fmt.Errorf("both from and to chunk IDs are required")
 	}
@@ -68,7 +68,7 @@ func (m *Manager) AddRelationship(ctx context.Context, from, to string, relType 
 		ToChunkID:    to,
 		Type:         relType,
 		Strength:     strength,
-		Context:      context,
+		Context:      relContext,
 		CreatedAt:    time.Now().UTC(),
 		AutoDetected: false,
 	}

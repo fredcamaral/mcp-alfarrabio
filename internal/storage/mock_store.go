@@ -32,7 +32,7 @@ func (m *SimpleMockVectorStore) Initialize(ctx context.Context) error {
 	return nil
 }
 
-func (m *SimpleMockVectorStore) Store(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *SimpleMockVectorStore) Store(ctx context.Context, chunk *types.ConversationChunk) error {
 	if chunk.ID == "" {
 		return errors.New("chunk ID is required")
 	}
@@ -43,12 +43,12 @@ func (m *SimpleMockVectorStore) Store(ctx context.Context, chunk types.Conversat
 		return errors.New("embeddings are required")
 	}
 
-	m.chunks[chunk.ID] = chunk
+	m.chunks[chunk.ID] = *chunk
 	m.updateStats(chunk)
 	return nil
 }
 
-func (m *SimpleMockVectorStore) updateStats(chunk types.ConversationChunk) {
+func (m *SimpleMockVectorStore) updateStats(chunk *types.ConversationChunk) {
 	m.stats.TotalChunks++
 	m.stats.ChunksByType[string(chunk.Type)]++
 	if chunk.Metadata.Repository != "" {
@@ -56,7 +56,7 @@ func (m *SimpleMockVectorStore) updateStats(chunk types.ConversationChunk) {
 	}
 }
 
-func (m *SimpleMockVectorStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
+func (m *SimpleMockVectorStore) Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	start := time.Now()
 
 	capacity := len(m.chunks)
@@ -157,7 +157,7 @@ func (m *SimpleMockVectorStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
-func (m *SimpleMockVectorStore) Update(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *SimpleMockVectorStore) Update(ctx context.Context, chunk *types.ConversationChunk) error {
 	if chunk.ID == "" {
 		return errors.New("chunk ID is required")
 	}
@@ -165,7 +165,7 @@ func (m *SimpleMockVectorStore) Update(ctx context.Context, chunk types.Conversa
 		return errors.New("chunk not found")
 	}
 
-	m.chunks[chunk.ID] = chunk
+	m.chunks[chunk.ID] = *chunk
 	return nil
 }
 
@@ -220,11 +220,11 @@ func (m *SimpleMockVectorStore) FindSimilar(ctx context.Context, content string,
 	return results, nil
 }
 
-func (m *SimpleMockVectorStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *SimpleMockVectorStore) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
 	return m.Store(ctx, chunk)
 }
 
-func (m *SimpleMockVectorStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error) {
+func (m *SimpleMockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
 	result := &BatchResult{
 		Success:      0,
 		Failed:       0,
@@ -267,7 +267,7 @@ func (m *SimpleMockVectorStore) BatchDelete(ctx context.Context, ids []string) (
 	return result, nil
 }
 
-// Relationship management methods
+// StoreRelationship stores a relationship between two memory chunks
 func (m *SimpleMockVectorStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
 	rel := &types.MemoryRelationship{
 		ID:               "rel-" + sourceID + "-" + targetID,
@@ -283,7 +283,7 @@ func (m *SimpleMockVectorStore) StoreRelationship(ctx context.Context, sourceID,
 	return rel, nil
 }
 
-func (m *SimpleMockVectorStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (m *SimpleMockVectorStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	results := make([]types.RelationshipResult, 0, len(m.relationships))
 
 	for _, rel := range m.relationships {

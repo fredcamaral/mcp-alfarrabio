@@ -85,9 +85,9 @@ type MemoryDecayManager struct {
 // MemoryStore interface for accessing memories
 type MemoryStore interface {
 	GetAllChunks(ctx context.Context, repository string) ([]types.ConversationChunk, error)
-	UpdateChunk(ctx context.Context, chunk types.ConversationChunk) error
+	UpdateChunk(ctx context.Context, chunk *types.ConversationChunk) error
 	DeleteChunk(ctx context.Context, chunkID string) error
-	StoreChunk(ctx context.Context, chunk types.ConversationChunk) error
+	StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error
 }
 
 // Summarizer interface for creating summaries
@@ -201,20 +201,20 @@ func (m *MemoryDecayManager) RunDecay(ctx context.Context, repository string) er
 	toDelete := make([]string, 0)
 	toUpdate := make([]types.ConversationChunk, 0)
 
-	for _, sc := range scoredChunks {
+	for i := range scoredChunks {
 		// Skip recent memories
-		if time.Since(sc.Chunk.Timestamp) < m.config.RetentionPeriod {
+		if time.Since(scoredChunks[i].Chunk.Timestamp) < m.config.RetentionPeriod {
 			continue
 		}
 
 		switch {
-		case sc.Score < m.config.DeletionThreshold:
-			toDelete = append(toDelete, sc.Chunk.ID)
-		case sc.Score < m.config.SummarizationThreshold:
-			toSummarize = append(toSummarize, sc)
-		case sc.Score < m.config.MinRelevanceScore:
+		case scoredChunks[i].Score < m.config.DeletionThreshold:
+			toDelete = append(toDelete, scoredChunks[i].Chunk.ID)
+		case scoredChunks[i].Score < m.config.SummarizationThreshold:
+			toSummarize = append(toSummarize, scoredChunks[i])
+		case scoredChunks[i].Score < m.config.MinRelevanceScore:
 			// Update with decayed score
-			chunk := sc.Chunk
+			chunk := scoredChunks[i].Chunk
 			// Store decay info in a separate tracking system since Metadata is structured
 			// For now, just add to update list
 			toUpdate = append(toUpdate, chunk)
@@ -227,9 +227,9 @@ func (m *MemoryDecayManager) RunDecay(ctx context.Context, repository string) er
 	}
 
 	// Update chunks with new scores
-	for _, chunk := range toUpdate {
-		if err := m.store.UpdateChunk(ctx, chunk); err != nil {
-			log.Printf("Failed to update chunk %s: %v", chunk.ID, err)
+	for i := range toUpdate {
+		if err := m.store.UpdateChunk(ctx, &toUpdate[i]); err != nil {
+			log.Printf("Failed to update chunk %s: %v", toUpdate[i].ID, err)
 		}
 	}
 
@@ -256,10 +256,10 @@ type ScoredChunk struct {
 func (m *MemoryDecayManager) calculateRelevanceScores(chunks []types.ConversationChunk) []ScoredChunk {
 	scored := make([]ScoredChunk, len(chunks))
 
-	for i, chunk := range chunks {
-		score := m.calculateChunkScore(chunk)
+	for i := range chunks {
+		score := m.calculateChunkScore(&chunks[i])
 		scored[i] = ScoredChunk{
-			Chunk: chunk,
+			Chunk: chunks[i],
 			Score: score,
 		}
 	}
@@ -273,7 +273,7 @@ func (m *MemoryDecayManager) calculateRelevanceScores(chunks []types.Conversatio
 }
 
 // calculateChunkScore calculates the relevance score for a chunk
-func (m *MemoryDecayManager) calculateChunkScore(chunk types.ConversationChunk) float64 {
+func (m *MemoryDecayManager) calculateChunkScore(chunk *types.ConversationChunk) float64 {
 	// Base score starts at 1.0
 	score := 1.0
 
@@ -350,8 +350,8 @@ func (m *MemoryDecayManager) summarizeChunks(ctx context.Context, chunks []Score
 
 		// Extract the actual chunks
 		groupChunks := make([]types.ConversationChunk, len(group))
-		for i, sc := range group {
-			groupChunks[i] = sc.Chunk
+		for i := range group {
+			groupChunks[i] = group[i].Chunk
 		}
 
 		// Create summary
@@ -362,15 +362,15 @@ func (m *MemoryDecayManager) summarizeChunks(ctx context.Context, chunks []Score
 		}
 
 		// Store summary
-		if err := m.store.StoreChunk(ctx, summary); err != nil {
+		if err := m.store.StoreChunk(ctx, &summary); err != nil {
 			log.Printf("Failed to store summary: %v", err)
 			continue
 		}
 
 		// Delete original chunks
-		for _, sc := range group {
-			if err := m.store.DeleteChunk(ctx, sc.Chunk.ID); err != nil {
-				log.Printf("Failed to delete summarized chunk %s: %v", sc.Chunk.ID, err)
+		for i := range group {
+			if err := m.store.DeleteChunk(ctx, group[i].Chunk.ID); err != nil {
+				log.Printf("Failed to delete summarized chunk %s: %v", group[i].Chunk.ID, err)
 			}
 		}
 	}
@@ -381,9 +381,9 @@ func (m *MemoryDecayManager) groupRelatedChunks(chunks []ScoredChunk) [][]Scored
 	// Simple grouping by session and time proximity
 	groups := make(map[string][]ScoredChunk)
 
-	for _, chunk := range chunks {
-		key := chunk.Chunk.SessionID
-		groups[key] = append(groups[key], chunk)
+	for i := range chunks {
+		key := chunks[i].Chunk.SessionID
+		groups[key] = append(groups[key], chunks[i])
 	}
 
 	// Convert to slice

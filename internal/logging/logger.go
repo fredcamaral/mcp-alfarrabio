@@ -225,14 +225,14 @@ func (l *StructuredLogger) logEntry(level, msg, contextTraceID string, fields ..
 	}
 
 	if l.useJSON {
-		l.outputJSON(entry)
+		l.outputJSON(&entry)
 	} else {
-		l.outputText(entry)
+		l.outputText(&entry)
 	}
 }
 
 // outputJSON outputs the log entry as JSON
-func (l *StructuredLogger) outputJSON(entry LogEntry) {
+func (l *StructuredLogger) outputJSON(entry *LogEntry) {
 	data, err := json.Marshal(entry)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to marshal log entry: %v\n", err)
@@ -242,11 +242,8 @@ func (l *StructuredLogger) outputJSON(entry LogEntry) {
 }
 
 // outputText outputs the log entry as human-readable text
-func (l *StructuredLogger) outputText(entry LogEntry) {
-	var parts []string
-
-	parts = append(parts, entry.Timestamp)
-	parts = append(parts, fmt.Sprintf("[%s]", entry.Level))
+func (l *StructuredLogger) outputText(entry *LogEntry) {
+	parts := []string{entry.Timestamp, fmt.Sprintf("[%s]", entry.Level)}
 
 	if entry.TraceID != "" {
 		parts = append(parts, "trace:"+entry.TraceID[:8])
@@ -287,7 +284,7 @@ func (l *StructuredLogger) extractTraceID(ctx context.Context) string {
 // Default logger instance
 var defaultLogger = NewLogger(INFO)
 
-// Package-level functions for convenience
+// Info logs an info-level message using the default logger
 func Info(msg string, fields ...interface{}) {
 	defaultLogger.Info(msg, fields...)
 }
@@ -308,7 +305,7 @@ func Fatal(msg string, fields ...interface{}) {
 	defaultLogger.Fatal(msg, fields...)
 }
 
-// Context-aware package functions
+// InfoContext logs an info-level message with context using the default logger
 func InfoContext(ctx context.Context, msg string, fields ...interface{}) {
 	defaultLogger.InfoContext(ctx, msg, fields...)
 }
@@ -325,7 +322,7 @@ func DebugContext(ctx context.Context, msg string, fields ...interface{}) {
 	defaultLogger.DebugContext(ctx, msg, fields...)
 }
 
-// Trace ID utilities
+// GenerateTraceID generates a new unique trace ID
 func GenerateTraceID() string {
 	return uuid.New().String()
 }
@@ -347,12 +344,12 @@ func GetTraceID(ctx context.Context) string {
 	return ""
 }
 
-// Component logger creation
+// WithComponent creates a logger with a specified component name
 func WithComponent(component string) Logger {
 	return defaultLogger.WithComponent(component)
 }
 
-// Level parsing from string
+// ParseLogLevel parses a string into a LogLevel
 func ParseLogLevel(level string) LogLevel {
 	switch strings.ToUpper(level) {
 	case "DEBUG":

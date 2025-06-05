@@ -152,10 +152,10 @@ type BasicEntityExtractor struct {
 // NewBasicEntityExtractor creates a new basic entity extractor
 func NewBasicEntityExtractor() *BasicEntityExtractor {
 	return &BasicEntityExtractor{
-		fileRegex:     regexp.MustCompile(`\b[\w\-_]+\.(go|js|ts|py|java|cpp|h|hpp|c|rs|rb|php|cs|kt|swift|scala|clj|elm|hs|ml|fs|dart|r|m|pl|sh|bat|ps1|sql|json|yaml|yml|xml|html|css|scss|less|md|txt|csv|log|config|conf|ini|env|dockerfile|makefile)\b`),
+		fileRegex:     regexp.MustCompile(`\b[\w\-]+\.(go|js|ts|py|java|cpp|h|hpp|c|rs|rb|php|cs|kt|swift|scala|clj|elm|hs|ml|fs|dart|r|m|pl|sh|bat|ps1|sql|json|yaml|yml|xml|html|css|scss|less|md|txt|csv|log|config|conf|ini|env|dockerfile|makefile)\b`),
 		functionRegex: regexp.MustCompile(`\b[a-zA-Z_][a-zA-Z0-9_]*\s*\(`),
 		variableRegex: regexp.MustCompile(`\b[a-zA-Z_][a-zA-Z0-9_]*\b`),
-		commandRegex:  regexp.MustCompile(`(?m)^\s*[$#>]\s*(\w+(?:\s+[\w\-\.]+)*)`),
+		commandRegex:  regexp.MustCompile(`(?m)^\s*[$#>]\s*(\w+(?:\s+[\w\-.]+)*)`),
 	}
 }
 

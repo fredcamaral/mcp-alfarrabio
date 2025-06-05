@@ -117,28 +117,28 @@ func testJSONRPCErrorHandling(t *testing.T, stdErr *StandardError, traceID, expe
 	errorWithTrace := stdErr.WithTraceID(traceID).WithProtocol("json-rpc")
 
 	// Convert to JSON-RPC error
-	jsonRpcError := errorWithTrace.ToJSONRPCError("test-request-id")
+	jsonRPCError := errorWithTrace.ToJSONRPCError("test-request-id")
 
 	// Verify JSON-RPC structure
-	assert.Equal(t, "2.0", jsonRpcError.JSONRPC)
-	assert.Equal(t, "test-request-id", jsonRpcError.ID)
-	assert.NotNil(t, jsonRpcError.Error)
+	assert.Equal(t, "2.0", jsonRPCError.JSONRPC)
+	assert.Equal(t, "test-request-id", jsonRPCError.ID)
+	assert.NotNil(t, jsonRPCError.Error)
 
 	// Verify error code mapping
 	expectedJSONRPCCode := mapToJSONRPCCode(stdErr.ErrorInfo.Code)
-	assert.Equal(t, expectedJSONRPCCode, jsonRpcError.Error.Code)
+	assert.Equal(t, expectedJSONRPCCode, jsonRPCError.Error.Code)
 
 	// Verify error message
-	assert.Equal(t, stdErr.ErrorInfo.Message, jsonRpcError.Error.Message)
+	assert.Equal(t, stdErr.ErrorInfo.Message, jsonRPCError.Error.Message)
 
 	// Verify error data contains trace ID
-	if data, ok := jsonRpcError.Error.Data.(*StandardError); ok {
+	if data, ok := jsonRPCError.Error.Data.(*StandardError); ok {
 		assert.Equal(t, traceID, data.ErrorInfo.TraceID)
 		assert.Equal(t, "json-rpc", data.ErrorInfo.Protocol)
 	}
 
 	// Test serialization
-	jsonBytes, err := json.Marshal(jsonRpcError)
+	jsonBytes, err := json.Marshal(jsonRPCError)
 	require.NoError(t, err)
 
 	// Test deserialization
@@ -146,8 +146,8 @@ func testJSONRPCErrorHandling(t *testing.T, stdErr *StandardError, traceID, expe
 	err = json.Unmarshal(jsonBytes, &parsedResponse)
 	require.NoError(t, err)
 
-	assert.Equal(t, jsonRpcError.JSONRPC, parsedResponse.JSONRPC)
-	assert.Equal(t, jsonRpcError.ID, parsedResponse.ID)
+	assert.Equal(t, jsonRPCError.JSONRPC, parsedResponse.JSONRPC)
+	assert.Equal(t, jsonRPCError.ID, parsedResponse.ID)
 }
 
 func testGraphQLErrorHandling(t *testing.T, stdErr *StandardError, traceID, expectedCode string) {
@@ -209,10 +209,10 @@ func testWebSocketErrorHandling(t *testing.T, stdErr *StandardError, traceID, ex
 
 		// Create error response
 		errorWithTrace := stdErr.WithTraceID(traceID).WithProtocol("websocket")
-		jsonRpcError := errorWithTrace.ToJSONRPCError(msg["id"])
+		jsonRPCError := errorWithTrace.ToJSONRPCError(msg["id"])
 
 		// Send error response
-		err = conn.WriteJSON(jsonRpcError)
+		err = conn.WriteJSON(jsonRPCError)
 		if err != nil {
 			t.Fatalf("Failed to write JSON: %v", err)
 		}
@@ -269,12 +269,12 @@ func TestErrorConsistencyAcrossProtocols(t *testing.T) {
 
 	// Test consistency of error information
 	httpError := baseError.WithTraceID(traceID).WithProtocol("http")
-	jsonRpcError := baseError.WithTraceID(traceID).WithProtocol("json-rpc")
+	jsonRPCError := baseError.WithTraceID(traceID).WithProtocol("json-rpc")
 	graphqlError := baseError.WithTraceID(traceID).WithProtocol("graphql")
 	wsError := baseError.WithTraceID(traceID).WithProtocol("websocket")
 
 	// All should have the same core error information
-	errors := []*StandardError{httpError, jsonRpcError, graphqlError, wsError}
+	errors := []*StandardError{httpError, jsonRPCError, graphqlError, wsError}
 
 	for i, err := range errors {
 		t.Run(fmt.Sprintf("error_%d", i), func(t *testing.T) {
@@ -388,8 +388,8 @@ func TestErrorMetadata(t *testing.T) {
 	assert.NotNil(t, httpResponse.ErrorInfo.Details)
 
 	// Test JSON-RPC transformation preserves metadata
-	jsonRpcErr := err.ToJSONRPCError("test-id")
-	if data, ok := jsonRpcErr.Error.Data.(*StandardError); ok {
+	jsonRPCErr := err.ToJSONRPCError("test-id")
+	if data, ok := jsonRPCErr.Error.Data.(*StandardError); ok {
 		assert.Equal(t, err.ErrorInfo.TraceID, data.ErrorInfo.TraceID)
 		assert.Equal(t, err.ErrorInfo.Details, data.ErrorInfo.Details)
 	}

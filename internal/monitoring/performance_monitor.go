@@ -389,7 +389,7 @@ type PerformanceAlert struct {
 	Context         map[string]interface{} `json:"context"`
 }
 
-// Alert-related types
+// AlertSeverity represents the severity level of an alert
 type AlertSeverity string
 
 const (
@@ -428,7 +428,7 @@ type AlertAction struct {
 	Enabled    bool                   `json:"enabled"`
 }
 
-// Data retention and lifecycle
+// DataRetentionPolicy defines how long different types of data should be retained
 type DataRetentionPolicy struct {
 	RawDataRetention        time.Duration `json:"raw_data_retention"`
 	AggregatedDataRetention time.Duration `json:"aggregated_data_retention"`
@@ -440,7 +440,7 @@ type DataRetentionPolicy struct {
 	PurgeThreshold          time.Duration `json:"purge_threshold"`
 }
 
-// Health and status monitoring
+// HealthStatus represents the health status of a system component
 type HealthStatus string
 
 const (
@@ -450,7 +450,7 @@ const (
 	HealthStatusUnknown   HealthStatus = "unknown"
 )
 
-// Supporting components (simplified implementations)
+// NotificationEngine handles sending notifications for alerts and events
 type NotificationEngine struct {
 	channels []NotificationChannel
 	enabled  bool

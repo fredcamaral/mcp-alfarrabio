@@ -878,77 +878,160 @@ func getEnvInt(key string, defaultValue int) int {
 
 // detectSmartTags identifies specialized tags based on content patterns
 func (cs *Service) detectSmartTags(content string) []string {
-	tags := []string{}
+	var tags []string
+
+	// Detect pattern-based tags
+	tags = append(tags, cs.detectPatternBasedTags(content)...)
+	
+	// Detect content-based tags
+	tags = append(tags, cs.detectContentBasedTags(content)...)
+
+	return tags
+}
+
+// detectPatternBasedTags detects tags using regex patterns
+func (cs *Service) detectPatternBasedTags(content string) []string {
+	var tags []string
 
 	// High-impact decision detection
-	for _, pattern := range cs.highImpactPatterns {
-		if pattern.MatchString(content) {
-			tags = append(tags, "high-impact")
-			break
-		}
+	if cs.detectHighImpactPattern(content) {
+		tags = append(tags, "high-impact")
 	}
 
 	// Reusable pattern detection
-	for _, pattern := range cs.reusablePatterns {
-		if pattern.MatchString(content) {
-			tags = append(tags, "reusable-pattern")
-			break
-		}
+	if cs.detectReusablePattern(content) {
+		tags = append(tags, "reusable-pattern")
 	}
 
 	// Gotcha detection
-	for _, pattern := range cs.gotchaPatterns {
-		if pattern.MatchString(content) {
-			tags = append(tags, "gotcha")
-			break
-		}
+	if cs.detectGotchaPattern(content) {
+		tags = append(tags, "gotcha")
 	}
 
 	// Architectural decision detection
-	for _, pattern := range cs.architecturalPatterns {
-		if pattern.MatchString(content) {
-			tags = append(tags, "architecture")
-			break
-		}
+	if cs.detectArchitecturalPattern(content) {
+		tags = append(tags, "architecture")
 	}
 
 	// Performance-related detection
-	for _, pattern := range cs.performancePatterns {
-		if pattern.MatchString(content) {
-			tags = append(tags, "performance")
-			break
-		}
+	if cs.detectPerformancePattern(content) {
+		tags = append(tags, "performance")
 	}
 
-	// Additional smart tags based on content analysis
+	return tags
+}
+
+// detectContentBasedTags detects tags using string content analysis
+func (cs *Service) detectContentBasedTags(content string) []string {
+	var tags []string
 	contentLower := strings.ToLower(content)
 
 	// Testing and quality
-	if strings.Contains(contentLower, "test") || strings.Contains(contentLower, "testing") {
+	if cs.detectTestingKeywords(contentLower) {
 		tags = append(tags, "testing")
 	}
 
 	// Documentation
-	if strings.Contains(contentLower, "document") || strings.Contains(contentLower, "readme") {
+	if cs.detectDocumentationKeywords(contentLower) {
 		tags = append(tags, "documentation")
 	}
 
 	// Security
-	if strings.Contains(contentLower, "security") || strings.Contains(contentLower, "auth") {
+	if cs.detectSecurityKeywords(contentLower) {
 		tags = append(tags, "security")
 	}
 
 	// DevOps and deployment
-	if strings.Contains(contentLower, "deploy") || strings.Contains(contentLower, "ci/cd") {
+	if cs.detectDevOpsKeywords(contentLower) {
 		tags = append(tags, "devops")
 	}
 
 	// API and integration
-	if strings.Contains(contentLower, "api") || strings.Contains(contentLower, "endpoint") {
+	if cs.detectAPIKeywords(contentLower) {
 		tags = append(tags, "api")
 	}
 
 	return tags
+}
+
+// detectHighImpactPattern checks for high-impact decision patterns
+func (cs *Service) detectHighImpactPattern(content string) bool {
+	for _, pattern := range cs.highImpactPatterns {
+		if pattern.MatchString(content) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectReusablePattern checks for reusable pattern indicators
+func (cs *Service) detectReusablePattern(content string) bool {
+	for _, pattern := range cs.reusablePatterns {
+		if pattern.MatchString(content) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectGotchaPattern checks for gotcha/pitfall patterns
+func (cs *Service) detectGotchaPattern(content string) bool {
+	for _, pattern := range cs.gotchaPatterns {
+		if pattern.MatchString(content) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectArchitecturalPattern checks for architectural decision patterns
+func (cs *Service) detectArchitecturalPattern(content string) bool {
+	for _, pattern := range cs.architecturalPatterns {
+		if pattern.MatchString(content) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectPerformancePattern checks for performance-related patterns
+func (cs *Service) detectPerformancePattern(content string) bool {
+	for _, pattern := range cs.performancePatterns {
+		if pattern.MatchString(content) {
+			return true
+		}
+	}
+	return false
+}
+
+// detectTestingKeywords checks for testing-related keywords
+func (cs *Service) detectTestingKeywords(contentLower string) bool {
+	return strings.Contains(contentLower, "test") || 
+		   strings.Contains(contentLower, "testing")
+}
+
+// detectDocumentationKeywords checks for documentation-related keywords
+func (cs *Service) detectDocumentationKeywords(contentLower string) bool {
+	return strings.Contains(contentLower, "document") || 
+		   strings.Contains(contentLower, "readme")
+}
+
+// detectSecurityKeywords checks for security-related keywords
+func (cs *Service) detectSecurityKeywords(contentLower string) bool {
+	return strings.Contains(contentLower, "security") || 
+		   strings.Contains(contentLower, "auth")
+}
+
+// detectDevOpsKeywords checks for DevOps-related keywords
+func (cs *Service) detectDevOpsKeywords(contentLower string) bool {
+	return strings.Contains(contentLower, "deploy") || 
+		   strings.Contains(contentLower, "ci/cd")
+}
+
+// detectAPIKeywords checks for API-related keywords
+func (cs *Service) detectAPIKeywords(contentLower string) bool {
+	return strings.Contains(contentLower, "api") || 
+		   strings.Contains(contentLower, "endpoint")
 }
 
 // buildExtendedMetadata creates rich metadata for smart analysis

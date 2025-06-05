@@ -20,7 +20,7 @@ type StorageInterface interface {
 	ListBySession(ctx context.Context, sessionID string) ([]types.ConversationChunk, error)
 	ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error)
 	StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error)
-	GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error)
+	GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error)
 }
 
 // NewRelationshipDetector creates a new relationship detector

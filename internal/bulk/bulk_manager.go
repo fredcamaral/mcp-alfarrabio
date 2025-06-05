@@ -363,7 +363,7 @@ func (m *Manager) executeBulkUpdate(ctx context.Context, op *Request, progress *
 	// Similar to store but uses Update method
 	for i := range op.Chunks {
 		chunk := &op.Chunks[i]
-		if err := m.storage.Update(ctx, *chunk); err != nil {
+		if err := m.storage.Update(ctx, chunk); err != nil {
 			progress.Errors = append(progress.Errors, Error{
 				ItemIndex: i,
 				ItemID:    chunk.ID,
@@ -567,7 +567,7 @@ func (m *Manager) processBatchesStore(ctx context.Context, batches [][]types.Con
 
 			for j := range chunks {
 				chunk := &chunks[j]
-				if err := m.storage.Store(ctx, *chunk); err != nil {
+				if err := m.storage.Store(ctx, chunk); err != nil {
 					progress.Errors = append(progress.Errors, Error{
 						ItemIndex: batchIndex*op.Options.BatchSize + j,
 						ItemID:    chunk.ID,

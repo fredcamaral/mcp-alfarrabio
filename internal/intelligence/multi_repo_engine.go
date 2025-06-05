@@ -255,58 +255,59 @@ func (mre *MultiRepoEngine) AnalyzeCrossRepoPatterns(ctx context.Context) error 
 
 	// Identify cross-repository patterns
 	for patternName, repos := range allPatterns {
-		if len(repos) >= 2 { // Pattern appears in multiple repos
-			crossPattern := &CrossRepoPattern{
-				ID:           fmt.Sprintf("cross_%s_%d", sanitizeID(patternName), time.Now().Unix()),
-				Name:         patternName,
-				Description:  "Cross-repository pattern: " + patternName,
-				Repositories: make([]string, 0),
-				Frequency:    len(repos),
-				Confidence:   mre.calculateCrossPatternConfidence(repos),
-				Keywords:     []string{patternName},
-				TechStacks:   make([]string, 0),
-				Frameworks:   make([]string, 0),
-				PatternType:  PatternTypeWorkflow,
-				Examples:     make([]CrossRepoExample, 0),
-				CreatedAt:    time.Now(),
-				UpdatedAt:    time.Now(),
-			}
-
-			// Collect unique repositories, tech stacks, and frameworks
-			seenRepos := make(map[string]bool)
-			seenTechStacks := make(map[string]bool)
-			seenFrameworks := make(map[string]bool)
-
-			for _, info := range repos {
-				if !seenRepos[info.Repository] {
-					crossPattern.Repositories = append(crossPattern.Repositories, info.Repository)
-					seenRepos[info.Repository] = true
-				}
-
-				for _, tech := range info.TechStack {
-					if !seenTechStacks[tech] {
-						crossPattern.TechStacks = append(crossPattern.TechStacks, tech)
-						seenTechStacks[tech] = true
-					}
-				}
-
-				if info.Framework != "" && !seenFrameworks[info.Framework] {
-					crossPattern.Frameworks = append(crossPattern.Frameworks, info.Framework)
-					seenFrameworks[info.Framework] = true
-				}
-			}
-
-			// Calculate success rate across repositories
-			totalSuccess := 0.0
-			for _, repoID := range crossPattern.Repositories {
-				if repo, exists := mre.repositories[repoID]; exists {
-					totalSuccess += repo.SuccessRate
-				}
-			}
-			crossPattern.SuccessRate = totalSuccess / float64(len(crossPattern.Repositories))
-
-			mre.crossRepoPatterns[crossPattern.ID] = crossPattern
+		if len(repos) < 2 { // Pattern doesn't appear in multiple repos
+			continue
 		}
+		crossPattern := &CrossRepoPattern{
+			ID:           fmt.Sprintf("cross_%s_%d", sanitizeID(patternName), time.Now().Unix()),
+			Name:         patternName,
+			Description:  "Cross-repository pattern: " + patternName,
+			Repositories: make([]string, 0),
+			Frequency:    len(repos),
+			Confidence:   mre.calculateCrossPatternConfidence(repos),
+			Keywords:     []string{patternName},
+			TechStacks:   make([]string, 0),
+			Frameworks:   make([]string, 0),
+			PatternType:  PatternTypeWorkflow,
+			Examples:     make([]CrossRepoExample, 0),
+			CreatedAt:    time.Now(),
+			UpdatedAt:    time.Now(),
+		}
+
+		// Collect unique repositories, tech stacks, and frameworks
+		seenRepos := make(map[string]bool)
+		seenTechStacks := make(map[string]bool)
+		seenFrameworks := make(map[string]bool)
+
+		for _, info := range repos {
+			if !seenRepos[info.Repository] {
+				crossPattern.Repositories = append(crossPattern.Repositories, info.Repository)
+				seenRepos[info.Repository] = true
+			}
+
+			for _, tech := range info.TechStack {
+				if !seenTechStacks[tech] {
+					crossPattern.TechStacks = append(crossPattern.TechStacks, tech)
+					seenTechStacks[tech] = true
+				}
+			}
+
+			if info.Framework != "" && !seenFrameworks[info.Framework] {
+				crossPattern.Frameworks = append(crossPattern.Frameworks, info.Framework)
+				seenFrameworks[info.Framework] = true
+			}
+		}
+
+		// Calculate success rate across repositories
+		totalSuccess := 0.0
+		for _, repoID := range crossPattern.Repositories {
+			if repo, exists := mre.repositories[repoID]; exists {
+				totalSuccess += repo.SuccessRate
+			}
+		}
+		crossPattern.SuccessRate = totalSuccess / float64(len(crossPattern.Repositories))
+
+		mre.crossRepoPatterns[crossPattern.ID] = crossPattern
 	}
 
 	mre.lastAnalysis = time.Now()
@@ -314,7 +315,7 @@ func (mre *MultiRepoEngine) AnalyzeCrossRepoPatterns(ctx context.Context) error 
 }
 
 // QueryMultiRepo performs queries across multiple repositories
-func (mre *MultiRepoEngine) QueryMultiRepo(ctx context.Context, query MultiRepoQuery) ([]MultiRepoResult, error) {
+func (mre *MultiRepoEngine) QueryMultiRepo(ctx context.Context, query *MultiRepoQuery) ([]MultiRepoResult, error) {
 	var results []MultiRepoResult
 
 	// Filter repositories based on query criteria
@@ -513,7 +514,8 @@ func (mre *MultiRepoEngine) extractTechStack(chunks []types.ConversationChunk) [
 		"git", "github", "gitlab", "ci/cd", "jenkins",
 	}
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		content := strings.ToLower(chunk.Content)
 		for _, tech := range technologies {
 			if strings.Contains(content, tech) {
@@ -540,7 +542,8 @@ func (mre *MultiRepoEngine) extractPatterns(chunks []types.ConversationChunk) []
 		"security", "authentication", "authorization", "logging", "monitoring",
 	}
 
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		content := strings.ToLower(chunk.Content)
 		for _, pattern := range commonPatterns {
 			if strings.Contains(content, strings.ReplaceAll(pattern, "_", " ")) {
@@ -599,7 +602,8 @@ func (mre *MultiRepoEngine) calculateSuccessRate(chunks []types.ConversationChun
 	}
 
 	successCount := 0
-	for _, chunk := range chunks {
+	for i := range chunks {
+		chunk := &chunks[i]
 		// Simple heuristic: look for success indicators
 		content := strings.ToLower(chunk.Content)
 		if strings.Contains(content, "success") || strings.Contains(content, "works") ||
@@ -626,67 +630,72 @@ func (mre *MultiRepoEngine) calculateCrossPatternConfidence(repos []PatternInfo)
 	return baseConfidence
 }
 
-func (mre *MultiRepoEngine) filterRepositories(query MultiRepoQuery) []*RepositoryContext {
+// matchesRepositoryFilter checks if repository matches the repository ID filter
+func (mre *MultiRepoEngine) matchesRepositoryFilter(repo *RepositoryContext, repositories []string) bool {
+	if len(repositories) == 0 {
+		return true
+	}
+	
+	for _, repoID := range repositories {
+		if repo.ID == repoID {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesTechStackFilter checks if repository matches the tech stack filter
+func (mre *MultiRepoEngine) matchesTechStackFilter(repo *RepositoryContext, techStacks []string) bool {
+	if len(techStacks) == 0 {
+		return true
+	}
+	
+	for _, queryTech := range techStacks {
+		for _, repoTech := range repo.TechStack {
+			if strings.EqualFold(queryTech, repoTech) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// matchesFrameworkFilter checks if repository matches the framework filter
+func (mre *MultiRepoEngine) matchesFrameworkFilter(repo *RepositoryContext, frameworks []string) bool {
+	if len(frameworks) == 0 {
+		return true
+	}
+	
+	for _, framework := range frameworks {
+		if strings.EqualFold(framework, repo.Framework) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesTimeRangeFilter checks if repository matches the time range filter
+func (mre *MultiRepoEngine) matchesTimeRangeFilter(repo *RepositoryContext, timeRange *TimeRange) bool {
+	if timeRange == nil {
+		return true
+	}
+	
+	return !repo.LastActivity.Before(timeRange.Start) && !repo.LastActivity.After(timeRange.End)
+}
+
+// repositoryMatchesQuery checks if a repository matches all query filters
+func (mre *MultiRepoEngine) repositoryMatchesQuery(repo *RepositoryContext, query *MultiRepoQuery) bool {
+	return mre.matchesRepositoryFilter(repo, query.Repositories) &&
+		mre.matchesTechStackFilter(repo, query.TechStacks) &&
+		mre.matchesFrameworkFilter(repo, query.Frameworks) &&
+		mre.matchesTimeRangeFilter(repo, query.TimeRange)
+}
+
+func (mre *MultiRepoEngine) filterRepositories(query *MultiRepoQuery) []*RepositoryContext {
 	var candidates []*RepositoryContext
 
 	for _, repo := range mre.repositories {
-		matches := true
-
-		// Filter by specified repositories
-		if len(query.Repositories) > 0 {
-			found := false
-			for _, repoID := range query.Repositories {
-				if repo.ID == repoID {
-					found = true
-					break
-				}
-			}
-			if !found {
-				matches = false
-			}
-		}
-
-		// Filter by tech stack
-		if len(query.TechStacks) > 0 && matches {
-			found := false
-			for _, queryTech := range query.TechStacks {
-				for _, repoTech := range repo.TechStack {
-					if strings.EqualFold(queryTech, repoTech) {
-						found = true
-						break
-					}
-				}
-				if found {
-					break
-				}
-			}
-			if !found {
-				matches = false
-			}
-		}
-
-		// Filter by framework
-		if len(query.Frameworks) > 0 && matches {
-			found := false
-			for _, framework := range query.Frameworks {
-				if strings.EqualFold(framework, repo.Framework) {
-					found = true
-					break
-				}
-			}
-			if !found {
-				matches = false
-			}
-		}
-
-		// Filter by time range
-		if query.TimeRange != nil && matches {
-			if repo.LastActivity.Before(query.TimeRange.Start) || repo.LastActivity.After(query.TimeRange.End) {
-				matches = false
-			}
-		}
-
-		if matches {
+		if mre.repositoryMatchesQuery(repo, query) {
 			candidates = append(candidates, repo)
 		}
 	}
@@ -694,7 +703,7 @@ func (mre *MultiRepoEngine) filterRepositories(query MultiRepoQuery) []*Reposito
 	return candidates
 }
 
-func (mre *MultiRepoEngine) calculateRepositoryRelevance(repo *RepositoryContext, query MultiRepoQuery) float64 {
+func (mre *MultiRepoEngine) calculateRepositoryRelevance(repo *RepositoryContext, query *MultiRepoQuery) float64 {
 	relevance := 0.0
 
 	// Base relevance on success rate
@@ -723,7 +732,7 @@ func (mre *MultiRepoEngine) calculateRepositoryRelevance(repo *RepositoryContext
 	return relevance
 }
 
-func (mre *MultiRepoEngine) patternMatchesQuery(pattern *CrossRepoPattern, query MultiRepoQuery) bool {
+func (mre *MultiRepoEngine) patternMatchesQuery(pattern *CrossRepoPattern, query *MultiRepoQuery) bool {
 	// Check pattern types
 	if len(query.PatternTypes) > 0 {
 		found := false

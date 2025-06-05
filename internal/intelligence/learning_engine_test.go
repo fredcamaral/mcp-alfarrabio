@@ -170,7 +170,7 @@ func TestGetAdaptationRecommendations(t *testing.T) {
 			},
 			Timestamp: time.Now().Add(-time.Duration(i) * time.Hour),
 		}
-		learningEngine.addEvent(event)
+		learningEngine.addEvent(&event)
 	}
 
 	recommendations, err := learningEngine.GetAdaptationRecommendations(context.Background())
@@ -228,8 +228,8 @@ func TestGetLearningStats(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	learningEngine.addEvent(successEvent)
-	learningEngine.addEvent(failureEvent)
+	learningEngine.addEvent(&successEvent)
+	learningEngine.addEvent(&failureEvent)
 
 	stats := learningEngine.GetLearningStats()
 
@@ -278,7 +278,7 @@ func TestLearningMetricsUpdate(t *testing.T) {
 	}
 
 	// Update metrics
-	learningEngine.updateMetrics(event)
+	learningEngine.updateMetrics(&event)
 
 	// Check that metrics were created
 	if len(learningEngine.metrics) != 3 {
@@ -307,7 +307,7 @@ func TestLearningMetricsUpdate(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	learningEngine.updateMetrics(event2)
+	learningEngine.updateMetrics(&event2)
 
 	// Check that accuracy was averaged
 	if metric, exists := learningEngine.metrics["accuracy"]; exists {

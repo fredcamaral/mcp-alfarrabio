@@ -389,7 +389,7 @@ func (c *Cache) estimateSize(value any) int {
 }
 
 // RecordMetric records a performance metric
-func (po *PerformanceOptimizer) RecordMetric(metric PerformanceMetric) {
+func (po *PerformanceOptimizer) RecordMetric(metric *PerformanceMetric) {
 	if !po.enabled {
 		return
 	}
@@ -398,7 +398,7 @@ func (po *PerformanceOptimizer) RecordMetric(metric PerformanceMetric) {
 	metric.IsHealthy = metric.Value <= metric.Threshold
 
 	po.metricsMutex.Lock()
-	po.metrics[metric.Name] = &metric
+	po.metrics[metric.Name] = metric
 	po.metricsMutex.Unlock()
 }
 
@@ -416,13 +416,13 @@ func (po *PerformanceOptimizer) GetMetrics() map[string]*PerformanceMetric {
 }
 
 // AddOptimizationRule adds a new optimization rule
-func (po *PerformanceOptimizer) AddOptimizationRule(rule OptimizationRule) {
+func (po *PerformanceOptimizer) AddOptimizationRule(rule *OptimizationRule) {
 	po.rulesMutex.Lock()
 	defer po.rulesMutex.Unlock()
 
 	rule.Enabled = true
 	rule.IsActive = true
-	po.rules[rule.ID] = &rule
+	po.rules[rule.ID] = rule
 }
 
 // ApplyOptimizations applies optimization rules based on current metrics
@@ -1240,7 +1240,7 @@ func (po *PerformanceOptimizer) Shutdown() error {
 	return nil
 }
 
-// Placeholder implementations for new components
+// NewOptimizationEngine creates a new optimization engine instance
 func NewOptimizationEngine() *OptimizationEngine {
 	return &OptimizationEngine{
 		strategies:            make(map[string]*OptimizationStrategy),

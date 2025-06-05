@@ -308,13 +308,13 @@ func (cd *ConflictDetector) detectOutcomeConflicts(chunks []types.ConversationCh
 		}
 
 		// Check for outcome conflicts within the group
-		for i, chunk1 := range group {
-			for j, chunk2 := range group {
+		for i := range group {
+			for j := range group {
 				if i >= j {
 					continue
 				}
 
-				if conflict := cd.analyzeOutcomeConflict(chunk1, chunk2); conflict != nil {
+				if conflict := cd.analyzeOutcomeConflict(group[i], group[j]); conflict != nil {
 					conflicts = append(conflicts, *conflict)
 				}
 			}
@@ -330,21 +330,21 @@ func (cd *ConflictDetector) detectDecisionConflicts(chunks []types.ConversationC
 
 	// Find decision-related chunks
 	decisionChunks := []types.ConversationChunk{}
-	for _, chunk := range chunks {
-		if chunk.Type == types.ChunkTypeArchitectureDecision ||
-			cd.containsDecisionLanguage(chunk.Content) {
-			decisionChunks = append(decisionChunks, chunk)
+	for i := range chunks {
+		if chunks[i].Type == types.ChunkTypeArchitectureDecision ||
+			cd.containsDecisionLanguage(chunks[i].Content) {
+			decisionChunks = append(decisionChunks, chunks[i])
 		}
 	}
 
 	// Analyze decision conflicts
-	for i, chunk1 := range decisionChunks {
-		for j, chunk2 := range decisionChunks {
-			if i >= j || chunk1.SessionID == chunk2.SessionID {
+	for i := range decisionChunks {
+		for j := range decisionChunks {
+			if i >= j || decisionChunks[i].SessionID == decisionChunks[j].SessionID {
 				continue
 			}
 
-			if conflict := cd.analyzeDecisionConflict(chunk1, chunk2); conflict != nil {
+			if conflict := cd.analyzeDecisionConflict(decisionChunks[i], decisionChunks[j]); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}
@@ -359,20 +359,20 @@ func (cd *ConflictDetector) detectMethodologyConflicts(chunks []types.Conversati
 
 	// Find methodology-related chunks
 	methodChunks := []types.ConversationChunk{}
-	for _, chunk := range chunks {
-		if cd.containsKeywords(chunk.Content, cd.methodologyKeywords) {
-			methodChunks = append(methodChunks, chunk)
+	for i := range chunks {
+		if cd.containsKeywords(chunks[i].Content, cd.methodologyKeywords) {
+			methodChunks = append(methodChunks, chunks[i])
 		}
 	}
 
 	// Analyze methodology conflicts
-	for i, chunk1 := range methodChunks {
-		for j, chunk2 := range methodChunks {
-			if i >= j || chunk1.SessionID == chunk2.SessionID {
+	for i := range methodChunks {
+		for j := range methodChunks {
+			if i >= j || methodChunks[i].SessionID == methodChunks[j].SessionID {
 				continue
 			}
 
-			if conflict := cd.analyzeMethodologyConflict(chunk1, chunk2); conflict != nil {
+			if conflict := cd.analyzeMethodologyConflict(methodChunks[i], methodChunks[j]); conflict != nil {
 				conflicts = append(conflicts, *conflict)
 			}
 		}
@@ -384,6 +384,7 @@ func (cd *ConflictDetector) detectMethodologyConflicts(chunks []types.Conversati
 // Analysis methods for specific conflict types
 
 // analyzeGenericConflict provides common conflict analysis logic
+//nolint:gocritic // hugeParam: large struct parameters required for interface consistency
 func (cd *ConflictDetector) analyzeGenericConflict(chunk1, chunk2 types.ConversationChunk, conflictType ConflictType,
 	findConflictPoints func(string, string) []ConflictPoint,
 	determineSeverity func([]ConflictPoint) ConflictSeverity,
@@ -419,6 +420,7 @@ func (cd *ConflictDetector) analyzeGenericConflict(chunk1, chunk2 types.Conversa
 	}
 }
 
+//nolint:gocritic // hugeParam: large struct parameters required for interface consistency
 func (cd *ConflictDetector) analyzeArchitecturalConflict(chunk1, chunk2 types.ConversationChunk) *Conflict {
 	return cd.analyzeGenericConflict(chunk1, chunk2, ConflictTypeArchitectural,
 		cd.findArchitecturalConflictPoints,
@@ -427,6 +429,7 @@ func (cd *ConflictDetector) analyzeArchitecturalConflict(chunk1, chunk2 types.Co
 		"Architectural Decision Conflict")
 }
 
+//nolint:gocritic // hugeParam: large struct parameters required for interface consistency
 func (cd *ConflictDetector) analyzeTechnicalConflict(chunk1, chunk2 types.ConversationChunk) *Conflict {
 	return cd.analyzeGenericConflict(chunk1, chunk2, ConflictTypeTechnical,
 		cd.findTechnicalConflictPoints,
@@ -435,6 +438,7 @@ func (cd *ConflictDetector) analyzeTechnicalConflict(chunk1, chunk2 types.Conver
 		"Technical Implementation Conflict")
 }
 
+//nolint:gocritic // hugeParam: large struct parameters required for interface consistency
 func (cd *ConflictDetector) analyzeTemporalConflict(chunk1, chunk2 types.ConversationChunk, timeDiff time.Duration) *Conflict {
 	similarity := cd.calculateContentSimilarity(chunk1.Content, chunk2.Content)
 	if similarity < 0.4 {
@@ -442,7 +446,7 @@ func (cd *ConflictDetector) analyzeTemporalConflict(chunk1, chunk2 types.Convers
 	}
 
 	// Check if there's a temporal progression that seems contradictory
-	if !cd.hasTemporalContradiction(chunk1, chunk2) {
+	if !cd.hasTemporalContradiction(&chunk1, &chunk2) {
 		return nil
 	}
 
@@ -467,6 +471,7 @@ func (cd *ConflictDetector) analyzeTemporalConflict(chunk1, chunk2 types.Convers
 	}
 }
 
+//nolint:gocritic // hugeParam: large struct parameters required for interface consistency
 func (cd *ConflictDetector) analyzeOutcomeConflict(chunk1, chunk2 types.ConversationChunk) *Conflict {
 	if chunk1.Metadata.Outcome == chunk2.Metadata.Outcome {
 		return nil // Same outcome, no conflict
@@ -477,7 +482,7 @@ func (cd *ConflictDetector) analyzeOutcomeConflict(chunk1, chunk2 types.Conversa
 		return nil // Not similar enough
 	}
 
-	conflictPoints := cd.findOutcomeConflictPoints(chunk1, chunk2)
+	conflictPoints := cd.findOutcomeConflictPoints(&chunk1, &chunk2)
 	confidence := cd.calculateConflictConfidence(similarity, conflictPoints)
 	severity := cd.determineOutcomeSeverity(chunk1.Metadata.Outcome, chunk2.Metadata.Outcome)
 
@@ -498,6 +503,7 @@ func (cd *ConflictDetector) analyzeOutcomeConflict(chunk1, chunk2 types.Conversa
 	}
 }
 
+//nolint:gocritic // hugeParam: large struct parameters required for interface consistency
 func (cd *ConflictDetector) analyzeDecisionConflict(chunk1, chunk2 types.ConversationChunk) *Conflict {
 	return cd.analyzeGenericConflict(chunk1, chunk2, ConflictTypeDecision,
 		cd.findDecisionConflictPoints,
@@ -506,6 +512,7 @@ func (cd *ConflictDetector) analyzeDecisionConflict(chunk1, chunk2 types.Convers
 		"Decision Conflict")
 }
 
+//nolint:gocritic // hugeParam: large struct parameters required for interface consistency
 func (cd *ConflictDetector) analyzeMethodologyConflict(chunk1, chunk2 types.ConversationChunk) *Conflict {
 	return cd.analyzeGenericConflict(chunk1, chunk2, ConflictTypeMethodology,
 		cd.findMethodologyConflictPoints,
@@ -571,21 +578,21 @@ func (cd *ConflictDetector) groupSimilarChunks(chunks []types.ConversationChunk)
 	groups := make([][]types.ConversationChunk, 0, len(chunks))
 	used := make(map[int]bool)
 
-	for i, chunk1 := range chunks {
+	for i := range chunks {
 		if used[i] {
 			continue
 		}
 
-		group := []types.ConversationChunk{chunk1}
+		group := []types.ConversationChunk{chunks[i]}
 		used[i] = true
 
-		for j, chunk2 := range chunks {
+		for j := range chunks {
 			if i == j || used[j] {
 				continue
 			}
 
-			if cd.calculateContentSimilarity(chunk1.Content, chunk2.Content) > 0.4 {
-				group = append(group, chunk2)
+			if cd.calculateContentSimilarity(chunks[i].Content, chunks[j].Content) > 0.4 {
+				group = append(group, chunks[j])
 				used[j] = true
 			}
 		}
@@ -596,7 +603,7 @@ func (cd *ConflictDetector) groupSimilarChunks(chunks []types.ConversationChunk)
 	return groups
 }
 
-func (cd *ConflictDetector) hasTemporalContradiction(chunk1, chunk2 types.ConversationChunk) bool {
+func (cd *ConflictDetector) hasTemporalContradiction(chunk1, chunk2 *types.ConversationChunk) bool {
 	// Check if later chunk contradicts earlier chunk
 	if chunk1.Metadata.Outcome == types.OutcomeSuccess && chunk2.Metadata.Outcome == types.OutcomeFailed {
 		return true
@@ -679,7 +686,7 @@ func (cd *ConflictDetector) findTemporalConflictPoints(content1, content2 string
 	return []ConflictPoint{}
 }
 
-func (cd *ConflictDetector) findOutcomeConflictPoints(chunk1, chunk2 types.ConversationChunk) []ConflictPoint {
+func (cd *ConflictDetector) findOutcomeConflictPoints(chunk1, chunk2 *types.ConversationChunk) []ConflictPoint {
 	// Implementation would analyze outcome differences
 	return []ConflictPoint{}
 }

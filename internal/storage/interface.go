@@ -13,10 +13,10 @@ type VectorStore interface {
 	Initialize(ctx context.Context) error
 
 	// Store a conversation chunk with embeddings
-	Store(ctx context.Context, chunk types.ConversationChunk) error
+	Store(ctx context.Context, chunk *types.ConversationChunk) error
 
-	// Search for similar chunks based on query embeddings
-	Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error)
+	// Search for similar chunks based on query embeddings  
+	Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error)
 
 	// Get a chunk by its ID
 	GetByID(ctx context.Context, id string) (*types.ConversationChunk, error)
@@ -31,7 +31,7 @@ type VectorStore interface {
 	Delete(ctx context.Context, id string) error
 
 	// Update a chunk
-	Update(ctx context.Context, chunk types.ConversationChunk) error
+	Update(ctx context.Context, chunk *types.ConversationChunk) error
 
 	// Health check for the vector store
 	HealthCheck(ctx context.Context) error
@@ -60,15 +60,15 @@ type VectorStore interface {
 	FindSimilar(ctx context.Context, content string, chunkType *types.ChunkType, limit int) ([]types.ConversationChunk, error)
 
 	// StoreChunk is an alias for Store for backward compatibility
-	StoreChunk(ctx context.Context, chunk types.ConversationChunk) error
+	StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error
 
 	// Batch operations
-	BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error)
+	BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error)
 	BatchDelete(ctx context.Context, ids []string) (*BatchResult, error)
 
 	// Relationship management
 	StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error)
-	GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error)
+	GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error)
 	TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error)
 	UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error
 	DeleteRelationship(ctx context.Context, relationshipID string) error
@@ -105,9 +105,9 @@ type TimeRange struct {
 
 // BatchOperation represents a batch operation for multiple chunks
 type BatchOperation struct {
-	Operation string                    `json:"operation"` // "store", "update", "delete"
-	Chunks    []types.ConversationChunk `json:"chunks,omitempty"`
-	IDs       []string                  `json:"ids,omitempty"` // For delete operations
+	Operation string                     `json:"operation"` // "store", "update", "delete"
+	Chunks    []*types.ConversationChunk `json:"chunks,omitempty"`
+	IDs       []string                   `json:"ids,omitempty"` // For delete operations
 }
 
 // BatchResult represents the result of a batch operation

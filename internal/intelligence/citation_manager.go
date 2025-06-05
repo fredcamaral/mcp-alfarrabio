@@ -139,8 +139,8 @@ func (cm *CitationManager) GenerateCitations(ctx context.Context, results []type
 
 	// Generate individual citations
 	citations := make([]Citation, 0, len(filteredResults))
-	for i, result := range filteredResults {
-		citation := cm.createCitation(&result, i+1)
+	for i := range filteredResults {
+		citation := cm.createCitation(&filteredResults[i], i+1)
 		citations = append(citations, citation)
 	}
 
@@ -208,14 +208,14 @@ func (cm *CitationManager) UpdateCitationUsage(ctx context.Context, citationIDs 
 func (cm *CitationManager) filterByConfidence(results []types.SearchResult) []types.SearchResult {
 	filtered := make([]types.SearchResult, 0)
 
-	for _, result := range results {
+	for i := range results {
 		confidence := 0.5 // Default confidence
-		if result.Chunk.Metadata.Confidence != nil {
-			confidence = result.Chunk.Metadata.Confidence.Score
+		if results[i].Chunk.Metadata.Confidence != nil {
+			confidence = results[i].Chunk.Metadata.Confidence.Score
 		}
 
 		if confidence >= cm.config.MinConfidenceForCitation {
-			filtered = append(filtered, result)
+			filtered = append(filtered, results[i])
 		}
 	}
 
@@ -266,7 +266,7 @@ func (cm *CitationManager) createCitation(result *types.SearchResult, index int)
 	}
 
 	// Format the citation text
-	citation.FormattedText = cm.formatCitationText(citation)
+	citation.FormattedText = cm.formatCitationText(&citation)
 
 	return citation
 }
@@ -274,34 +274,34 @@ func (cm *CitationManager) createCitation(result *types.SearchResult, index int)
 func (cm *CitationManager) groupCitations(citations []Citation) []CitationGroup {
 	groups := make(map[string]*CitationGroup)
 
-	for _, citation := range citations {
+	for i := range citations {
 		// Group by repository
-		repoKey := "repo_" + citation.Repository
+		repoKey := "repo_" + citations[i].Repository
 		if _, exists := groups[repoKey]; !exists {
 			groups[repoKey] = &CitationGroup{
 				GroupID:   repoKey,
 				GroupType: "repository",
-				GroupName: citation.Repository,
+				GroupName: citations[i].Repository,
 				Citations: []Citation{},
 				Weight:    0,
 			}
 		}
-		groups[repoKey].Citations = append(groups[repoKey].Citations, citation)
-		groups[repoKey].Weight += citation.Relevance
+		groups[repoKey].Citations = append(groups[repoKey].Citations, citations[i])
+		groups[repoKey].Weight += citations[i].Relevance
 
 		// Group by type
-		typeKey := "type_" + string(citation.Type)
+		typeKey := "type_" + string(citations[i].Type)
 		if _, exists := groups[typeKey]; !exists {
 			groups[typeKey] = &CitationGroup{
 				GroupID:   typeKey,
 				GroupType: "type",
-				GroupName: string(citation.Type),
+				GroupName: string(citations[i].Type),
 				Citations: []Citation{},
 				Weight:    0,
 			}
 		}
-		groups[typeKey].Citations = append(groups[typeKey].Citations, citation)
-		groups[typeKey].Weight += citation.Relevance
+		groups[typeKey].Citations = append(groups[typeKey].Citations, citations[i])
+		groups[typeKey].Weight += citations[i].Relevance
 	}
 
 	// Convert to slice and sort by weight
@@ -332,19 +332,19 @@ func (cm *CitationManager) formatBibliography(citations []Citation, groups []Cit
 			}
 			bibliography.WriteString(fmt.Sprintf("\n%s:\n", group.GroupName))
 
-			for _, citation := range group.Citations {
+			for j := range group.Citations {
 				bibliography.WriteString("  ")
-				bibliography.WriteString(citation.FormattedText)
+				bibliography.WriteString(group.Citations[j].FormattedText)
 				bibliography.WriteString(format.Separator)
 			}
 		}
 	} else {
 		// Format individual bibliography
-		for i, citation := range citations {
+		for i := range citations {
 			if i > 0 {
 				bibliography.WriteString(format.Separator)
 			}
-			bibliography.WriteString(citation.FormattedText)
+			bibliography.WriteString(citations[i].FormattedText)
 		}
 	}
 
@@ -355,24 +355,24 @@ func (cm *CitationManager) formatBibliography(citations []Citation, groups []Cit
 func (cm *CitationManager) generateInlineCitationMap(citations []Citation) map[string]string {
 	inlineMap := make(map[string]string)
 
-	for _, citation := range citations {
+	for i := range citations {
 		// Create inline reference for this citation
 		inlineFormat := cm.config.CustomFormats["inline"]
-		inlineRef := cm.replacePlaceholders(inlineFormat.Template, citation)
+		inlineRef := cm.replacePlaceholders(inlineFormat.Template, &citations[i])
 
 		// Map citation ID to inline reference
-		inlineMap[citation.ChunkID] = inlineRef
+		inlineMap[citations[i].ChunkID] = inlineRef
 	}
 
 	return inlineMap
 }
 
-func (cm *CitationManager) formatCitationText(citation Citation) string {
+func (cm *CitationManager) formatCitationText(citation *Citation) string {
 	format := cm.config.CustomFormats[cm.config.CitationStyle]
 	return cm.replacePlaceholders(format.Template, citation)
 }
 
-func (cm *CitationManager) replacePlaceholders(template string, citation Citation) string {
+func (cm *CitationManager) replacePlaceholders(template string, citation *Citation) string {
 	text := template
 
 	replacements := map[string]string{
@@ -408,11 +408,11 @@ func (cm *CitationManager) findMatchingCitations(text string, citations []Citati
 	matching := make([]Citation, 0)
 	textLower := strings.ToLower(text)
 
-	for _, citation := range citations {
+	for i := range citations {
 		// Check if citation content is referenced in the text
-		if strings.Contains(textLower, strings.ToLower(citation.Summary)) ||
-			strings.Contains(textLower, strings.ToLower(citation.Context)) {
-			matching = append(matching, citation)
+		if strings.Contains(textLower, strings.ToLower(citations[i].Summary)) ||
+			strings.Contains(textLower, strings.ToLower(citations[i].Context)) {
+			matching = append(matching, citations[i])
 		}
 	}
 
@@ -427,8 +427,8 @@ func (cm *CitationManager) formatInlineReference(citations []Citation) string {
 	inlineFormat := cm.config.CustomFormats["inline"]
 	refs := make([]string, len(citations))
 
-	for i, citation := range citations {
-		refs[i] = cm.replacePlaceholders(inlineFormat.Template, citation)
+	for i := range citations {
+		refs[i] = cm.replacePlaceholders(inlineFormat.Template, &citations[i])
 	}
 
 	return strings.Join(refs, inlineFormat.Separator)

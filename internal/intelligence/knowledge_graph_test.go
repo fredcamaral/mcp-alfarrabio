@@ -313,7 +313,7 @@ func TestQueryGraph(t *testing.T) {
 		Limit:         10,
 	}
 
-	results, err := builder.QueryGraph(query)
+	results, err := builder.QueryGraph(&query)
 	if err != nil {
 		t.Fatalf("Expected no error querying graph, got %v", err)
 	}
@@ -333,7 +333,7 @@ func TestQueryGraph(t *testing.T) {
 		Limit:         10,
 	}
 
-	keywordResults, err := builder.QueryGraph(keywordQuery)
+	keywordResults, err := builder.QueryGraph(&keywordQuery)
 	if err != nil {
 		t.Fatalf("Expected no error querying with keywords, got %v", err)
 	}

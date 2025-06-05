@@ -21,10 +21,10 @@ func NewSimpleMockStorage() *SimpleMockStorage {
 	}
 }
 
-func (s *SimpleMockStorage) BatchStore(_ context.Context, chunks []types.ConversationChunk) (*storage.BatchResult, error) {
+func (s *SimpleMockStorage) BatchStore(_ context.Context, chunks []*types.ConversationChunk) (*storage.BatchResult, error) {
 	success := 0
 	for i := range chunks {
-		chunk := &chunks[i]
+		chunk := chunks[i]
 		s.chunks[chunk.ID] = *chunk
 		success++
 	}
@@ -44,10 +44,10 @@ func (s *SimpleMockStorage) BatchDelete(_ context.Context, ids []string) (*stora
 
 // Minimal interface implementation - return nil/empty for unused methods
 func (s *SimpleMockStorage) Initialize(_ context.Context) error { return nil }
-func (s *SimpleMockStorage) Store(_ context.Context, _ types.ConversationChunk) error {
+func (s *SimpleMockStorage) Store(_ context.Context, _ *types.ConversationChunk) error {
 	return nil
 }
-func (s *SimpleMockStorage) Search(_ context.Context, _ types.MemoryQuery, _ []float64) (*types.SearchResults, error) {
+func (s *SimpleMockStorage) Search(_ context.Context, _ *types.MemoryQuery, _ []float64) (*types.SearchResults, error) {
 	return &types.SearchResults{}, nil
 }
 func (s *SimpleMockStorage) GetByID(_ context.Context, _ string) (*types.ConversationChunk, error) {
@@ -60,7 +60,7 @@ func (s *SimpleMockStorage) ListBySession(_ context.Context, _ string) ([]types.
 	return []types.ConversationChunk{}, nil
 }
 func (s *SimpleMockStorage) Delete(_ context.Context, _ string) error { return nil }
-func (s *SimpleMockStorage) Update(_ context.Context, _ types.ConversationChunk) error {
+func (s *SimpleMockStorage) Update(_ context.Context, _ *types.ConversationChunk) error {
 	return nil
 }
 func (s *SimpleMockStorage) HealthCheck(_ context.Context) error { return nil }
@@ -83,13 +83,13 @@ func (s *SimpleMockStorage) ListCollections(_ context.Context) ([]string, error)
 func (s *SimpleMockStorage) FindSimilar(_ context.Context, _ string, _ *types.ChunkType, _ int) ([]types.ConversationChunk, error) {
 	return []types.ConversationChunk{}, nil
 }
-func (s *SimpleMockStorage) StoreChunk(_ context.Context, _ types.ConversationChunk) error {
+func (s *SimpleMockStorage) StoreChunk(_ context.Context, _ *types.ConversationChunk) error {
 	return nil
 }
 func (s *SimpleMockStorage) StoreRelationship(_ context.Context, _, _ string, _ types.RelationType, _ float64, _ types.ConfidenceSource) (*types.MemoryRelationship, error) {
 	return nil, errors.New("not implemented")
 }
-func (s *SimpleMockStorage) GetRelationships(_ context.Context, _ types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (s *SimpleMockStorage) GetRelationships(_ context.Context, _ *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	return []types.RelationshipResult{}, nil
 }
 func (s *SimpleMockStorage) TraverseGraph(_ context.Context, _ string, _ int, _ []types.RelationType) (*types.GraphTraversalResult, error) {

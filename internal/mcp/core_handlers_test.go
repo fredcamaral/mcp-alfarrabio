@@ -24,7 +24,7 @@ func (m *MockVectorStore) Initialize(ctx context.Context) error {
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockVectorStore) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
 	args := m.Called(ctx, chunk)
 	return args.Error(0)
 }
@@ -60,7 +60,7 @@ func (m *MockVectorStore) Close() error {
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*storage.BatchResult, error) {
+func (m *MockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*storage.BatchResult, error) {
 	args := m.Called(ctx, chunks)
 	return args.Get(0).(*storage.BatchResult), args.Error(1)
 }
@@ -91,7 +91,7 @@ func (m *MockVectorStore) CountChunks(ctx context.Context, filters map[string]in
 }
 
 // Legacy relationship methods (old interface)
-func (m *MockVectorStore) StoreRelationshipLegacy(ctx context.Context, rel types.MemoryRelationship) error {
+func (m *MockVectorStore) StoreRelationshipLegacy(ctx context.Context, rel *types.MemoryRelationship) error {
 	args := m.Called(ctx, rel)
 	return args.Error(0)
 }
@@ -143,12 +143,12 @@ func (m *MockVectorStore) Scroll(ctx context.Context, filters map[string]interfa
 }
 
 // Additional methods required by VectorStore interface
-func (m *MockVectorStore) Store(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockVectorStore) Store(ctx context.Context, chunk *types.ConversationChunk) error {
 	args := m.Called(ctx, chunk)
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
+func (m *MockVectorStore) Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	args := m.Called(ctx, query, embeddings)
 	return args.Get(0).(*types.SearchResults), args.Error(1)
 }
@@ -158,7 +158,7 @@ func (m *MockVectorStore) GetByID(ctx context.Context, id string) (*types.Conver
 	return args.Get(0).(*types.ConversationChunk), args.Error(1)
 }
 
-func (m *MockVectorStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
+func (m *MockVectorStore) ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error) {
 	args := m.Called(ctx, repository, limit, offset)
 	return args.Get(0).([]types.ConversationChunk), args.Error(1)
 }
@@ -173,7 +173,7 @@ func (m *MockVectorStore) Delete(ctx context.Context, id string) error {
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) Update(ctx context.Context, chunk types.ConversationChunk) error {
+func (m *MockVectorStore) Update(ctx context.Context, chunk *types.ConversationChunk) error {
 	args := m.Called(ctx, chunk)
 	return args.Error(0)
 }
@@ -213,7 +213,7 @@ func (m *MockVectorStore) StoreRelationship(ctx context.Context, sourceID, targe
 	return args.Get(0).(*types.MemoryRelationship), args.Error(1)
 }
 
-func (m *MockVectorStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (m *MockVectorStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	args := m.Called(ctx, query)
 	return args.Get(0).([]types.RelationshipResult), args.Error(1)
 }
@@ -365,7 +365,7 @@ func (ts *TestMemoryServer) handleStoreChunk(ctx context.Context, params map[str
 	}
 
 	// Store chunk
-	if err := ts.vectorStore.StoreChunk(ctx, chunk); err != nil {
+	if err := ts.vectorStore.StoreChunk(ctx, &chunk); err != nil {
 		return nil, fmt.Errorf("failed to store chunk: %w", err)
 	}
 
@@ -534,7 +534,7 @@ func TestMCPMockOperations(t *testing.T) {
 	testStats := &storage.StoreStats{TotalChunks: 50}
 
 	// Set up expectations
-	mockStore.On("StoreChunk", mock.Anything, mock.MatchedBy(func(chunk types.ConversationChunk) bool {
+	mockStore.On("StoreChunk", mock.Anything, mock.MatchedBy(func(chunk *types.ConversationChunk) bool {
 		return chunk.Content == "This is a test memory chunk"
 	})).Return(nil)
 
@@ -543,7 +543,7 @@ func TestMCPMockOperations(t *testing.T) {
 	mockStore.On("SearchSimilar", mock.Anything, "test", 10, mock.Anything).Return([]types.ConversationChunk{testChunk}, nil)
 
 	// Test store operation
-	err := mockStore.StoreChunk(context.Background(), testChunk)
+	err := mockStore.StoreChunk(context.Background(), &testChunk)
 	assert.NoError(t, err)
 
 	// Test stats operation
@@ -570,7 +570,8 @@ func TestMCPErrorHandling(t *testing.T) {
 	mockStore.On("SearchSimilar", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return([]types.ConversationChunk{}, assert.AnError)
 
 	// Test store error
-	err := mockStore.StoreChunk(context.Background(), createTestChunk())
+	testChunk := createTestChunk()
+	err := mockStore.StoreChunk(context.Background(), &testChunk)
 	assert.Error(t, err)
 	assert.Equal(t, assert.AnError, err)
 
@@ -638,7 +639,7 @@ func TestHandleStoreChunk(t *testing.T) {
 				"tags":       []string{"test"},
 			},
 			setupMock: func(m *MockVectorStore) {
-				m.On("StoreChunk", mock.Anything, mock.MatchedBy(func(chunk types.ConversationChunk) bool {
+				m.On("StoreChunk", mock.Anything, mock.MatchedBy(func(chunk *types.ConversationChunk) bool {
 					return chunk.Content == "Test memory content" &&
 						chunk.SessionID == "test-session" &&
 						chunk.Metadata.Repository == "test-repo"

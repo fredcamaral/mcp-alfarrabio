@@ -123,14 +123,14 @@ func TestStandardError_ToJSONRPCError(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			jsonRpcError := tt.error.ToJSONRPCError(tt.id)
+			jsonRPCError := tt.error.ToJSONRPCError(tt.id)
 
-			assert.Equal(t, "2.0", jsonRpcError.JSONRPC)
-			assert.Equal(t, tt.id, jsonRpcError.ID)
-			assert.NotNil(t, jsonRpcError.Error)
-			assert.Equal(t, tt.expectedCode, jsonRpcError.Error.Code)
-			assert.Equal(t, tt.error.ErrorInfo.Message, jsonRpcError.Error.Message)
-			assert.Equal(t, tt.error, jsonRpcError.Error.Data)
+			assert.Equal(t, "2.0", jsonRPCError.JSONRPC)
+			assert.Equal(t, tt.id, jsonRPCError.ID)
+			assert.NotNil(t, jsonRPCError.Error)
+			assert.Equal(t, tt.expectedCode, jsonRPCError.Error.Code)
+			assert.Equal(t, tt.error.ErrorInfo.Message, jsonRPCError.Error.Message)
+			assert.Equal(t, tt.error, jsonRPCError.Error.Data)
 		})
 	}
 }

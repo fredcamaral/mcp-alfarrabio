@@ -744,60 +744,81 @@ func (mc *MetricsCollectorV2) updateAggregations(metric *PerformanceMetricV2) {
 		mc.aggregatedMetrics[metric.Name] = make(map[MetricAggregationType]*PerformanceMetricV2)
 	}
 
-	// Update various aggregations
 	aggregations := []MetricAggregationType{AggregationSum, AggregationAverage, AggregationMin, AggregationMax}
 
 	for _, aggType := range aggregations {
-		existing := mc.aggregatedMetrics[metric.Name][aggType]
-		if existing == nil {
-			existing = &PerformanceMetricV2{
-				Name:        fmt.Sprintf("%s_%s", metric.Name, aggType),
-				Category:    metric.Category,
-				Type:        aggType,
-				Value:       metric.Value,
-				Unit:        metric.Unit,
-				Timestamp:   metric.Timestamp,
-				SampleCount: 1,
-			}
-		} else {
-			// Update aggregation based on type
-			switch aggType {
-			case AggregationSum:
-				existing.Value += metric.Value
-			case AggregationAverage:
-				existing.Value = (existing.Value*float64(existing.SampleCount) + metric.Value) / float64(existing.SampleCount+1)
-			case AggregationMin:
-				if metric.Value < existing.Value {
-					existing.Value = metric.Value
-				}
-			case AggregationMax:
-				if metric.Value > existing.Value {
-					existing.Value = metric.Value
-				}
-			case AggregationMedian:
-				// For median, we would need to store all values - simplified for now
-				existing.Value = metric.Value
-			case AggregationP95:
-				// For P95, we would need to store all values - simplified for now
-				existing.Value = metric.Value
-			case AggregationP99:
-				// For P99, we would need to store all values - simplified for now
-				existing.Value = metric.Value
-			case AggregationRate:
-				// Rate calculation would need time series data - simplified for now
-				existing.Value = metric.Value
-			case AggregationGauge:
-				// Gauge just takes the latest value
-				existing.Value = metric.Value
-			case AggregationHistogram:
-				// Histogram would need bucket data - simplified for now
-				existing.Value = metric.Value
-			}
-			existing.SampleCount++
-			existing.Timestamp = metric.Timestamp
-		}
+		mc.updateSingleAggregation(metric, aggType)
+	}
+}
 
-		mc.aggregatedMetrics[metric.Name][aggType] = existing
+// updateSingleAggregation updates a single aggregation type for a metric
+func (mc *MetricsCollectorV2) updateSingleAggregation(metric *PerformanceMetricV2, aggType MetricAggregationType) {
+	existing := mc.aggregatedMetrics[metric.Name][aggType]
+	if existing == nil {
+		existing = mc.createNewAggregation(metric, aggType)
+	} else {
+		mc.updateExistingAggregation(existing, metric, aggType)
+	}
+
+	mc.aggregatedMetrics[metric.Name][aggType] = existing
+}
+
+// createNewAggregation creates a new aggregation entry
+func (mc *MetricsCollectorV2) createNewAggregation(metric *PerformanceMetricV2, aggType MetricAggregationType) *PerformanceMetricV2 {
+	return &PerformanceMetricV2{
+		Name:        fmt.Sprintf("%s_%s", metric.Name, aggType),
+		Category:    metric.Category,
+		Type:        aggType,
+		Value:       metric.Value,
+		Unit:        metric.Unit,
+		Timestamp:   metric.Timestamp,
+		SampleCount: 1,
+	}
+}
+
+// updateExistingAggregation updates an existing aggregation with a new metric value
+func (mc *MetricsCollectorV2) updateExistingAggregation(existing *PerformanceMetricV2, metric *PerformanceMetricV2, aggType MetricAggregationType) {
+	switch aggType {
+	case AggregationSum:
+		existing.Value += metric.Value
+	case AggregationAverage:
+		existing.Value = (existing.Value*float64(existing.SampleCount) + metric.Value) / float64(existing.SampleCount+1)
+	case AggregationMin:
+		if metric.Value < existing.Value {
+			existing.Value = metric.Value
+		}
+	case AggregationMax:
+		if metric.Value > existing.Value {
+			existing.Value = metric.Value
+		}
+	default:
+		mc.updateAdvancedAggregation(existing, metric, aggType)
+	}
+	existing.SampleCount++
+	existing.Timestamp = metric.Timestamp
+}
+
+// updateAdvancedAggregation handles complex aggregation types
+func (mc *MetricsCollectorV2) updateAdvancedAggregation(existing *PerformanceMetricV2, metric *PerformanceMetricV2, aggType MetricAggregationType) {
+	switch aggType {
+	case AggregationMedian:
+		// For median, we would need to store all values - simplified for now
+		existing.Value = metric.Value
+	case AggregationP95:
+		// For P95, we would need to store all values - simplified for now
+		existing.Value = metric.Value
+	case AggregationP99:
+		// For P99, we would need to store all values - simplified for now
+		existing.Value = metric.Value
+	case AggregationRate:
+		// Rate calculation would need time series data - simplified for now
+		existing.Value = metric.Value
+	case AggregationGauge:
+		// Gauge just takes the latest value
+		existing.Value = metric.Value
+	case AggregationHistogram:
+		// Histogram would need bucket data - simplified for now
+		existing.Value = metric.Value
 	}
 }
 

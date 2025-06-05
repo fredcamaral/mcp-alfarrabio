@@ -346,24 +346,25 @@ func (imp *Importer) chunkByConversationTurns(data string, options *ImportOption
 
 	chunks := make([]types.ConversationChunk, 0, len(matches))
 	for i, match := range matches {
-		if len(match) >= 3 {
-			speaker := match[1]
-			content := match[2]
-
-			// Determine chunk type based on speaker
-			chunkType := types.ChunkTypeDiscussion
-			if strings.Contains(strings.ToLower(speaker), "assistant") ||
-				strings.Contains(strings.ToLower(speaker), "ai") ||
-				strings.Contains(strings.ToLower(speaker), "claude") {
-				chunkType = types.ChunkTypeSolution
-			}
-
-			chunk, err := imp.createChunkFromTextWithType(content, chunkType, options, i)
-			if err != nil {
-				return nil, err
-			}
-			chunks = append(chunks, *chunk)
+		if len(match) < 3 {
+			continue
 		}
+		speaker := match[1]
+		content := match[2]
+
+		// Determine chunk type based on speaker
+		chunkType := types.ChunkTypeDiscussion
+		if strings.Contains(strings.ToLower(speaker), "assistant") ||
+			strings.Contains(strings.ToLower(speaker), "ai") ||
+			strings.Contains(strings.ToLower(speaker), "claude") {
+			chunkType = types.ChunkTypeSolution
+		}
+
+		chunk, err := imp.createChunkFromTextWithType(content, chunkType, options, i)
+		if err != nil {
+			return nil, err
+		}
+		chunks = append(chunks, *chunk)
 	}
 
 	return chunks, nil

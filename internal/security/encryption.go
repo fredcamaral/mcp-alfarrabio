@@ -34,7 +34,7 @@ type EncryptedData struct {
 // NewEncryptionManager creates a new encryption manager
 func NewEncryptionManager(masterPassword string) *EncryptionManager {
 	em := &EncryptionManager{
-		enabled:    len(masterPassword) > 0,
+		enabled:    masterPassword != "",
 		saltLength: 32,
 		keyLength:  32,
 		iterations: 100000,

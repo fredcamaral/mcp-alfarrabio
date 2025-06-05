@@ -135,6 +135,24 @@ func (mt *MigrationTool) Migrate(ctx context.Context, force bool) error {
 	log.Printf("Starting ChromaDB to Qdrant migration: input_path=%s, dry_run=%v, validate_only=%v",
 		mt.inputPath, mt.dryRun, mt.validateOnly)
 
+	if err := mt.setupMigration(ctx, force); err != nil {
+		return err
+	}
+
+	chunks, err := mt.loadSourceData(ctx)
+	if err != nil {
+		return err
+	}
+
+	if mt.validateOnly {
+		return mt.validateData(chunks)
+	}
+
+	return mt.executeMigration(ctx, chunks)
+}
+
+// setupMigration handles initialization and pre-migration checks
+func (mt *MigrationTool) setupMigration(ctx context.Context, force bool) error {
 	// Initialize Qdrant
 	if !mt.dryRun && !mt.validateOnly {
 		if err := mt.qdrantStore.Initialize(ctx); err != nil {
@@ -156,19 +174,24 @@ func (mt *MigrationTool) Migrate(ctx context.Context, force bool) error {
 		}
 	}
 
-	// Read ChromaDB data
+	return nil
+}
+
+// loadSourceData reads and prepares source data
+func (mt *MigrationTool) loadSourceData(ctx context.Context) ([]types.ConversationChunk, error) {
 	chunks, err := mt.readChromaDBData(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to read ChromaDB data: %w", err)
+		return nil, fmt.Errorf("failed to read ChromaDB data: %w", err)
 	}
 
 	mt.stats.TotalChunks = len(chunks)
 	log.Printf("Found chunks to migrate: count=%d", mt.stats.TotalChunks)
 
-	if mt.validateOnly {
-		return mt.validateData(chunks)
-	}
+	return chunks, nil
+}
 
+// executeMigration performs the actual migration and validation
+func (mt *MigrationTool) executeMigration(ctx context.Context, chunks []types.ConversationChunk) error {
 	// Migrate data in batches
 	if err := mt.migrateInBatches(ctx, chunks); err != nil {
 		return fmt.Errorf("failed to migrate data: %w", err)
@@ -301,7 +324,12 @@ func (mt *MigrationTool) migrateInBatches(ctx context.Context, chunks []types.Co
 
 // migrateBatch migrates a single batch of chunks
 func (mt *MigrationTool) migrateBatch(ctx context.Context, batch []types.ConversationChunk) error {
-	result, err := mt.qdrantStore.BatchStore(ctx, batch)
+	// Convert to pointer slice for BatchStore
+	pointerBatch := make([]*types.ConversationChunk, len(batch))
+	for i := range batch {
+		pointerBatch[i] = &batch[i]
+	}
+	result, err := mt.qdrantStore.BatchStore(ctx, pointerBatch)
 	if err != nil {
 		return fmt.Errorf("batch store failed: %w", err)
 	}

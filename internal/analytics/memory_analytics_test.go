@@ -22,8 +22,8 @@ func NewMockStore() *MockStore {
 	}
 }
 
-func (m *MockStore) Store(_ context.Context, chunk types.ConversationChunk) error { //nolint:gocritic // Interface implementation requires value type
-	return m.storeChunk(&chunk)
+func (m *MockStore) Store(_ context.Context, chunk *types.ConversationChunk) error {
+	return m.storeChunk(chunk)
 }
 
 func (m *MockStore) storeChunk(chunk *types.ConversationChunk) error {
@@ -39,8 +39,8 @@ func (m *MockStore) GetByID(_ context.Context, id string) (*types.ConversationCh
 	return chunk, nil
 }
 
-func (m *MockStore) Update(_ context.Context, chunk types.ConversationChunk) error { //nolint:gocritic // Interface implementation requires value type
-	return m.updateChunk(&chunk)
+func (m *MockStore) Update(_ context.Context, chunk *types.ConversationChunk) error {
+	return m.updateChunk(chunk)
 }
 
 func (m *MockStore) updateChunk(chunk *types.ConversationChunk) error {
@@ -48,8 +48,8 @@ func (m *MockStore) updateChunk(chunk *types.ConversationChunk) error {
 	return nil
 }
 
-func (m *MockStore) Search(_ context.Context, query types.MemoryQuery, _ []float64) (*types.SearchResults, error) { //nolint:gocritic // Interface implementation requires value type
-	return m.searchWithQuery(&query)
+func (m *MockStore) Search(_ context.Context, query *types.MemoryQuery, _ []float64) (*types.SearchResults, error) {
+	return m.searchWithQuery(query)
 }
 
 func (m *MockStore) searchWithQuery(query *types.MemoryQuery) (*types.SearchResults, error) {
@@ -168,11 +168,11 @@ func (m *MockStore) FindSimilar(_ context.Context, _ string, _ *types.ChunkType,
 	return nil, nil // Simplified mock
 }
 
-func (m *MockStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error { //nolint:gocritic // Interface implementation requires value type
-	return m.storeChunk(&chunk)
+func (m *MockStore) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
+	return m.storeChunk(chunk)
 }
 
-func (m *MockStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*storage.BatchResult, error) {
+func (m *MockStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*storage.BatchResult, error) {
 	result := &storage.BatchResult{
 		Success:      0,
 		Failed:       0,
@@ -181,7 +181,7 @@ func (m *MockStore) BatchStore(ctx context.Context, chunks []types.ConversationC
 	}
 
 	for i := range chunks {
-		if err := m.storeChunk(&chunks[i]); err != nil {
+		if err := m.storeChunk(chunks[i]); err != nil {
 			result.Failed++
 			result.Errors = append(result.Errors, err.Error())
 		} else {
@@ -218,8 +218,8 @@ func (m *MockStore) StoreRelationship(_ context.Context, _, _ string, _ types.Re
 	return nil, errors.New("not implemented in mock")
 }
 
-func (m *MockStore) GetRelationships(_ context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) { //nolint:gocritic // Interface implementation requires value type
-	return m.getRelationshipsWithQuery(&query)
+func (m *MockStore) GetRelationships(_ context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
+	return m.getRelationshipsWithQuery(query)
 }
 
 func (m *MockStore) getRelationshipsWithQuery(_ *types.RelationshipQuery) ([]types.RelationshipResult, error) {
@@ -259,7 +259,7 @@ func TestMemoryAnalytics_RecordAccess(t *testing.T) {
 			Repository: "test-repo",
 		},
 	}
-	if err := store.Store(ctx, *chunk); err != nil {
+	if err := store.Store(ctx, chunk); err != nil {
 		t.Fatalf("Failed to store chunk: %v", err)
 	}
 
@@ -399,7 +399,7 @@ func TestMemoryAnalytics_UpdateChunkAnalytics(t *testing.T) {
 			Repository: "test-repo",
 		},
 	}
-	if err := store.Store(ctx, *chunk); err != nil {
+	if err := store.Store(ctx, chunk); err != nil {
 		t.Fatalf("Failed to store chunk: %v", err)
 	}
 
@@ -452,7 +452,7 @@ func TestMemoryAnalytics_MarkObsolete(t *testing.T) {
 			Repository: "test-repo",
 		},
 	}
-	if err := store.Store(ctx, *chunk); err != nil {
+	if err := store.Store(ctx, chunk); err != nil {
 		t.Fatalf("Failed to store chunk: %v", err)
 	}
 
@@ -519,7 +519,7 @@ func TestMemoryAnalytics_GetTopMemories(t *testing.T) {
 				},
 			},
 		}
-		if err := store.Store(ctx, *chunk); err != nil {
+		if err := store.Store(ctx, chunk); err != nil {
 			t.Fatalf("Failed to store chunk: %v", err)
 		}
 	}

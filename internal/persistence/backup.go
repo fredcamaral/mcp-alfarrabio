@@ -39,7 +39,7 @@ type BackupMetadata struct {
 // VectorStorage interface for backup operations
 type VectorStorage interface {
 	GetAllChunks(ctx context.Context) ([]types.ConversationChunk, error)
-	StoreChunk(ctx context.Context, chunk types.ConversationChunk) error
+	StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error
 	DeleteCollection(ctx context.Context, collection string) error
 	ListCollections(ctx context.Context) ([]string, error)
 }
@@ -55,87 +55,124 @@ func NewBackupManager(storage VectorStorage, backupDir string) *BackupManager {
 
 // CreateBackup creates a complete backup of all data
 func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*BackupMetadata, error) {
-	// Clean repository name to prevent path injection
+	backupFile, err := bm.prepareBackupFile(repository)
+	if err != nil {
+		return nil, err
+	}
+
+	chunks, err := bm.getChunksForBackup(ctx, repository)
+	if err != nil {
+		return nil, err
+	}
+
+	err = bm.writeBackupArchive(backupFile, chunks)
+	if err != nil {
+		return nil, err
+	}
+
+	metadata, err := bm.createBackupMetadata(backupFile, repository, len(chunks))
+	if err != nil {
+		return nil, err
+	}
+
+	return metadata, nil
+}
+
+// prepareBackupFile creates the backup directory and generates the backup file path
+func (bm *BackupManager) prepareBackupFile(repository string) (string, error) {
+	if err := os.MkdirAll(bm.backupDir, 0o750); err != nil {
+		return "", fmt.Errorf("failed to create backup directory: %w", err)
+	}
+
 	cleanRepo := filepath.Base(repository)
 	timestamp := time.Now().Format("20060102_150405")
 	backupFile := filepath.Join(bm.backupDir, fmt.Sprintf("backup_%s_%s.tar.gz", cleanRepo, timestamp))
 
-	// Ensure backup directory exists
-	if err := os.MkdirAll(bm.backupDir, 0750); err != nil {
-		return nil, fmt.Errorf("failed to create backup directory: %w", err)
-	}
+	return backupFile, nil
+}
 
-	// Get all chunks
+// getChunksForBackup retrieves and filters chunks for backup
+func (bm *BackupManager) getChunksForBackup(ctx context.Context, repository string) ([]types.ConversationChunk, error) {
 	chunks, err := bm.storage.GetAllChunks(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to retrieve chunks: %w", err)
 	}
 
-	// Filter chunks by repository if specified
 	if repository != "" {
-		filteredChunks := make([]types.ConversationChunk, 0)
-		for _, chunk := range chunks {
-			if chunk.Metadata.Repository == repository {
-				filteredChunks = append(filteredChunks, chunk)
-			}
-		}
-		chunks = filteredChunks
+		chunks = bm.filterChunksByRepository(chunks, repository)
 	}
 
-	// Create backup file
+	return chunks, nil
+}
+
+// filterChunksByRepository filters chunks by repository
+func (bm *BackupManager) filterChunksByRepository(chunks []types.ConversationChunk, repository string) []types.ConversationChunk {
+	filteredChunks := make([]types.ConversationChunk, 0)
+	for _, chunk := range chunks {
+		if chunk.Metadata.Repository == repository {
+			filteredChunks = append(filteredChunks, chunk)
+		}
+	}
+	return filteredChunks
+}
+
+// writeBackupArchive creates and writes the backup archive
+func (bm *BackupManager) writeBackupArchive(backupFile string, chunks []types.ConversationChunk) error {
 	file, err := os.Create(backupFile) // #nosec G304 -- Path is cleaned and safe
 	if err != nil {
-		return nil, fmt.Errorf("failed to create backup file: %w", err)
+		return fmt.Errorf("failed to create backup file: %w", err)
 	}
 	defer func() {
 		if err := file.Close(); err != nil {
-			// Log error but don't fail the function
-			_ = err
+			_ = err // Log error but don't fail the function
 		}
 	}()
 
-	// Create gzip writer
 	gzipWriter := gzip.NewWriter(file)
 	defer func() {
 		if err := gzipWriter.Close(); err != nil {
-			// Log error but don't fail the function
-			_ = err
+			_ = err // Log error but don't fail the function
 		}
 	}()
 
-	// Create tar writer
 	tarWriter := tar.NewWriter(gzipWriter)
 	defer func() {
 		if err := tarWriter.Close(); err != nil {
-			// Log error but don't fail the function
-			_ = err
+			_ = err // Log error but don't fail the function
 		}
 	}()
 
-	// Write chunks to tar
+	return bm.writeChunksToTar(tarWriter, chunks)
+}
+
+// writeChunksToTar writes chunks to the tar archive
+func (bm *BackupManager) writeChunksToTar(tarWriter *tar.Writer, chunks []types.ConversationChunk) error {
 	for i, chunk := range chunks {
 		chunkData, err := json.MarshalIndent(chunk, "", "  ")
 		if err != nil {
-			return nil, fmt.Errorf("failed to marshal chunk %s: %w", chunk.ID, err)
+			return fmt.Errorf("failed to marshal chunk %s: %w", chunk.ID, err)
 		}
 
 		header := &tar.Header{
 			Name: fmt.Sprintf("chunks/chunk_%d_%s.json", i, chunk.ID),
 			Size: int64(len(chunkData)),
-			Mode: 0644,
+			Mode: 0o644,
 		}
 
 		if err := tarWriter.WriteHeader(header); err != nil {
-			return nil, fmt.Errorf("failed to write tar header: %w", err)
+			return fmt.Errorf("failed to write tar header: %w", err)
 		}
 
 		if _, err := tarWriter.Write(chunkData); err != nil {
-			return nil, fmt.Errorf("failed to write chunk data: %w", err)
+			return fmt.Errorf("failed to write chunk data: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Create metadata
-	stat, err := file.Stat()
+// createBackupMetadata creates and saves backup metadata
+func (bm *BackupManager) createBackupMetadata(backupFile, repository string, chunkCount int) (*BackupMetadata, error) {
+	stat, err := os.Stat(backupFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get file stats: %w", err)
 	}
@@ -143,7 +180,7 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 	metadata := &BackupMetadata{
 		Version:    getEnv("MCP_MEMORY_BACKUP_VERSION", "1.0"),
 		CreatedAt:  time.Now(),
-		ChunkCount: len(chunks),
+		ChunkCount: chunkCount,
 		Size:       stat.Size(),
 		Repository: repository,
 		Metadata: map[string]interface{}{
@@ -153,14 +190,13 @@ func (bm *BackupManager) CreateBackup(ctx context.Context, repository string) (*
 		},
 	}
 
-	// Write metadata file
 	metadataFile := backupFile + ".meta.json"
 	metadataData, err := json.MarshalIndent(metadata, "", "  ")
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	if err := os.WriteFile(metadataFile, metadataData, 0600); err != nil {
+	if err := os.WriteFile(metadataFile, metadataData, 0o600); err != nil {
 		return nil, fmt.Errorf("failed to write metadata file: %w", err)
 	}
 
@@ -242,7 +278,7 @@ func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, o
 		}
 
 		// Store chunk
-		if err := bm.storage.StoreChunk(ctx, chunk); err != nil {
+		if err := bm.storage.StoreChunk(ctx, &chunk); err != nil {
 			return fmt.Errorf("failed to store chunk %s: %w", chunk.ID, err)
 		}
 
@@ -371,7 +407,7 @@ func (bm *BackupManager) MigrateData(ctx context.Context, fromVersion, toVersion
 
 	// Store migrated chunks
 	for _, chunk := range migratedChunks {
-		if err := bm.storage.StoreChunk(ctx, chunk); err != nil {
+		if err := bm.storage.StoreChunk(ctx, &chunk); err != nil {
 			// If migration fails, we could restore from backup
 			return fmt.Errorf("failed to store migrated chunk %s: %w", chunk.ID, err)
 		}
@@ -455,7 +491,7 @@ func (bm *BackupManager) CompressData(ctx context.Context) error {
 
 		if len(compressed) < originalSize {
 			chunk.Content = compressed
-			if err := bm.storage.StoreChunk(ctx, chunk); err != nil {
+			if err := bm.storage.StoreChunk(ctx, &chunk); err != nil {
 				return fmt.Errorf("failed to store compressed chunk %s: %w", chunk.ID, err)
 			}
 			compressedCount++

@@ -43,14 +43,14 @@ func (s *CircuitBreakerVectorStore) Initialize(ctx context.Context) error {
 }
 
 // Store stores a chunk
-func (s *CircuitBreakerVectorStore) Store(ctx context.Context, chunk types.ConversationChunk) error {
+func (s *CircuitBreakerVectorStore) Store(ctx context.Context, chunk *types.ConversationChunk) error {
 	return s.cb.Execute(ctx, func(ctx context.Context) error {
 		return s.store.Store(ctx, chunk)
 	})
 }
 
 // Search performs a search with fallback to empty results
-func (s *CircuitBreakerVectorStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
+func (s *CircuitBreakerVectorStore) Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	var result *types.SearchResults
 
 	err := s.cb.ExecuteWithFallback(ctx,
@@ -133,7 +133,7 @@ func (s *CircuitBreakerVectorStore) Delete(ctx context.Context, id string) error
 }
 
 // Update updates a chunk
-func (s *CircuitBreakerVectorStore) Update(ctx context.Context, chunk types.ConversationChunk) error {
+func (s *CircuitBreakerVectorStore) Update(ctx context.Context, chunk *types.ConversationChunk) error {
 	return s.cb.Execute(ctx, func(ctx context.Context) error {
 		return s.store.Update(ctx, chunk)
 	})
@@ -264,14 +264,14 @@ func (s *CircuitBreakerVectorStore) FindSimilar(ctx context.Context, content str
 }
 
 // StoreChunk stores chunk with circuit breaker protection
-func (s *CircuitBreakerVectorStore) StoreChunk(ctx context.Context, chunk types.ConversationChunk) error {
+func (s *CircuitBreakerVectorStore) StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error {
 	return s.cb.Execute(ctx, func(ctx context.Context) error {
 		return s.store.StoreChunk(ctx, chunk)
 	})
 }
 
 // BatchStore stores chunks in batch with circuit breaker protection
-func (s *CircuitBreakerVectorStore) BatchStore(ctx context.Context, chunks []types.ConversationChunk) (*BatchResult, error) {
+func (s *CircuitBreakerVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
 	var result *BatchResult
 
 	err := s.cb.ExecuteWithFallback(ctx,
@@ -341,7 +341,7 @@ func (s *CircuitBreakerVectorStore) StoreRelationship(ctx context.Context, sourc
 }
 
 // GetRelationships gets relationships with circuit breaker protection
-func (s *CircuitBreakerVectorStore) GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (s *CircuitBreakerVectorStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	var relationships []types.RelationshipResult
 
 	err := s.cb.ExecuteWithFallback(ctx,

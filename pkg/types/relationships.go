@@ -72,54 +72,59 @@ func (rt RelationType) Valid() bool {
 
 // GetInverse returns the inverse relationship type
 func (rt RelationType) GetInverse() RelationType {
-	switch rt {
-	case RelationLedTo:
-		return RelationSolvedBy
-	case RelationSolvedBy:
-		return RelationLedTo
-	case RelationDependsOn:
-		return RelationEnables
-	case RelationEnables:
-		return RelationDependsOn
-	case RelationImplements:
-		return RelationImplements // No direct inverse
-	case RelationConflictsWith:
-		return RelationConflictsWith // Symmetric
-	case RelationSupersedes:
-		return RelationSupersedes // No direct inverse
-	case RelationRelatedTo:
-		return RelationRelatedTo // Symmetric
-	case RelationFollowsUp:
-		return RelationPrecedes
-	case RelationPrecedes:
-		return RelationFollowsUp
-	case RelationLearnedFrom:
-		return RelationTeaches
-	case RelationTeaches:
-		return RelationLearnedFrom
-	case RelationExemplifes:
-		return RelationExemplifes // No direct inverse
-	case RelationReferencesBy:
-		return RelationReferences
-	case RelationReferences:
-		return RelationReferencesBy
-	default:
-		return RelationRelatedTo
+	if rt.IsSymmetric() {
+		return rt
 	}
+	
+	if inverse, exists := rt.getBidirectionalInverse(); exists {
+		return inverse
+	}
+	
+	return rt.getSelfReferencingDefault()
 }
 
 // IsSymmetric returns true if the relationship is symmetric
 func (rt RelationType) IsSymmetric() bool {
-	switch rt {
-	case RelationConflictsWith, RelationRelatedTo:
-		return true
-	case RelationLedTo, RelationSolvedBy, RelationDependsOn, RelationEnables, RelationImplements,
-		RelationSupersedes, RelationFollowsUp, RelationPrecedes, RelationLearnedFrom,
-		RelationTeaches, RelationExemplifes, RelationReferencesBy, RelationReferences:
-		return false
+	symmetricRelations := []RelationType{
+		RelationConflictsWith,
+		RelationRelatedTo,
+		RelationImplements,
+		RelationSupersedes,
+		RelationExemplifes,
+	}
+	
+	for _, symmetric := range symmetricRelations {
+		if rt == symmetric {
+			return true
+		}
 	}
 	return false
 }
+
+// getBidirectionalInverse returns the inverse for bidirectional relationships
+func (rt RelationType) getBidirectionalInverse() (RelationType, bool) {
+	bidirectionalMap := map[RelationType]RelationType{
+		RelationLedTo:         RelationSolvedBy,
+		RelationSolvedBy:      RelationLedTo,
+		RelationDependsOn:     RelationEnables,
+		RelationEnables:       RelationDependsOn,
+		RelationFollowsUp:     RelationPrecedes,
+		RelationPrecedes:      RelationFollowsUp,
+		RelationLearnedFrom:   RelationTeaches,
+		RelationTeaches:       RelationLearnedFrom,
+		RelationReferencesBy:  RelationReferences,
+		RelationReferences:    RelationReferencesBy,
+	}
+	
+	inverse, exists := bidirectionalMap[rt]
+	return inverse, exists
+}
+
+// getSelfReferencingDefault returns default relation for unknown types
+func (rt RelationType) getSelfReferencingDefault() RelationType {
+	return RelationRelatedTo
+}
+
 
 // ConfidenceSource represents how the confidence score was determined
 type ConfidenceSource string
@@ -273,33 +278,105 @@ func NewRelationshipQuery(chunkID string) *RelationshipQuery {
 
 // Validate checks if the relationship query is valid
 func (rq *RelationshipQuery) Validate() error {
+	if err := rq.validateBasicFields(); err != nil {
+		return err
+	}
+	
+	if err := rq.validateRangeFields(); err != nil {
+		return err
+	}
+	
+	if err := rq.validateSortFields(); err != nil {
+		return err
+	}
+	
+	return rq.validateRelationTypes()
+}
+
+// validateBasicFields validates basic required fields
+func (rq *RelationshipQuery) validateBasicFields() error {
 	if rq.ChunkID == "" {
 		return errors.New("chunk ID cannot be empty")
 	}
-	if rq.Direction != "incoming" && rq.Direction != "outgoing" && rq.Direction != "both" {
+	
+	validDirections := []string{"incoming", "outgoing", "both"}
+	if !rq.isValidDirection(validDirections) {
 		return errors.New("direction must be 'incoming', 'outgoing', or 'both'")
 	}
+	
+	return nil
+}
+
+// validateRangeFields validates numeric range fields
+func (rq *RelationshipQuery) validateRangeFields() error {
 	if rq.MinConfidence < 0 || rq.MinConfidence > 1 {
 		return errors.New("min confidence must be between 0 and 1")
 	}
+	
 	if rq.MaxDepth < 1 {
 		return errors.New("max depth must be at least 1")
 	}
-	if rq.SortBy != "" && rq.SortBy != "confidence" && rq.SortBy != "created_at" && rq.SortBy != "validation_count" {
-		return errors.New("sort by must be 'confidence', 'created_at', or 'validation_count'")
-	}
-	if rq.SortOrder != "" && rq.SortOrder != "asc" && rq.SortOrder != "desc" {
-		return errors.New("sort order must be 'asc' or 'desc'")
-	}
+	
 	if rq.Limit < 0 {
 		return errors.New("limit cannot be negative")
 	}
+	
+	return nil
+}
+
+// validateSortFields validates sorting related fields
+func (rq *RelationshipQuery) validateSortFields() error {
+	validSortFields := []string{"", "confidence", "created_at", "validation_count"}
+	if !rq.isValidSortBy(validSortFields) {
+		return errors.New("sort by must be 'confidence', 'created_at', or 'validation_count'")
+	}
+	
+	validSortOrders := []string{"", "asc", "desc"}
+	if !rq.isValidSortOrder(validSortOrders) {
+		return errors.New("sort order must be 'asc' or 'desc'")
+	}
+	
+	return nil
+}
+
+// validateRelationTypes validates all relation types in the query
+func (rq *RelationshipQuery) validateRelationTypes() error {
 	for _, relType := range rq.RelationTypes {
 		if !relType.Valid() {
 			return fmt.Errorf("invalid relation type: %s", relType)
 		}
 	}
 	return nil
+}
+
+// isValidDirection checks if direction is valid
+func (rq *RelationshipQuery) isValidDirection(validDirections []string) bool {
+	for _, valid := range validDirections {
+		if rq.Direction == valid {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidSortBy checks if sort by field is valid
+func (rq *RelationshipQuery) isValidSortBy(validFields []string) bool {
+	for _, valid := range validFields {
+		if rq.SortBy == valid {
+			return true
+		}
+	}
+	return false
+}
+
+// isValidSortOrder checks if sort order is valid
+func (rq *RelationshipQuery) isValidSortOrder(validOrders []string) bool {
+	for _, valid := range validOrders {
+		if rq.SortOrder == valid {
+			return true
+		}
+	}
+	return false
 }
 
 // RelationshipResult represents a relationship with optional chunk data

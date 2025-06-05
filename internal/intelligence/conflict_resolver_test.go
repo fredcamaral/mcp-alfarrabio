@@ -33,7 +33,7 @@ func TestConflictResolver_GenerateResolutionStrategies(t *testing.T) {
 		DetectedAt:     time.Now(),
 	}
 
-	strategies := resolver.GenerateResolutionStrategies(conflict)
+	strategies := resolver.GenerateResolutionStrategies(&conflict)
 
 	if len(strategies) == 0 {
 		t.Error("Expected at least one resolution strategy")
@@ -147,7 +147,7 @@ func TestConflictResolver_ArchitecturalStrategies(t *testing.T) {
 		},
 	}
 
-	strategies := resolver.generateArchitecturalStrategies(conflict)
+	strategies := resolver.generateArchitecturalStrategies(&conflict)
 
 	if len(strategies) == 0 {
 		t.Error("Expected architectural strategies")
@@ -194,7 +194,7 @@ func TestConflictResolver_TechnicalStrategies(t *testing.T) {
 		},
 	}
 
-	strategies := resolver.generateTechnicalStrategies(conflict)
+	strategies := resolver.generateTechnicalStrategies(&conflict)
 
 	if len(strategies) == 0 {
 		t.Error("Expected technical strategies")
@@ -259,7 +259,7 @@ func TestConflictResolver_CalculateStrategyConfidence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			confidence := resolver.calculateStrategyConfidence(tt.conflict, tt.strategy)
+			confidence := resolver.calculateStrategyConfidence(&tt.conflict, tt.strategy)
 
 			if confidence < tt.expectedMinimum {
 				t.Errorf("Expected confidence >= %.2f, got %.2f", tt.expectedMinimum, confidence)
@@ -295,23 +295,23 @@ func TestConflictResolver_BuildConflictContext(t *testing.T) {
 		Type: ConflictTypeArchitectural,
 	}
 
-	context := resolver.buildConflictContext(conflict)
+	conflictCtx := resolver.buildConflictContext(&conflict)
 
-	if context.Repository != "test-repo" {
-		t.Errorf("Expected repository 'test-repo', got '%s'", context.Repository)
+	if conflictCtx.Repository != "test-repo" {
+		t.Errorf("Expected repository 'test-repo', got '%s'", conflictCtx.Repository)
 	}
 
 	expectedFiles := 3 // file1.go, file2.go, file3.go (file2.go should not be duplicated)
-	if len(context.AffectedFiles) != expectedFiles {
-		t.Errorf("Expected %d affected files, got %d", expectedFiles, len(context.AffectedFiles))
+	if len(conflictCtx.AffectedFiles) != expectedFiles {
+		t.Errorf("Expected %d affected files, got %d", expectedFiles, len(conflictCtx.AffectedFiles))
 	}
 
-	if len(context.StakeholderImpact) == 0 {
+	if len(conflictCtx.StakeholderImpact) == 0 {
 		t.Error("Expected stakeholder impact to be populated")
 	}
 
 	// Check stakeholder impact for architectural conflicts
-	if impact, exists := context.StakeholderImpact["architects"]; !exists || impact != string(SeverityHigh) {
+	if impact, exists := conflictCtx.StakeholderImpact["architects"]; !exists || impact != string(SeverityHigh) {
 		t.Error("Expected high impact for architects on architectural conflicts")
 	}
 }
@@ -351,7 +351,7 @@ func TestConflictResolver_ExtractStakeholderImpact(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			conflict := Conflict{Type: tt.conflictType}
-			impact := extractStakeholderImpact(conflict)
+			impact := extractStakeholderImpact(&conflict)
 
 			for role, expectedLevel := range tt.expectedImpacts {
 				if actualLevel, exists := impact[role]; !exists {

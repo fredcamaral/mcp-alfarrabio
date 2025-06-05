@@ -542,27 +542,50 @@ func (ms *MemoryServer) handleMemoryCreate(ctx context.Context, args map[string]
 
 // handleMemoryRead routes read operations to appropriate handlers
 func (ms *MemoryServer) handleMemoryRead(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	operation, options, err := ms.validateReadOperationParams(args)
+	if err != nil {
+		return nil, err
+	}
+
+	repository, err := ms.validateAndLogRepository(options, operation)
+	if err != nil {
+		return nil, err
+	}
+
+	return ms.routeReadOperation(ctx, operation, options, repository)
+}
+
+// validateReadOperationParams validates the basic parameters for read operations
+func (ms *MemoryServer) validateReadOperationParams(args map[string]interface{}) (operation string, options map[string]interface{}, err error) {
 	operation, ok := args["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"search\", \"options\": {\"query\": \"how to fix build errors\", \"repository\": \"github.com/user/repo\"}}")
+		return "", nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"search\", \"options\": {\"query\": \"how to fix build errors\", \"repository\": \"github.com/user/repo\"}}")
 	}
 
-	options, ok := args["options"].(map[string]interface{})
+	options, ok = args["options"].(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"query\": \"search term\", \"repository\": \"github.com/user/repo\"}")
+		return "", nil, fmt.Errorf("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for multi-tenant isolation. Example: {\"query\": \"search term\", \"repository\": \"github.com/user/repo\"}")
 	}
 
-	// SECURITY: Repository parameter is MANDATORY for all read operations for multi-tenant isolation
+	return operation, options, nil
+}
+
+// validateAndLogRepository validates the repository parameter and logs global access
+func (ms *MemoryServer) validateAndLogRepository(options map[string]interface{}, operation string) (string, error) {
 	repository, ok := options["repository"].(string)
 	if !ok || repository == "" {
-		return nil, fmt.Errorf("repository parameter is required for all read operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\"} or use \"global\" for cross-project architecture decisions")
+		return "", fmt.Errorf("repository parameter is required for all read operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\"} or use \"global\" for cross-project architecture decisions")
 	}
 
-	// Allow global access for cross-project architecture decisions but log for security monitoring
 	if repository == GlobalRepository {
 		logging.Info("GLOBAL ACCESS: Cross-project read operation requested", "operation", operation, "options", options)
 	}
 
+	return repository, nil
+}
+
+// routeReadOperation routes the read operation to the appropriate handler
+func (ms *MemoryServer) routeReadOperation(ctx context.Context, operation string, options map[string]interface{}, repository string) (interface{}, error) {
 	switch operation {
 	case "search":
 		return ms.handleSecureSearch(ctx, options, repository)
@@ -589,9 +612,14 @@ func (ms *MemoryServer) handleMemoryRead(ctx context.Context, args map[string]in
 	case "get_bulk_progress":
 		return ms.handleGetBulkProgress(ctx, options)
 	default:
-		validOps := []string{"search", "get_context", "find_similar", "get_patterns", "get_relationships", "traverse_graph", "get_threads", "search_explained", "search_multi_repo", "resolve_alias", "list_aliases", "get_bulk_progress"}
-		return nil, fmt.Errorf("unsupported read operation '%s'. Valid operations: %s. Example: {\"operation\": \"search\", \"options\": {\"repository\": \"github.com/user/repo\", \"query\": \"authentication issues\"}}", operation, strings.Join(validOps, ", "))
+		return ms.buildUnsupportedOperationError(operation)
 	}
+}
+
+// buildUnsupportedOperationError builds error message for unsupported operations
+func (ms *MemoryServer) buildUnsupportedOperationError(operation string) (interface{}, error) {
+	validOps := []string{"search", "get_context", "find_similar", "get_patterns", "get_relationships", "traverse_graph", "get_threads", "search_explained", "search_multi_repo", "resolve_alias", "list_aliases", "get_bulk_progress"}
+	return nil, fmt.Errorf("unsupported read operation '%s'. Valid operations: %s. Example: {\"operation\": \"search\", \"options\": {\"repository\": \"github.com/user/repo\", \"query\": \"authentication issues\"}}", operation, strings.Join(validOps, ", "))
 }
 
 // handleMemoryUpdate routes update operations to appropriate handlers

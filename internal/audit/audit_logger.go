@@ -462,46 +462,68 @@ type SearchCriteria struct {
 
 // Matches checks if an event matches the criteria
 func (sc *SearchCriteria) Matches(event *Event) bool {
-	// Time range
+	return sc.matchesTimeRange(event) &&
+		sc.matchesEventTypes(event) &&
+		sc.matchesStringFields(event) &&
+		sc.matchesSuccessStatus(event)
+}
+
+// matchesTimeRange checks if the event falls within the specified time range
+func (sc *SearchCriteria) matchesTimeRange(event *Event) bool {
 	if !sc.StartTime.IsZero() && event.Timestamp.Before(sc.StartTime) {
 		return false
 	}
 	if !sc.EndTime.IsZero() && event.Timestamp.After(sc.EndTime) {
 		return false
 	}
-
-	// Event types
-	if len(sc.EventTypes) > 0 {
-		found := false
-		for _, et := range sc.EventTypes {
-			if event.EventType == et {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	// Other filters
-	if sc.SessionID != "" && event.SessionID != sc.SessionID {
-		return false
-	}
-	if sc.UserID != "" && event.UserID != sc.UserID {
-		return false
-	}
-	if sc.Repository != "" && event.Repository != sc.Repository {
-		return false
-	}
-	if sc.Resource != "" && event.Resource != sc.Resource {
-		return false
-	}
-	if sc.Success != nil && event.Success != *sc.Success {
-		return false
-	}
-
 	return true
+}
+
+// matchesEventTypes checks if the event type is in the allowed list
+func (sc *SearchCriteria) matchesEventTypes(event *Event) bool {
+	if len(sc.EventTypes) == 0 {
+		return true
+	}
+
+	for _, et := range sc.EventTypes {
+		if event.EventType == et {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesStringFields checks if all string-based criteria match
+func (sc *SearchCriteria) matchesStringFields(event *Event) bool {
+	return sc.matchesSessionID(event) &&
+		sc.matchesUserID(event) &&
+		sc.matchesRepository(event) &&
+		sc.matchesResource(event)
+}
+
+// matchesSessionID checks if the session ID matches the criteria
+func (sc *SearchCriteria) matchesSessionID(event *Event) bool {
+	return sc.SessionID == "" || event.SessionID == sc.SessionID
+}
+
+// matchesUserID checks if the user ID matches the criteria
+func (sc *SearchCriteria) matchesUserID(event *Event) bool {
+	return sc.UserID == "" || event.UserID == sc.UserID
+}
+
+// matchesRepository checks if the repository matches the criteria
+func (sc *SearchCriteria) matchesRepository(event *Event) bool {
+	return sc.Repository == "" || event.Repository == sc.Repository
+}
+
+// matchesResource checks if the resource matches the criteria
+func (sc *SearchCriteria) matchesResource(event *Event) bool {
+	return sc.Resource == "" || event.Resource == sc.Resource
+}
+
+// matchesSuccessStatus checks if the success status matches the criteria
+func (sc *SearchCriteria) matchesSuccessStatus(event *Event) bool {
+	return sc.Success == nil || event.Success == *sc.Success
 }
 
 // Helper functions

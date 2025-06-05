@@ -17,10 +17,10 @@ type ConfidenceEngine struct {
 // StorageInterface defines the interface for intelligence operations
 type StorageInterface interface {
 	GetByID(ctx context.Context, id string) (*types.ConversationChunk, error)
-	GetRelationships(ctx context.Context, query types.RelationshipQuery) ([]types.RelationshipResult, error)
-	Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error)
+	GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error)
+	Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error)
 	ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error)
-	Update(ctx context.Context, chunk types.ConversationChunk) error
+	Update(ctx context.Context, chunk *types.ConversationChunk) error
 }
 
 // NewConfidenceEngine creates a new confidence scoring engine
@@ -176,7 +176,7 @@ func (ce *ConfidenceEngine) calculateConsistencyScore(_ context.Context, chunk *
 	if chunk == nil {
 		return 0, errors.New("chunk cannot be nil")
 	}
-	if len(chunk.Content) == 0 {
+	if chunk.Content == "" {
 		return 0, errors.New("chunk content cannot be empty")
 	}
 
@@ -228,7 +228,7 @@ func (ce *ConfidenceEngine) calculateSemanticSimilarityScore(_ context.Context, 
 	if chunk == nil {
 		return 0, errors.New("chunk cannot be nil")
 	}
-	if len(chunk.Content) == 0 {
+	if chunk.Content == "" {
 		return 0, errors.New("chunk content cannot be empty")
 	}
 

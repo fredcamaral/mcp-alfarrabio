@@ -73,8 +73,8 @@ func NewConflictResolver() *ConflictResolver {
 func (cr *ConflictResolver) ResolveConflicts(ctx context.Context, conflicts []Conflict) ([]ResolutionRecommendation, error) {
 	recommendations := make([]ResolutionRecommendation, 0, len(conflicts))
 
-	for _, conflict := range conflicts {
-		recommendation := cr.generateResolutionRecommendation(conflict)
+	for i := range conflicts {
+		recommendation := cr.generateResolutionRecommendation(&conflicts[i])
 		recommendations = append(recommendations, recommendation)
 	}
 
@@ -82,7 +82,7 @@ func (cr *ConflictResolver) ResolveConflicts(ctx context.Context, conflicts []Co
 }
 
 // GenerateResolutionStrategies creates multiple resolution strategies for a conflict
-func (cr *ConflictResolver) GenerateResolutionStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) GenerateResolutionStrategies(conflict *Conflict) []ResolutionStrategy {
 	var strategies []ResolutionStrategy
 
 	// Generate different types of strategies based on conflict type
@@ -123,7 +123,7 @@ func (cr *ConflictResolver) GenerateResolutionStrategies(conflict Conflict) []Re
 }
 
 // generateResolutionRecommendation creates a comprehensive resolution recommendation
-func (cr *ConflictResolver) generateResolutionRecommendation(conflict Conflict) ResolutionRecommendation {
+func (cr *ConflictResolver) generateResolutionRecommendation(conflict *Conflict) ResolutionRecommendation {
 	strategies := cr.GenerateResolutionStrategies(conflict)
 
 	var recommended *ResolutionStrategy
@@ -131,7 +131,7 @@ func (cr *ConflictResolver) generateResolutionRecommendation(conflict Conflict) 
 		recommended = &strategies[0]
 	}
 
-	context := cr.buildConflictContext(conflict)
+	resolutionContext := cr.buildConflictContext(conflict)
 
 	return ResolutionRecommendation{
 		ConflictID:   conflict.ID,
@@ -139,7 +139,7 @@ func (cr *ConflictResolver) generateResolutionRecommendation(conflict Conflict) 
 		Severity:     conflict.Severity,
 		Strategies:   strategies,
 		Recommended:  recommended,
-		Context:      context,
+		Context:      resolutionContext,
 		GeneratedAt:  time.Now(),
 		ValidUntil:   time.Now().Add(cr.maxResolutionAge),
 	}
@@ -147,158 +147,151 @@ func (cr *ConflictResolver) generateResolutionRecommendation(conflict Conflict) 
 
 // Strategy generation methods for different conflict types
 
-func (cr *ConflictResolver) generateArchitecturalStrategies(_ Conflict) []ResolutionStrategy {
-	strategies := []ResolutionStrategy{}
-
-	// Strategy 1: Accept latest architectural decision
-	strategies = append(strategies, ResolutionStrategy{
-		Type:        ResolutionAcceptLatest,
-		Title:       "Accept Latest Architecture Decision",
-		Description: "Adopt the most recent architectural decision as the current standard",
-		Rationale:   "Architectural decisions evolve over time. The latest decision likely incorporates lessons learned.",
-		Steps: []ResolutionStep{
-			{Order: 1, Action: "review", Description: "Review the context of the latest decision", Required: true},
-			{Order: 2, Action: "document", Description: "Document the rationale for accepting the latest decision", Required: true},
-			{Order: 3, Action: "update", Description: "Update architectural documentation", Required: true},
-			{Order: 4, Action: "communicate", Description: "Communicate the decision to stakeholders", Required: true},
+func (cr *ConflictResolver) generateArchitecturalStrategies(_ *Conflict) []ResolutionStrategy {
+	return []ResolutionStrategy{
+		// Strategy 1: Accept latest architectural decision
+		{
+			Type:        ResolutionAcceptLatest,
+			Title:       "Accept Latest Architecture Decision",
+			Description: "Adopt the most recent architectural decision as the current standard",
+			Rationale:   "Architectural decisions evolve over time. The latest decision likely incorporates lessons learned.",
+			Steps: []ResolutionStep{
+				{Order: 1, Action: "review", Description: "Review the context of the latest decision", Required: true},
+				{Order: 2, Action: "document", Description: "Document the rationale for accepting the latest decision", Required: true},
+				{Order: 3, Action: "update", Description: "Update architectural documentation", Required: true},
+				{Order: 4, Action: "communicate", Description: "Communicate the decision to stakeholders", Required: true},
+			},
+			Benefits: []string{
+				"Maintains consistency with current direction",
+				"Avoids confusion about current standards",
+				"Respects evolution of architectural thinking",
+			},
+			Risks: []string{
+				"May discard valuable insights from earlier decisions",
+				"Could introduce regression if latest decision is flawed",
+			},
+			Context: map[string]any{
+				"strategy_type": "temporal_precedence",
+				"applicable_to": []string{"architecture", "design_patterns"},
+			},
 		},
-		Benefits: []string{
-			"Maintains consistency with current direction",
-			"Avoids confusion about current standards",
-			"Respects evolution of architectural thinking",
+		// Strategy 2: Merge architectural approaches
+		{
+			Type:        ResolutionMerge,
+			Title:       "Merge Architectural Approaches",
+			Description: "Combine the best aspects of conflicting architectural decisions",
+			Rationale:   "Both decisions may have valid points that can be integrated into a hybrid approach.",
+			Steps: []ResolutionStep{
+				{Order: 1, Action: "analyze", Description: "Analyze the strengths of each architectural approach", Required: true},
+				{Order: 2, Action: "design", Description: "Design a hybrid approach that incorporates the best elements", Required: true},
+				{Order: 3, Action: "validate", Description: "Validate the hybrid approach with prototyping or modeling", Required: true},
+				{Order: 4, Action: "document", Description: "Document the new merged architectural decision", Required: true},
+			},
+			Benefits: []string{
+				"Leverages strengths of multiple approaches",
+				"May result in superior solution",
+				"Demonstrates thorough consideration of alternatives",
+			},
+			Risks: []string{
+				"May result in complexity",
+				"Could compromise the clarity of each individual approach",
+				"Requires additional design and validation effort",
+			},
+			Context: map[string]any{
+				"strategy_type": "synthesis",
+				"complexity":    "high",
+			},
 		},
-		Risks: []string{
-			"May discard valuable insights from earlier decisions",
-			"Could introduce regression if latest decision is flawed",
+		// Strategy 3: Context-specific resolution
+		{
+			Type:        ResolutionContextual,
+			Title:       "Apply Context-Specific Architecture",
+			Description: "Use different architectural approaches for different contexts or components",
+			Rationale:   "Different parts of the system may benefit from different architectural approaches.",
+			Steps: []ResolutionStep{
+				{Order: 1, Action: "segment", Description: "Identify system components or contexts", Required: true},
+				{Order: 2, Action: "map", Description: "Map appropriate architectural approaches to each context", Required: true},
+				{Order: 3, Action: "define", Description: "Define clear boundaries and interfaces", Required: true},
+				{Order: 4, Action: "govern", Description: "Establish governance for context-specific decisions", Required: true},
+			},
+			Benefits: []string{
+				"Optimizes architecture for specific use cases",
+				"Allows coexistence of different approaches",
+				"Provides flexibility for future evolution",
+			},
+			Risks: []string{
+				"Increases system complexity",
+				"May lead to inconsistent patterns across the system",
+				"Requires careful interface management",
+			},
+			Context: map[string]any{
+				"strategy_type":       "contextual_separation",
+				"governance_required": true,
+			},
 		},
-		Context: map[string]any{
-			"strategy_type": "temporal_precedence",
-			"applicable_to": []string{"architecture", "design_patterns"},
-		},
-	})
-
-	// Strategy 2: Merge architectural approaches
-	strategies = append(strategies, ResolutionStrategy{
-		Type:        ResolutionMerge,
-		Title:       "Merge Architectural Approaches",
-		Description: "Combine the best aspects of conflicting architectural decisions",
-		Rationale:   "Both decisions may have valid points that can be integrated into a hybrid approach.",
-		Steps: []ResolutionStep{
-			{Order: 1, Action: "analyze", Description: "Analyze the strengths of each architectural approach", Required: true},
-			{Order: 2, Action: "design", Description: "Design a hybrid approach that incorporates the best elements", Required: true},
-			{Order: 3, Action: "validate", Description: "Validate the hybrid approach with prototyping or modeling", Required: true},
-			{Order: 4, Action: "document", Description: "Document the new merged architectural decision", Required: true},
-		},
-		Benefits: []string{
-			"Leverages strengths of multiple approaches",
-			"May result in superior solution",
-			"Demonstrates thorough consideration of alternatives",
-		},
-		Risks: []string{
-			"May result in complexity",
-			"Could compromise the clarity of each individual approach",
-			"Requires additional design and validation effort",
-		},
-		Context: map[string]any{
-			"strategy_type": "synthesis",
-			"complexity":    "high",
-		},
-	})
-
-	// Strategy 3: Context-specific resolution
-	strategies = append(strategies, ResolutionStrategy{
-		Type:        ResolutionContextual,
-		Title:       "Apply Context-Specific Architecture",
-		Description: "Use different architectural approaches for different contexts or components",
-		Rationale:   "Different parts of the system may benefit from different architectural approaches.",
-		Steps: []ResolutionStep{
-			{Order: 1, Action: "segment", Description: "Identify system components or contexts", Required: true},
-			{Order: 2, Action: "map", Description: "Map appropriate architectural approaches to each context", Required: true},
-			{Order: 3, Action: "define", Description: "Define clear boundaries and interfaces", Required: true},
-			{Order: 4, Action: "govern", Description: "Establish governance for context-specific decisions", Required: true},
-		},
-		Benefits: []string{
-			"Optimizes architecture for specific use cases",
-			"Allows coexistence of different approaches",
-			"Provides flexibility for future evolution",
-		},
-		Risks: []string{
-			"Increases system complexity",
-			"May lead to inconsistent patterns across the system",
-			"Requires careful interface management",
-		},
-		Context: map[string]any{
-			"strategy_type":       "contextual_separation",
-			"governance_required": true,
-		},
-	})
-
-	return strategies
+	}
 }
 
-func (cr *ConflictResolver) generateTechnicalStrategies(_ Conflict) []ResolutionStrategy {
-	strategies := []ResolutionStrategy{}
-
-	// Strategy 1: Benchmark and choose
-	strategies = append(strategies, ResolutionStrategy{
-		Type:        ResolutionAcceptHighest,
-		Title:       "Benchmark and Choose Best Performance",
-		Description: "Test both approaches and select the one with better performance metrics",
-		Rationale:   "Empirical testing provides objective basis for technical decisions.",
-		Steps: []ResolutionStep{
-			{Order: 1, Action: "define", Description: "Define benchmarking criteria and metrics", Required: true},
-			{Order: 2, Action: "implement", Description: "Implement test scenarios for both approaches", Required: true},
-			{Order: 3, Action: "measure", Description: "Execute benchmarks and collect metrics", Required: true},
-			{Order: 4, Action: "analyze", Description: "Analyze results and make evidence-based decision", Required: true},
+func (cr *ConflictResolver) generateTechnicalStrategies(_ *Conflict) []ResolutionStrategy {
+	return []ResolutionStrategy{
+		// Strategy 1: Benchmark and choose
+		{
+			Type:        ResolutionAcceptHighest,
+			Title:       "Benchmark and Choose Best Performance",
+			Description: "Test both approaches and select the one with better performance metrics",
+			Rationale:   "Empirical testing provides objective basis for technical decisions.",
+			Steps: []ResolutionStep{
+				{Order: 1, Action: "define", Description: "Define benchmarking criteria and metrics", Required: true},
+				{Order: 2, Action: "implement", Description: "Implement test scenarios for both approaches", Required: true},
+				{Order: 3, Action: "measure", Description: "Execute benchmarks and collect metrics", Required: true},
+				{Order: 4, Action: "analyze", Description: "Analyze results and make evidence-based decision", Required: true},
+			},
+			Benefits: []string{
+				"Objective, data-driven decision making",
+				"Validates performance assumptions",
+				"Provides documentation for future reference",
+			},
+			Risks: []string{
+				"Benchmarks may not reflect real-world usage",
+				"Time and resource intensive",
+				"May not capture all relevant factors",
+			},
+			Context: map[string]any{
+				"strategy_type":      "empirical_testing",
+				"resources_required": "medium",
+			},
 		},
-		Benefits: []string{
-			"Objective, data-driven decision making",
-			"Validates performance assumptions",
-			"Provides documentation for future reference",
+		// Strategy 2: Evolutionary approach
+		{
+			Type:        ResolutionEvolutionary,
+			Title:       "Implement Evolutionary Migration",
+			Description: "Gradually migrate from one approach to another based on evidence",
+			Rationale:   "Allows testing and validation in production with reduced risk.",
+			Steps: []ResolutionStep{
+				{Order: 1, Action: "plan", Description: "Plan migration phases with rollback capability", Required: true},
+				{Order: 2, Action: "pilot", Description: "Implement pilot with subset of functionality", Required: true},
+				{Order: 3, Action: "monitor", Description: "Monitor performance and stability metrics", Required: true},
+				{Order: 4, Action: "decide", Description: "Decide on full migration based on pilot results", Required: true},
+			},
+			Benefits: []string{
+				"Reduces risk through incremental change",
+				"Provides real-world validation",
+				"Allows learning and adjustment during migration",
+			},
+			Risks: []string{
+				"May result in temporary inconsistency",
+				"Requires dual support during transition",
+				"Can extend timeline for resolution",
+			},
+			Context: map[string]any{
+				"strategy_type": "gradual_migration",
+				"risk_level":    "low",
+			},
 		},
-		Risks: []string{
-			"Benchmarks may not reflect real-world usage",
-			"Time and resource intensive",
-			"May not capture all relevant factors",
-		},
-		Context: map[string]any{
-			"strategy_type":      "empirical_testing",
-			"resources_required": "medium",
-		},
-	})
-
-	// Strategy 2: Evolutionary approach
-	strategies = append(strategies, ResolutionStrategy{
-		Type:        ResolutionEvolutionary,
-		Title:       "Implement Evolutionary Migration",
-		Description: "Gradually migrate from one approach to another based on evidence",
-		Rationale:   "Allows testing and validation in production with reduced risk.",
-		Steps: []ResolutionStep{
-			{Order: 1, Action: "plan", Description: "Plan migration phases with rollback capability", Required: true},
-			{Order: 2, Action: "pilot", Description: "Implement pilot with subset of functionality", Required: true},
-			{Order: 3, Action: "monitor", Description: "Monitor performance and stability metrics", Required: true},
-			{Order: 4, Action: "decide", Description: "Decide on full migration based on pilot results", Required: true},
-		},
-		Benefits: []string{
-			"Reduces risk through incremental change",
-			"Provides real-world validation",
-			"Allows learning and adjustment during migration",
-		},
-		Risks: []string{
-			"May result in temporary inconsistency",
-			"Requires dual support during transition",
-			"Can extend timeline for resolution",
-		},
-		Context: map[string]any{
-			"strategy_type": "gradual_migration",
-			"risk_level":    "low",
-		},
-	})
-
-	return strategies
+	}
 }
 
-func (cr *ConflictResolver) generateTemporalStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateTemporalStrategies(conflict *Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
 
 	// Strategy 1: Accept latest
@@ -330,7 +323,7 @@ func (cr *ConflictResolver) generateTemporalStrategies(conflict Conflict) []Reso
 	return strategies
 }
 
-func (cr *ConflictResolver) generateOutcomeStrategies(_ Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateOutcomeStrategies(_ *Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
 
 	// Strategy 1: Investigate root cause
@@ -363,7 +356,7 @@ func (cr *ConflictResolver) generateOutcomeStrategies(_ Conflict) []ResolutionSt
 	return strategies
 }
 
-func (cr *ConflictResolver) generateDecisionStrategies(_ Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateDecisionStrategies(_ *Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
 
 	// Strategy 1: Re-evaluate with current context
@@ -396,7 +389,7 @@ func (cr *ConflictResolver) generateDecisionStrategies(_ Conflict) []ResolutionS
 	return strategies
 }
 
-func (cr *ConflictResolver) generateMethodologyStrategies(_ Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateMethodologyStrategies(_ *Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
 
 	// Strategy 1: Establish standard methodology
@@ -429,7 +422,7 @@ func (cr *ConflictResolver) generateMethodologyStrategies(_ Conflict) []Resoluti
 	return strategies
 }
 
-func (cr *ConflictResolver) generateGenericStrategies(_ Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generateGenericStrategies(_ *Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
 
 	// Generic strategy 1: Manual review
@@ -465,7 +458,7 @@ func (cr *ConflictResolver) generateGenericStrategies(_ Conflict) []ResolutionSt
 
 // Helper methods
 
-func (cr *ConflictResolver) calculateStrategyConfidence(conflict Conflict, strategy ResolutionStrategy) float64 {
+func (cr *ConflictResolver) calculateStrategyConfidence(conflict *Conflict, strategy ResolutionStrategy) float64 {
 	baseConfidence := 0.5
 
 	// Adjust based on conflict type and strategy type compatibility
@@ -512,8 +505,8 @@ func (cr *ConflictResolver) calculateStrategyConfidence(conflict Conflict, strat
 	return baseConfidence
 }
 
-func (cr *ConflictResolver) buildConflictContext(conflict Conflict) ConflictContext {
-	context := ConflictContext{
+func (cr *ConflictResolver) buildConflictContext(conflict *Conflict) ConflictContext {
+	conflictCtx := ConflictContext{
 		Repository:        extractRepository(conflict),
 		AffectedFiles:     extractAffectedFiles(conflict),
 		RelatedPatterns:   []string{}, // Would be populated by pattern analysis
@@ -522,10 +515,10 @@ func (cr *ConflictResolver) buildConflictContext(conflict Conflict) ConflictCont
 		TechnicalContext:  conflict.Context,
 	}
 
-	return context
+	return conflictCtx
 }
 
-func extractRepository(conflict Conflict) string {
+func extractRepository(conflict *Conflict) string {
 	if repo := conflict.PrimaryChunk.Metadata.Repository; repo != "" {
 		return repo
 	}
@@ -535,7 +528,7 @@ func extractRepository(conflict Conflict) string {
 	return "unknown"
 }
 
-func extractAffectedFiles(conflict Conflict) []string {
+func extractAffectedFiles(conflict *Conflict) []string {
 	files := make(map[string]bool)
 
 	// Collect files from all related chunks
@@ -545,7 +538,8 @@ func extractAffectedFiles(conflict Conflict) []string {
 	for _, file := range conflict.ConflictChunk.Metadata.FilesModified {
 		files[file] = true
 	}
-	for _, chunk := range conflict.RelatedChunks {
+	for i := range conflict.RelatedChunks {
+		chunk := &conflict.RelatedChunks[i]
 		for _, file := range chunk.Metadata.FilesModified {
 			files[file] = true
 		}
@@ -559,7 +553,7 @@ func extractAffectedFiles(conflict Conflict) []string {
 	return result
 }
 
-func extractStakeholderImpact(conflict Conflict) map[string]string {
+func extractStakeholderImpact(conflict *Conflict) map[string]string {
 	impact := make(map[string]string)
 
 	// Determine impact based on conflict type
@@ -651,7 +645,7 @@ func initializeStrategyWeights() map[ConflictType]map[ConflictResolutionType]flo
 }
 
 // generatePatternStrategies generates resolution strategies for pattern conflicts
-func (cr *ConflictResolver) generatePatternStrategies(conflict Conflict) []ResolutionStrategy {
+func (cr *ConflictResolver) generatePatternStrategies(conflict *Conflict) []ResolutionStrategy {
 	strategies := []ResolutionStrategy{}
 
 	// Strategy 1: Merge patterns - customize based on conflict severity

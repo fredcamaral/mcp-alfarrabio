@@ -59,7 +59,7 @@ func (s *Schema) searchResolver(container *di.Container) graphql.FieldResolveFn 
 		}
 
 		// Perform search
-		results, err := container.GetVectorStore().Search(ctx, query, embeddings)
+		results, err := container.GetVectorStore().Search(ctx, &query, embeddings)
 		if err != nil {
 			return nil, fmt.Errorf("search failed: %w", err)
 		}
@@ -119,7 +119,7 @@ func (s *Schema) getPatternsResolver(container *di.Container) graphql.FieldResol
 		// Search for chunks in timeframe
 		ctx := p.Context
 		embeddings := make([]float64, 1536) // Empty embeddings for broad search
-		results, err := container.GetVectorStore().Search(ctx, query, embeddings)
+		results, err := container.GetVectorStore().Search(ctx, &query, embeddings)
 		if err != nil {
 			return nil, fmt.Errorf("failed to search for patterns: %w", err)
 		}
@@ -129,7 +129,8 @@ func (s *Schema) getPatternsResolver(container *di.Container) graphql.FieldResol
 		patterns := []map[string]interface{}{}
 
 		// Analyze patterns in chunks
-		for _, scored := range results.Results {
+		for i := range results.Results {
+			scored := &results.Results[i]
 			// This is a simplified pattern extraction
 			// In a real implementation, we'd use the pattern analyzer more thoroughly
 			pattern := map[string]interface{}{
@@ -198,9 +199,11 @@ func (s *Schema) suggestRelatedResolver(container *di.Container) graphql.FieldRe
 		relatedConcepts := []interface{}{}
 		potentialIssues := []interface{}{}
 
-		for _, suggestion := range suggestions {
+		for i := range suggestions {
+			suggestion := &suggestions[i]
 			// Convert related chunks
-			for _, chunk := range suggestion.RelatedChunks {
+			for j := range suggestion.RelatedChunks {
+				chunk := &suggestion.RelatedChunks[j]
 				relevantChunks = append(relevantChunks, map[string]interface{}{
 					"id":         chunk.ID,
 					"content":    chunk.Content,
@@ -283,15 +286,15 @@ func (s *Schema) findSimilarResolver(container *di.Container) graphql.FieldResol
 			Recency:           types.RecencyAllTime,
 		}
 
-		results, err := container.GetVectorStore().Search(ctx, query, embeddings)
+		results, err := container.GetVectorStore().Search(ctx, &query, embeddings)
 		if err != nil {
 			return nil, fmt.Errorf("search failed: %w", err)
 		}
 
 		// Extract chunks
 		chunks := make([]types.ConversationChunk, 0, len(results.Results))
-		for _, scored := range results.Results {
-			chunks = append(chunks, scored.Chunk)
+		for i := range results.Results {
+			chunks = append(chunks, results.Results[i].Chunk)
 		}
 
 		return chunks, nil
@@ -337,8 +340,8 @@ func (s *Schema) storeChunkResolver(container *di.Container) graphql.FieldResolv
 		}
 
 		// Store all chunks
-		for _, processedChunk := range processedChunks {
-			if err := container.GetVectorStore().Store(ctx, processedChunk); err != nil {
+		for i := range processedChunks {
+			if err := container.GetVectorStore().Store(ctx, &processedChunks[i]); err != nil {
 				return nil, fmt.Errorf("failed to store chunk: %w", err)
 			}
 		}
@@ -384,7 +387,7 @@ func (s *Schema) storeDecisionResolver(container *di.Container) graphql.FieldRes
 		chunk.Embeddings = embeddings
 
 		// Store the decision
-		if err := container.GetVectorStore().Store(ctx, chunk); err != nil {
+		if err := container.GetVectorStore().Store(ctx, &chunk); err != nil {
 			return nil, fmt.Errorf("failed to store decision: %w", err)
 		}
 
@@ -407,7 +410,7 @@ func (s *Schema) deleteChunkResolver(container *di.Container) graphql.FieldResol
 }
 
 // Helper functions for extracting values with defaults
-func getStringOrDefault(m interface{}, key string, defaultValue string) string {
+func getStringOrDefault(m interface{}, key, defaultValue string) string {
 	if mapValue, ok := m.(map[string]interface{}); ok {
 		if value, exists := mapValue[key]; exists && value != nil {
 			if strValue, ok := value.(string); ok {
@@ -523,7 +526,8 @@ func (s *Schema) traceRelatedResolver(container *di.Container) graphql.FieldReso
 		for level := 1; level <= depth && len(currentLevel) > 0; level++ {
 			nextLevel := []types.ConversationChunk{}
 
-			for _, chunk := range currentLevel {
+			for i := range currentLevel {
+				chunk := &currentLevel[i]
 				// Search for similar chunks using content
 				query := types.MemoryQuery{
 					Query:             chunk.Content,
@@ -543,13 +547,14 @@ func (s *Schema) traceRelatedResolver(container *di.Container) graphql.FieldReso
 					}
 				}
 
-				results, err := container.GetVectorStore().Search(ctx, query, embeddings)
+				results, err := container.GetVectorStore().Search(ctx, &query, embeddings)
 				if err != nil {
 					continue // Skip this chunk if search fails
 				}
 
 				// Add unvisited related chunks
-				for _, scored := range results.Results {
+				for i := range results.Results {
+					scored := &results.Results[i]
 					if !visited[scored.Chunk.ID] && scored.Score > 0.7 {
 						visited[scored.Chunk.ID] = true
 						relatedChunks = append(relatedChunks, scored.Chunk)
