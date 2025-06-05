@@ -289,7 +289,7 @@ func TestPatternAnalyzer_ExtractSequenceTags(t *testing.T) {
 		},
 	}
 
-	tags := analyzer.extractSequenceTags(sequence)
+	tags := analyzer.extractSequenceTags(&sequence)
 
 	assert.Contains(t, tags, "success")
 	assert.Contains(t, tags, "repo-test-repo")

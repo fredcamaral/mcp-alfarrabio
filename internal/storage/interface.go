@@ -15,7 +15,7 @@ type VectorStore interface {
 	// Store a conversation chunk with embeddings
 	Store(ctx context.Context, chunk *types.ConversationChunk) error
 
-	// Search for similar chunks based on query embeddings  
+	// Search for similar chunks based on query embeddings
 	Search(ctx context.Context, query *types.MemoryQuery, embeddings []float64) (*types.SearchResults, error)
 
 	// Get a chunk by its ID

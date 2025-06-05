@@ -107,7 +107,7 @@ func (cr *ConflictResolver) GenerateResolutionStrategies(conflict *Conflict) []R
 
 	// Score and sort strategies
 	for i := range strategies {
-		strategies[i].Confidence = cr.calculateStrategyConfidence(conflict, strategies[i])
+		strategies[i].Confidence = cr.calculateStrategyConfidence(conflict, &strategies[i])
 	}
 
 	sort.Slice(strategies, func(i, j int) bool {
@@ -459,7 +459,7 @@ func (cr *ConflictResolver) generateGenericStrategies(_ *Conflict) []ResolutionS
 // Helper methods
 
 // Helper function to get base confidence from strategy weights
-func (cr *ConflictResolver) getBaseConfidenceFromWeights(conflict *Conflict, strategy ResolutionStrategy) float64 {
+func (cr *ConflictResolver) getBaseConfidenceFromWeights(conflict *Conflict, strategy *ResolutionStrategy) float64 {
 	baseConfidence := 0.5
 
 	if weights, exists := cr.strategyWeights[conflict.Type]; exists {
@@ -472,7 +472,7 @@ func (cr *ConflictResolver) getBaseConfidenceFromWeights(conflict *Conflict, str
 }
 
 // Helper function to adjust confidence based on severity
-func (cr *ConflictResolver) adjustConfidenceForSeverity(baseConfidence float64, conflict *Conflict, strategy ResolutionStrategy) float64 {
+func (cr *ConflictResolver) adjustConfidenceForSeverity(baseConfidence float64, conflict *Conflict, strategy *ResolutionStrategy) float64 {
 	switch conflict.Severity {
 	case SeverityCritical:
 		if strategy.Type == ResolutionManualReview {
@@ -508,7 +508,7 @@ func (cr *ConflictResolver) clampConfidence(confidence float64) float64 {
 	return confidence
 }
 
-func (cr *ConflictResolver) calculateStrategyConfidence(conflict *Conflict, strategy ResolutionStrategy) float64 {
+func (cr *ConflictResolver) calculateStrategyConfidence(conflict *Conflict, strategy *ResolutionStrategy) float64 {
 	// Get base confidence from strategy weights
 	baseConfidence := cr.getBaseConfidenceFromWeights(conflict, strategy)
 

@@ -777,7 +777,7 @@ func (mc *MetricsCollectorV2) createNewAggregation(metric *PerformanceMetricV2, 
 }
 
 // updateExistingAggregation updates an existing aggregation with a new metric value
-func (mc *MetricsCollectorV2) updateExistingAggregation(existing *PerformanceMetricV2, metric *PerformanceMetricV2, aggType MetricAggregationType) {
+func (mc *MetricsCollectorV2) updateExistingAggregation(existing, metric *PerformanceMetricV2, aggType MetricAggregationType) {
 	switch aggType {
 	case AggregationSum:
 		existing.Value += metric.Value
@@ -799,7 +799,7 @@ func (mc *MetricsCollectorV2) updateExistingAggregation(existing *PerformanceMet
 }
 
 // updateAdvancedAggregation handles complex aggregation types
-func (mc *MetricsCollectorV2) updateAdvancedAggregation(existing *PerformanceMetricV2, metric *PerformanceMetricV2, aggType MetricAggregationType) {
+func (mc *MetricsCollectorV2) updateAdvancedAggregation(existing, metric *PerformanceMetricV2, aggType MetricAggregationType) {
 	switch aggType {
 	case AggregationMedian:
 		// For median, we would need to store all values - simplified for now
@@ -887,75 +887,83 @@ func (mc *MetricsCollectorV2) aggregateValues(points []*MetricDataPoint, aggrega
 		return 0, fmt.Errorf("no data points to aggregate")
 	}
 
+	values := mc.extractValues(points)
+	return mc.computeAggregation(values, aggregationType)
+}
+
+// extractValues extracts numeric values from metric data points
+func (mc *MetricsCollectorV2) extractValues(points []*MetricDataPoint) []float64 {
 	values := make([]float64, len(points))
 	for i, point := range points {
 		values[i] = point.Value
 	}
+	return values
+}
 
+// computeAggregation computes the aggregated value based on type
+func (mc *MetricsCollectorV2) computeAggregation(values []float64, aggregationType MetricAggregationType) (float64, error) {
 	switch aggregationType {
-	case AggregationSum:
-		sum := 0.0
-		for _, v := range values {
-			sum += v
-		}
-		return sum, nil
-
-	case AggregationAverage:
-		sum := 0.0
-		for _, v := range values {
-			sum += v
-		}
-		return sum / float64(len(values)), nil
-
-	case AggregationMin:
-		minVal := values[0]
-		for _, v := range values[1:] {
-			if v < minVal {
-				minVal = v
-			}
-		}
-		return minVal, nil
-
-	case AggregationMax:
-		maxVal := values[0]
-		for _, v := range values[1:] {
-			if v > maxVal {
-				maxVal = v
-			}
-		}
-		return maxVal, nil
-
+	case AggregationSum, AggregationAverage:
+		return mc.computeSumOrAverage(values, aggregationType)
+	case AggregationMin, AggregationMax:
+		return mc.computeMinOrMax(values, aggregationType)
 	case AggregationMedian:
-		sort.Float64s(values)
-		if len(values)%2 == 0 {
-			return (values[len(values)/2-1] + values[len(values)/2]) / 2, nil
-		}
-		return values[len(values)/2], nil
-
+		return mc.computeMedian(values)
 	case AggregationP95:
 		return percentileValue(values, 0.95), nil
-
 	case AggregationP99:
 		return percentileValue(values, 0.99), nil
-
 	case AggregationRate:
-		// Rate calculation: change over time for time series data
-		if len(values) < 2 {
-			return 0, nil
-		}
-		return (values[len(values)-1] - values[0]) / float64(len(values)-1), nil
-
+		return mc.computeRate(values)
 	case AggregationGauge:
-		// Gauge: return the latest value
 		return values[len(values)-1], nil
-
 	case AggregationHistogram:
-		// Histogram: return count (simplified implementation)
 		return float64(len(values)), nil
-
 	default:
 		return 0, fmt.Errorf("unsupported aggregation type: %s", aggregationType)
 	}
+}
+
+// computeSumOrAverage calculates sum or average
+func (mc *MetricsCollectorV2) computeSumOrAverage(values []float64, aggregationType MetricAggregationType) (float64, error) {
+	sum := 0.0
+	for _, v := range values {
+		sum += v
+	}
+	if aggregationType == AggregationSum {
+		return sum, nil
+	}
+	return sum / float64(len(values)), nil
+}
+
+// computeMinOrMax finds minimum or maximum value
+func (mc *MetricsCollectorV2) computeMinOrMax(values []float64, aggregationType MetricAggregationType) (float64, error) {
+	result := values[0]
+	for _, v := range values[1:] {
+		if aggregationType == AggregationMin && v < result {
+			result = v
+		} else if aggregationType == AggregationMax && v > result {
+			result = v
+		}
+	}
+	return result, nil
+}
+
+// computeMedian calculates the median value
+func (mc *MetricsCollectorV2) computeMedian(values []float64) (float64, error) {
+	sort.Float64s(values)
+	if len(values)%2 == 0 {
+		return (values[len(values)/2-1] + values[len(values)/2]) / 2, nil
+	}
+	return values[len(values)/2], nil
+}
+
+// computeRate calculates the rate of change
+func (mc *MetricsCollectorV2) computeRate(values []float64) (float64, error) {
+	if len(values) < 2 {
+		return 0, nil
+	}
+	return (values[len(values)-1] - values[0]) / float64(len(values)-1), nil
 }
 
 func (mc *MetricsCollectorV2) flushBuffer() {

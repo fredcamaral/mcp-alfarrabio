@@ -109,9 +109,9 @@ func (bm *BackupManager) getChunksForBackup(ctx context.Context, repository stri
 // filterChunksByRepository filters chunks by repository
 func (bm *BackupManager) filterChunksByRepository(chunks []types.ConversationChunk, repository string) []types.ConversationChunk {
 	filteredChunks := make([]types.ConversationChunk, 0)
-	for _, chunk := range chunks {
-		if chunk.Metadata.Repository == repository {
-			filteredChunks = append(filteredChunks, chunk)
+	for i := range chunks {
+		if chunks[i].Metadata.Repository == repository {
+			filteredChunks = append(filteredChunks, chunks[i])
 		}
 	}
 	return filteredChunks
@@ -148,14 +148,14 @@ func (bm *BackupManager) writeBackupArchive(backupFile string, chunks []types.Co
 
 // writeChunksToTar writes chunks to the tar archive
 func (bm *BackupManager) writeChunksToTar(tarWriter *tar.Writer, chunks []types.ConversationChunk) error {
-	for i, chunk := range chunks {
-		chunkData, err := json.MarshalIndent(chunk, "", "  ")
+	for i := range chunks {
+		chunkData, err := json.MarshalIndent(chunks[i], "", "  ")
 		if err != nil {
-			return fmt.Errorf("failed to marshal chunk %s: %w", chunk.ID, err)
+			return fmt.Errorf("failed to marshal chunk %s: %w", chunks[i].ID, err)
 		}
 
 		header := &tar.Header{
-			Name: fmt.Sprintf("chunks/chunk_%d_%s.json", i, chunk.ID),
+			Name: fmt.Sprintf("chunks/chunk_%d_%s.json", i, chunks[i].ID),
 			Size: int64(len(chunkData)),
 			Mode: 0o644,
 		}
@@ -371,7 +371,7 @@ func (bm *BackupManager) CleanupOldBackups() error {
 	}
 
 	for _, backup := range backups {
-		if err := bm.cleanupBackupIfOld(backup, cutoff); err != nil {
+		if err := bm.cleanupBackupIfOld(&backup, cutoff); err != nil {
 			return err
 		}
 	}
@@ -379,7 +379,7 @@ func (bm *BackupManager) CleanupOldBackups() error {
 	return nil
 }
 
-func (bm *BackupManager) cleanupBackupIfOld(backup BackupMetadata, cutoff time.Time) error {
+func (bm *BackupManager) cleanupBackupIfOld(backup *BackupMetadata, cutoff time.Time) error {
 	if !backup.CreatedAt.Before(cutoff) {
 		return nil
 	}
@@ -406,7 +406,7 @@ func (bm *BackupManager) removeBackupFile(backupFile string) error {
 	return nil
 }
 
-func (bm *BackupManager) removeMetadataFile(backup BackupMetadata) error {
+func (bm *BackupManager) removeMetadataFile(backup *BackupMetadata) error {
 	backupFile, ok := backup.Metadata["backup_file"].(string)
 	if !ok {
 		return nil
@@ -436,9 +436,9 @@ func (bm *BackupManager) MigrateData(ctx context.Context, fromVersion, toVersion
 
 	// Apply migration logic based on versions
 	migratedChunks := make([]types.ConversationChunk, 0, len(chunks))
-	for _, chunk := range chunks {
-		migratedChunk := bm.migrateChunk(chunk, fromVersion, toVersion)
-		migratedChunks = append(migratedChunks, migratedChunk)
+	for i := range chunks {
+		migratedChunk := bm.migrateChunk(&chunks[i], fromVersion, toVersion)
+		migratedChunks = append(migratedChunks, *migratedChunk)
 	}
 
 	// Store migrated chunks
@@ -459,7 +459,7 @@ func (bm *BackupManager) MigrateData(ctx context.Context, fromVersion, toVersion
 }
 
 // migrateChunk applies version-specific migrations to a chunk
-func (bm *BackupManager) migrateChunk(chunk types.ConversationChunk, fromVersion, toVersion string) types.ConversationChunk {
+func (bm *BackupManager) migrateChunk(chunk *types.ConversationChunk, fromVersion, toVersion string) *types.ConversationChunk {
 	// Example migration logic
 	switch {
 	case fromVersion == "1.0" && toVersion == "1.1":
@@ -487,22 +487,22 @@ func (bm *BackupManager) VerifyIntegrity(ctx context.Context) error {
 		return fmt.Errorf("failed to retrieve chunks: %w", err)
 	}
 
-	for _, chunk := range chunks {
-		if err := chunk.Validate(); err != nil {
-			return fmt.Errorf("chunk %s failed validation: %w", chunk.ID, err)
+	for i := range chunks {
+		if err := chunks[i].Validate(); err != nil {
+			return fmt.Errorf("chunk %s failed validation: %w", chunks[i].ID, err)
 		}
 
 		// Additional integrity checks
-		if chunk.ID == "" {
+		if chunks[i].ID == "" {
 			return fmt.Errorf("chunk has empty ID")
 		}
 
-		if chunk.Timestamp.IsZero() {
-			return fmt.Errorf("chunk %s has zero timestamp", chunk.ID)
+		if chunks[i].Timestamp.IsZero() {
+			return fmt.Errorf("chunk %s has zero timestamp", chunks[i].ID)
 		}
 
-		if len(chunk.Embeddings) == 0 {
-			return fmt.Errorf("chunk %s has no embeddings", chunk.ID)
+		if len(chunks[i].Embeddings) == 0 {
+			return fmt.Errorf("chunk %s has no embeddings", chunks[i].ID)
 		}
 	}
 
@@ -519,16 +519,16 @@ func (bm *BackupManager) CompressData(ctx context.Context) error {
 
 	// Apply compression to chunk content
 	compressedCount := 0
-	for _, chunk := range chunks {
-		originalSize := len(chunk.Content)
+	for i := range chunks {
+		originalSize := len(chunks[i].Content)
 
 		// Simple compression: remove excessive whitespace
-		compressed := compressText(chunk.Content)
+		compressed := compressText(chunks[i].Content)
 
 		if len(compressed) < originalSize {
-			chunk.Content = compressed
-			if err := bm.storage.StoreChunk(ctx, &chunk); err != nil {
-				return fmt.Errorf("failed to store compressed chunk %s: %w", chunk.ID, err)
+			chunks[i].Content = compressed
+			if err := bm.storage.StoreChunk(ctx, &chunks[i]); err != nil {
+				return fmt.Errorf("failed to store compressed chunk %s: %w", chunks[i].ID, err)
 			}
 			compressedCount++
 		}

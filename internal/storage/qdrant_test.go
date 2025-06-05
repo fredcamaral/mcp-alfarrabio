@@ -98,7 +98,7 @@ func (m *MockQdrantStore) GetByID(ctx context.Context, id string) (*types.Conver
 	return &chunk, nil
 }
 
-func (m *MockQdrantStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
+func (m *MockQdrantStore) ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error) {
 	// First, collect all matching chunks
 	var allChunks []types.ConversationChunk
 	for _, chunk := range m.chunks {

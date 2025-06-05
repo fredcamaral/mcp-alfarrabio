@@ -141,8 +141,8 @@ func (tm *ThreadManager) CreateThread(ctx context.Context, chunks []types.Conver
 	sessionIDs := tm.extractSessionIDs(sortedChunks)
 	tags := tm.extractThreadTags(sortedChunks)
 	chunkIDs := make([]string, len(sortedChunks))
-	for i, chunk := range sortedChunks {
-		chunkIDs[i] = chunk.ID
+	for i := range sortedChunks {
+		chunkIDs[i] = sortedChunks[i].ID
 	}
 
 	// Generate thread details
@@ -279,8 +279,8 @@ func (tm *ThreadManager) GetThreadSummary(ctx context.Context, threadID string, 
 
 func (tm *ThreadManager) extractSessionIDs(chunks []types.ConversationChunk) []string {
 	sessionSet := make(map[string]bool)
-	for _, chunk := range chunks {
-		sessionSet[chunk.SessionID] = true
+	for i := range chunks {
+		sessionSet[chunks[i].SessionID] = true
 	}
 
 	sessions := make([]string, 0, len(sessionSet))
@@ -294,42 +294,71 @@ func (tm *ThreadManager) extractThreadTags(chunks []types.ConversationChunk) []s
 	tagSet := make(map[string]bool)
 
 	// Extract from chunk metadata tags
-	for _, chunk := range chunks {
-		for _, tag := range chunk.Metadata.Tags {
+	tm.extractMetadataTags(chunks, tagSet)
+
+	// Add inferred tags based on content patterns
+	tm.extractInferredTags(chunks, tagSet)
+
+	return tm.convertTagSetToSlice(tagSet)
+}
+
+// extractMetadataTags extracts explicit tags from chunk metadata
+func (tm *ThreadManager) extractMetadataTags(chunks []types.ConversationChunk, tagSet map[string]bool) {
+	for i := range chunks {
+		for _, tag := range chunks[i].Metadata.Tags {
 			tagSet[tag] = true
 		}
 	}
+}
 
-	// Add inferred tags based on content patterns
-	for _, chunk := range chunks {
-		content := strings.ToLower(chunk.Content + " " + chunk.Summary)
+// extractInferredTags infers tags from content patterns
+func (tm *ThreadManager) extractInferredTags(chunks []types.ConversationChunk, tagSet map[string]bool) {
+	for i := range chunks {
+		content := strings.ToLower(chunks[i].Content + " " + chunks[i].Summary)
+		tm.addTechnologyTags(content, tagSet)
+		tm.addProcessTags(content, tagSet)
+	}
+}
 
-		// Technology tags
-		if strings.Contains(content, "docker") || strings.Contains(content, "container") {
-			tagSet["docker"] = true
-		}
-		if strings.Contains(content, "kubernetes") || strings.Contains(content, "k8s") {
-			tagSet["kubernetes"] = true
-		}
-		if strings.Contains(content, "database") || strings.Contains(content, "sql") {
-			tagSet["database"] = true
-		}
-		if strings.Contains(content, "api") || strings.Contains(content, "endpoint") {
-			tagSet["api"] = true
-		}
-
-		// Process tags
-		if strings.Contains(content, "test") || strings.Contains(content, "testing") {
-			tagSet["testing"] = true
-		}
-		if strings.Contains(content, "deploy") || strings.Contains(content, "deployment") {
-			tagSet["deployment"] = true
-		}
-		if strings.Contains(content, "performance") || strings.Contains(content, "optimization") {
-			tagSet["performance"] = true
-		}
+// addTechnologyTags adds technology-related tags based on content
+func (tm *ThreadManager) addTechnologyTags(content string, tagSet map[string]bool) {
+	techPatterns := map[string][]string{
+		"docker":     {"docker", "container"},
+		"kubernetes": {"kubernetes", "k8s"},
+		"database":   {"database", "sql"},
+		"api":        {"api", "endpoint"},
 	}
 
+	for tag, patterns := range techPatterns {
+		for _, pattern := range patterns {
+			if strings.Contains(content, pattern) {
+				tagSet[tag] = true
+				break
+			}
+		}
+	}
+}
+
+// addProcessTags adds process-related tags based on content
+func (tm *ThreadManager) addProcessTags(content string, tagSet map[string]bool) {
+	processPatterns := map[string][]string{
+		"testing":     {"test", "testing"},
+		"deployment":  {"deploy", "deployment"},
+		"performance": {"performance", "optimization"},
+	}
+
+	for tag, patterns := range processPatterns {
+		for _, pattern := range patterns {
+			if strings.Contains(content, pattern) {
+				tagSet[tag] = true
+				break
+			}
+		}
+	}
+}
+
+// convertTagSetToSlice converts tag set to slice
+func (tm *ThreadManager) convertTagSetToSlice(tagSet map[string]bool) []string {
 	tags := make([]string, 0, len(tagSet))
 	for tag := range tagSet {
 		tags = append(tags, tag)
@@ -404,8 +433,8 @@ func (tm *ThreadManager) determineRepository(chunks []types.ConversationChunk) s
 
 	// Use the most common repository
 	repoCount := make(map[string]int)
-	for _, chunk := range chunks {
-		repoCount[chunk.Metadata.Repository]++
+	for i := range chunks {
+		repoCount[chunks[i].Metadata.Repository]++
 	}
 
 	maxCount := 0
@@ -451,61 +480,75 @@ func (tm *ThreadManager) calculatePriority(chunks []types.ConversationChunk) int
 		return 1
 	}
 
+	priority := tm.calculateTypePriority(chunks)
+	priority = tm.adjustForRecentActivity(chunks, priority)
+	return priority
+}
+
+// calculateTypePriority calculates priority based on chunk types
+func (tm *ThreadManager) calculateTypePriority(chunks []types.ConversationChunk) int {
 	priority := 1 // Base priority
 
-	// Increase priority based on chunk types
-	for _, chunk := range chunks {
-		switch chunk.Type {
-		case types.ChunkTypeArchitectureDecision:
-			priority = maxInt(priority, 4) // High priority for architecture
-		case types.ChunkTypeProblem:
-			priority = maxInt(priority, 3) // Medium-high for problems
-		case types.ChunkTypeSolution:
-			priority = maxInt(priority, 3) // Medium-high for solutions
-		case types.ChunkTypeCodeChange:
-			priority = maxInt(priority, 3) // Medium-high for code changes
-		case types.ChunkTypeDiscussion:
-			priority = maxInt(priority, 2) // Medium for discussions
-		case types.ChunkTypeSessionSummary:
-			priority = maxInt(priority, 2) // Medium for summaries
-		case types.ChunkTypeAnalysis:
-			priority = maxInt(priority, 2) // Medium for analysis
-		case types.ChunkTypeVerification:
-			priority = maxInt(priority, 2) // Medium for verification
-		case types.ChunkTypeQuestion:
-			priority = maxInt(priority, 1) // Base priority for questions
-		// Task-oriented chunk types
-		case types.ChunkTypeTask:
-			// Priority based on task priority and status
-			taskPriority := 3 // Default medium-high
-			if chunk.Metadata.TaskPriority != nil {
-				switch *chunk.Metadata.TaskPriority {
-				case "high":
-					taskPriority = 4
-				case "medium":
-					taskPriority = 3
-				case "low":
-					taskPriority = 2
-				}
-			}
-			// Boost priority for completed tasks
-			if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == "completed" {
-				taskPriority = maxInt(taskPriority, 4)
-			}
-			priority = maxInt(priority, taskPriority)
-		case types.ChunkTypeTaskUpdate:
-			priority = maxInt(priority, 3) // Updates are important
-		case types.ChunkTypeTaskProgress:
-			priority = maxInt(priority, 2) // Progress tracking is medium priority
+	for i := range chunks {
+		chunkPriority := tm.getChunkTypePriority(&chunks[i])
+		priority = maxInt(priority, chunkPriority)
+	}
+
+	return priority
+}
+
+// getChunkTypePriority returns priority for a specific chunk type
+func (tm *ThreadManager) getChunkTypePriority(chunk *types.ConversationChunk) int {
+	switch chunk.Type {
+	case types.ChunkTypeArchitectureDecision:
+		return 4 // High priority for architecture
+	case types.ChunkTypeProblem, types.ChunkTypeSolution, types.ChunkTypeCodeChange:
+		return 3 // Medium-high for critical chunks
+	case types.ChunkTypeDiscussion, types.ChunkTypeSessionSummary, types.ChunkTypeAnalysis, types.ChunkTypeVerification:
+		return 2 // Medium for analysis chunks
+	case types.ChunkTypeQuestion:
+		return 1 // Base priority for questions
+	case types.ChunkTypeTask:
+		return tm.calculateTaskPriority(chunk)
+	case types.ChunkTypeTaskUpdate:
+		return 3 // Updates are important
+	case types.ChunkTypeTaskProgress:
+		return 2 // Progress tracking is medium priority
+	default:
+		return 1 // Default priority
+	}
+}
+
+// calculateTaskPriority calculates priority for task chunks
+func (tm *ThreadManager) calculateTaskPriority(chunk *types.ConversationChunk) int {
+	taskPriority := 3 // Default medium-high
+
+	// Adjust based on task priority metadata
+	if chunk.Metadata.TaskPriority != nil {
+		switch *chunk.Metadata.TaskPriority {
+		case "high":
+			taskPriority = 4
+		case "medium":
+			taskPriority = 3
+		case "low":
+			taskPriority = 2
 		}
 	}
 
-	// Increase priority for recent activity
-	lastChunk := chunks[len(chunks)-1]
-	if time.Since(lastChunk.Timestamp) < 24*time.Hour {
-		priority = minInt(priority+1, 5)
+	// Boost priority for completed tasks
+	if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == "completed" {
+		taskPriority = maxInt(taskPriority, 4)
 	}
 
+	return taskPriority
+}
+
+// adjustForRecentActivity adjusts priority based on recent activity
+func (tm *ThreadManager) adjustForRecentActivity(chunks []types.ConversationChunk, priority int) int {
+	lastChunk := chunks[len(chunks)-1]
+	if time.Since(lastChunk.Timestamp) < 24*time.Hour {
+		return minInt(priority+1, 5)
+	}
 	return priority
 }
 
@@ -514,15 +557,15 @@ func (tm *ThreadManager) buildThreadMetadata(chunks []types.ConversationChunk) m
 
 	// Count chunk types
 	typeCounts := make(map[string]int)
-	for _, chunk := range chunks {
-		typeCounts[string(chunk.Type)]++
+	for i := range chunks {
+		typeCounts[string(chunks[i].Type)]++
 	}
 	metadata["chunk_type_counts"] = typeCounts
 
 	// Count outcomes
 	outcomeCounts := make(map[string]int)
-	for _, chunk := range chunks {
-		outcomeCounts[string(chunk.Metadata.Outcome)]++
+	for i := range chunks {
+		outcomeCounts[string(chunks[i].Metadata.Outcome)]++
 	}
 	metadata["outcome_counts"] = outcomeCounts
 
@@ -555,8 +598,8 @@ func (tm *ThreadManager) createThreadChain(ctx context.Context, thread *MemoryTh
 func (tm *ThreadManager) groupBySession(chunks []types.ConversationChunk) map[string][]types.ConversationChunk {
 	groups := make(map[string][]types.ConversationChunk)
 
-	for _, chunk := range chunks {
-		groups[chunk.SessionID] = append(groups[chunk.SessionID], chunk)
+	for i := range chunks {
+		groups[chunks[i].SessionID] = append(groups[chunks[i].SessionID], chunks[i])
 	}
 
 	// Sort each group by timestamp
@@ -573,16 +616,16 @@ func (tm *ThreadManager) groupByProblemSolution(chunks []types.ConversationChunk
 	groups := [][]types.ConversationChunk{}
 
 	// Find problem chunks and their related solutions
-	for _, chunk := range chunks {
-		if chunk.Type == types.ChunkTypeProblem {
-			group := []types.ConversationChunk{chunk}
+	for i := range chunks {
+		if chunks[i].Type == types.ChunkTypeProblem {
+			group := []types.ConversationChunk{chunks[i]}
 
 			// Find related solutions and analysis
-			for _, otherChunk := range chunks {
-				if otherChunk.ID != chunk.ID &&
-					(otherChunk.Type == types.ChunkTypeSolution || otherChunk.Type == types.ChunkTypeAnalysis) &&
-					tm.areChunksRelated(chunk, otherChunk) {
-					group = append(group, otherChunk)
+			for j := range chunks {
+				if chunks[j].ID != chunks[i].ID &&
+					(chunks[j].Type == types.ChunkTypeSolution || chunks[j].Type == types.ChunkTypeAnalysis) &&
+					tm.areChunksRelated(&chunks[i], &chunks[j]) {
+					group = append(group, chunks[j])
 				}
 			}
 
@@ -599,8 +642,8 @@ func (tm *ThreadManager) groupByFeature(chunks []types.ConversationChunk) map[st
 	groups := make(map[string][]types.ConversationChunk)
 
 	// Simple feature detection based on keywords
-	for _, chunk := range chunks {
-		content := strings.ToLower(chunk.Content + " " + chunk.Summary)
+	for i := range chunks {
+		content := strings.ToLower(chunks[i].Content + " " + chunks[i].Summary)
 
 		// Look for feature-related keywords
 		featureKeywords := []string{"feature", "implement", "add", "create", "build"}
@@ -608,11 +651,11 @@ func (tm *ThreadManager) groupByFeature(chunks []types.ConversationChunk) map[st
 			if strings.Contains(content, keyword) {
 				// Extract potential feature name (simplified)
 				words := strings.Fields(content)
-				for i, word := range words {
-					if word == keyword && i+1 < len(words) {
-						featureName := words[i+1]
+				for j, word := range words {
+					if word == keyword && j+1 < len(words) {
+						featureName := words[j+1]
 						if len(featureName) > 3 { // Avoid short words
-							groups[featureName] = append(groups[featureName], chunk)
+							groups[featureName] = append(groups[featureName], chunks[i])
 							break
 						}
 					}
@@ -625,7 +668,7 @@ func (tm *ThreadManager) groupByFeature(chunks []types.ConversationChunk) map[st
 	return groups
 }
 
-func (tm *ThreadManager) areChunksRelated(chunk1, chunk2 types.ConversationChunk) bool {
+func (tm *ThreadManager) areChunksRelated(chunk1, chunk2 *types.ConversationChunk) bool {
 	// Check if chunks are related based on various criteria
 
 	// Same session
@@ -681,8 +724,8 @@ func (tm *ThreadManager) inferThreadType(chunks []types.ConversationChunk) Threa
 
 	// Count different chunk types
 	typeCounts := make(map[types.ChunkType]int)
-	for _, chunk := range chunks {
-		typeCounts[chunk.Type]++
+	for i := range chunks {
+		typeCounts[chunks[i].Type]++
 	}
 
 	// Infer thread type based on chunk composition
@@ -695,16 +738,16 @@ func (tm *ThreadManager) inferThreadType(chunks []types.ConversationChunk) Threa
 	}
 
 	// Check content for debugging indicators
-	for _, chunk := range chunks {
-		content := strings.ToLower(chunk.Content + " " + chunk.Summary)
+	for i := range chunks {
+		content := strings.ToLower(chunks[i].Content + " " + chunks[i].Summary)
 		if strings.Contains(content, "debug") || strings.Contains(content, "error") || strings.Contains(content, "bug") {
 			return ThreadTypeDebugging
 		}
 	}
 
 	// Check for feature development
-	for _, chunk := range chunks {
-		content := strings.ToLower(chunk.Content + " " + chunk.Summary)
+	for i := range chunks {
+		content := strings.ToLower(chunks[i].Content + " " + chunks[i].Summary)
 		if strings.Contains(content, "feature") || strings.Contains(content, "implement") {
 			return ThreadTypeFeature
 		}
@@ -721,8 +764,8 @@ func (tm *ThreadManager) calculateProgress(chunks []types.ConversationChunk) flo
 	}
 
 	completedChunks := 0
-	for _, chunk := range chunks {
-		if chunk.Metadata.Outcome == types.OutcomeSuccess {
+	for i := range chunks {
+		if chunks[i].Metadata.Outcome == types.OutcomeSuccess {
 			completedChunks++
 		}
 	}
@@ -739,8 +782,8 @@ func (tm *ThreadManager) calculateHealthScore(chunks []types.ConversationChunk) 
 
 	// Factor in success rate
 	successCount := 0
-	for _, chunk := range chunks {
-		if chunk.Metadata.Outcome == types.OutcomeSuccess {
+	for i := range chunks {
+		if chunks[i].Metadata.Outcome == types.OutcomeSuccess {
 			successCount++
 		}
 	}

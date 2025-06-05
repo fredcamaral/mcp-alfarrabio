@@ -118,7 +118,7 @@ func (m *SimpleMockVectorStore) GetByID(ctx context.Context, id string) (*types.
 	return &chunk, nil
 }
 
-func (m *SimpleMockVectorStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
+func (m *SimpleMockVectorStore) ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error) {
 	results := make([]types.ConversationChunk, 0, limit)
 	count := 0
 

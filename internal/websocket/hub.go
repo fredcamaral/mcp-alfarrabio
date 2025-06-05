@@ -102,7 +102,7 @@ func (h *Hub) Run(ctx context.Context) {
 			h.mutex.RLock()
 			for client := range h.clients {
 				// Filter events based on client preferences
-				if h.shouldSendToClient(client, event) {
+				if h.shouldSendToClient(client, &event) {
 					select {
 					case client.Send <- event:
 					default:
@@ -140,7 +140,7 @@ func (h *Hub) removeClientUnsafe(client *Client) {
 }
 
 // shouldSendToClient determines if an event should be sent to a specific client
-func (h *Hub) shouldSendToClient(client *Client, event MemoryEvent) bool {
+func (h *Hub) shouldSendToClient(client *Client, event *MemoryEvent) bool {
 	// Always send connection and system events
 	if event.Type == "connection" || event.Type == "system" {
 		return true
@@ -170,9 +170,9 @@ func (h *Hub) UnregisterClient(client *Client) {
 }
 
 // BroadcastMemoryEvent sends a memory event to all connected clients
-func (h *Hub) BroadcastMemoryEvent(event MemoryEvent) {
+func (h *Hub) BroadcastMemoryEvent(event *MemoryEvent) {
 	select {
-	case h.broadcast <- event:
+	case h.broadcast <- *event:
 	default:
 		log.Printf("Warning: Broadcast channel full, dropping event %s", event.Type)
 	}

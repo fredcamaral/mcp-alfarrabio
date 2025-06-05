@@ -10,10 +10,7 @@ import (
 	mcp "github.com/fredcamaral/gomcp-sdk"
 )
 
-// Constants for repository handling
-const (
-	GlobalRepository = "global"
-)
+// Constants moved to constants.go to avoid duplication
 
 // registerConsolidatedTools registers the 9 consolidated MCP tools
 func (ms *MemoryServer) registerConsolidatedTools() {
@@ -844,53 +841,99 @@ func (ms *MemoryServer) handleMemoryTransfer(ctx context.Context, args map[strin
 
 // handleMemorySystem routes system operations to appropriate handlers
 func (ms *MemoryServer) handleMemorySystem(ctx context.Context, args map[string]interface{}) (interface{}, error) {
-	operation, ok := args["operation"].(string)
-	if !ok {
-		return nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}")
+	operation, options, err := ms.validateSystemOperationParams(args)
+	if err != nil {
+		return nil, err
 	}
 
-	options, ok := args["options"].(map[string]interface{})
+	return ms.routeSystemOperation(ctx, operation, options)
+}
+
+// validateSystemOperationParams validates and extracts operation parameters
+func (ms *MemoryServer) validateSystemOperationParams(args map[string]interface{}) (operation string, options map[string]interface{}, err error) {
+	var ok bool
+	operation, ok = args["operation"].(string)
+	if !ok {
+		return "", nil, fmt.Errorf("operation parameter is required. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}")
+	}
+
+	options, ok = args["options"].(map[string]interface{})
 	if !ok {
 		// For system operations like health, options might be empty
 		options = make(map[string]interface{})
 	}
 
+	return operation, options, nil
+}
+
+// routeSystemOperation routes the system operation to the appropriate handler
+func (ms *MemoryServer) routeSystemOperation(ctx context.Context, operation string, options map[string]interface{}) (interface{}, error) {
 	// Repository parameter requirements vary by operation
 	repository, hasRepo := options["repository"].(string)
 
 	switch operation {
 	case OperationHealth:
-		// Health checks are global by default but can be repository-specific
-		if hasRepo && repository != "" {
-			logging.Info("Repository-specific health check requested", "repository", repository)
-		} else {
-			logging.Info("Global system health check requested")
-		}
-		return ms.handleHealth(ctx, options)
+		return ms.handleHealthOperation(ctx, options, repository, hasRepo)
 	case OperationStatus:
-		// Status operations require repository for multi-tenant isolation
-		if !hasRepo || repository == "" {
-			return nil, fmt.Errorf("repository parameter is required for status operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"}")
-		}
-		return ms.handleMemoryStatus(ctx, options)
+		return ms.handleStatusOperation(ctx, options, repository, hasRepo)
 	case "generate_citations":
-		// Citations require repository for proper scoping
-		if !hasRepo || repository == "" {
-			return nil, fmt.Errorf("repository parameter is required for citation generation for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\", \"chunk_ids\": [\"id1\", \"id2\"]}")
-		}
-		return ms.handleGenerateCitations(ctx, options)
+		return ms.handleCitationOperation(ctx, options, repository, hasRepo)
 	case "create_inline_citation":
-		// Inline citations are repository-agnostic but logged for monitoring
-		if hasRepo && repository != "" {
-			logging.Info("Repository-specific inline citation requested", "repository", repository)
-		}
-		return ms.handleCreateInlineCitation(ctx, options)
+		return ms.handleInlineCitationOperation(ctx, options, repository, hasRepo)
 	case "get_documentation":
-		// Documentation is global by nature
-		logging.Info("Global documentation request")
-		return ms.handleGetDocumentation(ctx, options)
+		return ms.handleDocumentationOperation(ctx, options)
 	default:
-		validOps := []string{"health", "status", "generate_citations", "create_inline_citation", "get_documentation"}
-		return nil, fmt.Errorf("unsupported system operation '%s'. Valid operations: %s. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}", operation, strings.Join(validOps, ", "))
+		return ms.buildSystemOperationError(operation)
 	}
+}
+
+// handleHealthOperation handles health check operations
+func (ms *MemoryServer) handleHealthOperation(ctx context.Context, options map[string]interface{}, repository string, hasRepo bool) (interface{}, error) {
+	// Health checks are global by default but can be repository-specific
+	if hasRepo && repository != "" {
+		logging.Info("Repository-specific health check requested", "repository", repository)
+	} else {
+		logging.Info("Global system health check requested")
+	}
+	return ms.handleHealth(ctx, options)
+}
+
+// handleStatusOperation handles status operations with repository validation
+func (ms *MemoryServer) handleStatusOperation(ctx context.Context, options map[string]interface{}, repository string, hasRepo bool) (interface{}, error) {
+	// Status operations require repository for multi-tenant isolation
+	if !hasRepo || repository == "" {
+		return nil, fmt.Errorf("repository parameter is required for status operations for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\"}")
+	}
+	return ms.handleMemoryStatus(ctx, options)
+}
+
+// handleCitationOperation handles citation generation with repository validation
+func (ms *MemoryServer) handleCitationOperation(ctx context.Context, options map[string]interface{}, repository string, hasRepo bool) (interface{}, error) {
+	// Citations require repository for proper scoping
+	if !hasRepo || repository == "" {
+		return nil, fmt.Errorf("repository parameter is required for citation generation for multi-tenant isolation. Example: {\"repository\": \"github.com/user/repo\", \"query\": \"search terms\", \"chunk_ids\": [\"id1\", \"id2\"]}")
+	}
+	return ms.handleGenerateCitations(ctx, options)
+}
+
+// handleInlineCitationOperation handles inline citation operations
+func (ms *MemoryServer) handleInlineCitationOperation(ctx context.Context, options map[string]interface{}, repository string, hasRepo bool) (interface{}, error) {
+	// Inline citations are repository-agnostic but logged for monitoring
+	if hasRepo && repository != "" {
+		logging.Info("Repository-specific inline citation requested", "repository", repository)
+	}
+	return ms.handleCreateInlineCitation(ctx, options)
+}
+
+// handleDocumentationOperation handles documentation requests
+func (ms *MemoryServer) handleDocumentationOperation(ctx context.Context, options map[string]interface{}) (interface{}, error) {
+	// Documentation is global by nature
+	logging.Info("Global documentation request")
+	return ms.handleGetDocumentation(ctx, options)
+}
+
+// buildSystemOperationError builds error message for unsupported system operations
+func (ms *MemoryServer) buildSystemOperationError(operation string) (interface{}, error) {
+	validOps := []string{"health", "status", "generate_citations", "create_inline_citation", "get_documentation"}
+	return nil, fmt.Errorf("unsupported system operation '%s'. Valid operations: %s. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}", operation, strings.Join(validOps, ", "))
 }

@@ -384,6 +384,7 @@ func (cd *ConflictDetector) detectMethodologyConflicts(chunks []types.Conversati
 // Analysis methods for specific conflict types
 
 // analyzeGenericConflict provides common conflict analysis logic
+//
 //nolint:gocritic // hugeParam: large struct parameters required for interface consistency
 func (cd *ConflictDetector) analyzeGenericConflict(chunk1, chunk2 types.ConversationChunk, conflictType ConflictType,
 	findConflictPoints func(string, string) []ConflictPoint,

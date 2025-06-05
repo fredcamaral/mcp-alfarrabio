@@ -22,65 +22,106 @@ func TestTaskHandlers(t *testing.T) {
 
 // validateTaskParams validates task parameters without external service calls
 func validateTaskParams(params map[string]interface{}) error {
-	// Check required parameters
-	if _, ok := params["title"]; !ok {
-		return errors.New("title parameter is required")
+	if err := validateRequiredParams(params); err != nil {
+		return err
 	}
-	if _, ok := params["description"]; !ok {
-		return errors.New("description parameter is required")
+	if err := validateOptionalParams(params); err != nil {
+		return err
 	}
-	if _, ok := params["session_id"]; !ok {
-		return errors.New("session_id parameter is required")
+	return nil
+}
+
+// validateRequiredParams checks for required task parameters
+func validateRequiredParams(params map[string]interface{}) error {
+	requiredParams := []string{"title", "description", "session_id"}
+	for _, param := range requiredParams {
+		if _, ok := params[param]; !ok {
+			return fmt.Errorf("%s parameter is required", param)
+		}
+	}
+	return nil
+}
+
+// validateOptionalParams validates optional parameters if provided
+func validateOptionalParams(params map[string]interface{}) error {
+	if err := validatePriority(params); err != nil {
+		return err
+	}
+	if err := validateEstimate(params); err != nil {
+		return err
+	}
+	if err := validateDueDate(params); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validatePriority checks priority parameter if provided
+func validatePriority(params map[string]interface{}) error {
+	priority, ok := params["priority"]
+	if !ok {
+		return nil
 	}
 
-	// Validate priority if provided
-	if priority, ok := params["priority"]; ok {
-		priorityStr, ok := priority.(string)
-		if !ok {
-			return errors.New("priority must be a string")
-		}
-		validPriorities := []string{
-			types.PriorityLow,
-			types.PriorityMedium,
-			types.PriorityHigh,
-		}
-		found := false
-		for _, valid := range validPriorities {
-			if priorityStr == valid {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return fmt.Errorf("invalid task priority: %s", priorityStr)
+	priorityStr, ok := priority.(string)
+	if !ok {
+		return errors.New("priority must be a string")
+	}
+
+	validPriorities := []string{
+		types.PriorityLow,
+		types.PriorityMedium,
+		types.PriorityHigh,
+	}
+
+	for _, valid := range validPriorities {
+		if priorityStr == valid {
+			return nil
 		}
 	}
 
-	// Validate estimate if provided
-	if estimate, ok := params["estimate"]; ok {
-		if estimateInt, ok := estimate.(int); ok {
-			if estimateInt < 0 {
-				return errors.New("estimate must be positive")
-			}
+	return fmt.Errorf("invalid task priority: %s", priorityStr)
+}
+
+// validateEstimate checks estimate parameter if provided
+func validateEstimate(params map[string]interface{}) error {
+	estimate, ok := params["estimate"]
+	if !ok {
+		return nil
+	}
+
+	if estimateInt, ok := estimate.(int); ok {
+		if estimateInt < 0 {
+			return errors.New("estimate must be positive")
 		}
 	}
 
-	// Validate due_date format if provided
-	if dueDate, ok := params["due_date"]; ok {
-		dueDateStr, ok := dueDate.(string)
-		if !ok {
-			return errors.New("due_date must be a string")
-		}
+	return nil
+}
 
-		// Simple validation - should be ISO format (at least YYYY-MM-DD)
-		if len(dueDateStr) < 10 {
-			return errors.New("invalid due_date format: expected ISO format")
-		}
-		if dueDateStr[4] != '-' || dueDateStr[7] != '-' {
-			return errors.New("invalid due_date format: expected ISO format")
-		}
+// validateDueDate checks due_date format if provided
+func validateDueDate(params map[string]interface{}) error {
+	dueDate, ok := params["due_date"]
+	if !ok {
+		return nil
 	}
 
+	dueDateStr, ok := dueDate.(string)
+	if !ok {
+		return errors.New("due_date must be a string")
+	}
+
+	return validateISODateFormat(dueDateStr)
+}
+
+// validateISODateFormat validates ISO date format
+func validateISODateFormat(dateStr string) error {
+	if len(dateStr) < 10 {
+		return errors.New("invalid due_date format: expected ISO format")
+	}
+	if dateStr[4] != '-' || dateStr[7] != '-' {
+		return errors.New("invalid due_date format: expected ISO format")
+	}
 	return nil
 }
 

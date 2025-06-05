@@ -914,12 +914,12 @@ func getEnvBool(key string, defaultValue bool) bool {
 }
 
 // AddOptimizationRule adds a new optimization rule
-func (qo *QueryOptimizer) AddOptimizationRule(rule QueryOptimizationRule) {
+func (qo *QueryOptimizer) AddOptimizationRule(rule *QueryOptimizationRule) {
 	qo.rulesMutex.Lock()
 	defer qo.rulesMutex.Unlock()
 
 	rule.Enabled = true
-	qo.optimizationRules[rule.ID] = &rule
+	qo.optimizationRules[rule.ID] = rule
 }
 
 // GetOptimizationReport provides a comprehensive optimization report

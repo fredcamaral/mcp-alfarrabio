@@ -267,32 +267,32 @@ func TestTodoTracker_ExtractFilesFromContext(t *testing.T) {
 	tracker := NewTodoTracker()
 
 	t.Run("extracts file_path", func(t *testing.T) {
-		context := map[string]interface{}{
+		contextData := map[string]interface{}{
 			"file_path": "/path/to/file.go",
 		}
 
-		files := tracker.extractFilesFromContext(context)
+		files := tracker.extractFilesFromContext(contextData)
 		assert.Contains(t, files, "/path/to/file.go")
 	})
 
 	t.Run("extracts multiple file keys", func(t *testing.T) {
-		context := map[string]interface{}{
+		contextData := map[string]interface{}{
 			"file_path": "/path/to/file1.go",
 			"filepath":  "/path/to/file2.go",
 		}
 
-		files := tracker.extractFilesFromContext(context)
+		files := tracker.extractFilesFromContext(contextData)
 		assert.Contains(t, files, "/path/to/file1.go")
 		assert.Contains(t, files, "/path/to/file2.go")
 	})
 
 	t.Run("ignores non-string values", func(t *testing.T) {
-		context := map[string]interface{}{
+		contextData := map[string]interface{}{
 			"file_path": 123,
 			"path":      "",
 		}
 
-		files := tracker.extractFilesFromContext(context)
+		files := tracker.extractFilesFromContext(contextData)
 		assert.Len(t, files, 0)
 	})
 }

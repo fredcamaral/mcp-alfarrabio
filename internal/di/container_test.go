@@ -74,7 +74,7 @@ func TestNewContainer(t *testing.T) {
 				_ = os.Setenv("OPENAI_API_KEY", "test-key") // Test environment setup
 				// Create a temporary directory for testing
 				tmpDir := filepath.Join(os.TempDir(), "mcp-memory-test-backup")
-				_ = os.MkdirAll(tmpDir, 0o750)                        // Test directory creation - safe to ignore error
+				_ = os.MkdirAll(tmpDir, 0o750)                       // Test directory creation - safe to ignore error
 				_ = os.Setenv("MCP_MEMORY_BACKUP_DIRECTORY", tmpDir) // Test environment setup
 			},
 			cleanupEnv: func() {
@@ -96,7 +96,7 @@ func TestNewContainer(t *testing.T) {
 			setupEnv: func() {
 				_ = os.Setenv("OPENAI_API_KEY", "test-key") // Test environment setup
 				tmpDir := filepath.Join(os.TempDir(), "mcp-memory-test-audit")
-				_ = os.MkdirAll(tmpDir, 0o750)                       // Test directory creation - safe to ignore error
+				_ = os.MkdirAll(tmpDir, 0o750)                      // Test directory creation - safe to ignore error
 				_ = os.Setenv("MCP_MEMORY_AUDIT_DIRECTORY", tmpDir) // Test environment setup
 			},
 			cleanupEnv: func() {
@@ -425,11 +425,11 @@ func TestEnvironmentVariableHandling(t *testing.T) {
 
 			// Create directories if needed
 			if backupDir := os.Getenv("MCP_MEMORY_BACKUP_DIRECTORY"); backupDir != "" {
-				_ = os.MkdirAll(backupDir, 0o750)               // Test directory creation - safe to ignore error
+				_ = os.MkdirAll(backupDir, 0o750)              // Test directory creation - safe to ignore error
 				defer func() { _ = os.RemoveAll(backupDir) }() // Test cleanup
 			}
 			if auditDir := os.Getenv("MCP_MEMORY_AUDIT_DIRECTORY"); auditDir != "" {
-				_ = os.MkdirAll(auditDir, 0o750)               // Test directory creation - safe to ignore error
+				_ = os.MkdirAll(auditDir, 0o750)              // Test directory creation - safe to ignore error
 				defer func() { _ = os.RemoveAll(auditDir) }() // Test cleanup
 			}
 

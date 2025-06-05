@@ -187,6 +187,7 @@ func (se *SearchExplainer) explainResult(ctx context.Context, result *types.Sear
 }
 
 // calculateRelevanceExplanation explains why a result is relevant
+//
 //nolint:gocritic // hugeParam: large struct parameters are needed for interface consistency
 func (se *SearchExplainer) calculateRelevanceExplanation(chunk types.ConversationChunk, query *types.MemoryQuery, baseScore float64) RelevanceExplanation {
 	explanation := RelevanceExplanation{
@@ -235,7 +236,8 @@ func (se *SearchExplainer) calculateRelevanceExplanation(chunk types.Conversatio
 }
 
 // calculateContextExplanation builds context information
-//nolint:gocritic // hugeParam: large struct parameters are needed for interface consistency  
+//
+//nolint:gocritic // hugeParam: large struct parameters are needed for interface consistency
 func (se *SearchExplainer) calculateContextExplanation(ctx context.Context, chunk types.ConversationChunk, query *types.MemoryQuery, config *ExplainedSearchConfig) ContextExplanation {
 	contextExpl := ContextExplanation{
 		RelatedChunks:     make([]string, 0),
@@ -560,7 +562,7 @@ func (se *SearchExplainer) detectQueryConcepts(query string) []string {
 	return concepts
 }
 
-//nolint:gocritic // hugeParam: large struct parameter needed for processing  
+//nolint:gocritic // hugeParam: large struct parameter needed for processing
 func (se *SearchExplainer) getAppliedFilters(query types.MemoryQuery) []string {
 	filters := make([]string, 0)
 

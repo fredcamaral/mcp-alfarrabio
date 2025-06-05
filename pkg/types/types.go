@@ -262,7 +262,7 @@ type ConversationChunk struct {
 }
 
 // NewConversationChunk creates a new conversation chunk with defaults
-func NewConversationChunk(sessionID, content string, chunkType ChunkType, metadata ChunkMetadata) (*ConversationChunk, error) {
+func NewConversationChunk(sessionID, content string, chunkType ChunkType, metadata *ChunkMetadata) (*ConversationChunk, error) {
 	if sessionID == "" {
 		return nil, errors.New("session ID cannot be empty")
 	}
@@ -283,7 +283,7 @@ func NewConversationChunk(sessionID, content string, chunkType ChunkType, metada
 		Type:          chunkType,
 		Content:       content,
 		Summary:       "", // Will be generated later
-		Metadata:      metadata,
+		Metadata:      *metadata,
 		Embeddings:    []float64{},
 		RelatedChunks: []string{},
 	}, nil

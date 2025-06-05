@@ -160,7 +160,7 @@ func (fd *FlowDetector) StartSession(sessionID, repository string) {
 }
 
 // ProcessMessage analyzes a conversation message and updates flow state
-func (fd *FlowDetector) ProcessMessage(sessionID, content string, toolUsed string, _ map[string]interface{}) {
+func (fd *FlowDetector) ProcessMessage(sessionID, content, toolUsed string, _ map[string]interface{}) {
 	session := fd.getOrCreateSession(sessionID)
 
 	// Detect flow type for this content

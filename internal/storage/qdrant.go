@@ -242,7 +242,7 @@ func (qs *QdrantStore) GetByID(ctx context.Context, id string) (*types.Conversat
 }
 
 // ListByRepository lists chunks by repository
-func (qs *QdrantStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
+func (qs *QdrantStore) ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error) {
 	start := time.Now()
 	defer qs.updateMetrics("list_by_repository", start)
 
@@ -1065,17 +1065,17 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.Conversat
 	// Convert chunks to Qdrant points
 	points := make([]*qdrant.PointStruct, 0, len(chunks))
 	processedIDs := make([]string, 0, len(chunks))
-	errors := make([]string, 0)
+	errorMessages := make([]string, 0)
 
 	for i := range chunks {
 		chunk := chunks[i]
 		if err := chunk.Validate(); err != nil {
-			errors = append(errors, fmt.Sprintf("invalid chunk %s: %v", chunk.ID, err))
+			errorMessages = append(errorMessages, fmt.Sprintf("invalid chunk %s: %v", chunk.ID, err))
 			continue
 		}
 
 		if len(chunk.Embeddings) == 0 {
-			errors = append(errors, "chunk "+chunk.ID+" has no embeddings")
+			errorMessages = append(errorMessages, "chunk "+chunk.ID+" has no embeddings")
 			continue
 		}
 
@@ -1095,7 +1095,7 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.Conversat
 			return &BatchResult{
 				Success:      0,
 				Failed:       len(chunks),
-				Errors:       append(errors, fmt.Sprintf("batch upsert failed: %v", err)),
+				Errors:       append(errorMessages, fmt.Sprintf("batch upsert failed: %v", err)),
 				ProcessedIDs: processedIDs,
 			}, fmt.Errorf("batch store operation failed: %w", err)
 		}
@@ -1104,7 +1104,7 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.Conversat
 	result := &BatchResult{
 		Success:      len(points),
 		Failed:       len(chunks) - len(points),
-		Errors:       errors,
+		Errors:       errorMessages,
 		ProcessedIDs: processedIDs,
 	}
 

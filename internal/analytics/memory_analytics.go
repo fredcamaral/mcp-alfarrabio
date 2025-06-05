@@ -257,7 +257,7 @@ func (ma *MemoryAnalytics) calculateTypeEffectivenessScore(chunk *types.Conversa
 // calculateTaskEffectivenessScore calculates effectiveness score for task chunks
 func (ma *MemoryAnalytics) calculateTaskEffectivenessScore(chunk *types.ConversationChunk) float64 {
 	baseScore := 0.12 // Increased base score for tasks
-	
+
 	// Check if task is completed
 	if chunk.Metadata.TaskStatus != nil && *chunk.Metadata.TaskStatus == TaskStatusCompleted {
 		baseScore += 0.15 // Higher bonus for completed tasks
@@ -268,19 +268,19 @@ func (ma *MemoryAnalytics) calculateTaskEffectivenessScore(chunk *types.Conversa
 	} else if chunk.Metadata.TaskPriority != nil && *chunk.Metadata.TaskPriority == TaskPriorityHigh {
 		baseScore += 0.05 // Bonus for high priority tasks even if not completed
 	}
-	
+
 	return baseScore
 }
 
 // calculateTaskProgressEffectivenessScore calculates effectiveness score for task progress chunks
 func (ma *MemoryAnalytics) calculateTaskProgressEffectivenessScore(chunk *types.ConversationChunk) float64 {
 	baseScore := 0.12 // Increased base score for progress tracking
-	
+
 	// Bonus for high progress
 	if chunk.Metadata.TaskProgress != nil && *chunk.Metadata.TaskProgress >= 80 {
 		baseScore += 0.10 // Higher bonus for high progress
 	}
-	
+
 	return baseScore
 }
 

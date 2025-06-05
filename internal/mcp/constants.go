@@ -6,6 +6,9 @@ const (
 	// that are not tied to a specific project
 	GlobalMemoryRepository = "_global"
 
+	// GlobalRepository is a special repository name for global scope operations
+	GlobalRepository = "global"
+
 	// GlobalMemoryDescription is used in tool parameter descriptions
 	GlobalMemoryDescription = " (use '_global' for global memories)"
 

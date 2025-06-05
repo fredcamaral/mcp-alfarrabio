@@ -236,7 +236,7 @@ func (acm *AccessControlManager) CheckAccess(ctx context.Context, userID, action
 		}
 
 		for _, rule := range policy.Rules {
-			if acm.matchesRule(rule, action, resource, user) {
+			if acm.matchesRule(&rule, action, resource, user) {
 				if rule.Effect == "deny" {
 					// Deny overrides allow
 					hasPermission = false
@@ -357,7 +357,7 @@ func (acm *AccessControlManager) matchesPermission(permission Permission, action
 	return true
 }
 
-func (acm *AccessControlManager) matchesRule(rule AccessRule, action, resource string, user *User) bool {
+func (acm *AccessControlManager) matchesRule(rule *AccessRule, action, resource string, user *User) bool {
 	// Check resource pattern
 	if rule.Resource != "*" {
 		matched, _ := regexp.MatchString(rule.Resource, resource)
@@ -409,7 +409,7 @@ func (acm *AccessControlManager) extractFieldValue(field string, user *User) int
 }
 
 // evaluateOperator evaluates the condition operator against field and target values
-func (acm *AccessControlManager) evaluateOperator(operator string, fieldValue interface{}, targetValue interface{}) bool {
+func (acm *AccessControlManager) evaluateOperator(operator string, fieldValue, targetValue interface{}) bool {
 	switch operator {
 	case "equals":
 		return fieldValue == targetValue
@@ -423,24 +423,24 @@ func (acm *AccessControlManager) evaluateOperator(operator string, fieldValue in
 }
 
 // evaluateContains evaluates the "contains" operator for strings and slices
-func (acm *AccessControlManager) evaluateContains(fieldValue interface{}, targetValue interface{}) bool {
+func (acm *AccessControlManager) evaluateContains(fieldValue, targetValue interface{}) bool {
 	if str, ok := fieldValue.(string); ok {
 		if target, ok := targetValue.(string); ok {
 			return strings.Contains(str, target)
 		}
 	}
-	
+
 	if slice, ok := fieldValue.([]string); ok {
 		if target, ok := targetValue.(string); ok {
 			return acm.sliceContainsString(slice, target)
 		}
 	}
-	
+
 	return false
 }
 
 // evaluateIn evaluates the "in" operator for checking membership in a slice
-func (acm *AccessControlManager) evaluateIn(fieldValue interface{}, targetValue interface{}) bool {
+func (acm *AccessControlManager) evaluateIn(fieldValue, targetValue interface{}) bool {
 	if slice, ok := targetValue.([]interface{}); ok {
 		for _, item := range slice {
 			if item == fieldValue {

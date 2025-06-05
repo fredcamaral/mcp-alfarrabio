@@ -188,13 +188,13 @@ func (cs *ContextSuggester) initializeTriggers() {
 }
 
 // AnalyzeContext analyzes current context and generates suggestions
-func (cs *ContextSuggester) AnalyzeContext(ctx context.Context, sessionID, repository, currentContent string, toolUsed string, currentFlow types.ConversationFlow) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) AnalyzeContext(ctx context.Context, sessionID, repository, currentContent, toolUsed string, currentFlow types.ConversationFlow) ([]ContextSuggestion, error) {
 	suggestions := make([]ContextSuggestion, 0)
 
 	// Generate suggestions for each trigger type
 	for suggestionType, trigger := range cs.triggers {
-		if cs.shouldTrigger(currentContent, toolUsed, currentFlow, trigger) {
-			typeSuggestions, err := cs.generateSuggestions(ctx, suggestionType, trigger, repository, currentContent)
+		if cs.shouldTrigger(currentContent, toolUsed, currentFlow, &trigger) {
+			typeSuggestions, err := cs.generateSuggestions(ctx, suggestionType, &trigger, repository, currentContent)
 			if err != nil {
 				continue // Log error but don't fail completely
 			}
@@ -218,7 +218,7 @@ func (cs *ContextSuggester) AnalyzeContext(ctx context.Context, sessionID, repos
 }
 
 // shouldTrigger determines if a trigger condition is met
-func (cs *ContextSuggester) shouldTrigger(content, toolUsed string, flow types.ConversationFlow, trigger SuggestionTrigger) bool {
+func (cs *ContextSuggester) shouldTrigger(content, toolUsed string, flow types.ConversationFlow, trigger *SuggestionTrigger) bool {
 	contentLower := strings.ToLower(content)
 
 	// Check keywords
@@ -252,7 +252,7 @@ func (cs *ContextSuggester) shouldTrigger(content, toolUsed string, flow types.C
 }
 
 // generateSuggestions creates suggestions for a specific type
-func (cs *ContextSuggester) generateSuggestions(ctx context.Context, suggestionType SuggestionType, trigger SuggestionTrigger, repository, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateSuggestions(ctx context.Context, suggestionType SuggestionType, trigger *SuggestionTrigger, repository, content string) ([]ContextSuggestion, error) {
 	switch suggestionType {
 	case SuggestionTypeSimilarProblem:
 		return cs.generateSimilarProblemSuggestions(ctx, trigger, repository, content)
@@ -279,7 +279,7 @@ func (cs *ContextSuggester) generateSuggestions(ctx context.Context, suggestionT
 }
 
 // generateSimilarProblemSuggestions finds similar past problems and solutions
-func (cs *ContextSuggester) generateSimilarProblemSuggestions(ctx context.Context, trigger SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateSimilarProblemSuggestions(ctx context.Context, trigger *SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
 	// Search for similar problems
 	problemType := types.ChunkTypeProblem
 	similarChunks, err := cs.vectorStorage.FindSimilar(ctx, content, &problemType, trigger.MaxSuggestions*2)
@@ -291,7 +291,7 @@ func (cs *ContextSuggester) generateSimilarProblemSuggestions(ctx context.Contex
 
 	for _, chunk := range similarChunks {
 		// Look for associated solution chunks
-		solutionChunks, err := cs.findAssociatedSolutions(ctx, chunk)
+		solutionChunks, err := cs.findAssociatedSolutions(ctx, &chunk)
 		if err != nil {
 			continue
 		}
@@ -301,7 +301,7 @@ func (cs *ContextSuggester) generateSimilarProblemSuggestions(ctx context.Contex
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypeSimilarProblem,
 				Title:         "Similar problem resolved previously",
-				Description:   cs.buildSimilarProblemDescription(chunk, solutionChunks),
+				Description:   cs.buildSimilarProblemDescription(&chunk, solutionChunks),
 				Relevance:     cs.calculateRelevance(content, chunk.Content),
 				Source:        SourceVectorSearch,
 				RelatedChunks: append([]types.ConversationChunk{chunk}, solutionChunks...),
@@ -328,13 +328,13 @@ func (cs *ContextSuggester) searchAndCreateSuggestions(
 	ctx context.Context,
 	content string,
 	chunkType types.ChunkType,
-	trigger SuggestionTrigger,
+	trigger *SuggestionTrigger,
 	suggestionType SuggestionType,
 	title string,
 	source SuggestionSource,
 	actionType ActionType,
-	buildDescription func(types.ConversationChunk) string,
-	buildContext func(types.ConversationChunk) map[string]interface{},
+	buildDescription func(*types.ConversationChunk) string,
+	buildContext func(*types.ConversationChunk) map[string]interface{},
 ) ([]ContextSuggestion, error) {
 	chunks, err := cs.vectorStorage.FindSimilar(ctx, content, &chunkType, trigger.MaxSuggestions)
 	if err != nil {
@@ -343,20 +343,20 @@ func (cs *ContextSuggester) searchAndCreateSuggestions(
 
 	suggestions := make([]ContextSuggestion, 0)
 
-	for _, chunk := range chunks {
-		relevance := cs.calculateRelevance(content, chunk.Content)
+	for i := range chunks {
+		relevance := cs.calculateRelevance(content, chunks[i].Content)
 
 		if relevance >= trigger.MinRelevance {
 			suggestion := ContextSuggestion{
 				ID:            generateSuggestionID(),
 				Type:          suggestionType,
 				Title:         title,
-				Description:   buildDescription(chunk),
+				Description:   buildDescription(&chunks[i]),
 				Relevance:     relevance,
 				Source:        source,
-				RelatedChunks: []types.ConversationChunk{chunk},
+				RelatedChunks: []types.ConversationChunk{chunks[i]},
 				ActionType:    actionType,
-				Context:       buildContext(chunk),
+				Context:       buildContext(&chunks[i]),
 				CreatedAt:     time.Now(),
 			}
 			suggestions = append(suggestions, suggestion)
@@ -367,7 +367,7 @@ func (cs *ContextSuggester) searchAndCreateSuggestions(
 }
 
 // generateArchitecturalSuggestions suggests relevant architectural patterns
-func (cs *ContextSuggester) generateArchitecturalSuggestions(ctx context.Context, trigger SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateArchitecturalSuggestions(ctx context.Context, trigger *SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
 	return cs.searchAndCreateSuggestions(
 		ctx,
 		content,
@@ -378,7 +378,7 @@ func (cs *ContextSuggester) generateArchitecturalSuggestions(ctx context.Context
 		SourceDecisionLog,
 		ActionConsider,
 		cs.buildArchitecturalDescription,
-		func(chunk types.ConversationChunk) map[string]interface{} {
+		func(chunk *types.ConversationChunk) map[string]interface{} {
 			return map[string]interface{}{
 				"decision_id": chunk.ID,
 				"repository":  chunk.Metadata.Repository,
@@ -388,7 +388,7 @@ func (cs *ContextSuggester) generateArchitecturalSuggestions(ctx context.Context
 }
 
 // generatePastDecisionSuggestions reminds about relevant past decisions
-func (cs *ContextSuggester) generatePastDecisionSuggestions(ctx context.Context, trigger SuggestionTrigger, repository, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generatePastDecisionSuggestions(ctx context.Context, trigger *SuggestionTrigger, repository, content string) ([]ContextSuggestion, error) {
 	// Search within same repository for past decisions
 	filters := map[string]interface{}{
 		"repository": repository,
@@ -410,7 +410,7 @@ func (cs *ContextSuggester) generatePastDecisionSuggestions(ctx context.Context,
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypePastDecision,
 				Title:         "Past decision may be relevant",
-				Description:   cs.buildPastDecisionDescription(chunk),
+				Description:   cs.buildPastDecisionDescription(&chunk),
 				Relevance:     relevance,
 				Source:        SourceDecisionLog,
 				RelatedChunks: []types.ConversationChunk{chunk},
@@ -426,7 +426,7 @@ func (cs *ContextSuggester) generatePastDecisionSuggestions(ctx context.Context,
 }
 
 // generateDuplicateWorkSuggestions alerts to potential duplicate work
-func (cs *ContextSuggester) generateDuplicateWorkSuggestions(ctx context.Context, trigger SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateDuplicateWorkSuggestions(ctx context.Context, trigger *SuggestionTrigger, _ /* repository */, content string) ([]ContextSuggestion, error) {
 	return cs.searchAndCreateSuggestions(
 		ctx,
 		content,
@@ -437,7 +437,7 @@ func (cs *ContextSuggester) generateDuplicateWorkSuggestions(ctx context.Context
 		SourceVectorSearch,
 		ActionReview,
 		cs.buildDuplicateWorkDescription,
-		func(chunk types.ConversationChunk) map[string]interface{} {
+		func(chunk *types.ConversationChunk) map[string]interface{} {
 			return map[string]interface{}{
 				"existing_work": chunk.ID,
 				"outcome":       chunk.Metadata.Outcome,
@@ -447,7 +447,7 @@ func (cs *ContextSuggester) generateDuplicateWorkSuggestions(ctx context.Context
 }
 
 // generateSuccessfulPatternSuggestions suggests proven successful patterns
-func (cs *ContextSuggester) generateSuccessfulPatternSuggestions(_ /* ctx */ context.Context, trigger SuggestionTrigger, _ /* repository */, _ /* content */ string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateSuccessfulPatternSuggestions(_ /* ctx */ context.Context, trigger *SuggestionTrigger, _ /* repository */, _ /* content */ string) ([]ContextSuggestion, error) {
 	// Get successful patterns from pattern analyzer
 	if cs.patternAnalyzer == nil {
 		return []ContextSuggestion{}, nil
@@ -462,7 +462,7 @@ func (cs *ContextSuggester) generateSuccessfulPatternSuggestions(_ /* ctx */ con
 				ID:            generateSuggestionID(),
 				Type:          SuggestionTypeSuccessfulPattern,
 				Title:         "Successful " + string(pattern.Type) + " pattern available",
-				Description:   cs.buildSuccessfulPatternDescription(pattern),
+				Description:   cs.buildSuccessfulPatternDescription(&pattern),
 				Relevance:     pattern.SuccessRate * 0.8, // Weight success rate
 				Source:        SourcePatternAnalysis,
 				RelatedChunks: []types.ConversationChunk{}, // Pattern-based, no specific chunks
@@ -483,7 +483,7 @@ func (cs *ContextSuggester) generateSuccessfulPatternSuggestions(_ /* ctx */ con
 
 // Helper methods for building descriptions
 
-func (cs *ContextSuggester) buildSimilarProblemDescription(problem types.ConversationChunk, solutions []types.ConversationChunk) string {
+func (cs *ContextSuggester) buildSimilarProblemDescription(problem *types.ConversationChunk, solutions []types.ConversationChunk) string {
 	if len(solutions) == 0 {
 		return "Found similar problem from " + problem.Timestamp.Format("Jan 2")
 	}
@@ -491,28 +491,28 @@ func (cs *ContextSuggester) buildSimilarProblemDescription(problem types.Convers
 		problem.Timestamp.Format("Jan 2"), len(solutions), problem.Metadata.Outcome)
 }
 
-func (cs *ContextSuggester) buildArchitecturalDescription(chunk types.ConversationChunk) string {
+func (cs *ContextSuggester) buildArchitecturalDescription(chunk *types.ConversationChunk) string {
 	return fmt.Sprintf("Architectural decision from %s: %s",
 		chunk.Timestamp.Format("Jan 2"), truncateString(chunk.Summary, 100))
 }
 
-func (cs *ContextSuggester) buildPastDecisionDescription(chunk types.ConversationChunk) string {
+func (cs *ContextSuggester) buildPastDecisionDescription(chunk *types.ConversationChunk) string {
 	return fmt.Sprintf("Decision from %s may apply to current situation: %s",
 		chunk.Timestamp.Format("Jan 2"), truncateString(chunk.Summary, 100))
 }
 
-func (cs *ContextSuggester) buildDuplicateWorkDescription(chunk types.ConversationChunk) string {
+func (cs *ContextSuggester) buildDuplicateWorkDescription(chunk *types.ConversationChunk) string {
 	return fmt.Sprintf("Similar implementation from %s (outcome: %s): %s",
 		chunk.Timestamp.Format("Jan 2"), chunk.Metadata.Outcome, truncateString(chunk.Summary, 80))
 }
 
-func (cs *ContextSuggester) buildSuccessfulPatternDescription(pattern SuccessPattern) string {
+func (cs *ContextSuggester) buildSuccessfulPatternDescription(pattern *SuccessPattern) string {
 	return fmt.Sprintf("%s (%.1f%% success rate, used %d times)",
 		pattern.Description, pattern.SuccessRate*100, pattern.Frequency)
 }
 
 // findAssociatedSolutions finds solution chunks related to a problem
-func (cs *ContextSuggester) findAssociatedSolutions(ctx context.Context, problemChunk types.ConversationChunk) ([]types.ConversationChunk, error) {
+func (cs *ContextSuggester) findAssociatedSolutions(ctx context.Context, problemChunk *types.ConversationChunk) ([]types.ConversationChunk, error) {
 	// Search for solutions in the same session
 	filters := map[string]interface{}{
 		"session_id": problemChunk.SessionID,
@@ -582,7 +582,7 @@ func truncateString(s string, maxLen int) string {
 // Enhanced Flow-Based Suggestion Methods
 
 // generateFlowBasedSuggestions provides contextual suggestions based on current conversation flow
-func (cs *ContextSuggester) generateFlowBasedSuggestions(ctx context.Context, trigger SuggestionTrigger, repository, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateFlowBasedSuggestions(ctx context.Context, trigger *SuggestionTrigger, repository, content string) ([]ContextSuggestion, error) {
 	suggestions := make([]ContextSuggestion, 0)
 
 	// Detect current flow from content if not provided by calling context
@@ -634,7 +634,7 @@ func (cs *ContextSuggester) generateFlowBasedSuggestions(ctx context.Context, tr
 }
 
 // generateProblemFlowSuggestions suggests relevant memories when problems are detected
-func (cs *ContextSuggester) generateProblemFlowSuggestions(ctx context.Context, trigger SuggestionTrigger, _ string, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateProblemFlowSuggestions(ctx context.Context, trigger *SuggestionTrigger, _, content string) ([]ContextSuggestion, error) {
 	// Find similar problems that were successfully resolved
 	problemType := types.ChunkTypeProblem
 	similarProblems, err := cs.vectorStorage.FindSimilar(ctx, content, &problemType, trigger.MaxSuggestions*2)
@@ -645,7 +645,7 @@ func (cs *ContextSuggester) generateProblemFlowSuggestions(ctx context.Context, 
 	suggestions := make([]ContextSuggestion, 0)
 	for _, problemChunk := range similarProblems {
 		// Look for associated solutions
-		solutions, err := cs.findAssociatedSolutions(ctx, problemChunk)
+		solutions, err := cs.findAssociatedSolutions(ctx, &problemChunk)
 		if err != nil || len(solutions) == 0 {
 			continue
 		}
@@ -677,7 +677,7 @@ func (cs *ContextSuggester) generateProblemFlowSuggestions(ctx context.Context, 
 }
 
 // generateInvestigationFlowSuggestions suggests debugging approaches and investigation patterns
-func (cs *ContextSuggester) generateInvestigationFlowSuggestions(ctx context.Context, trigger SuggestionTrigger, _ string, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateInvestigationFlowSuggestions(ctx context.Context, trigger *SuggestionTrigger, _, content string) ([]ContextSuggestion, error) {
 	// Find successful investigation and debugging patterns
 	searchTerms := content + " investigation debugging analysis"
 	chunks, err := cs.vectorStorage.Search(ctx, searchTerms, map[string]interface{}{
@@ -718,7 +718,7 @@ func (cs *ContextSuggester) generateInvestigationFlowSuggestions(ctx context.Con
 }
 
 // generateSolutionFlowSuggestions suggests implementation patterns and architectural decisions
-func (cs *ContextSuggester) generateSolutionFlowSuggestions(ctx context.Context, trigger SuggestionTrigger, _ string, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateSolutionFlowSuggestions(ctx context.Context, trigger *SuggestionTrigger, _, content string) ([]ContextSuggestion, error) {
 	// Find similar implementation patterns and successful solutions
 	solutionType := types.ChunkTypeSolution
 	solutions, err := cs.vectorStorage.FindSimilar(ctx, content, &solutionType, trigger.MaxSuggestions*2)
@@ -758,7 +758,7 @@ func (cs *ContextSuggester) generateSolutionFlowSuggestions(ctx context.Context,
 }
 
 // generateVerificationFlowSuggestions suggests testing approaches and verification patterns
-func (cs *ContextSuggester) generateVerificationFlowSuggestions(ctx context.Context, trigger SuggestionTrigger, _ string, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateVerificationFlowSuggestions(ctx context.Context, trigger *SuggestionTrigger, _, content string) ([]ContextSuggestion, error) {
 	// Find successful verification and testing patterns
 	searchTerms := content + " testing verification validation"
 	chunks, err := cs.vectorStorage.Search(ctx, searchTerms, map[string]interface{}{
@@ -797,7 +797,7 @@ func (cs *ContextSuggester) generateVerificationFlowSuggestions(ctx context.Cont
 }
 
 // generateDebuggingContextSuggestions provides debugging-specific contextual suggestions
-func (cs *ContextSuggester) generateDebuggingContextSuggestions(ctx context.Context, trigger SuggestionTrigger, _ string, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateDebuggingContextSuggestions(ctx context.Context, trigger *SuggestionTrigger, _, content string) ([]ContextSuggestion, error) {
 	// Extract error patterns and look for similar debugging sessions
 	searchTerms := content + " debugging error exception trace"
 	chunks, err := cs.vectorStorage.Search(ctx, searchTerms, map[string]interface{}{
@@ -840,7 +840,7 @@ func (cs *ContextSuggester) generateDebuggingContextSuggestions(ctx context.Cont
 }
 
 // generateImplementationContextSuggestions provides implementation-specific contextual suggestions
-func (cs *ContextSuggester) generateImplementationContextSuggestions(ctx context.Context, trigger SuggestionTrigger, _ string, content string) ([]ContextSuggestion, error) {
+func (cs *ContextSuggester) generateImplementationContextSuggestions(ctx context.Context, trigger *SuggestionTrigger, _, content string) ([]ContextSuggestion, error) {
 	// Find similar implementation patterns and code changes
 	searchTerms := content + " implementation code function class method"
 	chunks, err := cs.vectorStorage.Search(ctx, searchTerms, map[string]interface{}{

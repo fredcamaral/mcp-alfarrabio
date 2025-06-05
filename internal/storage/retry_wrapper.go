@@ -164,7 +164,7 @@ func (r *RetryableVectorStore) GetByID(ctx context.Context, id string) (*types.C
 }
 
 // ListByRepository lists chunks with retries
-func (r *RetryableVectorStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
+func (r *RetryableVectorStore) ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error) {
 	var chunks []types.ConversationChunk
 
 	result := r.retrier.Do(ctx, func(ctx context.Context) error {

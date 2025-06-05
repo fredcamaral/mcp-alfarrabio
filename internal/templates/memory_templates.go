@@ -151,7 +151,7 @@ func (tm *TemplateManager) ValidateInstance(templateID string, fields map[string
 
 	// Validate required fields
 	for _, field := range template.RequiredFields {
-		if err := tm.validateField(field, fields[field.Name], true, result); err != nil {
+		if err := tm.validateField(&field, fields[field.Name], true, result); err != nil {
 			result.Valid = false
 		}
 	}
@@ -159,7 +159,7 @@ func (tm *TemplateManager) ValidateInstance(templateID string, fields map[string
 	// Validate optional fields (if provided)
 	for _, field := range template.OptionalFields {
 		if value, exists := fields[field.Name]; exists {
-			if err := tm.validateField(field, value, false, result); err != nil {
+			if err := tm.validateField(&field, value, false, result); err != nil {
 				// Error is already added to result.Errors by validateField
 				continue
 			}
@@ -189,7 +189,7 @@ func (tm *TemplateManager) ValidateInstance(templateID string, fields map[string
 }
 
 // CreateChunkFromTemplate creates a conversation chunk from a template instance
-func (tm *TemplateManager) CreateChunkFromTemplate(templateID, sessionID string, fields map[string]interface{}, metadata types.ChunkMetadata) (*types.ConversationChunk, error) {
+func (tm *TemplateManager) CreateChunkFromTemplate(templateID, sessionID string, fields map[string]interface{}, metadata *types.ChunkMetadata) (*types.ConversationChunk, error) {
 	template, err := tm.GetTemplate(templateID)
 	if err != nil {
 		return nil, err
@@ -241,7 +241,7 @@ func (tm *TemplateManager) CreateChunkFromTemplate(templateID, sessionID string,
 }
 
 // validateField validates a single field
-func (tm *TemplateManager) validateField(field TemplateField, value interface{}, required bool, result *ValidationResult) error {
+func (tm *TemplateManager) validateField(field *TemplateField, value interface{}, required bool, result *ValidationResult) error {
 	// Check if required field is missing
 	if required && value == nil {
 		result.Errors = append(result.Errors, ValidationError{
@@ -271,7 +271,7 @@ func (tm *TemplateManager) validateField(field TemplateField, value interface{},
 }
 
 // validateFieldType validates the field type
-func (tm *TemplateManager) validateFieldType(field TemplateField, value interface{}, result *ValidationResult) error {
+func (tm *TemplateManager) validateFieldType(field *TemplateField, value interface{}, result *ValidationResult) error {
 	switch field.Type {
 	case "string":
 		if _, ok := value.(string); !ok {
@@ -327,7 +327,7 @@ func (tm *TemplateManager) validateFieldType(field TemplateField, value interfac
 }
 
 // validateFieldRules validates custom field rules
-func (tm *TemplateManager) validateFieldRules(field TemplateField, value interface{}, result *ValidationResult) {
+func (tm *TemplateManager) validateFieldRules(field *TemplateField, value interface{}, result *ValidationResult) {
 	validation := field.Validation
 
 	// String length validation

@@ -127,14 +127,14 @@ func (pa *PatternAnalyzer) EndSequence(outcome types.Outcome, solution string) {
 	pa.currentSequence.EndTime = time.Now()
 	pa.currentSequence.Outcome = outcome
 	pa.currentSequence.Solution = solution
-	pa.currentSequence.Tags = pa.extractSequenceTags(*pa.currentSequence)
+	pa.currentSequence.Tags = pa.extractSequenceTags(pa.currentSequence)
 
 	// Add to completed sequences
 	pa.sequences = append(pa.sequences, *pa.currentSequence)
 
 	// Analyze for patterns if successful
 	if outcome == types.OutcomeSuccess {
-		pa.analyzeSuccessfulSequence(*pa.currentSequence)
+		pa.analyzeSuccessfulSequence(pa.currentSequence)
 	}
 
 	pa.currentSequence = nil
@@ -228,7 +228,7 @@ func (pa *PatternAnalyzer) calculatePatternMatch(tools, pattern []string) int {
 }
 
 // analyzeSuccessfulSequence extracts patterns from successful sequences
-func (pa *PatternAnalyzer) analyzeSuccessfulSequence(sequence ToolSequence) {
+func (pa *PatternAnalyzer) analyzeSuccessfulSequence(sequence *ToolSequence) {
 	tools := make([]string, len(sequence.Tools))
 	for i, tool := range sequence.Tools {
 		tools[i] = tool.Tool
@@ -363,7 +363,7 @@ func (pa *PatternAnalyzer) inferSwitchReason(usage ToolUsage) string {
 }
 
 // extractSequenceTags generates relevant tags for a sequence
-func (pa *PatternAnalyzer) extractSequenceTags(sequence ToolSequence) []string {
+func (pa *PatternAnalyzer) extractSequenceTags(sequence *ToolSequence) []string {
 	tags := make([]string, 0)
 
 	// Add outcome tag

@@ -379,7 +379,7 @@ func (rd *RelationshipDetector) detectProblemSolutionRelationships(chunk *types.
 }
 
 // evaluateProblemSolutionPair evaluates if a candidate problem relates to a solution
-func (rd *RelationshipDetector) evaluateProblemSolutionPair(solution *types.ConversationChunk, candidate *types.ConversationChunk, config *DetectionConfig) *types.MemoryRelationship {
+func (rd *RelationshipDetector) evaluateProblemSolutionPair(solution, candidate *types.ConversationChunk, config *DetectionConfig) *types.MemoryRelationship {
 	// Check basic criteria
 	if !rd.isProblemSolutionCandidate(solution, candidate) {
 		return nil
@@ -411,14 +411,14 @@ func (rd *RelationshipDetector) evaluateProblemSolutionPair(solution *types.Conv
 }
 
 // isProblemSolutionCandidate checks if a candidate problem could relate to a solution
-func (rd *RelationshipDetector) isProblemSolutionCandidate(solution *types.ConversationChunk, candidate *types.ConversationChunk) bool {
+func (rd *RelationshipDetector) isProblemSolutionCandidate(solution, candidate *types.ConversationChunk) bool {
 	return candidate.Type == types.ChunkTypeProblem &&
 		solution.SessionID == candidate.SessionID &&
 		solution.Timestamp.After(candidate.Timestamp)
 }
 
 // calculateProblemSolutionConfidence calculates confidence for problem-solution relationship
-func (rd *RelationshipDetector) calculateProblemSolutionConfidence(solution *types.ConversationChunk, problem *types.ConversationChunk, config *DetectionConfig) float64 {
+func (rd *RelationshipDetector) calculateProblemSolutionConfidence(solution, problem *types.ConversationChunk, config *DetectionConfig) float64 {
 	// Calculate relevance based on content similarity and time proximity
 	contentSim := rd.calculateContentSimilarity(solution.Content, problem.Content)
 	timeDiff := solution.Timestamp.Sub(problem.Timestamp)

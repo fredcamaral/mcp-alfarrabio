@@ -105,7 +105,7 @@ func TestContextSuggester_ShouldTrigger(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := suggester.shouldTrigger(tc.content, tc.toolUsed, tc.flow, tc.trigger)
+			result := suggester.shouldTrigger(tc.content, tc.toolUsed, tc.flow, &tc.trigger)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -194,7 +194,7 @@ func TestContextSuggester_GenerateSimilarProblemSuggestions(t *testing.T) {
 	}), 3).Return([]types.ConversationChunk{solutionChunk}, nil)
 
 	suggestions, err := suggester.generateSimilarProblemSuggestions(
-		context.Background(), trigger, "test-repo", "current authentication issue")
+		context.Background(), &trigger, "test-repo", "current authentication issue")
 
 	require.NoError(t, err)
 	if len(suggestions) == 0 {
@@ -238,7 +238,7 @@ func TestContextSuggester_GenerateArchitecturalSuggestions(t *testing.T) {
 		[]types.ConversationChunk{decisionChunk}, nil)
 
 	suggestions, err := suggester.generateArchitecturalSuggestions(
-		context.Background(), trigger, "test-repo", "designing system architecture")
+		context.Background(), &trigger, "test-repo", "designing system architecture")
 
 	require.NoError(t, err)
 
@@ -280,7 +280,7 @@ func TestContextSuggester_GenerateSuccessfulPatternSuggestions(t *testing.T) {
 	}
 
 	suggestions, err := suggester.generateSuccessfulPatternSuggestions(
-		context.Background(), trigger, "test-repo", "writing tests for new feature")
+		context.Background(), &trigger, "test-repo", "writing tests for new feature")
 
 	require.NoError(t, err)
 	assert.Len(t, suggestions, 1)
@@ -383,14 +383,14 @@ func TestContextSuggester_BuildDescriptions(t *testing.T) {
 	}
 
 	t.Run("similar problem description", func(t *testing.T) {
-		desc := suggester.buildSimilarProblemDescription(chunk, []types.ConversationChunk{chunk})
+		desc := suggester.buildSimilarProblemDescription(&chunk, []types.ConversationChunk{chunk})
 		assert.Contains(t, desc, "Jan 15")
 		assert.Contains(t, desc, "1 solution")
 		assert.Contains(t, desc, "success")
 	})
 
 	t.Run("architectural description", func(t *testing.T) {
-		desc := suggester.buildArchitecturalDescription(chunk)
+		desc := suggester.buildArchitecturalDescription(&chunk)
 		assert.Contains(t, desc, "Architectural decision")
 		assert.Contains(t, desc, "Jan 15")
 	})

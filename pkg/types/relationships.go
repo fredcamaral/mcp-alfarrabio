@@ -75,11 +75,11 @@ func (rt RelationType) GetInverse() RelationType {
 	if rt.IsSymmetric() {
 		return rt
 	}
-	
+
 	if inverse, exists := rt.getBidirectionalInverse(); exists {
 		return inverse
 	}
-	
+
 	return rt.getSelfReferencingDefault()
 }
 
@@ -92,7 +92,7 @@ func (rt RelationType) IsSymmetric() bool {
 		RelationSupersedes,
 		RelationExemplifes,
 	}
-	
+
 	for _, symmetric := range symmetricRelations {
 		if rt == symmetric {
 			return true
@@ -104,18 +104,18 @@ func (rt RelationType) IsSymmetric() bool {
 // getBidirectionalInverse returns the inverse for bidirectional relationships
 func (rt RelationType) getBidirectionalInverse() (RelationType, bool) {
 	bidirectionalMap := map[RelationType]RelationType{
-		RelationLedTo:         RelationSolvedBy,
-		RelationSolvedBy:      RelationLedTo,
-		RelationDependsOn:     RelationEnables,
-		RelationEnables:       RelationDependsOn,
-		RelationFollowsUp:     RelationPrecedes,
-		RelationPrecedes:      RelationFollowsUp,
-		RelationLearnedFrom:   RelationTeaches,
-		RelationTeaches:       RelationLearnedFrom,
-		RelationReferencesBy:  RelationReferences,
-		RelationReferences:    RelationReferencesBy,
+		RelationLedTo:        RelationSolvedBy,
+		RelationSolvedBy:     RelationLedTo,
+		RelationDependsOn:    RelationEnables,
+		RelationEnables:      RelationDependsOn,
+		RelationFollowsUp:    RelationPrecedes,
+		RelationPrecedes:     RelationFollowsUp,
+		RelationLearnedFrom:  RelationTeaches,
+		RelationTeaches:      RelationLearnedFrom,
+		RelationReferencesBy: RelationReferences,
+		RelationReferences:   RelationReferencesBy,
 	}
-	
+
 	inverse, exists := bidirectionalMap[rt]
 	return inverse, exists
 }
@@ -124,7 +124,6 @@ func (rt RelationType) getBidirectionalInverse() (RelationType, bool) {
 func (rt RelationType) getSelfReferencingDefault() RelationType {
 	return RelationRelatedTo
 }
-
 
 // ConfidenceSource represents how the confidence score was determined
 type ConfidenceSource string
@@ -281,15 +280,15 @@ func (rq *RelationshipQuery) Validate() error {
 	if err := rq.validateBasicFields(); err != nil {
 		return err
 	}
-	
+
 	if err := rq.validateRangeFields(); err != nil {
 		return err
 	}
-	
+
 	if err := rq.validateSortFields(); err != nil {
 		return err
 	}
-	
+
 	return rq.validateRelationTypes()
 }
 
@@ -298,12 +297,12 @@ func (rq *RelationshipQuery) validateBasicFields() error {
 	if rq.ChunkID == "" {
 		return errors.New("chunk ID cannot be empty")
 	}
-	
+
 	validDirections := []string{"incoming", "outgoing", "both"}
 	if !rq.isValidDirection(validDirections) {
 		return errors.New("direction must be 'incoming', 'outgoing', or 'both'")
 	}
-	
+
 	return nil
 }
 
@@ -312,15 +311,15 @@ func (rq *RelationshipQuery) validateRangeFields() error {
 	if rq.MinConfidence < 0 || rq.MinConfidence > 1 {
 		return errors.New("min confidence must be between 0 and 1")
 	}
-	
+
 	if rq.MaxDepth < 1 {
 		return errors.New("max depth must be at least 1")
 	}
-	
+
 	if rq.Limit < 0 {
 		return errors.New("limit cannot be negative")
 	}
-	
+
 	return nil
 }
 
@@ -330,12 +329,12 @@ func (rq *RelationshipQuery) validateSortFields() error {
 	if !rq.isValidSortBy(validSortFields) {
 		return errors.New("sort by must be 'confidence', 'created_at', or 'validation_count'")
 	}
-	
+
 	validSortOrders := []string{"", "asc", "desc"}
 	if !rq.isValidSortOrder(validSortOrders) {
 		return errors.New("sort order must be 'asc' or 'desc'")
 	}
-	
+
 	return nil
 }
 

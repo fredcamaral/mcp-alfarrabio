@@ -132,7 +132,7 @@ func (tt *TodoTracker) captureCompletedWork(_ context.Context, session *TodoSess
 		session.SessionID,
 		content,
 		types.ChunkTypeSolution,
-		metadata,
+		&metadata,
 	)
 	if err != nil {
 		return fmt.Errorf("failed to create chunk: %w", err)
@@ -388,7 +388,7 @@ func (tt *TodoTracker) createSessionSummary(session *TodoSession) {
 		session.SessionID,
 		content,
 		types.ChunkTypeSessionSummary,
-		metadata,
+		&metadata,
 	)
 	if err == nil {
 		tt.completedWork = append(tt.completedWork, *chunk)

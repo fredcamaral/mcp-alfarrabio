@@ -1552,7 +1552,7 @@ func (pta *PerformanceTrendAnalyzer) GetSummary() map[string]interface{} {
 	}
 }
 
-func NewPerformanceCorrelationEngine(minCorrelation float64, windowSize time.Duration, updateInterval time.Duration) *PerformanceCorrelationEngine {
+func NewPerformanceCorrelationEngine(minCorrelation float64, windowSize, updateInterval time.Duration) *PerformanceCorrelationEngine {
 	return &PerformanceCorrelationEngine{
 		correlations:   make(map[string]map[string]*CorrelationResult),
 		minCorrelation: minCorrelation,
@@ -1590,7 +1590,7 @@ func (pce *PerformanceCorrelationEngine) GetSummary() map[string]interface{} {
 	}
 }
 
-func NewPerformancePredictiveEngine(forecastHorizon time.Duration, updateInterval time.Duration) *PerformancePredictiveEngine {
+func NewPerformancePredictiveEngine(forecastHorizon, updateInterval time.Duration) *PerformancePredictiveEngine {
 	return &PerformancePredictiveEngine{
 		models:          make(map[string]*PredictiveModel),
 		forecastHorizon: forecastHorizon,

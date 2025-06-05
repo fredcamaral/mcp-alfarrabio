@@ -196,7 +196,7 @@ func TestNewConversationChunk(t *testing.T) {
 	}
 
 	t.Run("valid chunk creation", func(t *testing.T) {
-		chunk, err := NewConversationChunk(sessionID, content, chunkType, metadata)
+		chunk, err := NewConversationChunk(sessionID, content, chunkType, &metadata)
 		require.NoError(t, err)
 
 		assert.NotEmpty(t, chunk.ID)
@@ -211,19 +211,19 @@ func TestNewConversationChunk(t *testing.T) {
 	})
 
 	t.Run("empty session ID", func(t *testing.T) {
-		_, err := NewConversationChunk("", content, chunkType, metadata)
+		_, err := NewConversationChunk("", content, chunkType, &metadata)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "session ID cannot be empty")
 	})
 
 	t.Run("empty content", func(t *testing.T) {
-		_, err := NewConversationChunk(sessionID, "", chunkType, metadata)
+		_, err := NewConversationChunk(sessionID, "", chunkType, &metadata)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "content cannot be empty")
 	})
 
 	t.Run("invalid chunk type", func(t *testing.T) {
-		_, err := NewConversationChunk(sessionID, content, ChunkType("invalid"), metadata)
+		_, err := NewConversationChunk(sessionID, content, ChunkType("invalid"), &metadata)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid chunk type")
 	})
@@ -233,7 +233,7 @@ func TestNewConversationChunk(t *testing.T) {
 			Outcome:    Outcome("invalid"),
 			Difficulty: DifficultySimple,
 		}
-		_, err := NewConversationChunk(sessionID, content, chunkType, invalidMetadata)
+		_, err := NewConversationChunk(sessionID, content, chunkType, &invalidMetadata)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "invalid metadata")
 	})

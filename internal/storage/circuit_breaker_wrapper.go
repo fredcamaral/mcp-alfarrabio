@@ -86,7 +86,7 @@ func (s *CircuitBreakerVectorStore) GetByID(ctx context.Context, id string) (*ty
 }
 
 // ListByRepository lists chunks by repository
-func (s *CircuitBreakerVectorStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
+func (s *CircuitBreakerVectorStore) ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error) {
 	var result []types.ConversationChunk
 
 	err := s.cb.ExecuteWithFallback(ctx,

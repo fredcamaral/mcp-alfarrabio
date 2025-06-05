@@ -156,58 +156,67 @@ func (s *InMemoryThreadStore) ListThreads(ctx context.Context, filters ThreadFil
 
 // matchesFilters checks if a thread matches the given filters
 func (s *InMemoryThreadStore) matchesFilters(thread *MemoryThread, filters ThreadFilters) bool {
-	// Repository filter
+	return s.matchesBasicFilters(thread, filters) &&
+		s.matchesSessionFilter(thread, filters) &&
+		s.matchesTagsFilter(thread, filters) &&
+		s.matchesTimeFilters(thread, filters)
+}
+
+// matchesBasicFilters checks basic string filters
+func (s *InMemoryThreadStore) matchesBasicFilters(thread *MemoryThread, filters ThreadFilters) bool {
 	if filters.Repository != nil && thread.Repository != *filters.Repository {
 		return false
 	}
-
-	// Type filter
 	if filters.Type != nil && thread.Type != *filters.Type {
 		return false
 	}
-
-	// Status filter
 	if filters.Status != nil && thread.Status != *filters.Status {
 		return false
 	}
+	return true
+}
 
-	// Session ID filter
-	if filters.SessionID != nil {
-		found := false
-		for _, sessionID := range thread.SessionIDs {
-			if sessionID == *filters.SessionID {
-				found = true
-				break
-			}
+// matchesSessionFilter checks if thread matches session ID filter
+func (s *InMemoryThreadStore) matchesSessionFilter(thread *MemoryThread, filters ThreadFilters) bool {
+	if filters.SessionID == nil {
+		return true
+	}
+
+	for _, sessionID := range thread.SessionIDs {
+		if sessionID == *filters.SessionID {
+			return true
 		}
-		if !found {
+	}
+	return false
+}
+
+// matchesTagsFilter checks if thread has all required tags
+func (s *InMemoryThreadStore) matchesTagsFilter(thread *MemoryThread, filters ThreadFilters) bool {
+	if len(filters.Tags) == 0 {
+		return true
+	}
+
+	threadTagSet := make(map[string]bool)
+	for _, tag := range thread.Tags {
+		threadTagSet[tag] = true
+	}
+
+	for _, requiredTag := range filters.Tags {
+		if !threadTagSet[requiredTag] {
 			return false
 		}
 	}
+	return true
+}
 
-	// Tags filter (thread must have all specified tags)
-	if len(filters.Tags) > 0 {
-		threadTagSet := make(map[string]bool)
-		for _, tag := range thread.Tags {
-			threadTagSet[tag] = true
-		}
-
-		for _, requiredTag := range filters.Tags {
-			if !threadTagSet[requiredTag] {
-				return false
-			}
-		}
-	}
-
-	// Time range filters
+// matchesTimeFilters checks time range filters
+func (s *InMemoryThreadStore) matchesTimeFilters(thread *MemoryThread, filters ThreadFilters) bool {
 	if filters.Since != nil && thread.LastUpdate.Before(*filters.Since) {
 		return false
 	}
-
 	if filters.Until != nil && thread.StartTime.After(*filters.Until) {
 		return false
 	}
-
 	return true
 }
 

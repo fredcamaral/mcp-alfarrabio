@@ -186,7 +186,7 @@ func (cs *Service) CreateChunk(ctx context.Context, sessionID, content string, m
 	enrichedMetadata := cs.enrichMetadata(metadata, content)
 
 	// Create the chunk
-	chunk, err := types.NewConversationChunk(sessionID, content, chunkType, enrichedMetadata)
+	chunk, err := types.NewConversationChunk(sessionID, content, chunkType, &enrichedMetadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create chunk: %w", err)
 	}
@@ -882,7 +882,7 @@ func (cs *Service) detectSmartTags(content string) []string {
 
 	// Detect pattern-based tags
 	tags = append(tags, cs.detectPatternBasedTags(content)...)
-	
+
 	// Detect content-based tags
 	tags = append(tags, cs.detectContentBasedTags(content)...)
 
@@ -1006,32 +1006,32 @@ func (cs *Service) detectPerformancePattern(content string) bool {
 
 // detectTestingKeywords checks for testing-related keywords
 func (cs *Service) detectTestingKeywords(contentLower string) bool {
-	return strings.Contains(contentLower, "test") || 
-		   strings.Contains(contentLower, "testing")
+	return strings.Contains(contentLower, "test") ||
+		strings.Contains(contentLower, "testing")
 }
 
 // detectDocumentationKeywords checks for documentation-related keywords
 func (cs *Service) detectDocumentationKeywords(contentLower string) bool {
-	return strings.Contains(contentLower, "document") || 
-		   strings.Contains(contentLower, "readme")
+	return strings.Contains(contentLower, "document") ||
+		strings.Contains(contentLower, "readme")
 }
 
 // detectSecurityKeywords checks for security-related keywords
 func (cs *Service) detectSecurityKeywords(contentLower string) bool {
-	return strings.Contains(contentLower, "security") || 
-		   strings.Contains(contentLower, "auth")
+	return strings.Contains(contentLower, "security") ||
+		strings.Contains(contentLower, "auth")
 }
 
 // detectDevOpsKeywords checks for DevOps-related keywords
 func (cs *Service) detectDevOpsKeywords(contentLower string) bool {
-	return strings.Contains(contentLower, "deploy") || 
-		   strings.Contains(contentLower, "ci/cd")
+	return strings.Contains(contentLower, "deploy") ||
+		strings.Contains(contentLower, "ci/cd")
 }
 
 // detectAPIKeywords checks for API-related keywords
 func (cs *Service) detectAPIKeywords(contentLower string) bool {
-	return strings.Contains(contentLower, "api") || 
-		   strings.Contains(contentLower, "endpoint")
+	return strings.Contains(contentLower, "api") ||
+		strings.Contains(contentLower, "endpoint")
 }
 
 // buildExtendedMetadata creates rich metadata for smart analysis

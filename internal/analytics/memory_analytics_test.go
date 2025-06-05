@@ -536,8 +536,8 @@ func TestMemoryAnalytics_GetTopMemories(t *testing.T) {
 
 	// Verify chunk1 is in top (high success rate and access count)
 	foundChunk1 := false
-	for _, chunk := range topMemories {
-		if chunk.ID == "chunk1" {
+	for i := range topMemories {
+		if topMemories[i].ID == "chunk1" {
 			foundChunk1 = true
 			break
 		}
@@ -547,8 +547,8 @@ func TestMemoryAnalytics_GetTopMemories(t *testing.T) {
 	}
 
 	// Verify chunk4 (obsolete) is not included
-	for _, chunk := range topMemories {
-		if chunk.ID == "chunk4" {
+	for i := range topMemories {
+		if topMemories[i].ID == "chunk4" {
 			t.Error("Obsolete chunk should not be in top memories")
 		}
 	}

@@ -635,7 +635,7 @@ func (mre *MultiRepoEngine) matchesRepositoryFilter(repo *RepositoryContext, rep
 	if len(repositories) == 0 {
 		return true
 	}
-	
+
 	for _, repoID := range repositories {
 		if repo.ID == repoID {
 			return true
@@ -649,7 +649,7 @@ func (mre *MultiRepoEngine) matchesTechStackFilter(repo *RepositoryContext, tech
 	if len(techStacks) == 0 {
 		return true
 	}
-	
+
 	for _, queryTech := range techStacks {
 		for _, repoTech := range repo.TechStack {
 			if strings.EqualFold(queryTech, repoTech) {
@@ -665,7 +665,7 @@ func (mre *MultiRepoEngine) matchesFrameworkFilter(repo *RepositoryContext, fram
 	if len(frameworks) == 0 {
 		return true
 	}
-	
+
 	for _, framework := range frameworks {
 		if strings.EqualFold(framework, repo.Framework) {
 			return true
@@ -679,7 +679,7 @@ func (mre *MultiRepoEngine) matchesTimeRangeFilter(repo *RepositoryContext, time
 	if timeRange == nil {
 		return true
 	}
-	
+
 	return !repo.LastActivity.Before(timeRange.Start) && !repo.LastActivity.After(timeRange.End)
 }
 
@@ -828,19 +828,19 @@ func (mre *MultiRepoEngine) generateSimilarityEvidence(repo1, repo2 *RepositoryC
 	for _, tech1 := range repo1.TechStack {
 		for _, tech2 := range repo2.TechStack {
 			if strings.EqualFold(tech1, tech2) {
-				evidence = append(evidence, "shared_tech:" + tech1)
+				evidence = append(evidence, "shared_tech:"+tech1)
 			}
 		}
 	}
 
 	// Same framework
 	if repo1.Framework != "" && strings.EqualFold(repo1.Framework, repo2.Framework) {
-		evidence = append(evidence, "same_framework:" + repo1.Framework)
+		evidence = append(evidence, "same_framework:"+repo1.Framework)
 	}
 
 	// Same language
 	if repo1.Language != "" && strings.EqualFold(repo1.Language, repo2.Language) {
-		evidence = append(evidence, "same_language:" + repo1.Language)
+		evidence = append(evidence, "same_language:"+repo1.Language)
 	}
 
 	return evidence

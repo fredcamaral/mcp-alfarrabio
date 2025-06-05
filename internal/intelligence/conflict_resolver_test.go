@@ -259,7 +259,7 @@ func TestConflictResolver_CalculateStrategyConfidence(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			confidence := resolver.calculateStrategyConfidence(&tt.conflict, tt.strategy)
+			confidence := resolver.calculateStrategyConfidence(&tt.conflict, &tt.strategy)
 
 			if confidence < tt.expectedMinimum {
 				t.Errorf("Expected confidence >= %.2f, got %.2f", tt.expectedMinimum, confidence)

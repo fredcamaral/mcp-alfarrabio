@@ -61,9 +61,9 @@ func (e *ExtendedConversationChunk) ToBase() types.ConversationChunk {
 }
 
 // FromBase creates an ExtendedConversationChunk from a base chunk
-func FromBase(chunk types.ConversationChunk) *ExtendedConversationChunk {
+func FromBase(chunk *types.ConversationChunk) *ExtendedConversationChunk {
 	extended := &ExtendedConversationChunk{
-		ConversationChunk: chunk,
+		ConversationChunk: *chunk,
 		ExtendedMetadata:  make(map[string]interface{}),
 	}
 

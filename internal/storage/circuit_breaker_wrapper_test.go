@@ -40,7 +40,7 @@ func (m *MockVectorStore) GetByID(ctx context.Context, id string) (*types.Conver
 	return args.Get(0).(*types.ConversationChunk), args.Error(1)
 }
 
-func (m *MockVectorStore) ListByRepository(ctx context.Context, repository string, limit int, offset int) ([]types.ConversationChunk, error) {
+func (m *MockVectorStore) ListByRepository(ctx context.Context, repository string, limit, offset int) ([]types.ConversationChunk, error) {
 	args := m.Called(ctx, repository, limit, offset)
 	return args.Get(0).([]types.ConversationChunk), args.Error(1)
 }
