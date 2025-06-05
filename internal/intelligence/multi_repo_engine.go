@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // RepositoryContext represents context about a specific repository

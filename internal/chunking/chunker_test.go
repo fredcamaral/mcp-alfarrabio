@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"mcp-memory/internal/config"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/config"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // MockEmbeddingService implements a mock embedding service for testing

@@ -4,7 +4,7 @@ package storage
 
 import (
 	"context"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // VectorStore defines the interface for vector database operations

@@ -1,4 +1,4 @@
-module mcp-memory
+module lerian-mcp-memory
 
 go 1.23.0
 

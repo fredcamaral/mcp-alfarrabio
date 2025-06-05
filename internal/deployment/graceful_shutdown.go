@@ -9,7 +9,7 @@ import (
 	"syscall"
 	"time"
 
-	"mcp-memory/internal/logging"
+	"lerian-mcp-memory/internal/logging"
 )
 
 // ShutdownManager handles graceful shutdown of the application

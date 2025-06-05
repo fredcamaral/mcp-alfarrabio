@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"mcp-memory/internal/storage"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/storage"
+	"lerian-mcp-memory/pkg/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"

@@ -3,7 +3,7 @@ package graphql
 
 import (
 	"fmt"
-	"mcp-memory/internal/di"
+	"lerian-mcp-memory/internal/di"
 
 	"github.com/graphql-go/graphql"
 )

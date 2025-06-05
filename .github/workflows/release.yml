@@ -129,7 +129,7 @@ jobs:
           for platform in "${PLATFORMS[@]}"; do
             IFS='/' read -r GOOS GOARCH <<< "$platform"
             
-            output_name="mcp-memory-server-${VERSION}-${GOOS}-${GOARCH}"
+            output_name="lerian-mcp-memory-server-${VERSION}-${GOOS}-${GOARCH}"
             if [[ "$GOOS" == "windows" ]]; then
               output_name="${output_name}.exe"
             fi
@@ -158,16 +158,16 @@ jobs:
           VERSION="${{ steps.version.outputs.clean_version }}"
           
           # Build production image
-          docker build -t mcp-memory:${VERSION} .
-          docker build -t mcp-memory:latest .
+          docker build -t lerian-mcp-memory:${VERSION} .
+          docker build -t lerian-mcp-memory:latest .
           
           # Build development image
-          docker build -f Dockerfile.dev -t mcp-memory:${VERSION}-dev .
-          docker build -f Dockerfile.dev -t mcp-memory:dev .
+          docker build -f Dockerfile.dev -t lerian-mcp-memory:${VERSION}-dev .
+          docker build -f Dockerfile.dev -t lerian-mcp-memory:dev .
           
           # Save images as tar files for release
-          docker save mcp-memory:${VERSION} | gzip > dist/mcp-memory-${VERSION}.tar.gz
-          docker save mcp-memory:${VERSION}-dev | gzip > dist/mcp-memory-${VERSION}-dev.tar.gz
+          docker save lerian-mcp-memory:${VERSION} | gzip > dist/lerian-mcp-memory-${VERSION}.tar.gz
+          docker save lerian-mcp-memory:${VERSION}-dev | gzip > dist/lerian-mcp-memory-${VERSION}-dev.tar.gz
 
       - name: Generate changelog
         id: changelog
@@ -223,18 +223,18 @@ jobs:
           VERSION="${{ steps.version.outputs.clean_version }}"
           
           # Tag and push production images
-          docker tag mcp-memory:${VERSION} ghcr.io/lerianstudio/mcp-memory:${VERSION}
-          docker tag mcp-memory:latest ghcr.io/lerianstudio/mcp-memory:latest
+          docker tag lerian-mcp-memory:${VERSION} ghcr.io/lerianstudio/lerian-mcp-memory:${VERSION}
+          docker tag lerian-mcp-memory:latest ghcr.io/lerianstudio/lerian-mcp-memory:latest
           
-          docker push ghcr.io/lerianstudio/mcp-memory:${VERSION}
-          docker push ghcr.io/lerianstudio/mcp-memory:latest
+          docker push ghcr.io/lerianstudio/lerian-mcp-memory:${VERSION}
+          docker push ghcr.io/lerianstudio/lerian-mcp-memory:latest
           
           # Tag and push development images
-          docker tag mcp-memory:${VERSION}-dev ghcr.io/lerianstudio/mcp-memory:${VERSION}-dev
-          docker tag mcp-memory:dev ghcr.io/lerianstudio/mcp-memory:dev
+          docker tag lerian-mcp-memory:${VERSION}-dev ghcr.io/lerianstudio/lerian-mcp-memory:${VERSION}-dev
+          docker tag lerian-mcp-memory:dev ghcr.io/lerianstudio/lerian-mcp-memory:dev
           
-          docker push ghcr.io/lerianstudio/mcp-memory:${VERSION}-dev
-          docker push ghcr.io/lerianstudio/mcp-memory:dev
+          docker push ghcr.io/lerianstudio/lerian-mcp-memory:${VERSION}-dev
+          docker push ghcr.io/lerianstudio/lerian-mcp-memory:dev
 
       - name: Update package versions
         if: github.event_name == 'push'

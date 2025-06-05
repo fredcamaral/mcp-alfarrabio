@@ -4,7 +4,7 @@ package chains
 import (
 	"context"
 	"fmt"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 	"sort"
 	"sync"
 	"time"

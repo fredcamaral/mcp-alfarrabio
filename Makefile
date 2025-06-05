@@ -1,15 +1,15 @@
 # MCP Memory Server - Streamlined Makefile
 
 # Project configuration
-PROJECT_NAME := mcp-memory-server
+PROJECT_NAME := lerian-mcp-memory-server
 VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo "dev")
 BUILD_TIME := $(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 COMMIT_HASH := $(shell git rev-parse --short HEAD 2>/dev/null || echo "unknown")
 
 # Build configuration
-BINARY_NAME := mcp-memory-server
+BINARY_NAME := lerian-mcp-memory-server
 BUILD_DIR := ./bin
-DOCKER_IMAGE := mcp-memory-server
+DOCKER_IMAGE := lerian-mcp-memory-server
 
 # Go configuration
 GO_MODULE := $(shell go list -m)
@@ -127,7 +127,7 @@ dev-down: ## Stop development mode
 	docker-compose -f docker-compose.dev.yml down
 
 dev-logs: ## View development mode logs
-	docker-compose -f docker-compose.dev.yml logs -f mcp-memory-server-dev
+	docker-compose -f docker-compose.dev.yml logs -f lerian-mcp-memory-server-dev
 
 ## Utility Commands
 clean: ## Clean build artifacts

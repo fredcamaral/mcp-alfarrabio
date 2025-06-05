@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"mcp-memory/internal/embeddings"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/embeddings"
+	"lerian-mcp-memory/pkg/types"
 	"strings"
 	"time"
 )

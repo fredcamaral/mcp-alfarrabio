@@ -82,7 +82,7 @@ info:
   version: "2.0.0"
   contact:
     name: MCP Memory Team
-    url: https://github.com/LerianStudio/mcp-memory
+    url: https://github.com/LerianStudio/lerian-mcp-memory
     email: support@lerian.studio
   license:
     name: Apache-2.0

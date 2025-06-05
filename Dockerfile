@@ -36,11 +36,11 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build \
     -ldflags='-w -s -extldflags "-static"' \
     -a -installsuffix cgo \
-    -o mcp-memory-server \
+    -o lerian-mcp-memory-server \
     ./cmd/server
 
 # Verify the binary exists and is executable
-RUN ls -la mcp-memory-server
+RUN ls -la lerian-mcp-memory-server
 
 # Stage 2: Build the Next.js frontend
 FROM node:20-alpine AS frontend-builder
@@ -85,7 +85,7 @@ RUN addgroup -g 1001 -S mcpuser && \
 WORKDIR /app
 
 # Copy Go binary from builder stage
-COPY --from=go-builder --chown=mcpuser:mcpuser /build/mcp-memory-server /app/
+COPY --from=go-builder --chown=mcpuser:mcpuser /build/lerian-mcp-memory-server /app/
 
 # Copy Next.js build from frontend builder
 COPY --from=frontend-builder --chown=mcpuser:mcpuser /frontend/.next/standalone /app/frontend/
@@ -109,7 +109,7 @@ set -e
 
 # Start the Go backend in the background
 echo "Starting MCP Memory Server..."
-/app/mcp-memory-server -mode=http -addr=:9080 &
+/app/lerian-mcp-memory-server -mode=http -addr=:9080 &
 BACKEND_PID=$!
 
 # Start the Next.js frontend in the background
@@ -151,7 +151,7 @@ LABEL \
     org.opencontainers.image.version="VERSION_PLACEHOLDER" \
     org.opencontainers.image.vendor="fredcamaral" \
     org.opencontainers.image.licenses="Apache-2.0" \
-    org.opencontainers.image.source="https://github.com/LerianStudio/mcp-memory"
+    org.opencontainers.image.source="https://github.com/LerianStudio/lerian-mcp-memory"
 
 # Set environment variables
 ENV GO111MODULE=on \

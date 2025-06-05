@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 func TestConflictDetector_DetectConflicts(t *testing.T) {

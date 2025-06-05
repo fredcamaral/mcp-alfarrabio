@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // PatternType represents different types of patterns we can recognize

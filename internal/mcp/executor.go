@@ -3,7 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
-	"mcp-memory/internal/logging"
+	"lerian-mcp-memory/internal/logging"
 
 	"github.com/fredcamaral/gomcp-sdk/protocol"
 )

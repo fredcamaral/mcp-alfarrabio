@@ -3,8 +3,8 @@ package storage
 import (
 	"context"
 	"fmt"
-	"mcp-memory/internal/intelligence"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/intelligence"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // PatternStorageAdapter adapts VectorStore to PatternStorage interface

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"mcp-memory/internal/logging"
+	"lerian-mcp-memory/internal/logging"
 	"strings"
 
 	mcp "github.com/fredcamaral/gomcp-sdk"

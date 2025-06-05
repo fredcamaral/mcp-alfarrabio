@@ -3,8 +3,8 @@ package storage
 import (
 	"context"
 	"errors"
-	"mcp-memory/internal/circuitbreaker"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/circuitbreaker"
+	"lerian-mcp-memory/pkg/types"
 	"testing"
 	"time"
 

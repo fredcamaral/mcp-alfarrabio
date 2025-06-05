@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 
 	"github.com/stretchr/testify/assert"
 )

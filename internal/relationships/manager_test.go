@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 func TestManager_AddRelationship(t *testing.T) {

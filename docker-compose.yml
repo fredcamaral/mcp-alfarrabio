@@ -5,7 +5,7 @@ services:
   # Qdrant Vector Database - High-performance vector search engine
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: mcp-qdrant
+    container_name: lerian-mcp-qdrant
     restart: unless-stopped
     ports:
       - "${QDRANT_HOST_PORT:-6333}:6333"  # HTTP API
@@ -21,11 +21,11 @@ services:
       - mcp_network
 
   # MCP Memory Server with integrated WebUI
-  mcp-memory-server:
+  lerian-mcp-memory-server:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: mcp-memory-server
+    container_name: lerian-mcp-memory-server
     restart: unless-stopped
     depends_on:
       - qdrant

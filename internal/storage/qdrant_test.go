@@ -3,8 +3,8 @@ package storage
 import (
 	"context"
 	"fmt"
-	"mcp-memory/internal/config"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/config"
+	"lerian-mcp-memory/pkg/types"
 	"sort"
 	"testing"
 	"time"

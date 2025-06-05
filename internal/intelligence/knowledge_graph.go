@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // NodeType represents different types of nodes in the knowledge graph

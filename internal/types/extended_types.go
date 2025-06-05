@@ -2,7 +2,7 @@
 package types
 
 import (
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 	"time"
 )
 

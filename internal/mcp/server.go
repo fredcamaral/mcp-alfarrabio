@@ -9,17 +9,17 @@ import (
 	"fmt"
 	"log"
 	"math"
-	"mcp-memory/internal/audit"
-	"mcp-memory/internal/bulk"
-	"mcp-memory/internal/config"
-	contextdetector "mcp-memory/internal/context"
-	"mcp-memory/internal/di"
-	"mcp-memory/internal/intelligence"
-	"mcp-memory/internal/logging"
-	"mcp-memory/internal/relationships"
-	"mcp-memory/internal/threading"
-	"mcp-memory/internal/workflow"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/audit"
+	"lerian-mcp-memory/internal/bulk"
+	"lerian-mcp-memory/internal/config"
+	contextdetector "lerian-mcp-memory/internal/context"
+	"lerian-mcp-memory/internal/di"
+	"lerian-mcp-memory/internal/intelligence"
+	"lerian-mcp-memory/internal/logging"
+	"lerian-mcp-memory/internal/relationships"
+	"lerian-mcp-memory/internal/threading"
+	"lerian-mcp-memory/internal/workflow"
+	"lerian-mcp-memory/pkg/types"
 	"os"
 	"os/exec"
 	"regexp"
@@ -11176,7 +11176,7 @@ func (ms *MemoryServer) discoverRepositories(ctx context.Context) []string {
 
 	// Also try common repository patterns to discover more repos
 	commonRepos := []string{
-		"github.com/LerianStudio/mcp-memory",
+		"github.com/LerianStudio/lerian-mcp-memory",
 		"github.com/lerianstudio/midaz",
 		"github.com/LerianStudio/lib-commons",
 	}

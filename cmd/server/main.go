@@ -9,10 +9,10 @@ import (
 	"flag"
 	"fmt"
 	"log"
-	"mcp-memory/internal/config"
-	mcpgraphql "mcp-memory/internal/graphql"
-	"mcp-memory/internal/mcp"
-	mcpwebsocket "mcp-memory/internal/websocket"
+	"lerian-mcp-memory/internal/config"
+	mcpgraphql "lerian-mcp-memory/internal/graphql"
+	"lerian-mcp-memory/internal/mcp"
+	mcpwebsocket "lerian-mcp-memory/internal/websocket"
 	"net/http"
 	"os/signal"
 	"strings"
@@ -337,7 +337,7 @@ func handleSSEStream(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Send initial connection message
-	_, _ = fmt.Fprintf(w, "data: {\"type\":\"connected\",\"server\":\"mcp-memory\",\"protocols\":[\"json-rpc\",\"sse\"]}\n\n")
+	_, _ = fmt.Fprintf(w, "data: {\"type\":\"connected\",\"server\":\"lerian-mcp-memory\",\"protocols\":[\"json-rpc\",\"sse\"]}\n\n")
 	flusher.Flush()
 
 	// Keep connection open and send periodic heartbeats
@@ -404,7 +404,7 @@ func setupWebSocketHandler(mux *http.ServeMux, ctx context.Context, wsHub *mcpwe
 func setupHealthHandler(mux *http.ServeMux) {
 	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "mcp-memory", "mode": "development with hot-reload"}`)
+		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "lerian-mcp-memory", "mode": "development with hot-reload"}`)
 	})
 }
 

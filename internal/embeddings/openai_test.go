@@ -2,7 +2,7 @@ package embeddings
 
 import (
 	"context"
-	"mcp-memory/internal/config"
+	"lerian-mcp-memory/internal/config"
 	"testing"
 	"time"
 

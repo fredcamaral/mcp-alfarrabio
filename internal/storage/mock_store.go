@@ -3,7 +3,7 @@ package storage
 import (
 	"context"
 	"errors"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 	"strings"
 	"time"
 )

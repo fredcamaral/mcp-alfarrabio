@@ -7,8 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"mcp-memory/internal/storage"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/storage"
+	"lerian-mcp-memory/pkg/types"
 	"sync"
 	"time"
 )

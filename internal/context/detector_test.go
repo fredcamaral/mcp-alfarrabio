@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 func TestDetector_DetectLocationContext(t *testing.T) {

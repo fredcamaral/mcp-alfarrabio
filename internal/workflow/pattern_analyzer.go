@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // ToolUsage represents a single tool usage event

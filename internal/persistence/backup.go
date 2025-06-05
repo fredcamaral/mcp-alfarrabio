@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // BackupManager handles backup and restore operations

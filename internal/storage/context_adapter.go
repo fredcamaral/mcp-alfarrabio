@@ -2,8 +2,8 @@ package storage
 
 import (
 	"context"
-	"mcp-memory/internal/workflow"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/workflow"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // VectorStorageAdapter adapts VectorStore to workflow.VectorStorage interface

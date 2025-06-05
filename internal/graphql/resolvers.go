@@ -2,9 +2,9 @@ package graphql
 
 import (
 	"fmt"
-	"mcp-memory/internal/di"
-	"mcp-memory/internal/workflow"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/di"
+	"lerian-mcp-memory/internal/workflow"
+	"lerian-mcp-memory/pkg/types"
 	"time"
 
 	"github.com/google/uuid"

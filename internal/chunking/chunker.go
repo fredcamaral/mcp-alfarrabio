@@ -5,9 +5,9 @@ package chunking
 import (
 	"context"
 	"fmt"
-	"mcp-memory/internal/config"
-	"mcp-memory/internal/embeddings"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/config"
+	"lerian-mcp-memory/internal/embeddings"
+	"lerian-mcp-memory/pkg/types"
 	"os"
 	"regexp"
 	"strconv"

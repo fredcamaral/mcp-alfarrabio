@@ -5,7 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 	"sort"
 	"strconv"
 	"strings"

@@ -118,15 +118,15 @@ jobs:
           platforms: linux/amd64,linux/arm64
           push: true
           tags: |
-            ghcr.io/lerianstudio/mcp-memory:latest
-            ghcr.io/lerianstudio/mcp-memory:${{ github.sha }}
+            ghcr.io/lerianstudio/lerian-mcp-memory:latest
+            ghcr.io/lerianstudio/lerian-mcp-memory:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
       - name: Generate build provenance
         uses: actions/attest-build-provenance@v1
         with:
-          subject-name: ghcr.io/lerianstudio/mcp-memory
+          subject-name: ghcr.io/lerianstudio/lerian-mcp-memory
           subject-digest: ${{ steps.push.outputs.digest }}
           push-to-registry: true
 
@@ -188,13 +188,13 @@ jobs:
         run: |
           mkdir -p bin
           # Build for Linux (CGO enabled for native platform)
-          go build -ldflags="-s -w" -o bin/mcp-memory-linux-amd64 ./cmd/server
+          go build -ldflags="-s -w" -o bin/lerian-mcp-memory-linux-amd64 ./cmd/server
           
           # Cross-compile for other platforms (CGO disabled for cross-compilation)
-          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/mcp-memory-linux-arm64 ./cmd/server
-          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o bin/mcp-memory-darwin-amd64 ./cmd/server
-          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o bin/mcp-memory-darwin-arm64 ./cmd/server
-          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/mcp-memory-windows-amd64.exe ./cmd/server
+          CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -ldflags="-s -w" -o bin/lerian-mcp-memory-linux-arm64 ./cmd/server
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-s -w" -o bin/lerian-mcp-memory-darwin-amd64 ./cmd/server
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-s -w" -o bin/lerian-mcp-memory-darwin-arm64 ./cmd/server
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o bin/lerian-mcp-memory-windows-amd64.exe ./cmd/server
 
       - name: Create version info
         run: |
@@ -217,6 +217,6 @@ jobs:
       - name: Upload artifacts to GitHub
         uses: actions/upload-artifact@v4
         with:
-          name: mcp-memory-binaries-${{ github.sha }}
+          name: lerian-mcp-memory-binaries-${{ github.sha }}
           path: packages/
           retention-days: 30

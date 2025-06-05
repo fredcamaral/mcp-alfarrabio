@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 	"sort"
 	"strings"
 	"time"

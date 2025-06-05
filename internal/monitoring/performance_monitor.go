@@ -12,8 +12,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"mcp-memory/internal/logging"
-	"mcp-memory/internal/performance"
+	"lerian-mcp-memory/internal/logging"
+	"lerian-mcp-memory/internal/performance"
 )
 
 // PerformanceMonitor provides comprehensive performance monitoring and analysis

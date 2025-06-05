@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // ConversationSegment represents a segment of conversation with identified flow type

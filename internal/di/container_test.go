@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"mcp-memory/internal/config"
+	"lerian-mcp-memory/internal/config"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

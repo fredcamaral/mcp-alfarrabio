@@ -3,9 +3,9 @@ tmp_dir = "tmp"
 
 [build]
   # Binary name
-  bin = "./tmp/mcp-memory-server -mode=http -addr=:9080"
+  bin = "./tmp/lerian-mcp-memory-server -mode=http -addr=:9080"
   # Build command
-  cmd = "go build -o ./tmp/mcp-memory-server ./cmd/server"
+  cmd = "go build -o ./tmp/lerian-mcp-memory-server ./cmd/server"
   # Watch these directories
   include_dir = ["cmd", "internal", "pkg"]
   # Watch these file extensions

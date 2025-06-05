@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // RelationshipType defines the type of relationship between memories

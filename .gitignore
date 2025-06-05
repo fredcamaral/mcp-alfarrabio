@@ -13,9 +13,9 @@
 coverage.html
 
 # Project binaries
-mcp-memory
-mcp-memory_unix
-mcp-memory-server
+lerian-mcp-memory
+lerian-mcp-memory_unix
+lerian-mcp-memory-server
 /bin/
 /server
 

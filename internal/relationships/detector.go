@@ -3,7 +3,7 @@ package relationships
 import (
 	"context"
 	"fmt"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 	"regexp"
 	"strings"
 	"time"

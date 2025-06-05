@@ -10,7 +10,7 @@ import (
 	"runtime"
 	"strings"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 const (

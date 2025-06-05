@@ -3,8 +3,8 @@ package storage
 import (
 	"context"
 	"errors"
-	"mcp-memory/internal/retry"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/retry"
+	"lerian-mcp-memory/pkg/types"
 	"testing"
 	"time"
 

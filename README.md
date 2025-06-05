@@ -9,8 +9,8 @@ Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any M
 ### Step 1: Start the Server
 
 ```bash
-git clone https://github.com/LerianStudio/mcp-memory.git
-cd mcp-memory
+git clone https://github.com/LerianStudio/lerian-mcp-memory.git
+cd lerian-mcp-memory
 cp .env.example .env
 # Edit .env and add your OPENAI_API_KEY
 
@@ -44,7 +44,7 @@ The server includes a Node.js proxy that bridges stdio ↔ HTTP for full compati
   "mcpServers": {
     "memory": {
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
       "env": {
         "MCP_SERVER_HOST": "localhost",
         "MCP_SERVER_PORT": "9080",
@@ -154,7 +154,7 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) o
   "mcpServers": {
     "memory": {
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
       "env": {
         "MCP_SERVER_HOST": "localhost",
         "MCP_SERVER_PORT": "9080",
@@ -176,7 +176,7 @@ Add to `.claude/mcp.json` in your project root:
   "mcpServers": {
     "memory": {
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
       "env": {
         "MCP_SERVER_HOST": "localhost",
         "MCP_SERVER_PORT": "9080",
@@ -199,7 +199,7 @@ Add to your Continue configuration:
   "mcpServers": {
     "memory": {
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
       "env": {
         "MCP_SERVER_HOST": "localhost",
         "MCP_SERVER_PORT": "9080",
@@ -220,7 +220,7 @@ Add to your Continue configuration:
   "mcpServers": {
     "memory": {
       "command": "docker",
-      "args": ["exec", "-i", "mcp-memory-server", "node", "/app/mcp-proxy.js"],
+      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
       "env": {
         "MCP_SERVER_HOST": "localhost",
         "MCP_SERVER_PORT": "9080", 
@@ -303,10 +303,10 @@ docker-compose ps
 curl http://localhost:9081/health
 
 # Test MCP proxy
-echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}' | docker exec -i mcp-memory-server node /app/mcp-proxy.js
+echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}' | docker exec -i lerian-mcp-memory-server node /app/mcp-proxy.js
 
 # View logs
-docker logs mcp-memory-server
+docker logs lerian-mcp-memory-server
 ```
 
 ### Common Issues
@@ -415,4 +415,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 Start with the [Quick Start](#-quick-start-5-minutes) above and choose your preferred [protocol option](#-mcp-protocol-options).
 
-**Questions?** [Open an issue](https://github.com/LerianStudio/mcp-memory/issues) or check our [documentation](docs/README.md).
+**Questions?** [Open an issue](https://github.com/LerianStudio/lerian-mcp-memory/issues) or check our [documentation](docs/README.md).

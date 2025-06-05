@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"mcp-memory/internal/storage"
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/storage"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // MockStore implements a simple in-memory storage for testing

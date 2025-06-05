@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // ConflictType represents different types of conflicts that can be detected

@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // ContextSuggestion represents a proactive suggestion based on historical context

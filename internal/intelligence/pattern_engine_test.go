@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"mcp-memory/pkg/types"
+	"lerian-mcp-memory/pkg/types"
 )
 
 // MockPatternStorage implements PatternStorage for testing

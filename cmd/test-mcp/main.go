@@ -7,8 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"mcp-memory/internal/config"
-	"mcp-memory/internal/mcp"
+	"lerian-mcp-memory/internal/config"
+	"lerian-mcp-memory/internal/mcp"
 	"os"
 
 	"github.com/fredcamaral/gomcp-sdk/protocol"

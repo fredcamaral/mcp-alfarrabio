@@ -3,7 +3,7 @@ package embeddings
 import (
 	"context"
 	"fmt"
-	"mcp-memory/internal/retry"
+	"lerian-mcp-memory/internal/retry"
 	"strings"
 	"time"
 )

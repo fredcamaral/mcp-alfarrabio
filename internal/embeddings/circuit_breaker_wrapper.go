@@ -3,7 +3,7 @@ package embeddings
 import (
 	"context"
 	"fmt"
-	"mcp-memory/internal/circuitbreaker"
+	"lerian-mcp-memory/internal/circuitbreaker"
 	"time"
 )
 

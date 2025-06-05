@@ -35,7 +35,7 @@ logging:
   output: "stdout"
   structured: true
   fields:
-    service: "mcp-memory-server"
+    service: "lerian-mcp-memory-server"
     version: "VERSION_PLACEHOLDER"
     environment: "production"
 

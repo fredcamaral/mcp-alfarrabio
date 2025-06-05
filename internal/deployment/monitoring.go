@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	"mcp-memory/internal/logging"
+	"lerian-mcp-memory/internal/logging"
 )
 
 // MonitoringManager handles application monitoring and metrics

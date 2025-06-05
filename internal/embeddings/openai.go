@@ -8,7 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"mcp-memory/internal/config"
+	"lerian-mcp-memory/internal/config"
 	"os"
 	"strconv"
 	"sync"

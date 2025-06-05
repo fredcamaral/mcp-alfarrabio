@@ -9,8 +9,8 @@ import (
 	"log"
 	"os"
 
-	"mcp-memory/internal/config"
-	"mcp-memory/internal/mcp"
+	"lerian-mcp-memory/internal/config"
+	"lerian-mcp-memory/internal/mcp"
 )
 
 func main() {
