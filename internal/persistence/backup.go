@@ -7,6 +7,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -205,90 +206,125 @@ func (bm *BackupManager) createBackupMetadata(backupFile, repository string, chu
 
 // RestoreBackup restores data from a backup file
 func (bm *BackupManager) RestoreBackup(ctx context.Context, backupFile string, overwrite bool) error {
-	// Validate backup file path
+	backupPath := bm.prepareBackupPath(backupFile)
+	metadata, err := bm.readBackupMetadata(backupPath)
+	if err != nil {
+		return err
+	}
+
+	tarReader, closeFunc, err := bm.createTarReader(backupPath)
+	if err != nil {
+		return err
+	}
+	defer closeFunc()
+
+	restoredCount, err := bm.restoreChunksFromTar(ctx, tarReader)
+	if err != nil {
+		return err
+	}
+
+	return bm.validateRestoredCount(restoredCount, metadata.ChunkCount)
+}
+
+// prepareBackupPath validates and normalizes the backup file path
+func (bm *BackupManager) prepareBackupPath(backupFile string) string {
 	backupFile = filepath.Clean(backupFile)
 	if !filepath.IsAbs(backupFile) {
 		backupFile = filepath.Join(bm.backupDir, backupFile)
 	}
+	return backupFile
+}
 
-	// Read metadata
-	metadataFile := backupFile + ".meta.json"
+// readBackupMetadata reads and parses backup metadata
+func (bm *BackupManager) readBackupMetadata(backupPath string) (BackupMetadata, error) {
+	metadataFile := backupPath + ".meta.json"
 	metadataData, err := os.ReadFile(metadataFile) // #nosec G304 -- Path is validated above
 	if err != nil {
-		return fmt.Errorf("failed to read metadata file: %w", err)
+		return BackupMetadata{}, fmt.Errorf("failed to read metadata file: %w", err)
 	}
 
 	var metadata BackupMetadata
 	if err := json.Unmarshal(metadataData, &metadata); err != nil {
-		return fmt.Errorf("failed to unmarshal metadata: %w", err)
+		return BackupMetadata{}, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
+	return metadata, nil
+}
 
-	// Open backup file
-	file, err := os.Open(backupFile) // #nosec G304 -- Path is validated above
+// createTarReader opens backup file and creates tar reader
+func (bm *BackupManager) createTarReader(backupPath string) (*tar.Reader, func(), error) {
+	file, err := os.Open(backupPath) // #nosec G304 -- Path is validated above
 	if err != nil {
-		return fmt.Errorf("failed to open backup file: %w", err)
+		return nil, nil, fmt.Errorf("failed to open backup file: %w", err)
 	}
-	defer func() {
-		if err := file.Close(); err != nil {
-			// Log error but don't fail the function
-			_ = err
-		}
-	}()
 
-	// Create gzip reader
 	gzipReader, err := gzip.NewReader(file)
 	if err != nil {
-		return fmt.Errorf("failed to create gzip reader: %w", err)
+		_ = file.Close() // Explicitly ignore error as we're already handling another error
+		return nil, nil, fmt.Errorf("failed to create gzip reader: %w", err)
 	}
-	defer func() {
-		if err := gzipReader.Close(); err != nil {
-			// Log error but don't fail the function
-			_ = err
-		}
-	}()
 
-	// Create tar reader
 	tarReader := tar.NewReader(gzipReader)
+	closeFunc := func() {
+		if err := gzipReader.Close(); err != nil {
+			_ = err // Log error but don't fail the function
+		}
+		if err := file.Close(); err != nil {
+			_ = err // Log error but don't fail the function
+		}
+	}
 
-	// Read and restore chunks
+	return tarReader, closeFunc, nil
+}
+
+// restoreChunksFromTar reads and restores chunks from tar archive
+func (bm *BackupManager) restoreChunksFromTar(ctx context.Context, tarReader *tar.Reader) (int, error) {
 	restoredCount := 0
 	for {
 		header, err := tarReader.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return fmt.Errorf("failed to read tar header: %w", err)
+			return 0, fmt.Errorf("failed to read tar header: %w", err)
 		}
 
 		if !strings.HasPrefix(header.Name, "chunks/") {
 			continue
 		}
 
-		// Read chunk data
-		chunkData := make([]byte, header.Size)
-		if _, err := io.ReadFull(tarReader, chunkData); err != nil {
-			return fmt.Errorf("failed to read chunk data: %w", err)
+		chunk, err := bm.readAndUnmarshalChunk(tarReader, header.Size)
+		if err != nil {
+			return 0, err
 		}
 
-		// Unmarshal chunk
-		var chunk types.ConversationChunk
-		if err := json.Unmarshal(chunkData, &chunk); err != nil {
-			return fmt.Errorf("failed to unmarshal chunk: %w", err)
-		}
-
-		// Store chunk
 		if err := bm.storage.StoreChunk(ctx, &chunk); err != nil {
-			return fmt.Errorf("failed to store chunk %s: %w", chunk.ID, err)
+			return 0, fmt.Errorf("failed to store chunk %s: %w", chunk.ID, err)
 		}
 
 		restoredCount++
 	}
+	return restoredCount, nil
+}
 
-	if restoredCount != metadata.ChunkCount {
-		return fmt.Errorf("chunk count mismatch: expected %d, restored %d", metadata.ChunkCount, restoredCount)
+// readAndUnmarshalChunk reads chunk data from tar and unmarshals it
+func (bm *BackupManager) readAndUnmarshalChunk(tarReader *tar.Reader, size int64) (types.ConversationChunk, error) {
+	chunkData := make([]byte, size)
+	if _, err := io.ReadFull(tarReader, chunkData); err != nil {
+		return types.ConversationChunk{}, fmt.Errorf("failed to read chunk data: %w", err)
 	}
 
+	var chunk types.ConversationChunk
+	if err := json.Unmarshal(chunkData, &chunk); err != nil {
+		return types.ConversationChunk{}, fmt.Errorf("failed to unmarshal chunk: %w", err)
+	}
+	return chunk, nil
+}
+
+// validateRestoredCount checks if restored count matches expected count
+func (bm *BackupManager) validateRestoredCount(restoredCount, expectedCount int) error {
+	if restoredCount != expectedCount {
+		return fmt.Errorf("chunk count mismatch: expected %d, restored %d", expectedCount, restoredCount)
+	}
 	return nil
 }
 
