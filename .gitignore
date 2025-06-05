@@ -78,8 +78,6 @@ web-ui/out/
 web-ui/.env.local
 web-ui/.env.*.local
 web-ui/node_modules/
-web-ui/.package-lock.json
-web-ui/package-lock.json
 
 coverage.out
 coverage.txt
