@@ -7,10 +7,10 @@ import {
   setSelectedMemory 
 } from '@/store/slices/memoriesSlice'
 import { cn, formatDate, getMemoryTypeIcon, getConfidenceColor, formatConfidence } from '@/lib/utils'
+import { ConversationChunk } from '@/types/memory'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Separator } from '@/components/ui/separator'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import {
   Tooltip,
@@ -67,7 +67,7 @@ export function MemoryDetails({ className }: MemoryDetailsProps) {
     dispatch(setSelectedMemory(undefined))
   }
 
-  const handleRelatedMemoryClick = (memory: any) => {
+  const handleRelatedMemoryClick = (memory: ConversationChunk) => {
     dispatch(setSelectedMemory(memory))
   }
 
@@ -152,33 +152,33 @@ export function MemoryDetails({ className }: MemoryDetailsProps) {
                   <div className="flex items-center space-x-2 mt-1">
                     <Badge 
                       variant="outline" 
-                      className={cn("text-xs", getConfidenceColor(selectedMemory.metadata.confidence?.score || 0))}
+                      className={cn("text-xs", getConfidenceColor(selectedMemory.metadata?.confidence?.score || 0))}
                     >
                       {selectedMemory.type.replace('_', ' ')}
                     </Badge>
                   </div>
                 </div>
                 
-                {selectedMemory.metadata.confidence && (
+                {selectedMemory.metadata?.confidence && (
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Confidence</label>
                     <div className="mt-1">
                       <Badge 
                         variant="secondary" 
-                        className={cn("text-xs", getConfidenceColor(selectedMemory.metadata.confidence.score))}
+                        className={cn("text-xs", getConfidenceColor(selectedMemory.metadata?.confidence?.score || 0))}
                       >
-                        {formatConfidence(selectedMemory.metadata.confidence.score)}
+                        {formatConfidence(selectedMemory.metadata?.confidence?.score || 0)}
                       </Badge>
                     </div>
                   </div>
                 )}
                 
-                {selectedMemory.metadata.repository && (
+                {selectedMemory.metadata?.repository && (
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Repository</label>
                     <div className="flex items-center space-x-1 mt-1">
                       <GitBranch className="h-3 w-3 text-muted-foreground" />
-                      <span className="text-sm">{selectedMemory.metadata.repository}</span>
+                      <span className="text-sm">{selectedMemory.metadata?.repository}</span>
                     </div>
                   </div>
                 )}
@@ -205,7 +205,7 @@ export function MemoryDetails({ className }: MemoryDetailsProps) {
           </Card>
 
           {/* Tags */}
-          {selectedMemory.metadata.tags && selectedMemory.metadata.tags.length > 0 && (
+          {selectedMemory.metadata?.tags && selectedMemory.metadata.tags.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center space-x-2">
@@ -215,7 +215,7 @@ export function MemoryDetails({ className }: MemoryDetailsProps) {
               </CardHeader>
               <CardContent>
                 <div className="flex flex-wrap gap-2">
-                  {selectedMemory.metadata.tags.map((tag) => (
+                  {selectedMemory.metadata?.tags?.map((tag) => (
                     <Badge key={tag} variant="secondary" className="text-xs">
                       {tag}
                     </Badge>

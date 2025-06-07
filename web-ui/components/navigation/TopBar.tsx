@@ -2,15 +2,16 @@
 
 import { useState } from 'react'
 import { useAppSelector, useAppDispatch } from '@/store/store'
-import { 
+import {
   selectCurrentSection,
-  selectSidebarOpen,
-  toggleSidebar,
-  setGlobalSearchFocused,
   selectRecentSearches,
   toggleCommandPalette,
-  addNotification
+  addNotification,
+  setGlobalSearchFocused,
+  toggleSidebar,
+  setCurrentSection
 } from '@/store/slices/uiSlice'
+import { useTheme } from '@/providers/ThemeProvider'
 import { setQuery } from '@/store/slices/filtersSlice'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -44,9 +45,9 @@ import {
   LifeBuoy,
   Zap,
   Activity,
-  Server,
-  Database
+  Server
 } from 'lucide-react'
+import { GraphQLStatus } from '@/components/GraphQLStatus'
 
 interface TopBarProps {
   className?: string
@@ -55,11 +56,11 @@ interface TopBarProps {
 export function TopBar({ className }: TopBarProps) {
   const dispatch = useAppDispatch()
   const currentSection = useAppSelector(selectCurrentSection)
-  const sidebarOpen = useAppSelector(selectSidebarOpen)
   const recentSearches = useAppSelector(selectRecentSearches)
-  
+  const { setTheme } = useTheme()
+
   const [searchValue, setSearchValue] = useState('')
-  
+
   const handleSearch = (query: string) => {
     if (query.trim()) {
       dispatch(setQuery(query))
@@ -119,8 +120,8 @@ export function TopBar({ className }: TopBarProps) {
         <Button
           variant="ghost"
           size="sm"
+          className="lg:hidden"
           onClick={() => dispatch(toggleSidebar())}
-          className="md:hidden"
         >
           <Menu className="h-4 w-4" />
         </Button>
@@ -149,7 +150,7 @@ export function TopBar({ className }: TopBarProps) {
             onBlur={() => dispatch(setGlobalSearchFocused(false))}
             className="pl-10 pr-4"
           />
-          
+
           {/* Search shortcut hint */}
           <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
             <kbd className="pointer-events-none inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground opacity-100">
@@ -208,12 +209,15 @@ export function TopBar({ className }: TopBarProps) {
           </Tooltip>
         </TooltipProvider>
 
+        {/* GraphQL Status */}
+        <GraphQLStatus />
+
         {/* System status */}
         <TooltipProvider>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="sm">
-                <Activity className="h-4 w-4 text-green-400" />
+                <Activity className="h-4 w-4 text-success" />
               </Button>
             </TooltipTrigger>
             <TooltipContent>
@@ -227,8 +231,8 @@ export function TopBar({ className }: TopBarProps) {
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" size="sm" className="relative">
               <Bell className="h-4 w-4" />
-              <Badge 
-                variant="destructive" 
+              <Badge
+                variant="destructive"
                 className="absolute -top-1 -right-1 h-2 w-2 p-0"
               />
             </Button>
@@ -265,24 +269,24 @@ export function TopBar({ className }: TopBarProps) {
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => dispatch(setCurrentSection('settings'))}>
               <Settings className="mr-2 h-4 w-4" />
               <span>Settings</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.open(process.env.NEXT_PUBLIC_GITHUB_ISSUES_URL || 'https://github.com/lerianstudio/lerian-mcp-memory/issues', '_blank')}>
               <LifeBuoy className="mr-2 h-4 w-4" />
               <span>Support</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.open(process.env.NEXT_PUBLIC_GITHUB_REPO_URL || 'https://github.com/lerianstudio/lerian-mcp-memory', '_blank')}>
               <Github className="mr-2 h-4 w-4" />
               <span>GitHub</span>
             </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => dispatch(setCurrentSection('performance'))}>
               <Zap className="mr-2 h-4 w-4" />
               <span>Performance</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => window.open('/api/health', '_blank')}>
               <Server className="mr-2 h-4 w-4" />
               <span>Server Status</span>
             </DropdownMenuItem>
@@ -299,15 +303,15 @@ export function TopBar({ className }: TopBarProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme('light')}>
               <Sun className="mr-2 h-4 w-4" />
               <span>Light</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme('dark')}>
               <Moon className="mr-2 h-4 w-4" />
               <span>Dark</span>
             </DropdownMenuItem>
-            <DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setTheme('system')}>
               <Monitor className="mr-2 h-4 w-4" />
               <span>System</span>
             </DropdownMenuItem>

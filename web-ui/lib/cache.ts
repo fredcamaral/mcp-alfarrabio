@@ -6,6 +6,7 @@
  */
 
 import { handleError } from './error-handling'
+import type { SearchResults, ConversationChunk, MemoryRelationship } from '@/types/memory'
 
 export interface CacheOptions {
   ttl?: number // Time to live in milliseconds
@@ -37,7 +38,7 @@ export interface CacheStats {
 /**
  * Generic cache implementation with TTL and LRU eviction
  */
-export class Cache<T = any> {
+export class Cache<T = unknown> {
   protected cache = new Map<string, CacheEntry<T>>()
   private hits = 0
   private misses = 0
@@ -256,7 +257,7 @@ export class Cache<T = any> {
 /**
  * Search result cache with query normalization
  */
-export class SearchCache extends Cache<any> {
+export class SearchCache extends Cache<SearchResults> {
   constructor() {
     super({
       ttl: 10 * 60 * 1000, // 10 minutes for search results
@@ -268,7 +269,7 @@ export class SearchCache extends Cache<any> {
   /**
    * Generate cache key from search parameters
    */
-  private generateSearchKey(query: string, filters: Record<string, any> = {}): string {
+  private generateSearchKey(query: string, filters: Record<string, unknown> = {}): string {
     // Normalize query
     const normalizedQuery = query.toLowerCase().trim()
     
@@ -278,7 +279,7 @@ export class SearchCache extends Cache<any> {
       .reduce((acc, key) => {
         acc[key] = filters[key]
         return acc
-      }, {} as Record<string, any>)
+      }, {} as Record<string, unknown>)
 
     return `search:${normalizedQuery}:${JSON.stringify(sortedFilters)}`
   }
@@ -286,7 +287,7 @@ export class SearchCache extends Cache<any> {
   /**
    * Cache search results
    */
-  cacheSearch(query: string, filters: Record<string, any>, results: any): void {
+  cacheSearch(query: string, filters: Record<string, unknown>, results: SearchResults): void {
     const key = this.generateSearchKey(query, filters)
     this.set(key, results)
   }
@@ -294,7 +295,7 @@ export class SearchCache extends Cache<any> {
   /**
    * Get cached search results
    */
-  getSearch(query: string, filters: Record<string, any> = {}): any | null {
+  getSearch(query: string, filters: Record<string, unknown> = {}): SearchResults | null {
     const key = this.generateSearchKey(query, filters)
     return this.get(key)
   }
@@ -320,7 +321,7 @@ export class SearchCache extends Cache<any> {
 /**
  * API response cache with endpoint-based organization
  */
-export class APICache extends Cache<any> {
+export class APICache extends Cache<unknown> {
   constructor() {
     super({
       ttl: 5 * 60 * 1000, // 5 minutes for API responses
@@ -332,13 +333,13 @@ export class APICache extends Cache<any> {
   /**
    * Generate cache key for API endpoint
    */
-  private generateAPIKey(endpoint: string, params: Record<string, any> = {}): string {
+  private generateAPIKey(endpoint: string, params: Record<string, unknown> = {}): string {
     const sortedParams = Object.keys(params)
       .sort()
       .reduce((acc, key) => {
         acc[key] = params[key]
         return acc
-      }, {} as Record<string, any>)
+      }, {} as Record<string, unknown>)
 
     return `api:${endpoint}:${JSON.stringify(sortedParams)}`
   }
@@ -346,7 +347,7 @@ export class APICache extends Cache<any> {
   /**
    * Cache API response
    */
-  cacheResponse(endpoint: string, params: Record<string, any>, response: any): void {
+  cacheResponse(endpoint: string, params: Record<string, unknown>, response: unknown): void {
     const key = this.generateAPIKey(endpoint, params)
     this.set(key, response)
   }
@@ -354,7 +355,7 @@ export class APICache extends Cache<any> {
   /**
    * Get cached API response
    */
-  getResponse(endpoint: string, params: Record<string, any> = {}): any | null {
+  getResponse(endpoint: string, params: Record<string, unknown> = {}): unknown | null {
     const key = this.generateAPIKey(endpoint, params)
     return this.get(key)
   }
@@ -379,7 +380,7 @@ export class APICache extends Cache<any> {
 /**
  * Memory chunk cache for frequently accessed memories
  */
-export class MemoryCache extends Cache<any> {
+export class MemoryCache extends Cache<ConversationChunk | MemoryRelationship[]> {
   constructor() {
     super({
       ttl: 15 * 60 * 1000, // 15 minutes for memory chunks
@@ -391,29 +392,31 @@ export class MemoryCache extends Cache<any> {
   /**
    * Cache memory chunk
    */
-  cacheChunk(chunkId: string, chunk: any): void {
+  cacheChunk(chunkId: string, chunk: ConversationChunk): void {
     this.set(`chunk:${chunkId}`, chunk)
   }
 
   /**
    * Get cached memory chunk
    */
-  getChunk(chunkId: string): any | null {
-    return this.get(`chunk:${chunkId}`)
+  getChunk(chunkId: string): ConversationChunk | null {
+    const result = this.get(`chunk:${chunkId}`)
+    return result && typeof result === 'object' && 'id' in result ? result as ConversationChunk : null
   }
 
   /**
    * Cache memory relationships
    */
-  cacheRelationships(chunkId: string, relationships: any): void {
+  cacheRelationships(chunkId: string, relationships: MemoryRelationship[]): void {
     this.set(`relationships:${chunkId}`, relationships)
   }
 
   /**
    * Get cached relationships
    */
-  getRelationships(chunkId: string): any | null {
-    return this.get(`relationships:${chunkId}`)
+  getRelationships(chunkId: string): MemoryRelationship[] | null {
+    const result = this.get(`relationships:${chunkId}`)
+    return result && Array.isArray(result) ? result as MemoryRelationship[] : null
   }
 
   /**
@@ -423,7 +426,16 @@ export class MemoryCache extends Cache<any> {
     let invalidated = 0
 
     for (const [key, entry] of this.cache.entries()) {
-      if (entry.data.repository === repository) {
+      // Check if this is a ConversationChunk with repository metadata
+      if (
+        entry.data && 
+        typeof entry.data === 'object' && 
+        'metadata' in entry.data &&
+        typeof entry.data.metadata === 'object' &&
+        entry.data.metadata &&
+        'repository' in entry.data.metadata &&
+        entry.data.metadata.repository === repository
+      ) {
         this.cache.delete(key)
         invalidated++
       }

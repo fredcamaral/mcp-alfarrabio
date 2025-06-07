@@ -6,27 +6,27 @@ interface MemoriesState {
   memories: ConversationChunk[]
   selectedMemory?: ConversationChunk
   selectedMemoryId?: string
-  
+
   // Search results
   searchResults?: SearchResults
   lastSearchQuery: string
-  
+
   // Related memories
   relatedMemories: ConversationChunk[]
   relationships: RelationshipResult[]
-  
+
   // UI state
   isLoading: boolean
   error?: string
-  
+
   // Pagination
   currentPage: number
   totalPages: number
   hasNextPage: boolean
-  
-  // Selection state
-  selectedMemoryIds: Set<string>
-  
+
+  // Selection state - changed from Set to array for Redux serialization
+  selectedMemoryIds: string[]
+
   // View state
   viewMode: 'list' | 'graph' | 'timeline'
 }
@@ -40,7 +40,7 @@ const initialState: MemoriesState = {
   currentPage: 1,
   totalPages: 1,
   hasNextPage: false,
-  selectedMemoryIds: new Set(),
+  selectedMemoryIds: [],
   viewMode: 'list',
 }
 
@@ -54,43 +54,43 @@ const memoriesSlice = createSlice({
       state.isLoading = false
       state.error = undefined
     },
-    
+
     addMemories: (state, action: PayloadAction<ConversationChunk[]>) => {
       // Append new memories, avoiding duplicates
       const existingIds = new Set(state.memories.map(m => m.id))
       const newMemories = action.payload.filter(m => !existingIds.has(m.id))
       state.memories.push(...newMemories)
     },
-    
+
     updateMemory: (state, action: PayloadAction<ConversationChunk>) => {
       const index = state.memories.findIndex(m => m.id === action.payload.id)
       if (index !== -1) {
         state.memories[index] = action.payload
       }
-      
+
       // Update selected memory if it's the same one
       if (state.selectedMemory?.id === action.payload.id) {
         state.selectedMemory = action.payload
       }
     },
-    
+
     removeMemory: (state, action: PayloadAction<string>) => {
       state.memories = state.memories.filter(m => m.id !== action.payload)
-      state.selectedMemoryIds.delete(action.payload)
-      
+      state.selectedMemoryIds = state.selectedMemoryIds.filter(id => id !== action.payload)
+
       // Clear selected memory if it was removed
       if (state.selectedMemory?.id === action.payload) {
         state.selectedMemory = undefined
         state.selectedMemoryId = undefined
       }
     },
-    
+
     // Selection management
     setSelectedMemory: (state, action: PayloadAction<ConversationChunk | undefined>) => {
       state.selectedMemory = action.payload
       state.selectedMemoryId = action.payload?.id
     },
-    
+
     setSelectedMemoryId: (state, action: PayloadAction<string | undefined>) => {
       state.selectedMemoryId = action.payload
       if (action.payload) {
@@ -100,50 +100,49 @@ const memoriesSlice = createSlice({
         state.selectedMemory = undefined
       }
     },
-    
+
     toggleMemorySelection: (state, action: PayloadAction<string>) => {
-      if (state.selectedMemoryIds.has(action.payload)) {
-        state.selectedMemoryIds.delete(action.payload)
+      const index = state.selectedMemoryIds.indexOf(action.payload)
+      if (index !== -1) {
+        state.selectedMemoryIds.splice(index, 1)
       } else {
-        state.selectedMemoryIds.add(action.payload)
+        state.selectedMemoryIds.push(action.payload)
       }
     },
-    
+
     clearMemorySelection: (state) => {
-      state.selectedMemoryIds.clear()
+      state.selectedMemoryIds = []
     },
-    
+
     selectAllMemories: (state) => {
-      state.memories.forEach(memory => {
-        state.selectedMemoryIds.add(memory.id)
-      })
+      state.selectedMemoryIds = state.memories.map(memory => memory.id)
     },
-    
+
     // Search results
     setSearchResults: (state, action: PayloadAction<SearchResults>) => {
       state.searchResults = action.payload
       state.isLoading = false
       state.error = undefined
     },
-    
+
     setLastSearchQuery: (state, action: PayloadAction<string>) => {
       state.lastSearchQuery = action.payload
     },
-    
+
     clearSearchResults: (state) => {
       state.searchResults = undefined
       state.lastSearchQuery = ''
     },
-    
+
     // Related memories and relationships
     setRelatedMemories: (state, action: PayloadAction<ConversationChunk[]>) => {
       state.relatedMemories = action.payload
     },
-    
+
     setRelationships: (state, action: PayloadAction<RelationshipResult[]>) => {
       state.relationships = action.payload
     },
-    
+
     // Loading and error states
     setLoading: (state, action: PayloadAction<boolean>) => {
       state.isLoading = action.payload
@@ -151,12 +150,12 @@ const memoriesSlice = createSlice({
         state.error = undefined
       }
     },
-    
+
     setError: (state, action: PayloadAction<string | undefined>) => {
       state.error = action.payload
       state.isLoading = false
     },
-    
+
     // Pagination
     setPagination: (state, action: PayloadAction<{
       currentPage: number
@@ -167,12 +166,12 @@ const memoriesSlice = createSlice({
       state.totalPages = action.payload.totalPages
       state.hasNextPage = action.payload.hasNextPage
     },
-    
+
     // View mode
     setViewMode: (state, action: PayloadAction<'list' | 'graph' | 'timeline'>) => {
       state.viewMode = action.payload
     },
-    
+
     // Reset state
     resetMemories: (state) => {
       return {

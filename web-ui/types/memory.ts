@@ -23,7 +23,7 @@ export interface ChunkMetadata {
   tags?: string[]
   difficulty?: Difficulty
   time_spent?: number
-  extended_metadata?: Record<string, any>
+  extended_metadata?: Record<string, unknown>
   confidence?: ConfidenceMetrics
   quality?: QualityMetrics
 }
@@ -113,7 +113,7 @@ export interface MemoryRelationship {
   confidence: number
   confidence_source: string
   confidence_factors?: ConfidenceFactors
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
   created_at: string
   created_by?: string
   last_validated?: string
@@ -130,7 +130,7 @@ export interface GraphNode {
   id: string
   label: string
   type: ChunkType
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
 }
 
 export interface GraphEdge {

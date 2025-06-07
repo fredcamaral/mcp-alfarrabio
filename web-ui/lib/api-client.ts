@@ -7,8 +7,10 @@
 
 import { CSRFManager } from './csrf-client'
 import { handleError } from './error-handling'
+import { logger } from './logger'
 
-const BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9080'
+// Use relative URLs in browser to leverage Next.js proxy, direct backend URLs in server
+const BASE_URL = typeof window !== 'undefined' ? '' : (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:9080')
 
 // Request/Response interceptor types
 export interface RequestInterceptor {
@@ -89,7 +91,7 @@ class InterceptorManager {
       if (interceptor.onResponseError) {
         try {
           await interceptor.onResponseError(error)
-        } catch (interceptorError) {
+        } catch {
           // Continue with original error if interceptor fails
           break
         }
@@ -99,27 +101,9 @@ class InterceptorManager {
   }
 }
 
-// Type definitions for API responses and requests
-export interface ConversationChunk {
-  id: string
-  content: string
-  summary?: string
-  type: string
-  session_id: string
-  timestamp: string
-  embeddings: number[]
-  metadata: {
-    repository?: string
-    tags?: string[]
-    confidence?: {
-      score: number
-      factors: string[]
-    }
-    source?: string
-    language?: string
-    [key: string]: any
-  }
-}
+// Re-export types from the main type definitions
+import type { ConversationChunk } from '@/types/memory'
+export type { ConversationChunk } from '@/types/memory'
 
 export interface SearchRequest {
   query: string
@@ -147,13 +131,13 @@ export interface MemoryAnalysisRequest {
   options: {
     repository: string
     session_id?: string
-    [key: string]: any
+    [key: string]: unknown
   }
 }
 
 export interface MemoryAnalysisResponse {
   operation: string
-  result: any
+  result: unknown
   status: string
   repository: string
   session_id?: string
@@ -175,7 +159,7 @@ export interface BackupMetadata {
 export interface APIErrorResponse {
   error: string
   code?: string
-  details?: any
+  details?: unknown
   status?: number
 }
 
@@ -215,11 +199,21 @@ export class MemoryAPIClient {
     // Request logging interceptor
     this.addRequestInterceptor({
       onRequest: (config) => {
-        console.debug(`API Request: ${config.method || 'GET'} ${config.url}`)
+        if (process.env.NODE_ENV === 'development') {
+          logger.debug(`API Request: ${config.method || 'GET'} ${config.url}`, {
+            component: 'APIClient',
+            action: 'request',
+            method: config.method || 'GET',
+            url: config.url
+          })
+        }
         return config
       },
       onRequestError: async (error) => {
-        console.error('Request interceptor error:', error)
+        logger.error('Request interceptor error', error, {
+          component: 'APIClient',
+          action: 'request-interceptor'
+        })
         throw error
       }
     })
@@ -227,34 +221,35 @@ export class MemoryAPIClient {
     // Response logging and error handling interceptor
     this.addResponseInterceptor({
       onResponse: (response) => {
-        console.debug(`API Response: ${response.status} ${response.url}`)
+        if (process.env.NODE_ENV === 'development') {
+          logger.debug(`API Response: ${response.status} ${response.url}`, {
+            component: 'APIClient',
+            action: 'response',
+            status: response.status,
+            url: response.url
+          })
+        }
         return response
       },
       onResponseError: async (error) => {
-        console.error('Response interceptor error:', error)
+        logger.error('Response interceptor error', error, {
+          component: 'APIClient',
+          action: 'response-interceptor'
+        })
         handleError(error, { source: 'api_response_interceptor' })
         throw error
       }
     })
 
-    // Retry interceptor for network errors
-    this.addResponseInterceptor({
-      onResponseError: async (error: any) => {
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-          // Network error - could retry
-          console.warn('Network error detected, request failed')
-        }
-        throw error
-      }
-    })
   }
 
   private async makeRequest<T>(
-    endpoint: string, 
+    endpoint: string,
     options: RequestInit = {}
   ): Promise<T> {
+
     const url = `${this.baseURL}${endpoint}`
-    
+
     // Add CSRF headers for protected requests
     const headers = {
       ...this.defaultHeaders,
@@ -272,12 +267,12 @@ export class MemoryAPIClient {
     try {
       // Process request through interceptors
       config = await this.interceptors.processRequest(config)
-      
+
       const response = await fetch(config.url, config)
-      
+
       // Process response through interceptors
       const processedResponse = await this.interceptors.processResponse(response)
-      
+
       if (!processedResponse.ok) {
         const errorData = await processedResponse.json().catch(() => ({}))
         const apiError = new APIError(
@@ -297,6 +292,7 @@ export class MemoryAPIClient {
         return {} as T
       }
     } catch (error) {
+
       // Process error through interceptors
       try {
         await this.interceptors.processResponseError(error)
@@ -304,21 +300,21 @@ export class MemoryAPIClient {
         // Use interceptor error if available, otherwise original error
         error = interceptorError
       }
-      
+
       if (error instanceof APIError) {
-        handleError(error, { 
+        handleError(error, {
           source: 'api_client',
           endpoint,
           method: options.method || 'GET'
         })
         throw error
       }
-      
+
       const networkError = new APIError(
         error instanceof Error ? error.message : 'Network error occurred',
         'NETWORK_ERROR'
       )
-      handleError(networkError, { 
+      handleError(networkError, {
         source: 'api_client',
         endpoint,
         method: options.method || 'GET',
@@ -327,6 +323,7 @@ export class MemoryAPIClient {
       throw networkError
     }
   }
+
 
   // Memory Operations
   async storeChunk(chunk: Partial<ConversationChunk>): Promise<{ chunk_id: string }> {
@@ -377,7 +374,7 @@ export class MemoryAPIClient {
     })
   }
 
-  async getMemoryContext(repository: string): Promise<any> {
+  async getMemoryContext(repository: string): Promise<SearchResponse> {
     return this.makeRequest('/api/mcp', {
       method: 'POST',
       body: JSON.stringify({
@@ -412,7 +409,7 @@ export class MemoryAPIClient {
     })
   }
 
-  async getMemoryRelationships(chunkId: string, repository: string): Promise<any> {
+  async getMemoryRelationships(chunkId: string, repository: string): Promise<{ relationships: Array<{ id: string; source: string; target: string; type: string; confidence: number }> }> {
     return this.makeRequest('/api/mcp', {
       method: 'POST',
       body: JSON.stringify({
@@ -473,7 +470,7 @@ export class MemoryAPIClient {
     return this.makeRequest('/health')
   }
 
-  async getStatus(): Promise<any> {
+  async getStatus(): Promise<{ status: string; uptime: number; version: string; health: Record<string, unknown> }> {
     return this.makeRequest('/api/status')
   }
 
@@ -514,8 +511,8 @@ export class MemoryAPIClient {
     })
   }
 
-  // Bulk Operations
-  async exportMemories(repository: string, format: string = 'json'): Promise<any> {
+  // Export and Import
+  async exportMemories(repository: string, format: string = 'json'): Promise<{ data: string; format: string; chunk_count: number }> {
     return this.makeRequest('/api/mcp', {
       method: 'POST',
       body: JSON.stringify({
@@ -525,10 +522,7 @@ export class MemoryAPIClient {
           operation: 'export_project',
           options: {
             repository,
-            format,
-            session_id: 'export-session',
-            limit: 1000,
-            offset: 0
+            format
           }
         },
         id: Date.now()
@@ -555,29 +549,23 @@ export class MemoryAPIClient {
     })
   }
 
-  // Utility Methods
+  // Validation
   async validateChunk(chunk: ConversationChunk): Promise<{ valid: boolean; errors?: string[] }> {
-    try {
-      // Basic client-side validation
-      const errors: string[] = []
-      
-      if (!chunk.id) errors.push('Chunk ID is required')
-      if (!chunk.content || chunk.content.trim().length === 0) errors.push('Content is required')
-      if (!chunk.session_id) errors.push('Session ID is required')
-      if (!chunk.type) errors.push('Type is required')
-      
-      return {
-        valid: errors.length === 0,
-        errors: errors.length > 0 ? errors : undefined
-      }
-    } catch (error) {
-      return {
-        valid: false,
-        errors: ['Validation error occurred']
-      }
+    // Simple client-side validation for now
+    const errors: string[] = []
+
+    if (!chunk.content || chunk.content.trim().length === 0) {
+      errors.push('Content is required')
     }
+
+    if (!chunk.type) {
+      errors.push('Type is required')
+    }
+
+    return { valid: errors.length === 0, errors: errors.length > 0 ? errors : undefined }
   }
 
+  // Connection test
   async testConnection(): Promise<boolean> {
     try {
       await this.getHealth()
@@ -588,12 +576,12 @@ export class MemoryAPIClient {
   }
 }
 
-// Error class for API errors
+// Custom API Error class
 class APIError extends Error {
   constructor(
     message: string,
     public code?: string,
-    public details?: any,
+    public details?: unknown,
     public status?: number
   ) {
     super(message)
@@ -601,8 +589,6 @@ class APIError extends Error {
   }
 }
 
-// Default client instance
-export const memoryAPI = new MemoryAPIClient()
-
-// Export error class
-export { APIError }
+// Export singleton instance
+export const apiClient = new MemoryAPIClient()
+export default apiClient

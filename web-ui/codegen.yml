@@ -1,0 +1,33 @@
+overwrite: true
+schema: 
+  - ./schema.graphql
+documents:
+  - "./lib/graphql/**/*.ts"
+  - "./components/**/*.tsx"
+  - "./hooks/**/*.{ts,tsx}"
+generates:
+  ./generated/graphql.tsx:
+    plugins:
+      - typescript
+      - typescript-operations
+      - typescript-react-apollo
+    config:
+      withHooks: true
+      withComponent: false
+      withHOC: false
+      enumsAsTypes: true
+      avoidOptionals: true
+      maybeValue: T | undefined
+      scalars:
+        DateTime: string
+  ./generated/graphql-types.ts:
+    plugins:
+      - typescript
+    config:
+      enumsAsTypes: true
+      maybeValue: T | undefined
+      scalars:
+        DateTime: string
+hooks:
+  afterAllFileWrite:
+    - prettier --write

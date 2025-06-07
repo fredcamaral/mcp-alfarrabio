@@ -434,3 +434,9 @@ export const selectSortOrder = (state: { filters: FilterState }) => state.filter
 export const selectHasActiveFilters = (state: { filters: FilterState }) => state.filters.hasActiveFilters
 export const selectPresets = (state: { filters: FilterState }) => state.filters.presets
 export const selectSearchHistory = (state: { filters: FilterState }) => state.filters.searchHistory
+export const selectMinRelevance = (state: { filters: FilterState }) => state.filters.minRelevance
+export const selectMinConfidence = (state: { filters: FilterState }) => state.filters.minConfidence
+export const selectOutcome = (state: { filters: FilterState }) => state.filters.outcome
+export const selectDifficulty = (state: { filters: FilterState }) => state.filters.difficulty
+export const selectAvailableRepositories = (state: { filters: FilterState }) => state.filters.availableRepositories
+export const selectAvailableTags = (state: { filters: FilterState }) => state.filters.availableTags

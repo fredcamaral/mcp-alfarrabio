@@ -14,6 +14,7 @@ interface UIState {
   commandPaletteOpen: boolean
   settingsModalOpen: boolean
   confirmDeleteModalOpen: boolean
+  showMemoryForm: boolean
   
   // Theme
   theme: 'light' | 'dark' | 'system'
@@ -22,7 +23,7 @@ interface UIState {
   layout: 'default' | 'compact' | 'comfortable'
   
   // Current page/section
-  currentSection: 'memories' | 'patterns' | 'repositories' | 'settings'
+  currentSection: 'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo'
   
   // Search state
   globalSearchFocused: boolean
@@ -43,6 +44,16 @@ interface UIState {
   
   // Keyboard shortcuts
   keyboardShortcutsEnabled: boolean
+  
+  // WebSocket status
+  webSocketStatus: 'connecting' | 'connected' | 'disconnected' | 'error'
+  webSocketStats: {
+    messagesReceived: number
+    messagesSent: number
+    reconnectAttempts: number
+    lastConnected?: string
+    lastDisconnected?: string
+  }
 }
 
 interface Notification {
@@ -67,6 +78,7 @@ const initialState: UIState = {
   commandPaletteOpen: false,
   settingsModalOpen: false,
   confirmDeleteModalOpen: false,
+  showMemoryForm: false,
   theme: 'dark',
   layout: 'default',
   currentSection: 'memories',
@@ -78,6 +90,12 @@ const initialState: UIState = {
   debugMode: false,
   isMobile: false,
   keyboardShortcutsEnabled: true,
+  webSocketStatus: 'disconnected',
+  webSocketStats: {
+    messagesReceived: 0,
+    messagesSent: 0,
+    reconnectAttempts: 0,
+  },
 }
 
 const uiSlice = createSlice({
@@ -143,9 +161,17 @@ const uiSlice = createSlice({
       state.confirmDeleteModalOpen = action.payload
     },
     
+    setShowMemoryForm: (state, action: PayloadAction<boolean>) => {
+      state.showMemoryForm = action.payload
+    },
+    
     // Theme
     setTheme: (state, action: PayloadAction<'light' | 'dark' | 'system'>) => {
       state.theme = action.payload
+    },
+    
+    toggleTheme: (state) => {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark'
     },
     
     // Layout
@@ -154,7 +180,7 @@ const uiSlice = createSlice({
     },
     
     // Navigation
-    setCurrentSection: (state, action: PayloadAction<'memories' | 'patterns' | 'repositories' | 'settings'>) => {
+    setCurrentSection: (state, action: PayloadAction<'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo'>) => {
       state.currentSection = action.payload
     },
     
@@ -221,6 +247,22 @@ const uiSlice = createSlice({
       state.keyboardShortcutsEnabled = action.payload
     },
     
+    // WebSocket status
+    setWebSocketStatus: (state, action: PayloadAction<'connecting' | 'connected' | 'disconnected' | 'error'>) => {
+      state.webSocketStatus = action.payload
+      const now = new Date().toISOString()
+      
+      if (action.payload === 'connected') {
+        state.webSocketStats.lastConnected = now
+      } else if (action.payload === 'disconnected') {
+        state.webSocketStats.lastDisconnected = now
+      }
+    },
+    
+    updateWebSocketStats: (state, action: PayloadAction<Partial<UIState['webSocketStats']>>) => {
+      state.webSocketStats = { ...state.webSocketStats, ...action.payload }
+    },
+    
     // Bulk actions
     closeAllPanels: (state) => {
       state.filterPanelOpen = false
@@ -232,6 +274,7 @@ const uiSlice = createSlice({
       state.commandPaletteOpen = false
       state.settingsModalOpen = false
       state.confirmDeleteModalOpen = false
+      state.showMemoryForm = false
     },
     
     // Reset to defaults
@@ -260,7 +303,9 @@ export const {
   toggleCommandPalette,
   setSettingsModalOpen,
   setConfirmDeleteModalOpen,
+  setShowMemoryForm,
   setTheme,
+  toggleTheme,
   setLayout,
   setCurrentSection,
   setGlobalSearchFocused,
@@ -275,6 +320,8 @@ export const {
   setDebugMode,
   setIsMobile,
   setKeyboardShortcutsEnabled,
+  setWebSocketStatus,
+  updateWebSocketStats,
   closeAllPanels,
   closeAllModals,
   resetUI,
@@ -285,9 +332,12 @@ export default uiSlice.reducer
 // Selectors
 export const selectSidebarOpen = (state: { ui: UIState }) => state.ui.sidebarOpen
 export const selectSidebarCollapsed = (state: { ui: UIState }) => state.ui.sidebarCollapsed
+export const selectFilterPanelOpen = (state: { ui: UIState }) => state.ui.filterPanelOpen
 export const selectTheme = (state: { ui: UIState }) => state.ui.theme
 export const selectCurrentSection = (state: { ui: UIState }) => state.ui.currentSection
 export const selectNotifications = (state: { ui: UIState }) => state.ui.notifications
 export const selectRecentSearches = (state: { ui: UIState }) => state.ui.recentSearches
 export const selectIsMobile = (state: { ui: UIState }) => state.ui.isMobile
 export const selectCommandPaletteOpen = (state: { ui: UIState }) => state.ui.commandPaletteOpen
+export const selectShowMemoryForm = (state: { ui: UIState }) => state.ui.showMemoryForm
+export const selectGlobalSearchFocused = (state: { ui: UIState }) => state.ui.globalSearchFocused

@@ -130,11 +130,11 @@ function ErrorFallbackUI({
   const [showDetails, setShowDetails] = React.useState(false)
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gray-50">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-muted/30">
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <div className="flex items-center space-x-3">
-            <AlertTriangle className="h-8 w-8 text-red-500" />
+            <AlertTriangle className="h-8 w-8 text-destructive" />
             <div>
               <CardTitle className="text-xl">Something went wrong</CardTitle>
               <p className="text-sm text-muted-foreground mt-1">
@@ -191,9 +191,9 @@ function ErrorFallbackUI({
                 <div className="space-y-3">
                   {/* Error Message */}
                   {error && (
-                    <div className="bg-red-50 p-3 rounded-md">
-                      <h4 className="font-medium text-red-800 mb-2">Error Message</h4>
-                      <pre className="text-sm text-red-700 whitespace-pre-wrap">
+                    <div className="bg-destructive/10 p-3 rounded-md">
+                      <h4 className="font-medium text-destructive mb-2">Error Message</h4>
+                      <pre className="text-sm text-destructive/90 whitespace-pre-wrap">
                         {error.message}
                       </pre>
                     </div>
@@ -201,9 +201,9 @@ function ErrorFallbackUI({
 
                   {/* Stack Trace */}
                   {error?.stack && (
-                    <div className="bg-gray-50 p-3 rounded-md">
-                      <h4 className="font-medium text-gray-800 mb-2">Stack Trace</h4>
-                      <pre className="text-xs text-gray-600 whitespace-pre-wrap overflow-x-auto">
+                    <div className="bg-muted p-3 rounded-md">
+                      <h4 className="font-medium text-foreground mb-2">Stack Trace</h4>
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap overflow-x-auto">
                         {error.stack}
                       </pre>
                     </div>
@@ -211,9 +211,9 @@ function ErrorFallbackUI({
 
                   {/* Component Stack */}
                   {errorInfo?.componentStack && (
-                    <div className="bg-blue-50 p-3 rounded-md">
-                      <h4 className="font-medium text-blue-800 mb-2">Component Stack</h4>
-                      <pre className="text-xs text-blue-600 whitespace-pre-wrap overflow-x-auto">
+                    <div className="bg-info-muted p-3 rounded-md">
+                      <h4 className="font-medium text-info mb-2">Component Stack</h4>
+                      <pre className="text-xs text-info/90 whitespace-pre-wrap overflow-x-auto">
                         {errorInfo.componentStack}
                       </pre>
                     </div>
@@ -221,9 +221,9 @@ function ErrorFallbackUI({
 
                   {/* Context */}
                   {error?.context && Object.keys(error.context).length > 0 && (
-                    <div className="bg-yellow-50 p-3 rounded-md">
-                      <h4 className="font-medium text-yellow-800 mb-2">Context</h4>
-                      <pre className="text-xs text-yellow-600 whitespace-pre-wrap">
+                    <div className="bg-warning-muted p-3 rounded-md">
+                      <h4 className="font-medium text-warning mb-2">Context</h4>
+                      <pre className="text-xs text-warning/90 whitespace-pre-wrap">
                         {JSON.stringify(error.context, null, 2)}
                       </pre>
                     </div>
@@ -327,7 +327,7 @@ export function withErrorBoundary<P extends object>(
  * Hook for throwing async errors to error boundary
  */
 export function useErrorHandler() {
-  return React.useCallback((error: unknown, context?: Record<string, any>) => {
+  return React.useCallback((error: unknown, context?: Record<string, unknown>) => {
     const appError = handleError(error, context)
     
     // For async errors that aren't caught by error boundaries,

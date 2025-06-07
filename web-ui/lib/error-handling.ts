@@ -6,6 +6,7 @@
  */
 
 import { toast } from 'react-hot-toast'
+import type { ApiError } from '@/types/api'
 
 // Error severity levels
 export type ErrorSeverity = 'low' | 'medium' | 'high' | 'critical'
@@ -30,7 +31,7 @@ export interface AppError {
   code?: string
   category: ErrorCategory
   severity: ErrorSeverity
-  context?: Record<string, any>
+  context?: Record<string, unknown>
   timestamp: Date
   stack?: string
   cause?: Error
@@ -79,7 +80,7 @@ class ErrorHandler {
   /**
    * Main error handling entry point
    */
-  handle(error: unknown, context?: Record<string, any>): AppError {
+  handle(error: unknown, context?: Record<string, unknown>): AppError {
     const appError = this.normalizeError(error, context)
     
     // Log the error
@@ -101,7 +102,7 @@ class ErrorHandler {
   /**
    * Convert various error types to AppError
    */
-  private normalizeError(error: unknown, context?: Record<string, any>): AppError {
+  private normalizeError(error: unknown, context?: Record<string, unknown>): AppError {
     const id = this.generateErrorId()
     const timestamp = new Date()
 
@@ -122,18 +123,25 @@ class ErrorHandler {
 
     // Handle API errors
     if (typeof error === 'object' && error !== null && 'error' in error) {
-      const apiError = error as any
+      const apiError = error as { 
+        error?: string; 
+        code?: string; 
+        status?: number; 
+        statusCode?: number; 
+        details?: Record<string, unknown>;
+        response?: { status?: number; data?: { error?: string; message?: string } } 
+      }
       return {
         id,
         message: apiError.error || 'API error occurred',
         code: apiError.code,
-        category: this.categorizeApiError(apiError),
+        category: this.categorizeApiError(apiError as ApiError & Error),
         severity: this.determineSeverityFromStatus(apiError.status),
         context: { ...context, ...apiError.details },
         timestamp,
-        userMessage: this.getUserMessage(apiError),
-        recoverable: this.isRecoverable(apiError),
-        retryable: this.isRetryable(apiError)
+        userMessage: this.getUserMessage(apiError as ApiError & Error),
+        recoverable: this.isRecoverable(apiError as ApiError & Error),
+        retryable: this.isRetryable(apiError as ApiError & Error)
       }
     }
 
@@ -200,7 +208,7 @@ class ErrorHandler {
   /**
    * Categorize API errors based on status and code
    */
-  private categorizeApiError(error: any): ErrorCategory {
+  private categorizeApiError(error: Error & { code?: string; status?: number; statusCode?: number; response?: { status?: number } }): ErrorCategory {
     if (error.code === 'CSRF_TOKEN_MISSING' || error.code === 'CSRF_TOKEN_INVALID') {
       return 'csrf'
     }
@@ -210,8 +218,8 @@ class ErrorHandler {
     if (status === 403) return 'authorization'
     if (status === 404) return 'not_found'
     if (status === 422) return 'validation'
-    if (status >= 500) return 'server_error'
-    if (status >= 400) return 'client_error'
+    if (status && status >= 500) return 'server_error'
+    if (status && status >= 400) return 'client_error'
     
     return 'network'
   }
@@ -251,7 +259,7 @@ class ErrorHandler {
   /**
    * Get user-friendly error message
    */
-  private getUserMessage(error: any): string {
+  private getUserMessage(error: Error & { message?: string; code?: string; status?: number; statusCode?: number; error?: string }): string {
     const code = error.code
     const status = error.status
     
@@ -284,7 +292,7 @@ class ErrorHandler {
   /**
    * Check if error is recoverable
    */
-  private isRecoverable(error: any): boolean {
+  private isRecoverable(error: Error & { code?: string; status?: number; statusCode?: number }): boolean {
     const code = error.code
     const status = error.status
     
@@ -299,7 +307,7 @@ class ErrorHandler {
     }
     
     // Server errors might be temporary
-    if (status >= 500) {
+    if (status && status >= 500) {
       return true
     }
     
@@ -309,17 +317,17 @@ class ErrorHandler {
   /**
    * Check if error is retryable
    */
-  private isRetryable(error: any): boolean {
+  private isRetryable(error: Error & { code?: string; status?: number; statusCode?: number }): boolean {
     const code = error.code
     const status = error.status
     
     // Don't retry client errors
-    if (status >= 400 && status < 500) {
+    if (status && status >= 400 && status < 500) {
       return false
     }
     
     // Retry network and server errors
-    if (code === 'NETWORK_ERROR' || status >= 500 || status === 0) {
+    if (code === 'NETWORK_ERROR' || (status && status >= 500) || status === 0) {
       return true
     }
     
@@ -466,11 +474,11 @@ class ErrorHandler {
 export const errorHandler = new ErrorHandler()
 
 // Convenience functions
-export const handleError = (error: unknown, context?: Record<string, any>): AppError => {
+export const handleError = (error: unknown, context?: Record<string, unknown>): AppError => {
   return errorHandler.handle(error, context)
 }
 
-export const logError = (message: string, context?: Record<string, any>): void => {
+export const logError = (message: string, context?: Record<string, unknown>): void => {
   errorHandler.handle(new Error(message), context)
 }
 

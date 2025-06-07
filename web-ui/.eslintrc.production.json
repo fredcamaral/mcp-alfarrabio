@@ -1,0 +1,15 @@
+{
+  "extends": "./.eslintrc.json",
+  "rules": {
+    "@typescript-eslint/no-explicit-any": "error",
+    "@typescript-eslint/no-unused-vars": ["error", { 
+      "argsIgnorePattern": "^_",
+      "varsIgnorePattern": "^_"
+    }],
+    "no-console": "error",
+    "@typescript-eslint/no-empty-object-type": "error",
+    "@typescript-eslint/explicit-module-boundary-types": "warn",
+    "@typescript-eslint/strict-boolean-expressions": "off",
+    "react-hooks/exhaustive-deps": "warn"
+  }
+}

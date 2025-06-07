@@ -6,13 +6,11 @@
  */
 
 import { useState, useEffect, useCallback } from 'react'
-import { 
-  memoryAPI, 
-  type ConversationChunk, 
-  type SearchRequest, 
+import apiClient, {
+  type ConversationChunk,
+  type SearchRequest,
   type SearchResponse,
-  type BackupMetadata,
-  type APIError 
+  type BackupMetadata
 } from '@/lib/api-client'
 
 // Generic API hook type
@@ -29,26 +27,26 @@ export function useSearchMemories(initialRequest?: SearchRequest) {
     data: null,
     isLoading: false,
     error: null,
-    refetch: async () => {}
+    refetch: async () => { }
   })
 
   const search = useCallback(async (request: SearchRequest) => {
     setState(prev => ({ ...prev, isLoading: true, error: null }))
-    
+
     try {
-      const response = await memoryAPI.searchMemories(request)
-      setState(prev => ({ 
-        ...prev, 
-        data: response, 
-        isLoading: false 
+      const response = await apiClient.searchMemories(request)
+      setState(prev => ({
+        ...prev,
+        data: response,
+        isLoading: false
       }))
       return response
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Search failed'
-      setState(prev => ({ 
-        ...prev, 
-        error: errorMessage, 
-        isLoading: false 
+      setState(prev => ({
+        ...prev,
+        error: errorMessage,
+        isLoading: false
       }))
       throw error
     }
@@ -84,9 +82,9 @@ export function useStoreMemory() {
   const store = useCallback(async (chunk: Partial<ConversationChunk>) => {
     setIsStoring(true)
     setError(null)
-    
+
     try {
-      const result = await memoryAPI.storeChunk(chunk)
+      const result = await apiClient.storeChunk(chunk)
       setIsStoring(false)
       return result
     } catch (error) {
@@ -111,26 +109,26 @@ export function useMemoryContext(repository: string) {
     data: null,
     isLoading: false,
     error: null,
-    refetch: async () => {}
+    refetch: async () => { }
   })
 
   const fetchContext = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true, error: null }))
-    
+
     try {
-      const context = await memoryAPI.getMemoryContext(repository)
-      setState(prev => ({ 
-        ...prev, 
-        data: context, 
-        isLoading: false 
+      const context = await apiClient.getMemoryContext(repository)
+      setState(prev => ({
+        ...prev,
+        data: context,
+        isLoading: false
       }))
       return context
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch context'
-      setState(prev => ({ 
-        ...prev, 
-        error: errorMessage, 
-        isLoading: false 
+      setState(prev => ({
+        ...prev,
+        error: errorMessage,
+        isLoading: false
       }))
       throw error
     }
@@ -159,31 +157,31 @@ export function useSimilarMemories(problem: string, repository: string) {
     data: null,
     isLoading: false,
     error: null,
-    refetch: async () => {}
+    refetch: async () => { }
   })
 
   const findSimilar = useCallback(async (newProblem?: string, newRepository?: string) => {
     const searchProblem = newProblem || problem
     const searchRepository = newRepository || repository
-    
+
     if (!searchProblem || !searchRepository) return
-    
+
     setState(prev => ({ ...prev, isLoading: true, error: null }))
-    
+
     try {
-      const chunks = await memoryAPI.findSimilarMemories(searchProblem, searchRepository)
-      setState(prev => ({ 
-        ...prev, 
-        data: chunks, 
-        isLoading: false 
+      const chunks = await apiClient.findSimilarMemories(searchProblem, searchRepository)
+      setState(prev => ({
+        ...prev,
+        data: chunks,
+        isLoading: false
       }))
       return chunks
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to find similar memories'
-      setState(prev => ({ 
-        ...prev, 
-        error: errorMessage, 
-        isLoading: false 
+      setState(prev => ({
+        ...prev,
+        error: errorMessage,
+        isLoading: false
       }))
       throw error
     }
@@ -215,7 +213,7 @@ export function useBackups() {
     data: null,
     isLoading: false,
     error: null,
-    refetch: async () => {}
+    refetch: async () => { }
   })
 
   const [isCreating, setIsCreating] = useState(false)
@@ -224,21 +222,21 @@ export function useBackups() {
 
   const fetchBackups = useCallback(async () => {
     setState(prev => ({ ...prev, isLoading: true, error: null }))
-    
+
     try {
-      const backups = await memoryAPI.listBackups()
-      setState(prev => ({ 
-        ...prev, 
-        data: backups, 
-        isLoading: false 
+      const backups = await apiClient.listBackups()
+      setState(prev => ({
+        ...prev,
+        data: backups,
+        isLoading: false
       }))
       return backups
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch backups'
-      setState(prev => ({ 
-        ...prev, 
-        error: errorMessage, 
-        isLoading: false 
+      setState(prev => ({
+        ...prev,
+        error: errorMessage,
+        isLoading: false
       }))
       throw error
     }
@@ -246,9 +244,9 @@ export function useBackups() {
 
   const createBackup = useCallback(async (name?: string, repository?: string) => {
     setIsCreating(true)
-    
+
     try {
-      const backup = await memoryAPI.createBackup(name, repository)
+      const backup = await apiClient.createBackup(name, repository)
       setIsCreating(false)
       await fetchBackups() // Refresh list
       return backup
@@ -260,9 +258,9 @@ export function useBackups() {
 
   const restoreBackup = useCallback(async (backupFile: string, overwrite: boolean = false) => {
     setIsRestoring(true)
-    
+
     try {
-      const result = await memoryAPI.restoreBackup(backupFile, overwrite)
+      const result = await apiClient.restoreBackup(backupFile, overwrite)
       setIsRestoring(false)
       return result
     } catch (error) {
@@ -273,9 +271,9 @@ export function useBackups() {
 
   const cleanupBackups = useCallback(async () => {
     setIsCleaning(true)
-    
+
     try {
-      const result = await memoryAPI.cleanupBackups()
+      const result = await apiClient.cleanupBackups()
       setIsCleaning(false)
       await fetchBackups() // Refresh list
       return result
@@ -315,9 +313,9 @@ export function useAPIConnection() {
 
   const checkConnection = useCallback(async () => {
     setIsChecking(true)
-    
+
     try {
-      const connected = await memoryAPI.testConnection()
+      const connected = await apiClient.testConnection()
       setIsConnected(connected)
       setIsChecking(false)
       return connected
@@ -330,7 +328,7 @@ export function useAPIConnection() {
 
   useEffect(() => {
     checkConnection()
-    
+
     // Check connection every 30 seconds
     const interval = setInterval(checkConnection, 30000)
     return () => clearInterval(interval)
@@ -349,28 +347,28 @@ export function useMemoryRelationships(chunkId: string, repository: string) {
     data: null,
     isLoading: false,
     error: null,
-    refetch: async () => {}
+    refetch: async () => { }
   })
 
   const fetchRelationships = useCallback(async () => {
     if (!chunkId || !repository) return
-    
+
     setState(prev => ({ ...prev, isLoading: true, error: null }))
-    
+
     try {
-      const relationships = await memoryAPI.getMemoryRelationships(chunkId, repository)
-      setState(prev => ({ 
-        ...prev, 
-        data: relationships, 
-        isLoading: false 
+      const relationships = await apiClient.getMemoryRelationships(chunkId, repository)
+      setState(prev => ({
+        ...prev,
+        data: relationships,
+        isLoading: false
       }))
       return relationships
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'Failed to fetch relationships'
-      setState(prev => ({ 
-        ...prev, 
-        error: errorMessage, 
-        isLoading: false 
+      setState(prev => ({
+        ...prev,
+        error: errorMessage,
+        isLoading: false
       }))
       throw error
     }
@@ -402,9 +400,9 @@ export function useMemoryTransfer() {
   const exportMemories = useCallback(async (repository: string, format: string = 'json') => {
     setIsExporting(true)
     setError(null)
-    
+
     try {
-      const result = await memoryAPI.exportMemories(repository, format)
+      const result = await apiClient.exportMemories(repository, format)
       setIsExporting(false)
       return result
     } catch (error) {
@@ -418,9 +416,9 @@ export function useMemoryTransfer() {
   const importMemories = useCallback(async (data: string, repository: string, sessionId: string) => {
     setIsImporting(true)
     setError(null)
-    
+
     try {
-      const result = await memoryAPI.importMemories(data, repository, sessionId)
+      const result = await apiClient.importMemories(data, repository, sessionId)
       setIsImporting(false)
       return result
     } catch (error) {

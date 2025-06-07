@@ -1,5 +1,6 @@
 import { type ClassValue, clsx } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { logger } from "@/lib/logger"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
@@ -9,7 +10,7 @@ export function cn(...inputs: ClassValue[]) {
 export function formatDate(date: Date | string | number): string {
   const d = new Date(date)
   if (isNaN(d.getTime())) return "Invalid date"
-  
+
   const now = new Date()
   const diffMs = now.getTime() - d.getTime()
   const diffHours = diffMs / (1000 * 60 * 60)
@@ -67,13 +68,13 @@ export function stringToColor(str: string): string {
   for (let i = 0; i < str.length; i++) {
     hash = str.charCodeAt(i) + ((hash << 5) - hash)
   }
-  
+
   const hue = Math.abs(hash) % 360
   return `hsl(${hue}, 70%, 60%)`
 }
 
 // Debounce function for search inputs
-export function debounce<T extends (...args: any[]) => any>(
+export function debounce<T extends (...args: unknown[]) => unknown>(
   func: T,
   wait: number
 ): (...args: Parameters<T>) => void {
@@ -86,10 +87,10 @@ export function debounce<T extends (...args: any[]) => any>(
 
 // Calculate confidence score color
 export function getConfidenceColor(score: number): string {
-  if (score >= 0.8) return "text-green-400"
-  if (score >= 0.6) return "text-yellow-400" 
-  if (score >= 0.4) return "text-orange-400"
-  return "text-red-400"
+  if (score >= 0.8) return "text-success"
+  if (score >= 0.6) return "text-warning"
+  if (score >= 0.4) return "text-warning"
+  return "text-destructive"
 }
 
 // Format confidence score as percentage
@@ -122,9 +123,34 @@ export function getAPIUrl(): string {
 }
 
 export function getGraphQLUrl(): string {
-  return getEnvVar('NEXT_PUBLIC_GRAPHQL_URL', 'http://localhost:9080/graphql')
+  return getEnvVar('NEXT_PUBLIC_GRAPHQL_URL', '/api/graphql')
 }
 
 export function getWSUrl(): string {
   return getEnvVar('NEXT_PUBLIC_WS_URL', 'ws://localhost:9080/ws')
+}
+
+export function getWebSocketUrl(): string {
+  return getWSUrl()
+}
+
+// Development logging utility
+export function devLog(...args: unknown[]): void {
+  if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
+    logger.debug(`[DEV] ${args.join(' ')}`)
+  }
+}
+
+export function devWarn(...args: unknown[]): void {
+  if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
+    logger.warn(`[DEV] ${args.join(' ')}`)
+  }
+}
+
+export function devError(...args: unknown[]): void {
+  if (process.env.NODE_ENV === 'development' || process.env.DEBUG === 'true') {
+    const message = args.join(' ')
+    const error = args.find(arg => arg instanceof Error) as Error | undefined
+    logger.error(`[DEV] ${message}`, error)
+  }
 }

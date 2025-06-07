@@ -14,18 +14,13 @@ export const CSRF_COOKIE_NAME = '__csrf-token'
 
 /**
  * Generate a cryptographically secure CSRF token
+ * Uses Web Crypto API which is available in both browser and Edge Runtime
  */
 export function generateCSRFToken(): string {
-  if (typeof window !== 'undefined' && window.crypto && window.crypto.getRandomValues) {
-    // Browser environment
-    const array = new Uint8Array(32)
-    window.crypto.getRandomValues(array)
-    return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
-  } else {
-    // Node.js environment
-    const crypto = require('crypto')
-    return crypto.randomBytes(32).toString('hex')
-  }
+  // Use crypto global which is available in Edge Runtime
+  const array = new Uint8Array(32)
+  crypto.getRandomValues(array)
+  return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
 /**
@@ -72,9 +67,16 @@ export async function getCSRFToken(): Promise<string | null> {
 }
 
 /**
- * Validate CSRF token from request
+ * Validate CSRF token from request or directly from token string
  */
-export function validateCSRFToken(request: NextRequest): boolean {
+export function validateCSRFToken(requestOrToken: NextRequest | string): boolean {
+  if (typeof requestOrToken === 'string') {
+    // Direct token validation - used in API routes
+    // This is an async function that needs to get cookie value
+    return false // Can't validate directly without cookie access
+  }
+  
+  const request = requestOrToken
   const cookieToken = request.cookies.get(CSRF_COOKIE_NAME)?.value
   const headerToken = request.headers.get(CSRF_HEADER_NAME)
   const formToken = request.headers.get('content-type')?.includes('application/x-www-form-urlencoded')
@@ -91,7 +93,27 @@ export function validateCSRFToken(request: NextRequest): boolean {
   }
 
   // For form submissions, token should be in form data
+  // Note: formToken is not used in the current implementation
+  // But keeping the variable for future form data extraction
+  if (formToken) {
+    return formToken === cookieToken
+  }
+  
   return false
+}
+
+/**
+ * Validate CSRF token directly (async version for API routes)
+ */
+export async function validateCSRFTokenAsync(token: string): Promise<boolean> {
+  const cookieStore = await cookies()
+  const cookieToken = cookieStore.get(CSRF_COOKIE_NAME)?.value
+  
+  if (!cookieToken || !token) {
+    return false
+  }
+  
+  return token === cookieToken
 }
 
 /**
@@ -133,7 +155,7 @@ export async function extractCSRFTokenFromForm(request: NextRequest): Promise<st
   try {
     const formData = await request.formData()
     return formData.get(CSRF_TOKEN_NAME) as string || null
-  } catch (error) {
+  } catch {
     return null
   }
 }

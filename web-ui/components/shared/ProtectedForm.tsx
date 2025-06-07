@@ -13,10 +13,11 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Loader2, Shield, AlertTriangle } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { logger } from '@/lib/logger'
 
 interface ProtectedFormProps {
   children: ReactNode
-  onSubmit: (formData: FormData, submitProtected: (url: string, data: FormData | Record<string, any>) => Promise<Response>) => Promise<void> | void
+  onSubmit: (formData: FormData, submitProtected: (url: string, data: FormData | Record<string, unknown>) => Promise<Response>) => Promise<void> | void
   action?: string
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
   className?: string
@@ -35,7 +36,7 @@ export function ProtectedForm({
   showSecurityIndicator = true,
   validateBeforeSubmit
 }: ProtectedFormProps) {
-  const { token, isTokenValid, submitForm, getCSRFInput } = useCSRFForm()
+  const { isTokenValid, submitForm, getCSRFInput } = useCSRFForm()
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
@@ -71,7 +72,7 @@ export function ProtectedForm({
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An error occurred'
       setError(errorMessage)
-      console.error('Form submission error:', err)
+      logger.error('Form submission error:', err)
     } finally {
       setIsSubmitting(false)
     }
@@ -94,7 +95,7 @@ export function ProtectedForm({
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <Shield className={cn(
             "h-3 w-3",
-            isTokenValid ? "text-green-500" : "text-red-500"
+            isTokenValid ? "text-success" : "text-destructive"
           )} />
           <span>
             {isTokenValid ? 'Form protected against CSRF attacks' : 'Security token not available'}
@@ -184,19 +185,19 @@ export function CSRFTokenDisplay() {
       <div className="flex items-center gap-2 mb-1">
         <Shield className={cn(
           "h-3 w-3",
-          isTokenValid ? "text-green-500" : "text-red-500"
+          isTokenValid ? "text-success" : "text-destructive"
         )} />
         <span className="font-semibold">CSRF Token Debug</span>
       </div>
       <div>
         <span className="text-muted-foreground">Token: </span>
-        <span className={isTokenValid ? "text-green-600" : "text-red-600"}>
+        <span className={isTokenValid ? "text-success" : "text-destructive"}>
           {token ? `${token.substring(0, 8)}...${token.substring(token.length - 8)}` : 'Not available'}
         </span>
       </div>
       <div>
         <span className="text-muted-foreground">Valid: </span>
-        <span className={isTokenValid ? "text-green-600" : "text-red-600"}>
+        <span className={isTokenValid ? "text-success" : "text-destructive"}>
           {isTokenValid ? 'Yes' : 'No'}
         </span>
       </div>

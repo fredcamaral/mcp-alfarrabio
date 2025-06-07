@@ -62,6 +62,11 @@ COPY web-ui/ ./
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
 
+# Set runtime-configurable URLs for build
+ENV NEXT_PUBLIC_API_URL=http://localhost:9080
+ENV NEXT_PUBLIC_GRAPHQL_URL=http://localhost:9080/graphql
+ENV NEXT_PUBLIC_WS_URL=ws://localhost:9080/ws
+
 # Build the frontend
 RUN npm run build
 
@@ -166,9 +171,21 @@ ENV GO111MODULE=on \
     MCP_MEMORY_METRICS_PORT=8082 \
     MCP_MEMORY_LOG_LEVEL=info \
     CONFIG_PATH=/app/config/config.yaml \
-    NEXT_PUBLIC_API_URL=http://localhost:9080 \
-    NEXT_PUBLIC_GRAPHQL_URL=http://localhost:9080/graphql \
-    NEXT_PUBLIC_WS_URL=ws://localhost:9080/ws \
+    NEXT_PUBLIC_API_URL=http://lerian-mcp-memory:9080 \
+    NEXT_PUBLIC_GRAPHQL_URL=http://lerian-mcp-memory:9080/graphql \
+    NEXT_PUBLIC_WS_URL=ws://lerian-mcp-memory:9080/ws \
+    NODE_ENV=production
+
+# Build arguments for WebUI
+ARG NEXT_PUBLIC_API_URL=http://lerian-mcp-memory:9080
+ARG NEXT_PUBLIC_GRAPHQL_URL=http://lerian-mcp-memory:9080/graphql
+ARG NEXT_PUBLIC_WS_URL=ws://lerian-mcp-memory:9080/ws
+
+# Set environment variables for Next.js build
+ENV \
+    NEXT_PUBLIC_API_URL=http://lerian-mcp-memory:9080 \
+    NEXT_PUBLIC_GRAPHQL_URL=http://lerian-mcp-memory:9080/graphql \
+    NEXT_PUBLIC_WS_URL=ws://lerian-mcp-memory:9080/ws \
     NODE_ENV=production
 
 # Start both services

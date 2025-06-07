@@ -16,8 +16,7 @@ const PROTECTED_ROUTES = [
   '/api/chunks',
   '/api/sessions',
   '/api/exports',
-  '/api/imports',
-  '/api/mcp'
+  '/api/imports'
 ]
 
 // Routes that are exempt from CSRF protection
@@ -25,15 +24,12 @@ const EXEMPT_ROUTES = [
   '/api/csrf-token',
   '/api/health',
   '/api/status',
+  '/api/errors',
+  '/api/performance',
+  '/api/mcp',  // MCP proxy doesn't need CSRF as the backend handles security
   '/health'
 ]
 
-// Content types that require CSRF validation for POST/PUT/PATCH/DELETE
-const PROTECTED_CONTENT_TYPES = [
-  'application/json',
-  'application/x-www-form-urlencoded',
-  'multipart/form-data'
-]
 
 /**
  * Check if a route requires CSRF protection
@@ -60,16 +56,6 @@ function isProtectedMethod(method: string): boolean {
   return ['POST', 'PUT', 'PATCH', 'DELETE'].includes(method.toUpperCase())
 }
 
-/**
- * Check if content type requires CSRF protection
- */
-function requiresContentTypeValidation(contentType: string | null): boolean {
-  if (!contentType) return false
-  
-  return PROTECTED_CONTENT_TYPES.some(type => 
-    contentType.toLowerCase().includes(type.toLowerCase())
-  )
-}
 
 /**
  * Main middleware function

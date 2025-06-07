@@ -7,6 +7,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react'
 import { CSRFManager } from '@/lib/csrf-client'
+import { logger } from '@/lib/logger'
 
 interface UseCSRFProtectionOptions {
   autoFetch?: boolean
@@ -51,7 +52,7 @@ export function useCSRFProtection(options: UseCSRFProtectionOptions = {}): UseCS
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred'
       setError(errorMessage)
-      console.error('CSRF token refresh failed:', err)
+      logger.error('CSRF token refresh failed:', err)
     } finally {
       setIsLoading(false)
     }

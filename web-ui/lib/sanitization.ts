@@ -208,7 +208,7 @@ function removeDangerousPatterns(content: string, violations: string[]): string 
 function sanitizeHTML(
   content: string, 
   allowedTags: string[], 
-  allowedAttributes: string[],
+  _allowedAttributes: string[],
   violations: string[]
 ): string {
   let sanitized = content
@@ -268,7 +268,7 @@ function sanitizeURLs(content: string, violations: string[]): string {
       }
       
       return match
-    } catch (error) {
+    } catch {
       violations.push('Invalid URL removed')
       return '[invalid URL removed]'
     }

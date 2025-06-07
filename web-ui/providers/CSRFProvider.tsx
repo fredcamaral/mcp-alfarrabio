@@ -9,6 +9,7 @@
 
 import { createContext, useContext, useEffect, ReactNode } from 'react'
 import { useCSRFProtection } from '@/hooks/useCSRFProtection'
+import { logger } from '@/lib/logger'
 
 interface CSRFContextValue {
   token: string | null
@@ -45,7 +46,7 @@ export function CSRFProvider({ children, autoRefreshInterval = 30 * 60 * 1000 }:
   // Handle network errors and retry
   useEffect(() => {
     if (csrfProtection.error) {
-      console.warn('CSRF protection error:', csrfProtection.error)
+      logger.warn('CSRF protection error', { error: csrfProtection.error })
       
       // Retry token fetch after 5 seconds on error
       const timeout = setTimeout(() => {
@@ -54,6 +55,8 @@ export function CSRFProvider({ children, autoRefreshInterval = 30 * 60 * 1000 }:
 
       return () => clearTimeout(timeout)
     }
+    // Return undefined when there's no error
+    return undefined
   }, [csrfProtection.error, csrfProtection.refreshToken])
 
   return (
@@ -100,7 +103,7 @@ export function CSRFStatusIndicator({ className }: { className?: string }) {
   if (isLoading) {
     return (
       <div className={`inline-flex items-center gap-1 text-xs text-muted-foreground ${className}`}>
-        <div className="h-2 w-2 bg-yellow-500 rounded-full animate-pulse" />
+        <div className="h-2 w-2 bg-warning rounded-full animate-pulse" />
         <span>Initializing security...</span>
       </div>
     )
@@ -108,8 +111,8 @@ export function CSRFStatusIndicator({ className }: { className?: string }) {
 
   if (error) {
     return (
-      <div className={`inline-flex items-center gap-1 text-xs text-red-600 ${className}`}>
-        <div className="h-2 w-2 bg-red-500 rounded-full" />
+      <div className={`inline-flex items-center gap-1 text-xs text-destructive ${className}`}>
+        <div className="h-2 w-2 bg-destructive rounded-full" />
         <span>Security error</span>
       </div>
     )
@@ -117,16 +120,16 @@ export function CSRFStatusIndicator({ className }: { className?: string }) {
 
   if (isTokenValid) {
     return (
-      <div className={`inline-flex items-center gap-1 text-xs text-green-600 ${className}`}>
-        <div className="h-2 w-2 bg-green-500 rounded-full" />
+      <div className={`inline-flex items-center gap-1 text-xs text-success ${className}`}>
+        <div className="h-2 w-2 bg-success rounded-full" />
         <span>Secure</span>
       </div>
     )
   }
 
   return (
-    <div className={`inline-flex items-center gap-1 text-xs text-red-600 ${className}`}>
-      <div className="h-2 w-2 bg-red-500 rounded-full" />
+    <div className={`inline-flex items-center gap-1 text-xs text-destructive ${className}`}>
+      <div className="h-2 w-2 bg-destructive rounded-full" />
       <span>Not secure</span>
     </div>
   )

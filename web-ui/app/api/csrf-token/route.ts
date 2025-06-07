@@ -6,85 +6,91 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { setCSRFToken, getCSRFToken } from '@/lib/csrf'
+import { generateCSRFToken, validateCSRFToken } from '@/lib/csrf'
+import { logger } from '@/lib/logger'
 
 /**
  * GET /api/csrf-token
  * 
- * Returns a CSRF token for the current session.
- * Sets the token in an httpOnly cookie and returns it in the response.
+ * Generates and returns a new CSRF token for client-side requests
  */
-export async function GET(request: NextRequest): Promise<NextResponse> {
+export async function GET() {
   try {
-    // Check if token already exists
-    let token = await getCSRFToken()
-    
-    // Generate new token if none exists
-    if (!token) {
-      token = await setCSRFToken()
-    }
+    const token = generateCSRFToken()
 
-    return NextResponse.json(
-      { 
-        token,
-        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString() // 24 hours
-      },
-      { 
-        status: 200,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      }
-    )
+    const response = NextResponse.json({
+      token,
+      expires: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+    })
+
+    // Set CSRF token in httpOnly cookie for additional security
+    response.cookies.set('csrf-token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'strict',
+      maxAge: 24 * 60 * 60 // 24 hours
+    })
+
+    logger.info('CSRF token generated', {
+      component: 'CSRF',
+      action: 'generate'
+    })
+
+    return response
   } catch (error) {
-    console.error('Error generating CSRF token:', error)
-    
+    logger.error('Error generating CSRF token', error as Error, {
+      component: 'CSRF',
+      action: 'generate'
+    })
     return NextResponse.json(
-      { 
-        error: 'Failed to generate CSRF token',
-        code: 'CSRF_TOKEN_GENERATION_FAILED'
-      },
+      { error: 'Failed to generate CSRF token' },
       { status: 500 }
     )
   }
 }
 
 /**
- * POST /api/csrf-token
+ * POST /api/csrf-token/validate
  * 
- * Refreshes the CSRF token for the current session.
- * Useful for long-running sessions or after token expiration.
+ * Validates a CSRF token
  */
-export async function POST(request: NextRequest): Promise<NextResponse> {
+export async function POST(request: NextRequest) {
   try {
-    // Always generate a new token for POST requests
-    const token = await setCSRFToken()
+    const body = await request.json()
+    const { token } = body || {}
 
-    return NextResponse.json(
-      { 
-        token,
-        message: 'CSRF token refreshed successfully',
-        expires: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      },
-      { 
-        status: 200,
-        headers: {
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache',
-          'Expires': '0'
-        }
-      }
-    )
+    if (!token) {
+      return NextResponse.json(
+        { error: 'Token is required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate the token
+    const isValid = validateCSRFToken(token)
+
+    if (!isValid) {
+      logger.warn('Invalid CSRF token attempted', {
+        component: 'CSRF',
+        action: 'validate'
+      })
+      return NextResponse.json({
+        valid: false,
+        message: 'CSRF token is invalid or expired'
+      })
+    }
+
+    return NextResponse.json({
+      valid: true,
+      message: 'CSRF token is valid'
+    })
   } catch (error) {
-    console.error('Error refreshing CSRF token:', error)
-    
+    logger.error('Error validating CSRF token', error as Error, {
+      component: 'CSRF',
+      action: 'validate'
+    })
     return NextResponse.json(
-      { 
-        error: 'Failed to refresh CSRF token',
-        code: 'CSRF_TOKEN_REFRESH_FAILED'
-      },
+      { error: 'Failed to validate CSRF token' },
       { status: 500 }
     )
   }

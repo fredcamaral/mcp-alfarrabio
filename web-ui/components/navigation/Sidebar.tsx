@@ -1,13 +1,14 @@
 'use client'
 
-import { useState } from 'react'
 import { useAppSelector, useAppDispatch } from '@/store/store'
-import { 
-  selectSidebarOpen, 
-  selectSidebarCollapsed, 
+import {
+  selectSidebarCollapsed,
   selectCurrentSection,
   toggleSidebarCollapsed,
-  setCurrentSection 
+  setCurrentSection,
+  setShowMemoryForm,
+  toggleFilterPanel,
+  setGlobalSearchFocused
 } from '@/store/slices/uiSlice'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -26,14 +27,15 @@ import {
   BarChart3,
   Globe,
   Layers3,
-  Zap
+  Zap,
+  Activity
 } from 'lucide-react'
 
 interface NavigationItem {
   id: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  section: 'memories' | 'patterns' | 'repositories' | 'settings'
+  section: 'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo'
   badge?: string
   disabled?: boolean
 }
@@ -76,7 +78,13 @@ const toolsNavItems: NavigationItem[] = [
     id: 'relationships',
     label: 'Knowledge Graph',
     icon: Layers3,
-    section: 'memories',
+    section: 'graph',
+  },
+  {
+    id: 'realtime',
+    label: 'Realtime Feed',
+    icon: Activity,
+    section: 'realtime',
   },
 ]
 
@@ -85,13 +93,13 @@ const bottomNavItems: NavigationItem[] = [
     id: 'performance',
     label: 'Performance',
     icon: Zap,
-    section: 'settings',
+    section: 'performance',
   },
   {
     id: 'multi-repo',
     label: 'Multi-Repo',
     icon: Globe,
-    section: 'repositories',
+    section: 'multi-repo',
   },
   {
     id: 'settings',
@@ -103,20 +111,19 @@ const bottomNavItems: NavigationItem[] = [
 
 export function Sidebar() {
   const dispatch = useAppDispatch()
-  const isOpen = useAppSelector(selectSidebarOpen)
   const isCollapsed = useAppSelector(selectSidebarCollapsed)
   const currentSection = useAppSelector(selectCurrentSection)
 
   const handleNavigation = (item: NavigationItem) => {
     dispatch(setCurrentSection(item.section))
-    
+
     // Handle special navigation actions
     if (item.id === 'search') {
-      // TODO: Open search interface
+      // Set a flag in the UI state to focus search on next render
+      dispatch(setGlobalSearchFocused(true))
     } else if (item.id === 'filters') {
-      // TODO: Open filter panel
-    } else if (item.id === 'relationships') {
-      // TODO: Open knowledge graph view
+      // Open the filter panel
+      dispatch(toggleFilterPanel())
     }
   }
 
@@ -124,9 +131,10 @@ export function Sidebar() {
     dispatch(toggleSidebarCollapsed())
   }
 
-  if (!isOpen) {
-    return null
-  }
+  // Always render sidebar, let MainLayout handle visibility
+  // if (!isOpen) {
+  //   return null
+  // }
 
   return (
     <div className={cn(
@@ -141,7 +149,7 @@ export function Sidebar() {
             <span className="font-semibold text-foreground">MCP Memory</span>
           </div>
         )}
-        
+
         <Button
           variant="ghost"
           size="sm"
@@ -158,9 +166,13 @@ export function Sidebar() {
 
       {/* New Memory Button */}
       <div className="p-3">
-        <Button 
+        <Button
           className="w-full justify-start"
           size={isCollapsed ? "sm" : "default"}
+          onClick={() => {
+            dispatch(setCurrentSection('memories'))
+            dispatch(setShowMemoryForm(true))
+          }}
         >
           <Plus className="h-4 w-4" />
           {!isCollapsed && <span className="ml-2">New Memory</span>}
@@ -177,11 +189,11 @@ export function Sidebar() {
               </h3>
             </div>
           )}
-          
+
           {mainNavItems.map((item) => {
             const Icon = item.icon
             const isActive = currentSection === item.section
-            
+
             return (
               <Button
                 key={item.id}
@@ -221,10 +233,10 @@ export function Sidebar() {
               </h3>
             </div>
           )}
-          
+
           {toolsNavItems.map((item) => {
             const Icon = item.icon
-            
+
             return (
               <Button
                 key={item.id}
@@ -258,8 +270,8 @@ export function Sidebar() {
         <div className="space-y-1">
           {bottomNavItems.map((item) => {
             const Icon = item.icon
-            const isActive = currentSection === item.section && item.id === 'settings'
-            
+            const isActive = currentSection === item.section
+
             return (
               <Button
                 key={item.id}

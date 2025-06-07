@@ -5,6 +5,9 @@
  * Uses cryptographically secure random tokens with double-submit cookie pattern.
  */
 
+import { logger } from '@/lib/logger'
+import { randomBytes } from 'crypto'
+
 export const CSRF_TOKEN_NAME = 'csrf-token'
 export const CSRF_HEADER_NAME = 'X-CSRF-Token'
 export const CSRF_COOKIE_NAME = '__csrf-token'
@@ -20,8 +23,7 @@ export function generateCSRFToken(): string {
     return Array.from(array, byte => byte.toString(16).padStart(2, '0')).join('')
   } else {
     // Node.js environment
-    const crypto = require('crypto')
-    return crypto.randomBytes(32).toString('hex')
+    return randomBytes(32).toString('hex')
   }
 }
 
@@ -63,7 +65,7 @@ export class CSRFManager {
         return data.token
       }
     } catch (error) {
-      console.error('Failed to fetch CSRF token:', error)
+      logger.error('Failed to fetch CSRF token:', error)
     }
 
     return null
@@ -115,7 +117,7 @@ export class CSRFManager {
 /**
  * Form data helper that includes CSRF token
  */
-export function createProtectedFormData(data: Record<string, any>): FormData {
+export function createProtectedFormData(data: Record<string, string | Blob>): FormData {
   const formData = new FormData()
   const token = CSRFManager.getToken()
 

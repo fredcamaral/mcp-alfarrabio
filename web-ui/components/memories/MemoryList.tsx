@@ -1,41 +1,55 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect } from 'react'
 import { useAppSelector, useAppDispatch } from '@/store/store'
-import { 
-  selectMemories, 
+import {
+  selectMemories,
   selectSelectedMemoryIds,
   selectMemoriesLoading,
-  selectViewMode,
-  toggleMemorySelection,
+  selectMemoriesError,
   setSelectedMemory,
-  setViewMode 
+  toggleMemorySelection,
+  clearMemorySelection,
+  selectAllMemories,
+  setLoading,
+  setError,
+  setMemories,
+  removeMemory
 } from '@/store/slices/memoriesSlice'
-import { cn, formatDate, getMemoryTypeIcon, truncateText, getConfidenceColor, formatConfidence } from '@/lib/utils'
+import {
+  selectQuery,
+  selectRepository,
+  selectSelectedTypes,
+  selectTimeRange,
+  selectTags,
+  selectMinRelevance,
+  selectHasActiveFilters,
+  setAvailableTags
+} from '@/store/slices/filtersSlice'
+import { addNotification } from '@/store/slices/uiSlice'
+import { useListChunks, useSearchMemories, useGraphQLError, useDeleteChunk } from '@/lib/graphql/hooks'
+import { cn, formatDate, getMemoryTypeIcon, getConfidenceColor, formatConfidence } from '@/lib/utils'
 import { ConversationChunk } from '@/types/memory'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
-import { Skeleton } from '@/components/ui/skeleton'
-import { Checkbox } from '@/components/ui/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import {
-  List,
-  Grid3X3,
-  Clock as Timeline,
-  MoreHorizontal,
-  Eye,
-  Link,
-  Trash2,
+  MoreVertical,
   Star,
-  GitBranch,
-  Clock,
-  User
+  Share,
+  Download,
+  Trash2,
+  CheckSquare,
+  Square,
+  RefreshCw,
+  AlertCircle
 } from 'lucide-react'
 
 interface MemoryListProps {
@@ -45,275 +59,363 @@ interface MemoryListProps {
 export function MemoryList({ className }: MemoryListProps) {
   const dispatch = useAppDispatch()
   const memories = useAppSelector(selectMemories)
-  const selectedIds = useAppSelector(selectSelectedMemoryIds)
+  const selectedMemoryIds = useAppSelector(selectSelectedMemoryIds)
   const isLoading = useAppSelector(selectMemoriesLoading)
-  const viewMode = useAppSelector(selectViewMode)
+  const error = useAppSelector(selectMemoriesError)
+  const { handleError } = useGraphQLError()
+  
+  // Delete mutation
+  const [deleteChunk, { loading: deletingChunk }] = useDeleteChunk()
+
+  // Filter state from Redux
+  const searchQuery = useAppSelector(selectQuery)
+  const repository = useAppSelector(selectRepository) || process.env.NEXT_PUBLIC_DEFAULT_REPOSITORY || 'github.com/lerianstudio/lerian-mcp-memory'
+  const selectedTypes = useAppSelector(selectSelectedTypes)
+  const timeRange = useAppSelector(selectTimeRange)
+  const selectedTags = useAppSelector(selectTags)
+  const minRelevance = useAppSelector(selectMinRelevance)
+  const hasActiveFilters = useAppSelector(selectHasActiveFilters)
+
+  // Convert time range to date filter
+  const getTimeRangeDate = () => {
+    const now = new Date()
+    switch (timeRange) {
+      case 'recent':
+        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) // 7 days
+      case 'week':
+        return new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000) // 7 days
+      case 'month':
+        return new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000) // 30 days
+      default:
+        return null
+    }
+  }
+
+  // GraphQL queries
+  const {
+    loading: chunksLoading,
+    refetch: refetchChunks
+  } = useListChunks(repository, 100, 0, {
+    onCompleted: (data: { listChunks: ConversationChunk[] }) => {
+      if (data?.listChunks) {
+        dispatch(setMemories(data.listChunks))
+        
+        // Update available tags based on actual data
+        const allTags = Array.from(new Set(data.listChunks.flatMap(m => m.metadata?.tags || [])))
+        dispatch(setAvailableTags(allTags))
+      }
+    },
+    onError: (error: Error) => {
+      const errorMessage = handleError(error)
+      dispatch(setError(errorMessage))
+    }
+  })
+
+  // Search query (only when there's a search term or filters)
+  const {
+    loading: searchLoading,
+    refetch: refetchSearch
+  } = useSearchMemories(
+    {
+      query: searchQuery,
+      repository,
+      types: selectedTypes.length > 0 ? selectedTypes : undefined,
+      tags: selectedTags.length > 0 ? selectedTags : undefined,
+      limit: 50,
+      minRelevanceScore: minRelevance
+    },
+    {
+      skip: !hasActiveFilters,
+      onCompleted: (data: { search: { chunks: Array<{ chunk: ConversationChunk }> } }) => {
+        if (data?.search?.chunks) {
+          // Extract chunks from scored results
+          const chunks = data.search.chunks.map(scoredChunk => scoredChunk.chunk)
+          dispatch(setMemories(chunks))
+        }
+      },
+      onError: (error: Error) => {
+        const errorMessage = handleError(error)
+        dispatch(setError(errorMessage))
+      }
+    }
+  )
+
+  // Update loading state
+  useEffect(() => {
+    const loading = hasActiveFilters ? searchLoading : chunksLoading
+    dispatch(setLoading(loading))
+  }, [chunksLoading, searchLoading, hasActiveFilters, dispatch])
+
+  // Filter memories based on time range (for non-search results)
+  const filteredMemories = hasActiveFilters ? memories : memories.filter(memory => {
+    const timeRangeDate = getTimeRangeDate()
+    if (timeRangeDate && new Date(memory.timestamp) < timeRangeDate) {
+      return false
+    }
+    return true
+  })
 
   const handleMemoryClick = (memory: ConversationChunk) => {
     dispatch(setSelectedMemory(memory))
   }
 
-  const handleMemorySelect = (memoryId: string, e: React.MouseEvent) => {
-    e.stopPropagation()
+  const handleMemorySelect = (memoryId: string, event: React.MouseEvent) => {
+    event.stopPropagation()
     dispatch(toggleMemorySelection(memoryId))
   }
 
-  const renderViewModeToggle = () => (
-    <div className="flex items-center space-x-1 bg-muted rounded-lg p-1">
-      <Button
-        variant={viewMode === 'list' ? 'secondary' : 'ghost'}
-        size="sm"
-        onClick={() => dispatch(setViewMode('list'))}
-        className="h-8 w-8 p-0"
-      >
-        <List className="h-4 w-4" />
-      </Button>
-      <Button
-        variant={viewMode === 'graph' ? 'secondary' : 'ghost'}
-        size="sm"
-        onClick={() => dispatch(setViewMode('graph'))}
-        className="h-8 w-8 p-0"
-      >
-        <Grid3X3 className="h-4 w-4" />
-      </Button>
-      <Button
-        variant={viewMode === 'timeline' ? 'secondary' : 'ghost'}
-        size="sm"
-        onClick={() => dispatch(setViewMode('timeline'))}
-        className="h-8 w-8 p-0"
-      >
-        <Timeline className="h-4 w-4" />
-      </Button>
-    </div>
-  )
+  const handleSelectAll = () => {
+    if (selectedMemoryIds.length === filteredMemories.length) {
+      dispatch(clearMemorySelection())
+    } else {
+      dispatch(selectAllMemories())
+    }
+  }
+
+  const handleRefresh = () => {
+    if (hasActiveFilters) {
+      refetchSearch()
+    } else {
+      refetchChunks()
+    }
+  }
+
+  const handleDeleteMemory = async (memoryId: string, event: React.MouseEvent) => {
+    event.stopPropagation()
+    
+    try {
+      await deleteChunk({ variables: { id: memoryId } })
+      
+      // Remove from Redux store
+      dispatch(removeMemory(memoryId))
+      
+      // Show success notification
+      dispatch(addNotification({
+        type: 'success',
+        title: 'Memory Deleted',
+        message: 'The memory has been successfully deleted',
+        duration: 3000
+      }))
+    } catch (error) {
+      const errorMessage = handleError(error)
+      dispatch(addNotification({
+        type: 'error',
+        title: 'Failed to Delete Memory',
+        message: errorMessage,
+        duration: 5000
+      }))
+    }
+  }
 
   const renderMemoryCard = (memory: ConversationChunk) => {
-    const isSelected = selectedIds.has(memory.id)
-    
+    const isSelected = selectedMemoryIds.includes(memory.id)
+    const confidence = memory.metadata?.confidence?.score || 0
+    const tags = memory.metadata?.tags || []
+
     return (
-      <Card 
+      <Card
         key={memory.id}
         className={cn(
-          "cursor-pointer transition-all hover:shadow-md",
-          isSelected && "ring-2 ring-primary"
+          "cursor-pointer transition-all duration-200 hover:shadow-md",
+          isSelected && "ring-2 ring-primary ring-offset-2"
         )}
         onClick={() => handleMemoryClick(memory)}
       >
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between">
-            <div className="flex items-start space-x-3 flex-1 min-w-0">
-              <Checkbox
-                checked={isSelected}
-                onCheckedChange={(checked) => handleMemorySelect(memory.id, {} as React.MouseEvent)}
-                onClick={(e) => e.stopPropagation()}
-                className="mt-1"
-              />
-              
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center space-x-2 mb-2">
-                  <span className="text-lg">
-                    {getMemoryTypeIcon(memory.type)}
-                  </span>
-                  <Badge 
-                    variant="outline" 
-                    className={cn("text-xs", getConfidenceColor(memory.metadata.confidence?.score || 0))}
-                  >
-                    {memory.type.replace('_', ' ')}
-                  </Badge>
-                  {memory.metadata.confidence && (
-                    <Badge variant="secondary" className="text-xs">
-                      {formatConfidence(memory.metadata.confidence.score)}
+            <div className="flex items-center space-x-3 flex-1">
+              <button
+                onClick={(e) => handleMemorySelect(memory.id, e)}
+                className="flex-shrink-0"
+              >
+                {isSelected ? (
+                  <CheckSquare className="h-4 w-4 text-primary" />
+                ) : (
+                  <Square className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                )}
+              </button>
+
+              <div className="flex items-center space-x-2 flex-1 min-w-0">
+                <span className="text-lg">
+                  {getMemoryTypeIcon(memory.type)}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center space-x-2">
+                    <Badge variant="outline" className="text-xs">
+                      {memory.type.replace('_', ' ')}
                     </Badge>
-                  )}
-                </div>
-                
-                <h3 className="font-medium text-foreground leading-tight mb-1">
-                  {truncateText(memory.content, 100)}
-                </h3>
-                
-                <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                  <div className="flex items-center space-x-1">
-                    <Clock className="h-3 w-3" />
-                    <span>{formatDate(memory.timestamp)}</span>
+                    {confidence > 0 && (
+                      <Badge
+                        variant="secondary"
+                        className={cn("text-xs", getConfidenceColor(confidence))}
+                      >
+                        {formatConfidence(confidence)}
+                      </Badge>
+                    )}
                   </div>
-                  
-                  {memory.metadata.repository && (
-                    <div className="flex items-center space-x-1">
-                      <GitBranch className="h-3 w-3" />
-                      <span>{memory.metadata.repository}</span>
-                    </div>
-                  )}
-                  
-                  {memory.session_id && (
-                    <div className="flex items-center space-x-1">
-                      <User className="h-3 w-3" />
-                      <span>{memory.session_id.slice(0, 8)}...</span>
-                    </div>
-                  )}
+                  <p className="text-sm text-muted-foreground mt-1">
+                    {formatDate(memory.timestamp)}
+                  </p>
                 </div>
               </div>
             </div>
-            
+
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
-                  className="h-8 w-8 p-0"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreHorizontal className="h-4 w-4" />
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 <DropdownMenuItem>
-                  <Eye className="mr-2 h-4 w-4" />
-                  View Details
-                </DropdownMenuItem>
-                <DropdownMenuItem>
-                  <Link className="mr-2 h-4 w-4" />
-                  Show Relationships
-                </DropdownMenuItem>
-                <DropdownMenuItem>
                   <Star className="mr-2 h-4 w-4" />
-                  Add to Favorites
+                  Add to favorites
                 </DropdownMenuItem>
-                <DropdownMenuItem className="text-destructive">
+                <DropdownMenuItem>
+                  <Share className="mr-2 h-4 w-4" />
+                  Share
+                </DropdownMenuItem>
+                <DropdownMenuItem>
+                  <Download className="mr-2 h-4 w-4" />
+                  Export
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem 
+                  className="text-destructive"
+                  onClick={(e) => handleDeleteMemory(memory.id, e)}
+                  disabled={deletingChunk}
+                >
                   <Trash2 className="mr-2 h-4 w-4" />
-                  Delete
+                  {deletingChunk ? 'Deleting...' : 'Delete'}
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           </div>
         </CardHeader>
-        
+
         <CardContent className="pt-0">
-          {memory.metadata.tags && memory.metadata.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-3">
-              {memory.metadata.tags.slice(0, 3).map((tag) => (
+          <p className="text-sm text-foreground line-clamp-3 mb-3">
+            {memory.content}
+          </p>
+
+          {tags.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {tags.slice(0, 3).map((tag: string) => (
                 <Badge key={tag} variant="secondary" className="text-xs">
                   {tag}
                 </Badge>
               ))}
-              {memory.metadata.tags.length > 3 && (
+              {tags.length > 3 && (
                 <Badge variant="secondary" className="text-xs">
-                  +{memory.metadata.tags.length - 3} more
+                  +{tags.length - 3} more
                 </Badge>
               )}
             </div>
           )}
-          
-          <p className="text-sm text-muted-foreground line-clamp-2">
-            {truncateText(memory.content, 200)}
-          </p>
         </CardContent>
       </Card>
     )
   }
 
-  const renderListView = () => (
-    <div className="space-y-4">
-      {memories.map(renderMemoryCard)}
-    </div>
-  )
-
-  const renderGridView = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-      {memories.map(renderMemoryCard)}
-    </div>
-  )
-
-  const renderTimelineView = () => (
-    <div className="space-y-6">
-      {memories.map((memory, index) => (
-        <div key={memory.id} className="flex">
-          <div className="flex-shrink-0 w-24 text-right pr-4">
-            <span className="text-xs text-muted-foreground">
-              {formatDate(memory.timestamp)}
-            </span>
-          </div>
-          <div className="flex-shrink-0 flex flex-col items-center">
-            <div className="w-3 h-3 bg-primary rounded-full" />
-            {index < memories.length - 1 && (
-              <div className="w-0.5 h-16 bg-border mt-2" />
-            )}
-          </div>
-          <div className="flex-1 pl-4">
-            {renderMemoryCard(memory)}
-          </div>
-        </div>
-      ))}
-    </div>
-  )
-
-  const renderLoading = () => (
-    <div className="space-y-4">
-      {Array.from({ length: 5 }).map((_, i) => (
-        <Card key={i}>
-          <CardHeader>
-            <div className="flex items-start space-x-3">
-              <Skeleton className="h-4 w-4" />
-              <div className="space-y-2 flex-1">
-                <Skeleton className="h-4 w-3/4" />
-                <div className="flex space-x-2">
-                  <Skeleton className="h-3 w-16" />
-                  <Skeleton className="h-3 w-16" />
-                </div>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent>
-            <Skeleton className="h-16 w-full" />
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  )
-
-  if (isLoading) {
+  if (error) {
     return (
-      <div className={cn("space-y-6", className)}>
-        <div className="flex items-center justify-between">
-          <Skeleton className="h-8 w-32" />
-          <Skeleton className="h-8 w-24" />
+      <div className={cn("flex items-center justify-center h-64", className)}>
+        <div className="text-center space-y-4">
+          <AlertCircle className="h-12 w-12 text-destructive mx-auto" />
+          <div>
+            <h3 className="text-lg font-medium">Failed to load memories</h3>
+            <p className="text-sm text-muted-foreground mt-1">{error}</p>
+            <Button onClick={handleRefresh} className="mt-4">
+              <RefreshCw className="mr-2 h-4 w-4" />
+              Try Again
+            </Button>
+          </div>
         </div>
-        {renderLoading()}
       </div>
     )
   }
 
   return (
     <div className={cn("space-y-6", className)}>
-      {/* Header with view toggle */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-semibold text-foreground">
-            {memories.length} Memories
-          </h2>
-          <p className="text-sm text-muted-foreground">
-            {selectedIds.size > 0 && `${selectedIds.size} selected`}
-          </p>
+      {/* Controls */}
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          {/* Results summary */}
+          <div className="text-sm text-muted-foreground">
+            {isLoading ? (
+              <span>Loading memories...</span>
+            ) : (
+              <span>
+                {filteredMemories.length} {filteredMemories.length === 1 ? 'memory' : 'memories'}
+                {searchQuery && ` matching "${searchQuery}"`}
+              </span>
+            )}
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRefresh}
+              disabled={isLoading}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
+              Refresh
+            </Button>
+
+            {selectedMemoryIds.length > 0 && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleSelectAll}
+                >
+                  {selectedMemoryIds.length === filteredMemories.length ? 'Deselect All' : 'Select All'}
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  {selectedMemoryIds.length} selected
+                </span>
+              </>
+            )}
+          </div>
         </div>
-        {renderViewModeToggle()}
       </div>
 
-      {/* Memory list */}
-      {memories.length === 0 ? (
+      {/* Memory List */}
+      {isLoading ? (
+        <div className="grid grid-cols-1 gap-4">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Card key={i} className="animate-pulse">
+              <CardHeader>
+                <div className="h-4 bg-muted rounded w-3/4" />
+                <div className="h-3 bg-muted rounded w-1/2" />
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-2">
+                  <div className="h-3 bg-muted rounded" />
+                  <div className="h-3 bg-muted rounded w-2/3" />
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : filteredMemories.length === 0 ? (
         <div className="text-center py-12">
           <div className="text-6xl mb-4">🧠</div>
           <h3 className="text-lg font-medium text-foreground mb-2">
-            No memories found
+            {searchQuery ? 'No memories found' : 'No memories yet'}
           </h3>
-          <p className="text-muted-foreground">
-            Start a conversation to create your first memory
+          <p className="text-sm text-muted-foreground">
+            {searchQuery
+              ? `No memories match your search for "${searchQuery}"`
+              : 'Start a conversation to create your first memory'
+            }
           </p>
         </div>
       ) : (
-        <>
-          {viewMode === 'list' && renderListView()}
-          {viewMode === 'graph' && renderGridView()}
-          {viewMode === 'timeline' && renderTimelineView()}
-        </>
+        <div className="grid grid-cols-1 gap-4">
+          {filteredMemories.map(renderMemoryCard)}
+        </div>
       )}
     </div>
   )

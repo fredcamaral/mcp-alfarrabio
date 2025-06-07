@@ -7,317 +7,274 @@
 
 'use client'
 
-import { useState } from 'react'
-import { useWebSocket, type ConnectionStatus } from '@/hooks/useWebSocket'
+import { useWebSocket } from '@/lib/websocket/consolidated-client'
+import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
+import { logger } from '@/lib/logger'
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip'
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
 import {
-  Wifi,
+  CheckCircle2,
+  AlertCircle,
   WifiOff,
   RefreshCw,
-  AlertTriangle,
-  CheckCircle,
-  Clock,
   Activity,
-  Settings,
-  Eye,
-  EyeOff
+  Clock,
+  MessageSquare,
+  Send
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
 
 interface WebSocketStatusProps {
-  url?: string
-  repository?: string
-  sessionId?: string
-  onMessage?: (message: any) => void
   className?: string
 }
 
-export function WebSocketStatus({
-  url = `ws://${typeof window !== 'undefined' ? window.location.host : 'localhost:9080'}/ws`,
-  repository,
-  sessionId,
-  onMessage,
-  className
-}: WebSocketStatusProps) {
-  const [showDetails, setShowDetails] = useState(false)
-  const [messageHistory, setMessageHistory] = useState<any[]>([])
-
-  const webSocket = useWebSocket({
-    url,
-    reconnectInterval: 3000,
-    maxReconnectAttempts: 5,
-    heartbeatInterval: 30000,
-    onConnect: () => {
-      console.log('WebSocket connected')
-      
-      // Subscribe to repository and session if provided
-      if (repository || sessionId) {
-        webSocket.sendMessage({
-          type: 'subscribe',
-          repository,
-          session_id: sessionId
-        })
+export function WebSocketStatus({ className }: WebSocketStatusProps) {
+  return (
+    <ErrorBoundary
+      onError={(error) => logger.error('WebSocket Status component error:', error)}
+      enableRetry={true}
+      fallback={
+        <div className={cn("h-8 w-8 rounded-full bg-muted flex items-center justify-center", className)}>
+          <WifiOff className="h-3 w-3 text-muted-foreground" />
+        </div>
       }
-    },
-    onDisconnect: () => {
-      console.log('WebSocket disconnected')
-    },
-    onError: (error) => {
-      console.error('WebSocket error:', error)
-    },
-    onMessage: (message) => {
-      setMessageHistory(prev => [...prev.slice(-49), message]) // Keep last 50 messages
-      onMessage?.(message)
-    }
-  })
+    >
+      <WebSocketStatusInner className={className} />
+    </ErrorBoundary>
+  )
+}
 
-  const getStatusColor = (status: ConnectionStatus): string => {
+function WebSocketStatusInner({ className }: WebSocketStatusProps) {
+  const { status, lastMessage, connect, disconnect, isConnected } = useWebSocket()
+
+  const getStatusIcon = () => {
     switch (status) {
       case 'connected':
-        return 'text-green-600 bg-green-50'
+        return <CheckCircle2 className="h-3 w-3" />
       case 'connecting':
-      case 'reconnecting':
-        return 'text-yellow-600 bg-yellow-50'
-      case 'disconnected':
-        return 'text-gray-600 bg-gray-50'
-      case 'error':
-        return 'text-red-600 bg-red-50'
-      default:
-        return 'text-gray-600 bg-gray-50'
-    }
-  }
-
-  const getStatusIcon = (status: ConnectionStatus) => {
-    switch (status) {
-      case 'connected':
-        return <CheckCircle className="h-3 w-3" />
-      case 'connecting':
-      case 'reconnecting':
         return <RefreshCw className="h-3 w-3 animate-spin" />
-      case 'disconnected':
-        return <WifiOff className="h-3 w-3" />
       case 'error':
-        return <AlertTriangle className="h-3 w-3" />
+        return <AlertCircle className="h-3 w-3" />
       default:
         return <WifiOff className="h-3 w-3" />
     }
   }
 
-  const getStatusText = (status: ConnectionStatus): string => {
+  const getStatusColor = () => {
+    switch (status) {
+      case 'connected':
+        return 'bg-success'
+      case 'connecting':
+        return 'bg-warning'
+      case 'error':
+        return 'bg-destructive'
+      default:
+        return 'bg-muted-foreground'
+    }
+  }
+
+  const getStatusText = () => {
     switch (status) {
       case 'connected':
         return 'Connected'
       case 'connecting':
         return 'Connecting...'
-      case 'reconnecting':
-        return `Reconnecting... (${webSocket.reconnectAttempts}/5)`
-      case 'disconnected':
-        return 'Disconnected'
       case 'error':
         return 'Connection Error'
       default:
-        return 'Unknown'
+        return 'Disconnected'
     }
   }
 
-  const formatTimestamp = (timestamp: string): string => {
-    return new Date(timestamp).toLocaleTimeString()
+
+  const formatLastActivity = (timestamp: number) => {
+    const diff = Date.now() - timestamp
+    const seconds = Math.floor(diff / 1000)
+
+    if (seconds < 60) {
+      return 'Just now'
+    } else if (seconds < 3600) {
+      return `${Math.floor(seconds / 60)}m ago`
+    } else {
+      return `${Math.floor(seconds / 3600)}h ago`
+    }
   }
 
-  const renderMessageHistory = () => (
-    <div className="space-y-2 max-h-64 overflow-y-auto">
-      <div className="flex items-center justify-between">
-        <h4 className="text-sm font-medium">Recent Messages</h4>
-        <Badge variant="secondary" className="text-xs">
-          {messageHistory.length}/50
-        </Badge>
-      </div>
-      
-      {messageHistory.length === 0 ? (
-        <div className="text-xs text-muted-foreground text-center py-4">
-          No messages received yet
-        </div>
-      ) : (
-        <div className="space-y-1">
-          {messageHistory.slice(-10).reverse().map((message, index) => (
-            <div key={index} className="text-xs bg-muted p-2 rounded">
-              <div className="flex items-center justify-between mb-1">
-                <Badge variant="outline" className="text-xs">
-                  {message.type}
-                </Badge>
-                <span className="text-muted-foreground">
-                  {formatTimestamp(message.timestamp)}
-                </span>
-              </div>
-              {message.action && (
-                <div className="text-muted-foreground">
-                  Action: {message.action}
-                </div>
-              )}
-              {message.chunk_id && (
-                <div className="text-muted-foreground truncate">
-                  Chunk: {message.chunk_id}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  )
+  const getMessageTypeColor = (type: string) => {
+    switch (type) {
+      case 'memory_created':
+        return 'text-success'
+      case 'memory_updated':
+        return 'text-info'
+      case 'memory_deleted':
+        return 'text-destructive'
+      case 'pattern_detected':
+        return 'text-purple'
+      case 'error':
+        return 'text-destructive'
+      default:
+        return 'text-muted-foreground'
+    }
+  }
 
   return (
-    <div className={cn('flex items-center gap-2', className)}>
-      {/* Status Indicator */}
+    <TooltipProvider>
       <Popover>
         <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              'h-8 px-2 text-xs',
-              getStatusColor(webSocket.connectionStatus)
-            )}
-          >
-            {getStatusIcon(webSocket.connectionStatus)}
-            <span className="ml-1 hidden sm:inline">
-              {getStatusText(webSocket.connectionStatus)}
-            </span>
-          </Button>
-        </PopoverTrigger>
-        
-        <PopoverContent className="w-80 p-0" align="end">
-          <Card className="border-0 shadow-none">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <Activity className="h-4 w-4" />
-                WebSocket Connection
-              </CardTitle>
-            </CardHeader>
-            
-            <CardContent className="space-y-4">
-              {/* Connection Status */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">Status:</span>
-                  <Badge
-                    variant="secondary"
-                    className={cn('text-xs', getStatusColor(webSocket.connectionStatus))}
-                  >
-                    {getStatusIcon(webSocket.connectionStatus)}
-                    <span className="ml-1">
-                      {getStatusText(webSocket.connectionStatus)}
-                    </span>
-                  </Badge>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="ghost"
+                size="sm"
+                className={cn(
+                  "relative h-8 w-8 p-0 rounded-full",
+                  className
+                )}
+              >
+                <div className="relative">
+                  {getStatusIcon()}
+                  <div
+                    className={cn(
+                      "absolute -top-1 -right-1 h-2 w-2 rounded-full",
+                      getStatusColor()
+                    )}
+                  />
                 </div>
-                
-                {webSocket.reconnectAttempts > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Attempts:</span>
-                    <span className="text-sm">{webSocket.reconnectAttempts}/5</span>
-                  </div>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>
+              <p>WebSocket: {getStatusText()}</p>
+            </TooltipContent>
+          </Tooltip>
+        </PopoverTrigger>
+
+        <PopoverContent className="w-80" align="end">
+          <div className="space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <h4 className="font-medium">WebSocket Connection</h4>
+              <Badge
+                variant={isConnected ? "default" : "secondary"}
+                className={cn(
+                  "text-xs",
+                  isConnected ? "bg-success" : "bg-muted-foreground"
                 )}
-                
-                {webSocket.messageQueue.length > 0 && (
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm text-muted-foreground">Queued:</span>
-                    <span className="text-sm">{webSocket.messageQueue.length} messages</span>
-                  </div>
-                )}
+              >
+                {getStatusText()}
+              </Badge>
+            </div>
+
+            {/* Connection Stats */}
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="flex items-center space-x-2">
+                <Clock className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Uptime</p>
+                  <p className="text-muted-foreground">N/A</p>
+                </div>
               </div>
 
-              {/* Subscription Info */}
-              {(repository || sessionId) && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Subscriptions</h4>
-                  {repository && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Repository:</span>
-                      <span className="text-xs truncate max-w-32">{repository}</span>
-                    </div>
-                  )}
-                  {sessionId && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-muted-foreground">Session:</span>
-                      <span className="text-xs truncate max-w-32">{sessionId}</span>
-                    </div>
-                  )}
+              <div className="flex items-center space-x-2">
+                <Activity className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Last Activity</p>
+                  <p className="text-muted-foreground">{lastMessage ? formatLastActivity(new Date(lastMessage.timestamp).getTime()) : 'N/A'}</p>
                 </div>
-              )}
+              </div>
 
-              {/* Last Message */}
-              {webSocket.lastMessage && (
-                <div className="space-y-2">
-                  <h4 className="text-sm font-medium">Last Message</h4>
-                  <div className="text-xs bg-muted p-2 rounded">
-                    <div className="flex items-center justify-between">
-                      <Badge variant="outline" className="text-xs">
-                        {webSocket.lastMessage.type}
-                      </Badge>
-                      <span className="text-muted-foreground">
-                        {formatTimestamp(webSocket.lastMessage.timestamp)}
-                      </span>
-                    </div>
-                    {webSocket.lastMessage.action && (
-                      <div className="mt-1 text-muted-foreground">
-                        {webSocket.lastMessage.action}
-                      </div>
-                    )}
+              <div className="flex items-center space-x-2">
+                <MessageSquare className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Received</p>
+                  <p className="text-muted-foreground">N/A</p>
+                </div>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                <Send className="h-4 w-4 text-muted-foreground" />
+                <div>
+                  <p className="font-medium">Sent</p>
+                  <p className="text-muted-foreground">N/A</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Reconnection Info */}
+            {/* Reconnection info removed since not available from hook */}
+
+            {/* Last Message */}
+            {lastMessage && (
+              <div className="space-y-2">
+                <h5 className="font-medium text-sm">Last Message</h5>
+                <div className="p-2 bg-muted rounded-md text-xs">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className={cn("font-medium", getMessageTypeColor(lastMessage.type))}>
+                      {lastMessage.type.replace('_', ' ').toUpperCase()}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {new Date(lastMessage.timestamp).toLocaleTimeString()}
+                    </span>
                   </div>
+                  {(lastMessage.data != null) && (
+                    <p className="text-muted-foreground">
+                      {String(typeof lastMessage.data === 'string'
+                        ? lastMessage.data
+                        : JSON.stringify(lastMessage.data).slice(0, 100) + '...'
+                      )}
+                    </p>
+                  )}
                 </div>
-              )}
+              </div>
+            )}
 
-              {/* Controls */}
-              <div className="flex gap-2">
+            {/* Connection Actions */}
+            <div className="flex space-x-2">
+              {isConnected ? (
                 <Button
-                  size="sm"
                   variant="outline"
-                  onClick={webSocket.reconnect}
-                  disabled={webSocket.connectionStatus === 'connecting'}
+                  size="sm"
+                  onClick={disconnect}
                   className="flex-1"
                 >
-                  <RefreshCw className="h-3 w-3 mr-1" />
-                  Reconnect
+                  Disconnect
                 </Button>
-                
+              ) : (
                 <Button
+                  variant="default"
                   size="sm"
-                  variant="outline"
-                  onClick={() => setShowDetails(!showDetails)}
+                  onClick={connect}
+                  className="flex-1"
                 >
-                  {showDetails ? (
-                    <EyeOff className="h-3 w-3" />
+                  {status === 'connecting' ? (
+                    <>
+                      <RefreshCw className="mr-2 h-3 w-3 animate-spin" />
+                      Connecting...
+                    </>
                   ) : (
-                    <Eye className="h-3 w-3" />
+                    'Connect'
                   )}
                 </Button>
-              </div>
+              )}
+            </div>
 
-              {/* Message History */}
-              {showDetails && renderMessageHistory()}
-            </CardContent>
-          </Card>
+            {/* Connection URL */}
+            <div className="text-xs text-muted-foreground">
+              <p>Endpoint: {process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:9080/ws'}</p>
+            </div>
+          </div>
         </PopoverContent>
       </Popover>
-
-      {/* Quick Actions */}
-      {webSocket.connectionStatus === 'error' && (
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={webSocket.reconnect}
-          className="h-8 px-2"
-        >
-          <RefreshCw className="h-3 w-3" />
-        </Button>
-      )}
-    </div>
+    </TooltipProvider>
   )
 }

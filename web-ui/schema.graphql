@@ -1,0 +1,170 @@
+# MCP Memory Server GraphQL Schema
+
+scalar DateTime
+
+type ConversationChunk {
+  id: String!
+  sessionId: String!
+  repository: String
+  branch: String
+  timestamp: DateTime!
+  content: String!
+  summary: String
+  type: String
+  tags: [String!]
+  toolsUsed: [String!]
+  filePaths: [String!]
+  concepts: [String!]
+  entities: [String!]
+  decisionOutcome: String
+  decisionRationale: String
+  difficultyLevel: String
+  problemDescription: String
+  solutionApproach: String
+  outcome: String
+  lessonsLearned: String
+  nextSteps: String
+}
+
+type ScoredChunk {
+  chunk: ConversationChunk!
+  score: Float!
+}
+
+type Pattern {
+  type: String!
+  count: Int!
+  examples: [String!]!
+  confidence: Float!
+  lastSeen: DateTime!
+}
+
+type SessionFlow {
+  sessionId: String!
+  repository: String!
+  startTime: DateTime!
+  endTime: DateTime
+  chunks: [ConversationChunk!]!
+  patterns: [Pattern!]!
+}
+
+input StoreChunkInput {
+  sessionId: String!
+  repository: String!
+  content: String!
+  type: String
+  tags: [String!]
+}
+
+input StoreDecisionInput {
+  sessionId: String!
+  repository: String!
+  decision: String!
+  rationale: String!
+  impact: String
+  alternatives: [String!]
+}
+
+type Repository {
+  id: String!
+  url: String!
+  name: String!
+  description: String
+  status: RepositoryStatus!
+  memoryCount: Int!
+  patternCount: Int!
+  lastActivity: DateTime
+  createdAt: DateTime!
+  updatedAt: DateTime!
+  metadata: RepositoryMetadata
+}
+
+type RepositoryMetadata {
+  technologies: [String!]
+  contributors: Int
+  branches: [String!]
+  syncedAt: DateTime
+}
+
+type RepositoryStats {
+  totalRepositories: Int!
+  activeRepositories: Int!
+  totalMemories: Int!
+  totalPatterns: Int!
+  recentActivity: Int!
+}
+
+enum RepositoryStatus {
+  ACTIVE
+  INACTIVE
+  SYNCING
+  ERROR
+}
+
+input AddRepositoryInput {
+  url: String!
+  description: String
+}
+
+input UpdateRepositoryInput {
+  id: String!
+  description: String
+  status: RepositoryStatus
+}
+
+type Query {
+  search(query: String!, repository: String!, limit: Int): [ScoredChunk!]!
+  getChunk(id: String!): ConversationChunk
+  listChunks(
+    repository: String!
+    sessionId: String
+    limit: Int
+    offset: Int
+  ): [ConversationChunk!]!
+  getPatterns(repository: String!): [Pattern!]!
+  suggestRelated(
+    currentContext: String!
+    repository: String!
+    limit: Int
+  ): [ScoredChunk!]!
+  findSimilar(
+    problem: String!
+    repository: String!
+    limit: Int
+  ): [ScoredChunk!]!
+  traceSession(sessionId: String!): SessionFlow
+  traceRelated(chunkId: String!): [ConversationChunk!]!
+  
+  # Repository queries
+  listRepositories(
+    status: RepositoryStatus
+    limit: Int
+    offset: Int
+  ): [Repository!]!
+  getRepository(id: String!): Repository
+  getRepositoryStats: RepositoryStats!
+}
+
+type Mutation {
+  storeChunk(input: StoreChunkInput!): ConversationChunk!
+  storeDecision(input: StoreDecisionInput!): ConversationChunk!
+  deleteChunk(id: String!): Boolean!
+  
+  # Repository mutations
+  addRepository(input: AddRepositoryInput!): Repository!
+  updateRepository(input: UpdateRepositoryInput!): Repository!
+  syncRepository(id: String!): Repository!
+  removeRepository(id: String!): Boolean!
+}
+
+# Future: Subscriptions for real-time updates
+type Subscription {
+  chunkAdded(repository: String!): ConversationChunk!
+  patternDetected(repository: String!): Pattern!
+}
+
+schema {
+  query: Query
+  mutation: Mutation
+  subscription: Subscription
+}

@@ -12,6 +12,7 @@ import { useForm } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import * as z from 'zod'
 import { ProtectedForm, CSRFTokenDisplay } from '@/components/shared/ProtectedForm'
+import { logger } from '@/lib/logger'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import { Button } from '@/components/ui/button'
@@ -31,7 +32,7 @@ import { cn } from '@/lib/utils'
 // Form validation schema
 const memoryFormSchema = z.object({
   content: z.string().min(10, 'Content must be at least 10 characters'),
-  type: z.enum(['discussion', 'solution', 'problem', 'architecture_decision', 'bug_report', 'feature_request']),
+  type: z.enum(['problem', 'solution', 'architecture_decision', 'session_summary', 'code_change', 'discussion', 'analysis', 'verification', 'question']),
   repository: z.string().min(1, 'Repository is required'),
   sessionId: z.string().optional(),
   tags: z.array(z.string()).default([]),
@@ -69,7 +70,6 @@ export function MemoryForm({
 
   const {
     register,
-    handleSubmit,
     setValue,
     watch,
     formState: { errors }
@@ -103,7 +103,7 @@ export function MemoryForm({
 
   const handleProtectedSubmit = async (
     formData: FormData, 
-    submitProtected: (url: string, data: FormData | Record<string, any>) => Promise<Response>
+    submitProtected: (url: string, data: FormData | Record<string, unknown>) => Promise<Response>
   ) => {
     setIsSubmitting(true)
     
@@ -133,9 +133,9 @@ export function MemoryForm({
         onSuccess(data)
       }
       
-      console.log('Memory saved successfully:', result)
+      logger.info('Memory saved successfully:', result)
     } catch (error) {
-      console.error('Failed to save memory:', error)
+      logger.error('Failed to save memory:', error)
       throw error // Re-throw to let ProtectedForm handle the error display
     } finally {
       setIsSubmitting(false)
@@ -187,10 +187,10 @@ export function MemoryForm({
             {...register('content')}
             placeholder="Describe your memory, solution, or discussion..."
             rows={6}
-            className={cn(errors.content && 'border-red-500')}
+            className={cn(errors.content && 'border-destructive')}
           />
           {errors.content && (
-            <p className="text-sm text-red-600 flex items-center gap-1">
+            <p className="text-sm text-destructive flex items-center gap-1">
               <AlertCircle className="h-3 w-3" />
               {errors.content.message}
             </p>
@@ -228,10 +228,10 @@ export function MemoryForm({
               id="repository"
               {...register('repository')}
               placeholder="e.g., github.com/user/repo"
-              className={cn(errors.repository && 'border-red-500')}
+              className={cn(errors.repository && 'border-destructive')}
             />
             {errors.repository && (
-              <p className="text-sm text-red-600 flex items-center gap-1">
+              <p className="text-sm text-destructive flex items-center gap-1">
                 <AlertCircle className="h-3 w-3" />
                 {errors.repository.message}
               </p>

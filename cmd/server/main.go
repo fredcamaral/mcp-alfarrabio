@@ -195,9 +195,15 @@ func setupGraphQLHandler(mux *http.ServeMux, memoryServer *mcp.MemoryServer) {
 // createFallbackGraphQLHandler creates a fallback handler when GraphQL schema creation fails
 func createFallbackGraphQLHandler(schemaErr error) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Set CORS headers with specific origin to allow credentials
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			origin = "http://localhost:2001"
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Content-Type", "application/json")
 
 		if r.Method == methodOptions {
@@ -218,10 +224,15 @@ func createFallbackGraphQLHandler(schemaErr error) http.HandlerFunc {
 // createGraphQLHandler creates the main GraphQL handler
 func createGraphQLHandler(h *handler.Handler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		// CORS headers
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// CORS headers with specific origin to allow credentials
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			origin = "http://localhost:2001"
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 		if r.Method == methodOptions {
 			w.WriteHeader(http.StatusOK)
@@ -236,10 +247,15 @@ func createGraphQLHandler(h *handler.Handler) http.HandlerFunc {
 // setupMCPHandler configures the MCP-over-HTTP endpoint
 func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers for remote access
-		w.Header().Set("Access-Control-Allow-Origin", "*")
+		// Set CORS headers with specific origin to allow credentials
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			origin = "http://localhost:2001"
+		}
+		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "POST, "+methodOptions)
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
+		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Content-Type", "application/json")
 
 		if r.Method == methodOptions {
@@ -275,9 +291,14 @@ func setupSSEHandler(mux *http.ServeMux, mcpServer *server.Server) {
 	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
 		// Handle CORS preflight
 		if r.Method == methodOptions {
-			w.Header().Set("Access-Control-Allow-Origin", "*")
+			origin := r.Header.Get("Origin")
+			if origin == "" {
+				origin = "http://localhost:2001"
+			}
+			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Cache-Control")
+			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Cache-Control, X-CSRF-Token")
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
 			w.WriteHeader(http.StatusOK)
 			return
 		}
@@ -300,7 +321,12 @@ func setupSSEHandler(mux *http.ServeMux, mcpServer *server.Server) {
 
 // handleSSEPost handles POST requests to the SSE endpoint
 func handleSSEPost(w http.ResponseWriter, r *http.Request, mcpServer *server.Server) {
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:2001"
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
 	w.Header().Set("Content-Type", "application/json")
 
 	// Parse JSON-RPC request
@@ -326,8 +352,13 @@ func handleSSEStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control")
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		origin = "http://localhost:2001"
+	}
+	w.Header().Set("Access-Control-Allow-Origin", origin)
+	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control, X-CSRF-Token")
+	w.Header().Set("Access-Control-Allow-Credentials", "true")
 
 	// Keep connection alive
 	flusher, ok := w.(http.Flusher)
@@ -358,10 +389,12 @@ func handleSSEStream(w http.ResponseWriter, r *http.Request) {
 
 // setupWebSocketHandler configures the WebSocket endpoint
 func setupWebSocketHandler(mux *http.ServeMux, ctx context.Context, wsHub *mcpwebsocket.Hub) {
-	// WebSocket upgrader
+	// WebSocket upgrader with specific origin check
 	var upgrader = websocket.Upgrader{
-		CheckOrigin: func(_ *http.Request) bool {
-			return true // Allow connections from any origin
+		CheckOrigin: func(r *http.Request) bool {
+			origin := r.Header.Get("Origin")
+			// Allow localhost connections for development
+			return origin == "http://localhost:2001" || origin == "http://localhost:3000" || origin == ""
 		},
 	}
 
@@ -402,7 +435,12 @@ func setupWebSocketHandler(mux *http.ServeMux, ctx context.Context, wsHub *mcpwe
 
 // setupHealthHandler configures the health check endpoint
 func setupHealthHandler(mux *http.ServeMux) {
-	mux.HandleFunc("/health", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Access-Control-Allow-Credentials", "true")
+		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "lerian-mcp-memory", "mode": "development with hot-reload"}`)
 	})

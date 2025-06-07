@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useAppSelector, useAppDispatch } from '@/store/store'
+import { logger } from '@/lib/logger'
 import {
   selectConfig,
   selectConfigLoading,
@@ -16,7 +17,8 @@ import {
   toggleFeature,
   markSaved,
   resetConfig,
-  restoreFromHistory
+  restoreFromHistory,
+  updateConfig
 } from '@/store/slices/configSlice'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/button'
@@ -78,9 +80,54 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
 
   const [activeTab, setActiveTab] = useState('server')
 
-  const handleSave = () => {
-    // TODO: Implement save logic with validation
-    dispatch(markSaved())
+  const handleSave = async () => {
+    try {
+      // Validate configuration before saving
+      const errors: Record<string, string> = {}
+
+      // Validate server config
+      if (!config.host) errors.host = 'Host is required'
+      if (!config.port || config.port < 1 || config.port > 65535) errors.port = 'Valid port (1-65535) is required'
+
+      // Validate vector database config
+      if (!config.vectorDb.host) errors.vectorHost = 'Vector DB host is required'
+      if (!config.vectorDb.port || config.vectorDb.port < 1) errors.vectorPort = 'Valid vector DB port is required'
+      if (!config.vectorDb.collection) errors.vectorCollection = 'Collection name is required'
+
+      // Validate OpenAI config if API key is provided
+      if (config.openai.apiKey && !config.openai.apiKey.startsWith('sk-')) {
+        errors.apiKey = 'Invalid OpenAI API key format'
+      }
+
+      if (Object.keys(errors).length > 0) {
+        // Dispatch validation errors to store
+        logger.error('Configuration validation failed:', errors)
+        return
+      }
+
+      // Save configuration to backend
+      const response = await fetch('/api/config', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(config),
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to save configuration: ${response.statusText}`)
+      }
+
+      // Mark as saved in store
+      dispatch(markSaved())
+
+      // Show success notification
+      logger.info('Configuration saved successfully')
+
+    } catch (error) {
+      logger.error('Failed to save configuration:', error)
+      // Handle error - could dispatch an error action here
+    }
   }
 
   const handleReset = () => {
@@ -90,13 +137,13 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
   const getStatusIcon = () => {
     switch (connectionStatus) {
       case 'connected':
-        return <CheckCircle className="h-4 w-4 text-green-500" />
+        return <CheckCircle className="h-4 w-4 text-success" />
       case 'connecting':
-        return <Settings className="h-4 w-4 text-yellow-500 animate-spin" />
+        return <Settings className="h-4 w-4 text-warning animate-spin" />
       case 'error':
-        return <AlertCircle className="h-4 w-4 text-red-500" />
+        return <AlertCircle className="h-4 w-4 text-destructive" />
       default:
-        return <WifiOff className="h-4 w-4 text-gray-500" />
+        return <WifiOff className="h-4 w-4 text-muted-foreground" />
     }
   }
 
@@ -125,19 +172,19 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
             Configure your MCP Memory server settings
           </p>
         </div>
-        
+
         <div className="flex items-center space-x-3">
           <div className="flex items-center space-x-2">
             {getStatusIcon()}
             <span className="text-sm font-medium">{getStatusText()}</span>
           </div>
-          
+
           {hasUnsavedChanges && (
-            <Badge variant="outline" className="text-orange-600 border-orange-600">
+            <Badge variant="outline" className="text-warning border-warning">
               Unsaved Changes
             </Badge>
           )}
-          
+
           <div className="flex items-center space-x-2">
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -150,7 +197,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                 <AlertDialogHeader>
                   <AlertDialogTitle>Reset Configuration</AlertDialogTitle>
                   <AlertDialogDescription>
-                    Are you sure you want to reset all settings to default values? 
+                    Are you sure you want to reset all settings to default values?
                     This action cannot be undone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
@@ -162,9 +209,9 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            
-            <Button 
-              onClick={handleSave} 
+
+            <Button
+              onClick={handleSave}
               disabled={!hasUnsavedChanges || isLoading}
               size="sm"
             >
@@ -217,13 +264,13 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                     id="host"
                     value={config.host}
                     onChange={(e) => dispatch(updateServerConfig({ host: e.target.value }))}
-                    className={validationErrors.host ? "border-red-500" : ""}
+                    className={validationErrors.host ? "border-destructive" : ""}
                   />
                   {validationErrors.host && (
-                    <p className="text-xs text-red-500 mt-1">{validationErrors.host}</p>
+                    <p className="text-xs text-destructive mt-1">{validationErrors.host}</p>
                   )}
                 </div>
-                
+
                 <div>
                   <Label htmlFor="port">Port</Label>
                   <Input
@@ -231,15 +278,15 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                     type="number"
                     value={config.port}
                     onChange={(e) => dispatch(updateServerConfig({ port: parseInt(e.target.value) }))}
-                    className={validationErrors.port ? "border-red-500" : ""}
+                    className={validationErrors.port ? "border-destructive" : ""}
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="protocol">Protocol</Label>
-                  <Select 
-                    value={config.protocol} 
-                    onValueChange={(value: 'http' | 'https') => 
+                  <Select
+                    value={config.protocol}
+                    onValueChange={(value: 'http' | 'https') =>
                       dispatch(updateServerConfig({ protocol: value }))
                     }
                   >
@@ -253,9 +300,9 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   </Select>
                 </div>
               </div>
-              
+
               <Separator />
-              
+
               <div>
                 <h4 className="font-medium mb-3">Transport Protocols</h4>
                 <div className="grid grid-cols-2 gap-4">
@@ -288,7 +335,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor="vectorProvider">Provider</Label>
-                <Select 
+                <Select
                   value={config.vectorDb.provider}
                   onValueChange={(value: 'qdrant' | 'chroma') =>
                     dispatch(updateVectorDbConfig({ provider: value }))
@@ -303,7 +350,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   </SelectContent>
                 </Select>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="vectorHost">Host</Label>
@@ -313,7 +360,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                     onChange={(e) => dispatch(updateVectorDbConfig({ host: e.target.value }))}
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="vectorPort">Port</Label>
                   <Input
@@ -324,7 +371,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   />
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="collection">Collection</Label>
@@ -334,7 +381,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                     onChange={(e) => dispatch(updateVectorDbConfig({ collection: e.target.value }))}
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="dimension">Dimension</Label>
                   <Input
@@ -366,7 +413,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   placeholder="sk-..."
                 />
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="model">Model</Label>
@@ -384,7 +431,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                     </SelectContent>
                   </Select>
                 </div>
-                
+
                 <div>
                   <Label htmlFor="maxTokens">Max Tokens</Label>
                   <Input
@@ -395,7 +442,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   />
                 </div>
               </div>
-              
+
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="temperature">Temperature</Label>
@@ -409,7 +456,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                     onChange={(e) => dispatch(updateOpenAIConfig({ temperature: parseFloat(e.target.value) }))}
                   />
                 </div>
-                
+
                 <div>
                   <Label htmlFor="timeout">Timeout (ms)</Label>
                   <Input
@@ -439,10 +486,10 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   </div>
                   <Switch
                     checked={config.cacheEnabled}
-                    onCheckedChange={(checked) => dispatch(toggleFeature({ feature: 'cacheEnabled' }))}
+                    onCheckedChange={() => dispatch(toggleFeature({ feature: 'cacheEnabled' }))}
                   />
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Realtime Updates</Label>
@@ -450,10 +497,10 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   </div>
                   <Switch
                     checked={config.realtimeEnabled}
-                    onCheckedChange={(checked) => dispatch(toggleFeature({ feature: 'realtimeEnabled' }))}
+                    onCheckedChange={() => dispatch(toggleFeature({ feature: 'realtimeEnabled' }))}
                   />
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Analytics</Label>
@@ -461,10 +508,10 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   </div>
                   <Switch
                     checked={config.analyticsEnabled}
-                    onCheckedChange={(checked) => dispatch(toggleFeature({ feature: 'analyticsEnabled' }))}
+                    onCheckedChange={() => dispatch(toggleFeature({ feature: 'analyticsEnabled' }))}
                   />
                 </div>
-                
+
                 <div className="flex items-center justify-between">
                   <div>
                     <Label>Debug Mode</Label>
@@ -472,7 +519,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                   </div>
                   <Switch
                     checked={config.debugMode}
-                    onCheckedChange={(checked) => dispatch(toggleFeature({ feature: 'debugMode' }))}
+                    onCheckedChange={() => dispatch(toggleFeature({ feature: 'debugMode' }))}
                   />
                 </div>
               </div>
@@ -494,12 +541,12 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                 </div>
                 <Switch
                   checked={config.authEnabled}
-                  onCheckedChange={(checked) => 
-                    dispatch(updateServerConfig({ authEnabled: checked } as any))
+                  onCheckedChange={(checked) =>
+                    dispatch(updateConfig({ authEnabled: checked }))
                   }
                 />
               </div>
-              
+
               {config.authEnabled && (
                 <div>
                   <Label htmlFor="authApiKey">API Key</Label>
@@ -507,7 +554,7 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
                     id="authApiKey"
                     type="password"
                     value={config.apiKey || ''}
-                    onChange={(e) => dispatch(updateServerConfig({ apiKey: e.target.value } as any))}
+                    onChange={(e) => dispatch(updateConfig({ apiKey: e.target.value }))}
                     placeholder="Enter API key"
                   />
                 </div>

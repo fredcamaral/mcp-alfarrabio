@@ -6,6 +6,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react'
+import { logger } from '@/lib/logger'
 
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected' | 'error' | 'reconnecting'
 
@@ -70,9 +71,9 @@ export function useWebSocket(options: WebSocketOptions): UseWebSocketReturn {
   const [messageQueue, setMessageQueue] = useState<any[]>([])
 
   const wsRef = useRef<WebSocket | null>(null)
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | number | null>(null)
-  const heartbeatTimeoutRef = useRef<NodeJS.Timeout | number | null>(null)
-  const heartbeatIntervalRef = useRef<NodeJS.Timeout | number | null>(null)
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heartbeatTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const heartbeatIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const isManuallyClosedRef = useRef(false)
 
   const clearTimeouts = useCallback(() => {
@@ -118,7 +119,7 @@ export function useWebSocket(options: WebSocketOptions): UseWebSocketReturn {
         try {
           wsRef.current?.send(JSON.stringify(message))
         } catch (error) {
-          console.error('Error sending queued message:', error)
+          logger.error('Error sending queued message:', error)
         }
       })
       setMessageQueue([])
@@ -137,8 +138,8 @@ export function useWebSocket(options: WebSocketOptions): UseWebSocketReturn {
       const ws = new WebSocket(url, protocols)
       wsRef.current = ws
 
-      ws.onopen = (event) => {
-        console.log('WebSocket connected')
+      ws.onopen = (_event) => {
+        logger.debug('WebSocket connected')
         setConnectionStatus('connected')
         setReconnectAttempts(0)
         isManuallyClosedRef.current = false
@@ -164,12 +165,12 @@ export function useWebSocket(options: WebSocketOptions): UseWebSocketReturn {
           
           onMessage?.(message)
         } catch (error) {
-          console.error('Error parsing WebSocket message:', error)
+          logger.error('Error parsing WebSocket message:', error)
         }
       }
 
-      ws.onclose = (event) => {
-        console.log('WebSocket closed:', event.code, event.reason)
+      ws.onclose = (_event) => {
+        logger.debug(`WebSocket closed: ${_event.code} - ${_event.reason}`)
         clearTimeouts()
         
         if (!isManuallyClosedRef.current) {
@@ -187,19 +188,19 @@ export function useWebSocket(options: WebSocketOptions): UseWebSocketReturn {
             }, delay)
           } else {
             setConnectionStatus('error')
-            console.error('Max reconnection attempts reached')
+            logger.error('Max reconnection attempts reached')
           }
         }
       }
 
       ws.onerror = (event) => {
-        console.error('WebSocket error:', event)
+        logger.error('WebSocket error:', event)
         setConnectionStatus('error')
         onError?.(event)
       }
 
     } catch (error) {
-      console.error('Error creating WebSocket connection:', error)
+      logger.error('Error creating WebSocket connection:', error)
       setConnectionStatus('error')
     }
   }, [
@@ -242,7 +243,7 @@ export function useWebSocket(options: WebSocketOptions): UseWebSocketReturn {
         wsRef.current.send(JSON.stringify(message))
         return true
       } catch (error) {
-        console.error('Error sending WebSocket message:', error)
+        logger.error('Error sending WebSocket message:', error)
         return false
       }
     } else {
