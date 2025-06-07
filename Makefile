@@ -1,4 +1,4 @@
-# MCP Memory Server - Streamlined Makefile
+# Lerian MCP Memory Server - Makefile
 
 # Project configuration
 PROJECT_NAME := lerian-mcp-memory-server
@@ -26,13 +26,11 @@ BLUE := \033[34m
 RESET := \033[0m
 
 .PHONY: help build clean test lint fmt vet dev docker-build docker-up docker-down \
-	dev-up dev-down dev-logs setup-env deps tidy ensure-env \
-	backend-up backend-down backend-logs frontend-up frontend-down frontend-logs \
-	dev-backend-up dev-backend-down dev-backend-logs full-up full-down full-logs
+	setup-env deps tidy ensure-env test-coverage test-integration test-race benchmark ci
 
 # Default target - show help
 help: ## Show this help message
-	@echo "$(BLUE)MCP Memory Server$(RESET)"
+	@echo "$(BLUE)Lerian MCP Memory Server$(RESET)"
 	@echo ""
 	@echo "$(BLUE)Usage:$(RESET)"
 	@echo "  make [target]"
@@ -44,7 +42,7 @@ help: ## Show this help message
 	@echo "  make setup-env              # Setup environment and run server"
 	@echo "  make build                  # Build the binary"
 	@echo "  make test                   # Run tests"
-	@echo "  make dev-up                 # Start with hot reload"
+	@echo "  make docker-up              # Start with Docker"
 	@echo ""
 
 ## Environment Setup
@@ -67,12 +65,36 @@ build: ## Build the binary
 	@echo "$(GREEN)✓ Build complete: $(BUILD_DIR)/$(BINARY_NAME)$(RESET)"
 
 dev: ensure-env ## Run in development mode (stdio)
-	@echo "$(GREEN)Starting development server...$(RESET)"
+	@echo "$(GREEN)Starting development server (stdio mode)...$(RESET)"
 	go run ./cmd/server -mode=stdio
 
+dev-http: ensure-env ## Run in development mode (HTTP)
+	@echo "$(GREEN)Starting development server (HTTP mode)...$(RESET)"
+	go run ./cmd/server -mode=http -addr=:9080
+
+## Testing
 test: ## Run tests
 	@echo "$(GREEN)Running tests...$(RESET)"
 	go test -short -v ./...
+
+test-coverage: ## Run tests with coverage (70% threshold)
+	@echo "$(GREEN)Running tests with coverage...$(RESET)"
+	go test -short -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+	@echo "$(GREEN)Coverage report: coverage.html$(RESET)"
+	go tool cover -func=coverage.out | tail -1
+
+test-integration: ## Run integration tests
+	@echo "$(GREEN)Running integration tests...$(RESET)"
+	go test -tags=integration -v ./...
+
+test-race: ## Run tests with race detector
+	@echo "$(GREEN)Running tests with race detector...$(RESET)"
+	go test -race -short ./...
+
+benchmark: ## Run benchmarks
+	@echo "$(GREEN)Running benchmarks...$(RESET)"
+	go test -bench=. -benchmem ./...
 
 ## Code Quality
 lint: ## Run linters
@@ -100,6 +122,32 @@ vet: ## Run go vet
 	@echo "$(GREEN)Running go vet...$(RESET)"
 	go vet ./...
 
+security-scan: ## Run security scan (gosec + govulncheck)
+	@echo "$(GREEN)Running security scan...$(RESET)"
+	@if command -v gosec >/dev/null 2>&1; then \
+		gosec ./...; \
+	else \
+		echo "$(YELLOW)gosec not found, installing...$(RESET)"; \
+		go install github.com/securecodewarrior/gosec/v2/cmd/gosec@latest; \
+		gosec ./...; \
+	fi
+	@if command -v govulncheck >/dev/null 2>&1; then \
+		govulncheck ./...; \
+	else \
+		echo "$(YELLOW)govulncheck not found, installing...$(RESET)"; \
+		go install golang.org/x/vuln/cmd/govulncheck@latest; \
+		govulncheck ./...; \
+	fi
+
+ci: ## Run complete CI pipeline
+	@echo "$(GREEN)Running complete CI pipeline...$(RESET)"
+	$(MAKE) fmt
+	$(MAKE) vet
+	$(MAKE) lint
+	$(MAKE) security-scan
+	$(MAKE) test-coverage
+	$(MAKE) build
+
 ## Docker Commands
 docker-build: ensure-env ## Build Docker image
 	@echo "$(GREEN)Building Docker image $(DOCKER_IMAGE):$(VERSION)...$(RESET)"
@@ -107,34 +155,42 @@ docker-build: ensure-env ## Build Docker image
 	docker tag $(DOCKER_IMAGE):$(VERSION) $(DOCKER_IMAGE):latest
 
 docker-up: ensure-env ## Start services with docker-compose
-	@echo "$(GREEN)Starting services with docker-compose...$(RESET)"
+	@echo "$(GREEN)Starting Lerian MCP Memory Server...$(RESET)"
 	docker-compose up -d
-	@echo "$(GREEN)✓ Services started! Check health at http://localhost:9080/health$(RESET)"
+	@echo "$(GREEN)✅ Services started!$(RESET)"
+	@echo "  - MCP API: http://localhost:9080"
+	@echo "  - Health: http://localhost:8081/health"
+	@echo "  - Qdrant: http://localhost:6333"
+	@echo ""
+	@echo "$(BLUE)Test the server:$(RESET)"
+	@echo "  curl http://localhost:8081/health"
+	@echo "  curl -X POST http://localhost:9080/mcp -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"tools/list\",\"id\":1}'"
 
 docker-down: ## Stop services with docker-compose
-	@echo "$(GREEN)Stopping services with docker-compose...$(RESET)"
+	@echo "$(GREEN)Stopping services...$(RESET)"
 	docker-compose down
 
-## Development Mode Commands (with Hot Reload)
-dev-up: ensure-env ## Start development mode with hot reload
-	@echo "$(GREEN)Starting development mode with hot reload...$(RESET)"
-	docker-compose -f docker-compose.dev.yml up -d
-	@echo "$(GREEN)✓ Development server started with hot reload!$(RESET)"
-	@echo "$(GREEN)✓ MCP endpoint: http://localhost:9080/mcp$(RESET)"
-	@echo "$(GREEN)✓ Health check: http://localhost:9080/health$(RESET)"
-	@echo "$(YELLOW)📝 Edit any Go file and the server will automatically reload$(RESET)"
+docker-logs: ## View Docker logs
+	docker-compose logs -f
 
-dev-down: ## Stop development mode
-	@echo "$(GREEN)Stopping development mode...$(RESET)"
-	docker-compose -f docker-compose.dev.yml down
+docker-restart: ## Restart Docker services
+	@echo "$(GREEN)Restarting services...$(RESET)"
+	docker-compose restart
 
-dev-logs: ## View development mode logs
-	docker-compose -f docker-compose.dev.yml logs -f lerian-mcp-memory-server-dev
+docker-clean: ## Clean up Docker resources
+	@echo "$(YELLOW)Cleaning up Docker resources...$(RESET)"
+	docker-compose down -v
+	docker system prune -f
+
+docker-rebuild: ## Rebuild Docker images
+	@echo "$(GREEN)Rebuilding Docker images...$(RESET)"
+	docker-compose build --no-cache
 
 ## Utility Commands
 clean: ## Clean build artifacts
 	@echo "$(GREEN)Cleaning build artifacts...$(RESET)"
 	rm -rf $(BUILD_DIR)
+	rm -f coverage.out coverage.html
 	docker rmi $(DOCKER_IMAGE):$(VERSION) $(DOCKER_IMAGE):latest 2>/dev/null || true
 
 deps: ## Download and verify dependencies
@@ -146,6 +202,28 @@ tidy: ## Tidy go modules
 	@echo "$(GREEN)Tidying go modules...$(RESET)"
 	go mod tidy
 
+## Demo and Testing Commands
+demo: ## Run demo client
+	@echo "$(GREEN)Running demo client...$(RESET)"
+	go run ./cmd/demo
+
+test-mcp: ## Run MCP protocol test
+	@echo "$(GREEN)Testing MCP protocol...$(RESET)"
+	go run ./cmd/test-mcp
+
+graphql: ## Start GraphQL server
+	@echo "$(GREEN)Starting GraphQL server...$(RESET)"
+	go run ./cmd/graphql
+
+## Production Commands
+prod-deploy: ci docker-build ## Deploy to production (CI + Docker build)
+	@echo "$(GREEN)Production deployment ready$(RESET)"
+	@echo "$(YELLOW)Push image: docker push $(DOCKER_IMAGE):$(VERSION)$(RESET)"
+
+health-check: ## Check server health
+	@echo "$(GREEN)Checking server health...$(RESET)"
+	@curl -f http://localhost:8081/health || echo "$(YELLOW)Server not responding$(RESET)"
+
 ## Internal targets
 ensure-env: ## Ensure .env file exists (internal)
 	@if [ ! -f .env ]; then \
@@ -155,104 +233,3 @@ ensure-env: ## Ensure .env file exists (internal)
 		echo "$(YELLOW)⚠️  Run 'make setup-env' to continue$(RESET)"; \
 		exit 1; \
 	fi
-
-## Docker Compose - Segregated Services
-# Backend only (fastest for backend development)
-backend-up: ## Start backend services only (Qdrant + MCP Server)
-	@echo "$(GREEN)Starting backend services...$(RESET)"
-	docker-compose -f docker-compose.backend.yml up -d
-	@echo "$(GREEN)✅ Backend services running:$(RESET)"
-	@echo "  - MCP API: http://localhost:9080"
-	@echo "  - Health: http://localhost:9081/health"
-	@echo "  - Qdrant: http://localhost:6333"
-
-backend-down: ## Stop backend services
-	@echo "$(YELLOW)Stopping backend services...$(RESET)"
-	docker-compose -f docker-compose.backend.yml down
-
-backend-logs: ## Show backend logs
-	docker-compose -f docker-compose.backend.yml logs -f
-
-# Frontend only (requires backend running)
-frontend-up: ## Start frontend service only (requires backend running)
-	@echo "$(GREEN)Starting frontend service...$(RESET)"
-	@echo "$(YELLOW)⚠️  Make sure backend is running (make backend-up)$(RESET)"
-	@if ! docker network ls | grep -q "lerian-mcp-memory_lerian_mcp_network"; then \
-		echo "$(YELLOW)Creating network (backend not running?)...$(RESET)"; \
-		docker network create lerian-mcp-memory_lerian_mcp_network || true; \
-	fi
-	docker-compose -f docker-compose.frontend.yml up -d
-	@echo "$(GREEN)✅ Frontend service running:$(RESET)"
-	@echo "  - WebUI: http://localhost:2001"
-
-frontend-down: ## Stop frontend service
-	@echo "$(YELLOW)Stopping frontend service...$(RESET)"
-	docker-compose -f docker-compose.frontend.yml down
-
-frontend-logs: ## Show frontend logs
-	docker-compose -f docker-compose.frontend.yml logs -f
-
-# Development setup (backend in Docker, frontend local)
-dev-backend-up: ## Start development backend (optimized for frontend development)
-	@echo "$(GREEN)Starting development backend...$(RESET)"
-	docker-compose -f docker-compose.dev.yml up -d
-	@echo "$(GREEN)✅ Development backend running:$(RESET)"
-	@echo "  - MCP API: http://localhost:9080"
-	@echo "  - Qdrant: http://localhost:6333"
-	@echo "$(BLUE)💡 Now run frontend locally:$(RESET)"
-	@echo "  cd web-ui && npm run dev"
-
-dev-backend-down: ## Stop development backend
-	@echo "$(YELLOW)Stopping development backend...$(RESET)"
-	docker-compose -f docker-compose.dev.yml down
-
-dev-backend-logs: ## Show development backend logs
-	docker-compose -f docker-compose.dev.yml logs -f
-
-# Full stack (original setup)
-full-up: ## Start full stack (backend + frontend) - original setup
-	@echo "$(GREEN)Starting full stack...$(RESET)"
-	docker-compose up -d
-	@echo "$(GREEN)✅ Full stack running:$(RESET)"
-	@echo "  - MCP API: http://localhost:9080"
-	@echo "  - WebUI: http://localhost:2001"
-	@echo "  - Qdrant: http://localhost:6333"
-
-full-down: ## Stop full stack
-	@echo "$(YELLOW)Stopping full stack...$(RESET)"
-	docker-compose down
-
-full-logs: ## Show full stack logs
-	docker-compose logs -f
-
-# Quick development workflows
-dev-quick: ## Quick development setup (backend in Docker, instructions for frontend)
-	@echo "$(BLUE)🚀 Quick Development Setup$(RESET)"
-	@echo "$(GREEN)1. Starting backend services...$(RESET)"
-	$(MAKE) dev-backend-up
-	@echo ""
-	@echo "$(BLUE)2. Start frontend locally:$(RESET)"
-	@echo "  cd web-ui"
-	@echo "  npm install  # if first time"
-	@echo "  npm run dev"
-	@echo ""
-	@echo "$(BLUE)3. Access your application:$(RESET)"
-	@echo "  - Frontend: http://localhost:2002 (with hot reload)"
-	@echo "  - Backend API: http://localhost:9080"
-	@echo ""
-	@echo "$(YELLOW)When done, run: make dev-backend-down$(RESET)"
-
-# Utility commands
-docker-clean: ## Clean up Docker resources
-	@echo "$(YELLOW)Cleaning up Docker resources...$(RESET)"
-	docker-compose -f docker-compose.yml down -v
-	docker-compose -f docker-compose.backend.yml down -v
-	docker-compose -f docker-compose.frontend.yml down -v
-	docker-compose -f docker-compose.dev.yml down -v
-	docker system prune -f
-
-docker-rebuild: ## Rebuild all Docker images
-	@echo "$(GREEN)Rebuilding Docker images...$(RESET)"
-	docker-compose -f docker-compose.yml build --no-cache
-	docker-compose -f docker-compose.backend.yml build --no-cache
-	docker-compose -f docker-compose.frontend.yml build --no-cache

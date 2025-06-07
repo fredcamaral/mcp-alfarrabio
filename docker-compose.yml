@@ -1,5 +1,5 @@
-# Claude Vector Memory MCP Server with WebUI
-# Complete setup with both API backend and web interface
+# Lerian MCP Memory Server 
+# Go-based MCP server providing persistent memory capabilities for AI assistants
 
 services:
   # Qdrant Vector Database - High-performance vector search engine
@@ -19,8 +19,14 @@ services:
       - qdrant_data:/qdrant/storage
     networks:
       - lerian_mcp_network
+    healthcheck:
+      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/ || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
-  # MCP Memory Server with integrated WebUI
+  # Lerian MCP Memory Server (Go Backend)
   lerian-mcp-memory:
     build:
       context: .
@@ -28,10 +34,10 @@ services:
     container_name: lerian-mcp-memory-server
     restart: unless-stopped
     depends_on:
-      - qdrant
+      qdrant:
+        condition: service_healthy
     ports:
       - "${MCP_HOST_PORT:-9080}:9080"    # MCP API port
-      - "${WEBUI_PORT:-2001}:3000"       # WebUI port
       - "${MCP_HEALTH_PORT:-9081}:8081"  # Health check port
       - "${MCP_METRICS_PORT:-9082}:8082" # Metrics port (optional)
     environment:
@@ -50,31 +56,29 @@ services:
       - MCP_MEMORY_QDRANT_COLLECTION=${QDRANT_COLLECTION:-claude_memory}
       - MCP_MEMORY_VECTOR_DIM=${MCP_MEMORY_EMBEDDING_DIMENSION:-1536}
       
-      # SQLite storage (no PostgreSQL needed)
+      # SQLite storage (embedded database)
       - MCP_MEMORY_DB_TYPE=sqlite
       - MCP_MEMORY_DB_PATH=${SQLITE_DB_PATH:-/app/data/memory.db}
       
       # Security and backup settings
-      - MCP_MEMORY_ENCRYPTION_ENABLED=true
-      - MCP_MEMORY_BACKUP_ENABLED=true
+      - MCP_MEMORY_ENCRYPTION_ENABLED=${MCP_MEMORY_ENCRYPTION_ENABLED:-true}
+      - MCP_MEMORY_BACKUP_ENABLED=${MCP_MEMORY_BACKUP_ENABLED:-true}
       - MCP_MEMORY_BACKUP_INTERVAL=${MCP_MEMORY_BACKUP_INTERVAL_HOURS:-24}h
-      - MCP_MEMORY_ACCESS_CONTROL_ENABLED=true
+      - MCP_MEMORY_ACCESS_CONTROL_ENABLED=${MCP_MEMORY_ACCESS_CONTROL_ENABLED:-true}
       
-      # OpenAI API configuration
+      # OpenAI API configuration (required for embeddings)
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       
-      # WebUI configuration - Use localhost for browser access
-      - NEXT_PUBLIC_API_URL=http://localhost:9080
-      - NEXT_PUBLIC_GRAPHQL_URL=http://localhost:9080/graphql
-      - NEXT_PUBLIC_WS_URL=ws://localhost:9080/ws
-      - NODE_ENV=production
+      # CORS configuration for external clients
+      - MCP_MEMORY_CORS_ENABLED=${MCP_MEMORY_CORS_ENABLED:-true}
+      - MCP_MEMORY_CORS_ORIGINS=${MCP_MEMORY_CORS_ORIGINS:-http://localhost:*,https://localhost:*}
       
     volumes:
       - mcp_data:/app/data
       - mcp_logs:/app/logs
       - mcp_backups:/app/backups
     healthcheck:
-      test: ["CMD", "sh", "-c", "curl -f http://localhost:9080/health && curl -f http://localhost:3000"]
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
       interval: ${HEALTH_CHECK_INTERVAL:-30s}
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-3}

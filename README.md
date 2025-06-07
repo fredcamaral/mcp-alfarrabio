@@ -1,6 +1,6 @@
-# MCP Memory Server
+# Lerian MCP Memory Server
 
-> **Smart memory for AI assistants** - A Model Context Protocol (MCP) server that remembers your conversations, learns from patterns, and provides intelligent context suggestions.
+> **Smart memory for AI assistants** - A high-performance Go-based Model Context Protocol (MCP) server that remembers your conversations, learns from patterns, and provides intelligent context suggestions.
 
 Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any MCP-compatible AI client.
 
@@ -267,7 +267,7 @@ Add to your Continue configuration:
 
 ## 🎯 What Does This Do?
 
-**MCP Memory** transforms your AI assistant into a smart companion that:
+**Lerian MCP Memory** transforms your AI assistant into a smart companion that:
 
 - **📚 Remembers Everything**: Stores conversations and contexts across sessions
 - **🔍 Smart Search**: AI-powered similarity search through your history  
@@ -291,6 +291,29 @@ Once configured, your AI gets 9 powerful consolidated memory tools:
 
 ---
 
+## 🏗️ Architecture Overview
+
+```
+┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
+│   MCP Clients   │    │   Go MCP Server  │    │    Storage      │
+│                 │    │                  │    │                 │
+│ Claude Desktop  │◄──►│ stdio + proxy    │    │    Qdrant       │
+│ Claude Code CLI │    │ WebSocket        │◄──►│   (Vectors)     │
+│ VS Code/Continue│    │ SSE              │    │                 │
+│ Cursor/Windsurf │    │ Direct HTTP      │    │   SQLite        │
+│ Custom Apps     │    │                  │    │   (Metadata)    │
+└─────────────────┘    └──────────────────┘    └─────────────────┘
+```
+
+**Available Endpoints:**
+- `http://localhost:9080/mcp` - Direct HTTP JSON-RPC
+- `http://localhost:9080/sse` - Server-Sent Events + HTTP
+- `ws://localhost:9080/ws` - WebSocket bidirectional
+- `http://localhost:8081/health` - Health check
+- `http://localhost:8082` - Metrics (optional)
+
+---
+
 ## 🔧 Troubleshooting
 
 ### Quick Diagnostics
@@ -300,7 +323,7 @@ Once configured, your AI gets 9 powerful consolidated memory tools:
 docker-compose ps
 
 # Test the server
-curl http://localhost:9081/health
+curl http://localhost:8081/health
 
 # Test MCP proxy
 echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}' | docker exec -i lerian-mcp-memory-server node /app/mcp-proxy.js
@@ -340,29 +363,6 @@ echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-1
 
 ---
 
-## 🏗️ Architecture Overview
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   MCP Clients   │    │   MCP Server     │    │    Storage      │
-│                 │    │                  │    │                 │
-│ Claude Desktop  │◄──►│ stdio + proxy    │    │    Qdrant       │
-│ Claude Code CLI │    │ WebSocket        │◄──►│   (Vectors)     │
-│ VS Code/Continue│    │ SSE              │    │                 │
-│ Cursor/Windsurf │    │ Direct HTTP      │    │   SQLite        │
-│ Custom Apps     │    │                  │    │   (Metadata)    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-**Available Endpoints:**
-- `http://localhost:9080/mcp` - Direct HTTP JSON-RPC
-- `http://localhost:9080/sse` - Server-Sent Events + HTTP
-- `ws://localhost:9080/ws` - WebSocket bidirectional
-- `http://localhost:9081/health` - Health check
-- `http://localhost:9082` - Metrics (optional)
-
----
-
 ## 🎛️ Advanced Configuration
 
 ### Environment Variables
@@ -373,33 +373,89 @@ OPENAI_API_KEY=your-key-here
 
 # Optional server configuration  
 MCP_MEMORY_LOG_LEVEL=info
-QDRANT_HOST=localhost
-QDRANT_PORT=6334
-MCP_MEMORY_DB_TYPE=sqlite
-MCP_MEMORY_BACKUP_ENABLED=true
+QDRANT_HOST_PORT=6333
+QDRANT_GRPC_PORT=6334
+MCP_HOST_PORT=9080
+MCP_HEALTH_PORT=8081
+MCP_METRICS_PORT=8082
 
-# Optional proxy configuration
+# Storage configuration
+MCP_MEMORY_DB_TYPE=sqlite
+SQLITE_DB_PATH=/app/data/memory.db
+QDRANT_COLLECTION=claude_memory
+MCP_MEMORY_EMBEDDING_DIMENSION=1536
+
+# Security settings
+MCP_MEMORY_ENCRYPTION_ENABLED=true
+MCP_MEMORY_BACKUP_ENABLED=true
+MCP_MEMORY_BACKUP_INTERVAL_HOURS=24
+MCP_MEMORY_ACCESS_CONTROL_ENABLED=true
+
+# CORS configuration
+MCP_MEMORY_CORS_ENABLED=true
+MCP_MEMORY_CORS_ORIGINS=http://localhost:*,https://localhost:*
+
+# Optional proxy configuration (for stdio clients)
 MCP_SERVER_HOST=localhost
 MCP_SERVER_PORT=9080
 MCP_SERVER_PATH=/mcp
 MCP_PROXY_DEBUG=false
 ```
 
+### Development Mode
+
+For local development:
+
+```bash
+# Run natively (requires Go 1.23+)
+go run ./cmd/server -mode=stdio
+
+# Or in HTTP mode for testing
+go run ./cmd/server -mode=http -addr=:9080
+
+# Build binary
+make build
+./bin/lerian-mcp-memory-server -mode=http
+```
+
 ### Production Deployment
 
 For production use:
-- [Docker Deployment Guide](docs/DEPLOYMENT.md)
-- [Monitoring Setup](docs/MONITORING.md)
-- [Production Config](configs/production/config.yaml)
+- Set proper environment variables in `.env`
+- Use Docker Compose with volume mounts for data persistence
+- Configure proper backup intervals
+- Monitor health endpoint: `http://localhost:8081/health`
+- Use `docker-compose logs -f` for monitoring
 
 ---
 
-## 📚 More Information
+## 📚 Key Features
 
-- **📖 [Full Documentation](docs/README.md)** - Complete guides and API reference  
-- **🔍 [Health Monitoring](http://localhost:9081/health)** - System status
-- **📊 [Metrics Dashboard](http://localhost:9082)** - Performance metrics
-- **🐳 [Container Logs](./docs/DEPLOYMENT.md)** - Docker guides
+### 🧠 Intelligence Engine
+- **Pattern Recognition**: Learns from your coding patterns and preferences
+- **Conflict Detection**: Identifies contradictory decisions or approaches
+- **Context Suggestions**: Proactively suggests relevant historical context
+- **Cross-Repository Learning**: Shares insights across different projects
+
+### 🔄 Multi-Protocol Support
+- **stdio compatibility**: Works with existing MCP clients
+- **WebSocket**: Real-time bidirectional communication
+- **Server-Sent Events**: Event streaming with HTTP fallback
+- **Direct HTTP**: Simple JSON-RPC over HTTP
+
+### 🏪 Storage & Performance
+- **Qdrant Vector Database**: High-performance similarity search
+- **SQLite Metadata**: Fast local storage for relationships and metadata
+- **Intelligent Chunking**: Optimizes content for vector embeddings
+- **Circuit Breakers**: Reliable external service integration
+
+### 🔒 Security & Reliability
+- **Access Control**: Configurable authentication and authorization
+- **Data Encryption**: Optional encryption for sensitive data
+- **Automatic Backups**: Scheduled data protection
+- **Health Monitoring**: Built-in health checks and metrics
+
+---
 
 ## 🤝 Contributing
 
@@ -407,7 +463,7 @@ We welcome contributions! See [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## 📄 License
 
-MIT License - see [LICENSE](LICENSE) file for details.
+Apache 2.0 License - see [LICENSE](LICENSE) file for details.
 
 ---
 
@@ -415,4 +471,4 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 Start with the [Quick Start](#-quick-start-5-minutes) above and choose your preferred [protocol option](#-mcp-protocol-options).
 
-**Questions?** [Open an issue](https://github.com/LerianStudio/lerian-mcp-memory/issues) or check our [documentation](docs/README.md).
+**Questions?** [Open an issue](https://github.com/LerianStudio/lerian-mcp-memory/issues) or check the troubleshooting section above.
