@@ -403,16 +403,19 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
               <CardTitle>OpenAI Integration</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label htmlFor="apiKey">API Key</Label>
-                <Input
-                  id="apiKey"
-                  type="password"
-                  value={config.openai.apiKey || ''}
-                  onChange={(e) => dispatch(updateOpenAIConfig({ apiKey: e.target.value }))}
-                  placeholder="sk-..."
-                />
-              </div>
+              <form onSubmit={(e) => e.preventDefault()}>
+                <div>
+                  <Label htmlFor="apiKey">API Key</Label>
+                  <Input
+                    id="apiKey"
+                    type="password"
+                    value={config.openai.apiKey || ''}
+                    onChange={(e) => dispatch(updateOpenAIConfig({ apiKey: e.target.value }))}
+                    placeholder="sk-..."
+                    autoComplete="off"
+                  />
+                </div>
+              </form>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -548,16 +551,19 @@ export function ConfigInterface({ className }: ConfigInterfaceProps) {
               </div>
 
               {config.authEnabled && (
-                <div>
-                  <Label htmlFor="authApiKey">API Key</Label>
-                  <Input
-                    id="authApiKey"
-                    type="password"
-                    value={config.apiKey || ''}
-                    onChange={(e) => dispatch(updateConfig({ apiKey: e.target.value }))}
-                    placeholder="Enter API key"
-                  />
-                </div>
+                <form onSubmit={(e) => e.preventDefault()}>
+                  <div>
+                    <Label htmlFor="authApiKey">API Key</Label>
+                    <Input
+                      id="authApiKey"
+                      type="password"
+                      value={config.apiKey || ''}
+                      onChange={(e) => dispatch(updateConfig({ apiKey: e.target.value }))}
+                      placeholder="Enter API key"
+                      autoComplete="off"
+                    />
+                  </div>
+                </form>
               )}
             </CardContent>
           </Card>

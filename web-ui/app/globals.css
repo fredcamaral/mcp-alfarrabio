@@ -552,3 +552,11 @@
     line-height: 1.25rem;
   }
 }
+
+/* Disable animations when user preference is set */
+.no-animations * {
+  animation-duration: 0ms !important;
+  animation-delay: 0ms !important;
+  transition-duration: 0ms !important;
+  transition-delay: 0ms !important;
+}

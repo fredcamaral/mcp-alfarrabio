@@ -1,0 +1,115 @@
+# Backend Services Only - MCP Memory Server + Qdrant
+# Use this for backend development/testing without frontend
+
+services:
+  # Qdrant Vector Database - High-performance vector search engine
+  qdrant:
+    image: qdrant/qdrant:latest
+    container_name: lerian-mcp-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_HOST_PORT:-6333}:6333"  # HTTP API
+      - "${QDRANT_GRPC_PORT:-6334}:6334"  # gRPC API
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__STORAGE__STORAGE_PATH=/qdrant/storage
+      - QDRANT__CLUSTER__ENABLED=false
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - lerian_mcp_network
+    # healthcheck:
+    #   test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/ || exit 1"]
+    #   interval: 30s
+    #   timeout: 10s
+    #   retries: 3
+    #   start_period: 10s
+
+  # MCP Memory Server (Backend Only)
+  lerian-mcp-memory:
+    build:
+      context: .
+      dockerfile: Dockerfile.backend
+      args:
+        - BUILD_VERSION=${BUILD_VERSION:-dev}
+    container_name: lerian-mcp-memory
+    restart: unless-stopped
+    depends_on:
+      - qdrant
+    ports:
+      - "${MCP_HOST_PORT:-9080}:9080"    # MCP API port
+      - "${MCP_HEALTH_PORT:-9081}:8081"  # Health check port
+      - "${MCP_METRICS_PORT:-9082}:8082" # Metrics port (optional)
+    environment:
+      # Core MCP Memory Server configuration
+      - MCP_MEMORY_DATA_DIR=/app/data
+      - MCP_MEMORY_CONFIG_DIR=/app/config
+      - MCP_MEMORY_LOG_LEVEL=${MCP_MEMORY_LOG_LEVEL:-info}
+      - MCP_MEMORY_HTTP_PORT=9080
+      - MCP_MEMORY_HEALTH_PORT=8081
+      - MCP_MEMORY_METRICS_PORT=8082
+      
+      # Qdrant vector database configuration
+      - MCP_MEMORY_STORAGE_PROVIDER=qdrant
+      - MCP_MEMORY_QDRANT_HOST=qdrant
+      - MCP_MEMORY_QDRANT_PORT=6334
+      - MCP_MEMORY_QDRANT_COLLECTION=${QDRANT_COLLECTION:-claude_memory}
+      - MCP_MEMORY_VECTOR_DIM=${MCP_MEMORY_EMBEDDING_DIMENSION:-1536}
+      
+      # SQLite storage (no PostgreSQL needed)
+      - MCP_MEMORY_DB_TYPE=sqlite
+      - MCP_MEMORY_DB_PATH=${SQLITE_DB_PATH:-/app/data/memory.db}
+      
+      # Security and backup settings
+      - MCP_MEMORY_ENCRYPTION_ENABLED=true
+      - MCP_MEMORY_BACKUP_ENABLED=true
+      - MCP_MEMORY_BACKUP_INTERVAL=${MCP_MEMORY_BACKUP_INTERVAL_HOURS:-24}h
+      - MCP_MEMORY_ACCESS_CONTROL_ENABLED=true
+      
+      # OpenAI API configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      
+      # Enable CORS for frontend development
+      - MCP_MEMORY_CORS_ENABLED=true
+      - MCP_MEMORY_CORS_ORIGINS=http://localhost:2001,http://localhost:2002,http://localhost:3000
+      
+    volumes:
+      - mcp_data:/app/data
+      - mcp_logs:/app/logs
+      - mcp_backups:/app/backups
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - lerian_mcp_network
+
+# Networks
+networks:
+  lerian_mcp_network:
+    driver: bridge
+
+# Volumes - CRITICAL: These contain all your memory data. NEVER DELETE!
+volumes:
+  # CRITICAL: Qdrant vector database - Contains all embeddings and search indices
+  qdrant_data:
+    driver: local
+    name: mcp_memory_qdrant_vector_db_NEVER_DELETE
+
+  # CRITICAL: MCP server data - Contains SQLite database and app data
+  mcp_data:
+    driver: local
+    name: mcp_memory_app_data_NEVER_DELETE
+
+  # Application logs - Safe to recreate but useful for debugging
+  mcp_logs:
+    driver: local
+    name: mcp_memory_logs_NEVER_DELETE
+
+  # Backup storage - Contains automated backups of your data
+  mcp_backups:
+    driver: local
+    name: mcp_memory_backups_NEVER_DELETE

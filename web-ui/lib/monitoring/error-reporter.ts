@@ -148,7 +148,9 @@ class BrowserErrorReporter implements ErrorReporter {
   }
 
   private generateId(): string {
-    return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+    // Use crypto.randomUUID() which is available in both browser and Node.js 
+    // In modern environments (Node 16+ and all browsers)
+    return crypto.randomUUID()
   }
 
   private determineSeverity(error: Error, context?: Partial<ErrorReport['context']>): ErrorReport['severity'] {

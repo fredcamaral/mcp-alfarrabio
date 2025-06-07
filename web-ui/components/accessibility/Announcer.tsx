@@ -53,8 +53,7 @@ export function useAnnouncer() {
       type: priority === 'assertive' ? 'error' : 'info',
       title: 'Screen Reader Announcement',
       message,
-      duration: 1000,
-      ariaOnly: true // Custom property to indicate this is for screen readers only
+      duration: 1000
     }))
   }, [dispatch])
 

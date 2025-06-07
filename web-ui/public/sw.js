@@ -394,6 +394,12 @@ async function handleBackgroundSync() {
 
 // Message handling for cache management
 self.addEventListener('message', (event) => {
+  // Validate origin to prevent malicious messages
+  if (event.origin !== self.location.origin) {
+    console.warn('Ignored message from unauthorized origin:', event.origin)
+    return
+  }
+  
   const { type, payload } = event.data
   
   switch (type) {

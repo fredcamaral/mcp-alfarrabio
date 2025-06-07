@@ -10,7 +10,6 @@ import { validateCSRFToken, validateCSRFTokenFromForm, setCSRFTokenInResponse } 
 
 // Routes that require CSRF protection
 const PROTECTED_ROUTES = [
-  '/api/backup',
   '/api/memories',
   '/api/search',
   '/api/chunks',
@@ -27,6 +26,9 @@ const EXEMPT_ROUTES = [
   '/api/errors',
   '/api/performance',
   '/api/mcp',  // MCP proxy doesn't need CSRF as the backend handles security
+  '/api/graphql',  // GraphQL proxy doesn't need CSRF as the backend handles security
+  '/api/backup',  // Backup endpoint has its own auth mechanism
+  '/api/multi-repo',  // Multi-repo endpoints proxy to backend
   '/health'
 ]
 

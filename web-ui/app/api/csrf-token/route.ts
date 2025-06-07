@@ -6,7 +6,7 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server'
-import { generateCSRFToken, validateCSRFToken } from '@/lib/csrf'
+import { generateCSRFToken } from '@/lib/csrf'
 import { logger } from '@/lib/logger'
 
 /**
@@ -24,7 +24,7 @@ export async function GET() {
     })
 
     // Set CSRF token in httpOnly cookie for additional security
-    response.cookies.set('csrf-token', token, {
+    response.cookies.set('__csrf-token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'strict',
@@ -66,8 +66,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Validate the token
-    const isValid = validateCSRFToken(token)
+    // Validate the token by checking if it matches the cookie
+    const cookieToken = request.cookies.get('__csrf-token')?.value
+    const isValid = cookieToken === token
 
     if (!isValid) {
       logger.warn('Invalid CSRF token attempted', {

@@ -23,7 +23,7 @@ interface UIState {
   layout: 'default' | 'compact' | 'comfortable'
   
   // Current page/section
-  currentSection: 'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo'
+  currentSection: 'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo' | 'backup'
   
   // Search state
   globalSearchFocused: boolean
@@ -180,7 +180,7 @@ const uiSlice = createSlice({
     },
     
     // Navigation
-    setCurrentSection: (state, action: PayloadAction<'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo'>) => {
+    setCurrentSection: (state, action: PayloadAction<'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo' | 'backup'>) => {
       state.currentSection = action.payload
     },
     

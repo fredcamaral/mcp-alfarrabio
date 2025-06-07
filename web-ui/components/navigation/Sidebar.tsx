@@ -28,14 +28,15 @@ import {
   Globe,
   Layers3,
   Zap,
-  Activity
+  Activity,
+  Archive
 } from 'lucide-react'
 
 interface NavigationItem {
   id: string
   label: string
   icon: React.ComponentType<{ className?: string }>
-  section: 'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo'
+  section: 'memories' | 'patterns' | 'repositories' | 'settings' | 'graph' | 'performance' | 'realtime' | 'multi-repo' | 'backup'
   badge?: string
   disabled?: boolean
 }
@@ -89,6 +90,12 @@ const toolsNavItems: NavigationItem[] = [
 ]
 
 const bottomNavItems: NavigationItem[] = [
+  {
+    id: 'backup',
+    label: 'Backup',
+    icon: Archive,
+    section: 'backup',
+  },
   {
     id: 'performance',
     label: 'Performance',

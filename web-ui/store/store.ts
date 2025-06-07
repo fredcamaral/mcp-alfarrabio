@@ -5,6 +5,7 @@ import memoriesReducer from './slices/memoriesSlice'
 import uiReducer from './slices/uiSlice'
 import filtersReducer from './slices/filtersSlice'
 import configReducer from './slices/configSlice'
+import preferencesReducer from './slices/preferencesSlice'
 
 export const store = configureStore({
   reducer: {
@@ -12,6 +13,7 @@ export const store = configureStore({
     ui: uiReducer,
     filters: filtersReducer,
     config: configReducer,
+    preferences: preferencesReducer,
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({

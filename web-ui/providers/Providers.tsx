@@ -9,6 +9,7 @@ import { ThemeProvider } from './ThemeProvider'
 import { MonitoringProvider } from './MonitoringProvider'
 import { PerformanceProvider, PerformanceIndicator } from './PerformanceProvider'
 import { WebSocketProvider } from './WebSocketProvider'
+import { PreferencesSyncProvider } from './PreferencesSyncProvider'
 import { ErrorBoundary, AsyncErrorBoundary } from '@/components/error/ErrorBoundary'
 import { MonitoredErrorBoundary } from '@/components/error/MonitoredErrorBoundary'
 import { logger } from '@/lib/logger'
@@ -50,19 +51,21 @@ export function Providers({ children }: ProvidersProps) {
                   {/* Main application error boundary with monitoring */}
                   <MonitoredErrorBoundary>
                     <CSRFProvider>
-                      <ThemeProvider defaultTheme="dark" storageKey="mcp-memory-theme">
-                        <WebSocketProvider>
-                          {/* Final error boundary for application content */}
-                          <ErrorBoundary
-                            enableRetry={true}
-                            enableLogging={true}
-                            showErrorDetails={process.env.NODE_ENV === 'development'}
-                          >
-                            {children}
-                            <PerformanceIndicator />
-                          </ErrorBoundary>
-                        </WebSocketProvider>
-                      </ThemeProvider>
+                      <PreferencesSyncProvider>
+                        <ThemeProvider defaultTheme="dark" storageKey="mcp-memory-theme">
+                          <WebSocketProvider>
+                            {/* Final error boundary for application content */}
+                            <ErrorBoundary
+                              enableRetry={true}
+                              enableLogging={true}
+                              showErrorDetails={process.env.NODE_ENV === 'development'}
+                            >
+                              {children}
+                              <PerformanceIndicator />
+                            </ErrorBoundary>
+                          </WebSocketProvider>
+                        </ThemeProvider>
+                      </PreferencesSyncProvider>
                     </CSRFProvider>
                   </MonitoredErrorBoundary>
                 </PerformanceProvider>

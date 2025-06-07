@@ -16,6 +16,9 @@ import { FilterPanel } from '@/components/filters/FilterPanel'
 import { KnowledgeGraph } from '@/components/graph/KnowledgeGraph'
 import { PerformanceDashboard } from '@/components/performance/PerformanceDashboard'
 import { RealtimeMemoryFeed } from '@/components/realtime/RealtimeMemoryFeed'
+import { BackupManager } from '@/components/backup/BackupManager'
+import { PreferencesPanel } from '@/components/preferences/PreferencesPanel'
+import { MultiRepoManager } from '@/components/multi-repo/MultiRepoManager'
 import { Card, CardContent } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Brain, Search, BarChart3, GitBranch, Sparkles, Filter, Activity } from 'lucide-react'
@@ -151,58 +154,8 @@ export default function HomePage() {
             enableRetry={true}
           >
             <div className="min-h-[calc(100vh-4rem)] px-6 py-6">
-              <div className="max-w-6xl">
-                <div className="mb-8">
-                  <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-                    <GitBranch className="h-8 w-8 text-primary" />
-                    Multi-Repository Intelligence
-                  </h1>
-                  <p className="text-muted-foreground text-lg">
-                    Cross-repository pattern analysis and knowledge discovery
-                  </p>
-                </div>
-                {/* TODO: Create dedicated MultiRepoManager component with cross-repo features */}
-                <Card className="p-8">
-                  <CardContent className="text-center">
-                    <GitBranch className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                    <h3 className="text-xl font-semibold mb-2">Multi-Repository Intelligence</h3>
-                    <p className="text-muted-foreground mb-6">
-                      Advanced cross-repository analysis features are coming soon. This will include:
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left max-w-2xl mx-auto">
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-medium mb-2">Cross-Repo Patterns</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Discover patterns and connections across multiple repositories
-                        </p>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-medium mb-2">Knowledge Graph</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Visualize relationships between different projects
-                        </p>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-medium mb-2">Shared Learning</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Learn from patterns across your entire codebase
-                        </p>
-                      </div>
-                      <div className="p-4 border rounded-lg">
-                        <h4 className="font-medium mb-2">Impact Analysis</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Understand how changes in one repo affect others
-                        </p>
-                      </div>
-                    </div>
-                    <Button 
-                      className="mt-6"
-                      onClick={() => dispatch(setCurrentSection('repositories'))}
-                    >
-                      Manage Repositories
-                    </Button>
-                  </CardContent>
-                </Card>
+              <div className="max-w-7xl mx-auto">
+                <MultiRepoManager />
               </div>
             </div>
           </ErrorBoundary>
@@ -269,6 +222,20 @@ export default function HomePage() {
           </ErrorBoundary>
         )
 
+      case 'backup':
+        return (
+          <ErrorBoundary
+            onError={(error) => logger.error('Backup Manager error:', error)}
+            enableRetry={true}
+          >
+            <div className="min-h-[calc(100vh-4rem)] px-6 py-6">
+              <div className="max-w-6xl mx-auto">
+                <BackupManager />
+              </div>
+            </div>
+          </ErrorBoundary>
+        )
+
       case 'settings':
         return (
           <ErrorBoundary
@@ -276,8 +243,11 @@ export default function HomePage() {
             enableRetry={true}
           >
             <div className="min-h-[calc(100vh-4rem)] px-6 py-6">
-              <div className="max-w-4xl">
+              <div className="max-w-6xl mx-auto space-y-8">
                 <ConfigInterface />
+                <div className="border-t pt-8">
+                  <PreferencesPanel />
+                </div>
               </div>
             </div>
           </ErrorBoundary>

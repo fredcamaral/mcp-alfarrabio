@@ -30,6 +30,10 @@ import (
 const (
 	// HTTP method constants
 	methodOptions = "OPTIONS"
+	
+	// Default origins for CORS
+	defaultLocalOrigin = "http://localhost:2001"
+	defaultDevOrigin   = "http://localhost:3000"
 )
 
 func main() {
@@ -198,7 +202,7 @@ func createFallbackGraphQLHandler(schemaErr error) http.HandlerFunc {
 		// Set CORS headers with specific origin to allow credentials
 		origin := r.Header.Get("Origin")
 		if origin == "" {
-			origin = "http://localhost:2001"
+			origin = defaultLocalOrigin
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
@@ -227,7 +231,7 @@ func createGraphQLHandler(h *handler.Handler) http.HandlerFunc {
 		// CORS headers with specific origin to allow credentials
 		origin := r.Header.Get("Origin")
 		if origin == "" {
-			origin = "http://localhost:2001"
+			origin = defaultLocalOrigin
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
@@ -250,7 +254,7 @@ func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
 		// Set CORS headers with specific origin to allow credentials
 		origin := r.Header.Get("Origin")
 		if origin == "" {
-			origin = "http://localhost:2001"
+			origin = defaultLocalOrigin
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "POST, "+methodOptions)
@@ -293,7 +297,7 @@ func setupSSEHandler(mux *http.ServeMux, mcpServer *server.Server) {
 		if r.Method == methodOptions {
 			origin := r.Header.Get("Origin")
 			if origin == "" {
-				origin = "http://localhost:2001"
+				origin = defaultLocalOrigin
 			}
 			w.Header().Set("Access-Control-Allow-Origin", origin)
 			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
@@ -323,7 +327,7 @@ func setupSSEHandler(mux *http.ServeMux, mcpServer *server.Server) {
 func handleSSEPost(w http.ResponseWriter, r *http.Request, mcpServer *server.Server) {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		origin = "http://localhost:2001"
+		origin = defaultLocalOrigin
 	}
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Credentials", "true")
@@ -354,7 +358,7 @@ func handleSSEStream(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Connection", "keep-alive")
 	origin := r.Header.Get("Origin")
 	if origin == "" {
-		origin = "http://localhost:2001"
+		origin = defaultLocalOrigin
 	}
 	w.Header().Set("Access-Control-Allow-Origin", origin)
 	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control, X-CSRF-Token")
@@ -394,7 +398,7 @@ func setupWebSocketHandler(mux *http.ServeMux, ctx context.Context, wsHub *mcpwe
 		CheckOrigin: func(r *http.Request) bool {
 			origin := r.Header.Get("Origin")
 			// Allow localhost connections for development
-			return origin == "http://localhost:2001" || origin == "http://localhost:3000" || origin == ""
+			return origin == defaultLocalOrigin || origin == defaultDevOrigin || origin == ""
 		},
 	}
 

@@ -26,7 +26,9 @@ BLUE := \033[34m
 RESET := \033[0m
 
 .PHONY: help build clean test lint fmt vet dev docker-build docker-up docker-down \
-	dev-up dev-down dev-logs setup-env deps tidy ensure-env
+	dev-up dev-down dev-logs setup-env deps tidy ensure-env \
+	backend-up backend-down backend-logs frontend-up frontend-down frontend-logs \
+	dev-backend-up dev-backend-down dev-backend-logs full-up full-down full-logs
 
 # Default target - show help
 help: ## Show this help message
@@ -153,3 +155,104 @@ ensure-env: ## Ensure .env file exists (internal)
 		echo "$(YELLOW)⚠️  Run 'make setup-env' to continue$(RESET)"; \
 		exit 1; \
 	fi
+
+## Docker Compose - Segregated Services
+# Backend only (fastest for backend development)
+backend-up: ## Start backend services only (Qdrant + MCP Server)
+	@echo "$(GREEN)Starting backend services...$(RESET)"
+	docker-compose -f docker-compose.backend.yml up -d
+	@echo "$(GREEN)✅ Backend services running:$(RESET)"
+	@echo "  - MCP API: http://localhost:9080"
+	@echo "  - Health: http://localhost:9081/health"
+	@echo "  - Qdrant: http://localhost:6333"
+
+backend-down: ## Stop backend services
+	@echo "$(YELLOW)Stopping backend services...$(RESET)"
+	docker-compose -f docker-compose.backend.yml down
+
+backend-logs: ## Show backend logs
+	docker-compose -f docker-compose.backend.yml logs -f
+
+# Frontend only (requires backend running)
+frontend-up: ## Start frontend service only (requires backend running)
+	@echo "$(GREEN)Starting frontend service...$(RESET)"
+	@echo "$(YELLOW)⚠️  Make sure backend is running (make backend-up)$(RESET)"
+	@if ! docker network ls | grep -q "lerian-mcp-memory_lerian_mcp_network"; then \
+		echo "$(YELLOW)Creating network (backend not running?)...$(RESET)"; \
+		docker network create lerian-mcp-memory_lerian_mcp_network || true; \
+	fi
+	docker-compose -f docker-compose.frontend.yml up -d
+	@echo "$(GREEN)✅ Frontend service running:$(RESET)"
+	@echo "  - WebUI: http://localhost:2001"
+
+frontend-down: ## Stop frontend service
+	@echo "$(YELLOW)Stopping frontend service...$(RESET)"
+	docker-compose -f docker-compose.frontend.yml down
+
+frontend-logs: ## Show frontend logs
+	docker-compose -f docker-compose.frontend.yml logs -f
+
+# Development setup (backend in Docker, frontend local)
+dev-backend-up: ## Start development backend (optimized for frontend development)
+	@echo "$(GREEN)Starting development backend...$(RESET)"
+	docker-compose -f docker-compose.dev.yml up -d
+	@echo "$(GREEN)✅ Development backend running:$(RESET)"
+	@echo "  - MCP API: http://localhost:9080"
+	@echo "  - Qdrant: http://localhost:6333"
+	@echo "$(BLUE)💡 Now run frontend locally:$(RESET)"
+	@echo "  cd web-ui && npm run dev"
+
+dev-backend-down: ## Stop development backend
+	@echo "$(YELLOW)Stopping development backend...$(RESET)"
+	docker-compose -f docker-compose.dev.yml down
+
+dev-backend-logs: ## Show development backend logs
+	docker-compose -f docker-compose.dev.yml logs -f
+
+# Full stack (original setup)
+full-up: ## Start full stack (backend + frontend) - original setup
+	@echo "$(GREEN)Starting full stack...$(RESET)"
+	docker-compose up -d
+	@echo "$(GREEN)✅ Full stack running:$(RESET)"
+	@echo "  - MCP API: http://localhost:9080"
+	@echo "  - WebUI: http://localhost:2001"
+	@echo "  - Qdrant: http://localhost:6333"
+
+full-down: ## Stop full stack
+	@echo "$(YELLOW)Stopping full stack...$(RESET)"
+	docker-compose down
+
+full-logs: ## Show full stack logs
+	docker-compose logs -f
+
+# Quick development workflows
+dev-quick: ## Quick development setup (backend in Docker, instructions for frontend)
+	@echo "$(BLUE)🚀 Quick Development Setup$(RESET)"
+	@echo "$(GREEN)1. Starting backend services...$(RESET)"
+	$(MAKE) dev-backend-up
+	@echo ""
+	@echo "$(BLUE)2. Start frontend locally:$(RESET)"
+	@echo "  cd web-ui"
+	@echo "  npm install  # if first time"
+	@echo "  npm run dev"
+	@echo ""
+	@echo "$(BLUE)3. Access your application:$(RESET)"
+	@echo "  - Frontend: http://localhost:2002 (with hot reload)"
+	@echo "  - Backend API: http://localhost:9080"
+	@echo ""
+	@echo "$(YELLOW)When done, run: make dev-backend-down$(RESET)"
+
+# Utility commands
+docker-clean: ## Clean up Docker resources
+	@echo "$(YELLOW)Cleaning up Docker resources...$(RESET)"
+	docker-compose -f docker-compose.yml down -v
+	docker-compose -f docker-compose.backend.yml down -v
+	docker-compose -f docker-compose.frontend.yml down -v
+	docker-compose -f docker-compose.dev.yml down -v
+	docker system prune -f
+
+docker-rebuild: ## Rebuild all Docker images
+	@echo "$(GREEN)Rebuilding Docker images...$(RESET)"
+	docker-compose -f docker-compose.yml build --no-cache
+	docker-compose -f docker-compose.backend.yml build --no-cache
+	docker-compose -f docker-compose.frontend.yml build --no-cache

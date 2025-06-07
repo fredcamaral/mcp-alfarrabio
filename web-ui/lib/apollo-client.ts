@@ -189,6 +189,9 @@ const retryLink = new RetryLink({
 // Auth link with CSRF protection
 const authLink = setContext((_, { headers }) => {
   // Get authentication token if available
+  // NOTE: localStorage is vulnerable to XSS attacks. In production,
+  // consider using httpOnly cookies for authentication tokens.
+  // Currently disabled as authentication is not required for local usage.
   const token = typeof window !== 'undefined'
     ? localStorage.getItem('mcp_auth_token')
     : null
@@ -215,6 +218,7 @@ if (config.features.websocket && config.features.graphqlSubscriptions) {
       createClient({
         url: getWebSocketUrl().replace('ws://', 'ws://').replace('wss://', 'wss://') + '/graphql',
         connectionParams: () => {
+          // NOTE: See security note above about localStorage usage
           const token = typeof window !== 'undefined'
             ? localStorage.getItem('mcp_auth_token')
             : null

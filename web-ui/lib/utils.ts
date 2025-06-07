@@ -103,9 +103,11 @@ export function isDefined<T>(value: T | null | undefined): value is T {
   return value !== null && value !== undefined
 }
 
-// Generate a unique ID
+// Generate a unique ID using cryptographically secure random values
 export function generateId(): string {
-  return Math.random().toString(36).substring(2) + Date.now().toString(36)
+  // Use crypto.randomUUID() which is available in both browser and Node.js 
+  // In modern environments (Node 16+ and all browsers)
+  return crypto.randomUUID()
 }
 
 // Validate environment variables

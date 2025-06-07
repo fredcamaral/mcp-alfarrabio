@@ -159,8 +159,9 @@ export function BackupManager({ className }: BackupManagerProps) {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          backupFile: selectedBackup.metadata.backup_file,
-          overwrite: overwriteData
+          file: selectedBackup.metadata.backup_file,
+          overwrite: overwriteData,
+          validateIntegrity: true
         })
       })
       
