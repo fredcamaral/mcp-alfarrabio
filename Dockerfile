@@ -54,7 +54,7 @@ RUN ls -la lerian-mcp-memory-server && \
     ./lerian-mcp-memory-server --help || echo "Binary built successfully"
 
 # Stage 2: Production runtime
-FROM alpine:3.19
+FROM alpine:3.22
 
 # Install runtime dependencies
 RUN apk add --no-cache \
