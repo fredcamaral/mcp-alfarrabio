@@ -2,8 +2,10 @@ root = "."
 tmp_dir = "tmp"
 
 [build]
-  # Binary name
-  bin = "./tmp/lerian-mcp-memory-server -mode=http -addr=:9080"
+  # Binary to execute after build
+  bin = "./tmp/lerian-mcp-memory-server"
+  # Arguments to pass to the binary
+  args_bin = ["-mode=http", "-addr=:9080"]
   # Build command
   cmd = "go build -o ./tmp/lerian-mcp-memory-server ./cmd/server"
   # Watch these directories

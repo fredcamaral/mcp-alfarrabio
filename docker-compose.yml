@@ -8,7 +8,7 @@ services:
   # Qdrant Vector Database - High-performance vector search engine
   qdrant:
     image: qdrant/qdrant:latest
-    container_name: lerian-mcp-qdrant
+    container_name: lerian-mcp-memory-qdrant
     restart: unless-stopped
     ports:
       - "${QDRANT_HOST_PORT:-6333}:6333"  # HTTP API
@@ -21,7 +21,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
-      - lerian_mcp_network
+      - lerian_mcp_memory_network
 
   # Lerian MCP Memory Server (Go Backend)
   lerian-mcp-memory:
@@ -58,12 +58,12 @@ services:
       # Enable automatic updates via Watchtower
       - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - lerian_mcp_network
+      - lerian_mcp_memory_network
 
   # Watchtower - Automatic container updates
   watchtower:
     image: containrrr/watchtower:latest
-    container_name: lerian-mcp-watchtower
+    container_name: lerian-mcp-memory-watchtower
     restart: unless-stopped
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
@@ -78,11 +78,11 @@ services:
       # Don't auto-update watchtower itself
       - "com.centurylinklabs.watchtower.enable=false"
     networks:
-      - lerian_mcp_network
+      - lerian_mcp_memory_network
 
 # Networks
 networks:
-  lerian_mcp_network:
+  lerian_mcp_memory_network:
     driver: bridge
 
 # Volumes - CRITICAL: These contain all your memory data. NEVER DELETE!

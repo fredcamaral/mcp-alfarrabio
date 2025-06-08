@@ -28,7 +28,7 @@ import (
 const (
 	// HTTP method constants
 	methodOptions = "OPTIONS"
-	
+
 	// Default origins for CORS
 	defaultLocalOrigin = "http://localhost:2001"
 	defaultDevOrigin   = "http://localhost:3000"
@@ -109,13 +109,13 @@ func main() {
 
 func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string) error {
 	// Initialize core components
-	wsHub, memoryServer, err := initializeServerComponents(ctx)
+	wsHub, _, err := initializeServerComponents(ctx)
 	if err != nil {
 		return err
 	}
 
 	// Setup HTTP routes
-	mux := setupHTTPRoutes(ctx, mcpServer, wsHub, memoryServer)
+	mux := setupHTTPRoutes(ctx, mcpServer, wsHub)
 
 	// Create and start HTTP server
 	return startAndRunHTTPServer(ctx, mux, addr)
@@ -150,7 +150,7 @@ func initializeServerComponents(ctx context.Context) (*mcpwebsocket.Hub, *mcp.Me
 }
 
 // setupHTTPRoutes configures all HTTP routes and handlers
-func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwebsocket.Hub, memoryServer *mcp.MemoryServer) *http.ServeMux {
+func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwebsocket.Hub) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Setup MCP endpoint
@@ -167,7 +167,6 @@ func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwe
 
 	return mux
 }
-
 
 // setupMCPHandler configures the MCP-over-HTTP endpoint
 func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
