@@ -170,21 +170,48 @@ docker-down: ## Stop services with docker-compose
 	@echo "$(GREEN)Stopping services...$(RESET)"
 	docker-compose down
 
-docker-logs: ## View Docker logs
+docker-logs: ensure-env ## View Docker logs
 	docker-compose logs -f
 
-docker-restart: ## Restart Docker services
+docker-restart: ensure-env ## Restart Docker services
 	@echo "$(GREEN)Restarting services...$(RESET)"
 	docker-compose restart
 
-docker-clean: ## Clean up Docker resources
+docker-clean: ## Clean up Docker resources (does not require .env)
 	@echo "$(YELLOW)Cleaning up Docker resources...$(RESET)"
-	docker-compose down -v
+	docker-compose down -v 2>/dev/null || true
 	docker system prune -f
 
-docker-rebuild: ## Rebuild Docker images
+docker-rebuild: ensure-env ## Rebuild Docker images
 	@echo "$(GREEN)Rebuilding Docker images...$(RESET)"
 	docker-compose build --no-cache
+
+## Development Docker Commands
+dev-docker-up: ensure-env ## Start development services with hot reload
+	@echo "$(GREEN)Starting development environment with hot reload...$(RESET)"
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	@echo "$(GREEN)✅ Development services started!$(RESET)"
+	@echo "  - MCP API: http://localhost:9080"
+	@echo "  - Health: http://localhost:8081/health"
+	@echo "  - Qdrant: http://localhost:6333"
+	@echo ""
+	@echo "$(YELLOW)Hot reload enabled - changes will be reflected automatically$(RESET)"
+	@echo "$(BLUE)View logs: make dev-docker-logs$(RESET)"
+
+dev-docker-down: ## Stop development services
+	@echo "$(GREEN)Stopping development services...$(RESET)"
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+
+dev-docker-logs: ## View development Docker logs
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f lerian-mcp-memory
+
+dev-docker-rebuild: ## Rebuild development Docker image
+	@echo "$(GREEN)Rebuilding development Docker image...$(RESET)"
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache lerian-mcp-memory
+
+dev-docker-shell: ## Open shell in development container
+	@echo "$(GREEN)Opening shell in development container...$(RESET)"
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec lerian-mcp-memory /bin/sh
 
 ## Utility Commands
 clean: ## Clean build artifacts
@@ -202,18 +229,6 @@ tidy: ## Tidy go modules
 	@echo "$(GREEN)Tidying go modules...$(RESET)"
 	go mod tidy
 
-## Demo and Testing Commands
-demo: ## Run demo client
-	@echo "$(GREEN)Running demo client...$(RESET)"
-	go run ./cmd/demo
-
-test-mcp: ## Run MCP protocol test
-	@echo "$(GREEN)Testing MCP protocol...$(RESET)"
-	go run ./cmd/test-mcp
-
-graphql: ## Start GraphQL server
-	@echo "$(GREEN)Starting GraphQL server...$(RESET)"
-	go run ./cmd/graphql
 
 ## Production Commands
 prod-deploy: ci docker-build ## Deploy to production (CI + Docker build)

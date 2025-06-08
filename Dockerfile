@@ -62,6 +62,8 @@ RUN apk add --no-cache \
     curl \
     wget \
     tzdata \
+    nodejs \
+    npm \
     && update-ca-certificates
 
 # Create non-root user

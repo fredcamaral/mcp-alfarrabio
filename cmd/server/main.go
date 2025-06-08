@@ -9,7 +9,6 @@ import (
 	"flag"
 	"fmt"
 	"lerian-mcp-memory/internal/config"
-	mcpgraphql "lerian-mcp-memory/internal/graphql"
 	"lerian-mcp-memory/internal/mcp"
 	mcpwebsocket "lerian-mcp-memory/internal/websocket"
 	"log"
@@ -24,7 +23,6 @@ import (
 	"github.com/fredcamaral/gomcp-sdk/transport"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/graphql-go/handler"
 )
 
 const (
@@ -137,12 +135,12 @@ func initializeServerComponents(ctx context.Context) (*mcpwebsocket.Hub, *mcp.Me
 
 	memoryServer, err := mcp.NewMemoryServer(cfg) //nolint:contextcheck // Constructor doesn't need context, Start() method does
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create memory server for GraphQL: %w", err)
+		return nil, nil, fmt.Errorf("failed to create memory server: %w", err)
 	}
 
 	// Initialize memory server
 	if err := memoryServer.Start(ctx); err != nil {
-		return nil, nil, fmt.Errorf("failed to start memory server for GraphQL: %w", err)
+		return nil, nil, fmt.Errorf("failed to start memory server: %w", err)
 	}
 
 	// Set the WebSocket hub in the memory server for broadcasting
@@ -154,9 +152,6 @@ func initializeServerComponents(ctx context.Context) (*mcpwebsocket.Hub, *mcp.Me
 // setupHTTPRoutes configures all HTTP routes and handlers
 func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwebsocket.Hub, memoryServer *mcp.MemoryServer) *http.ServeMux {
 	mux := http.NewServeMux()
-
-	// Setup GraphQL endpoint
-	setupGraphQLHandler(mux, memoryServer)
 
 	// Setup MCP endpoint
 	setupMCPHandler(mux, mcpServer)
@@ -173,80 +168,6 @@ func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwe
 	return mux
 }
 
-// setupGraphQLHandler configures the GraphQL endpoint
-func setupGraphQLHandler(mux *http.ServeMux, memoryServer *mcp.MemoryServer) {
-	container := memoryServer.GetContainer()
-	schema, err := mcpgraphql.NewSchema(container)
-	if err != nil {
-		log.Printf("Warning: Failed to create GraphQL schema: %v", err)
-		// Add a fallback GraphQL endpoint
-		mux.HandleFunc("/graphql", createFallbackGraphQLHandler(err))
-	} else {
-		// Create GraphQL handler with the schema
-		graphqlSchema := schema.GetSchema()
-		h := handler.New(&handler.Config{
-			Schema:     &graphqlSchema,
-			Pretty:     true,
-			GraphiQL:   true,
-			Playground: true,
-		})
-
-		// Add GraphQL endpoint with CORS
-		mux.HandleFunc("/graphql", createGraphQLHandler(h))
-	}
-}
-
-// createFallbackGraphQLHandler creates a fallback handler when GraphQL schema creation fails
-func createFallbackGraphQLHandler(schemaErr error) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// Set CORS headers with specific origin to allow credentials
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			origin = defaultLocalOrigin
-		}
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-		w.Header().Set("Content-Type", "application/json")
-
-		if r.Method == methodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		w.WriteHeader(http.StatusServiceUnavailable)
-		if err := json.NewEncoder(w).Encode(map[string]string{
-			"error":   "GraphQL service unavailable",
-			"message": fmt.Sprintf("Schema creation failed: %v", schemaErr),
-		}); err != nil {
-			log.Printf("Error encoding GraphQL error response: %v", err)
-		}
-	}
-}
-
-// createGraphQLHandler creates the main GraphQL handler
-func createGraphQLHandler(h *handler.Handler) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		// CORS headers with specific origin to allow credentials
-		origin := r.Header.Get("Origin")
-		if origin == "" {
-			origin = defaultLocalOrigin
-		}
-		w.Header().Set("Access-Control-Allow-Origin", origin)
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
-		w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-		if r.Method == methodOptions {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		// Delegate to GraphQL handler
-		h.ServeHTTP(w, r)
-	}
-}
 
 // setupMCPHandler configures the MCP-over-HTTP endpoint
 func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
@@ -467,7 +388,6 @@ func startAndRunHTTPServer(ctx context.Context, mux *http.ServeMux, addr string)
 		log.Printf("🔗 MCP endpoint: http://localhost%s/mcp", addr)
 		log.Printf("📡 SSE endpoint: http://localhost%s/sse", addr)
 		log.Printf("🔌 WebSocket endpoint: ws://localhost%s/ws", addr)
-		log.Printf("🎨 GraphQL endpoint: http://localhost%s/graphql", addr)
 		log.Printf("💚 Health check: http://localhost%s/health", addr)
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)

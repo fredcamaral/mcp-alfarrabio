@@ -1,0 +1,116 @@
+# Development Dockerfile for Lerian MCP Memory Server
+# Includes hot reload with Air for rapid development
+
+FROM golang:1.24-alpine AS dev
+
+# Install dependencies including Air for hot reload
+RUN apk add --no-cache \
+    git \
+    gcc \
+    musl-dev \
+    ca-certificates \
+    curl \
+    wget \
+    tzdata \
+    nodejs \
+    npm \
+    && update-ca-certificates
+
+# Install Air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+# Create non-root user for development
+RUN addgroup -g 1001 -S mcpuser && \
+    adduser -u 1001 -S mcpuser -G mcpuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+
+# Copy the pkg directory to satisfy the replace directive
+COPY pkg ./pkg
+
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy the rest of the source code
+COPY . .
+
+# Create required directories with proper ownership
+RUN mkdir -p /app/data /app/config /app/logs /app/backups /app/audit_logs && \
+    chown -R mcpuser:mcpuser /app
+
+# Create Air configuration for hot reload
+RUN cat > .air.toml << 'EOF'
+root = "."
+testdata_dir = "testdata"
+tmp_dir = "tmp"
+
+[build]
+  args_bin = ["-mode=http", "-addr=:9080"]
+  bin = "./tmp/main"
+  cmd = "go build -o ./tmp/main ./cmd/server"
+  delay = 1000
+  exclude_dir = ["assets", "tmp", "vendor", "testdata", "web-ui", "node_modules"]
+  exclude_file = []
+  exclude_regex = ["_test.go"]
+  exclude_unchanged = false
+  follow_symlink = false
+  full_bin = ""
+  include_dir = []
+  include_ext = ["go", "tpl", "tmpl", "html"]
+  include_file = []
+  kill_delay = "0s"
+  log = "build-errors.log"
+  poll = false
+  poll_interval = 0
+  post_cmd = []
+  pre_cmd = []
+  rerun = false
+  rerun_delay = 500
+  send_interrupt = false
+  stop_on_error = false
+
+[color]
+  app = ""
+  build = "yellow"
+  main = "magenta"
+  runner = "green"
+  watcher = "cyan"
+
+[log]
+  main_only = false
+  time = false
+
+[misc]
+  clean_on_exit = false
+
+[screen]
+  clear_on_rebuild = false
+  keep_scroll = true
+EOF
+
+# Switch to non-root user
+USER mcpuser
+
+# Expose ports
+EXPOSE 9080 8081 8082
+
+# Set environment variables for development
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux \
+    MCP_MEMORY_DATA_DIR=/app/data \
+    MCP_MEMORY_CONFIG_DIR=/app/config \
+    MCP_MEMORY_LOG_DIR=/app/logs \
+    MCP_MEMORY_BACKUP_DIR=/app/backups \
+    MCP_MEMORY_HTTP_PORT=9080 \
+    MCP_MEMORY_HEALTH_PORT=8081 \
+    MCP_MEMORY_METRICS_PORT=8082 \
+    MCP_MEMORY_LOG_LEVEL=debug \
+    CONFIG_PATH=/app/config/config.yaml
+
+# Default command runs Air for hot reload
+CMD ["air", "-c", ".air.toml"]

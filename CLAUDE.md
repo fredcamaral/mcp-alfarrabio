@@ -27,9 +27,8 @@ Lerian MCP Memory Server is a high-performance Go-based Model Context Protocol (
 
 ### Entry Points
 - `cmd/server/main.go` - Main server with stdio/HTTP mode support
-- `cmd/demo/main.go` - Demo/testing client
-- `cmd/graphql/main.go` - GraphQL API server
-- `cmd/test-mcp/main.go` - MCP protocol testing utility
+- `cmd/migrate/main.go` - Database migration utility
+- `cmd/openapi/main.go` - OpenAPI specification generator
 
 ## Common Development Commands
 
@@ -38,8 +37,11 @@ Lerian MCP Memory Server is a high-performance Go-based Model Context Protocol (
 # Initial setup with environment file
 make setup-env
 
-# Start with Docker (Qdrant + Go server)
+# Production mode - uses pre-built image from GHCR
 make docker-up
+
+# Development mode with hot reload
+make dev-docker-up
 
 # Regular development mode (stdio)
 make dev

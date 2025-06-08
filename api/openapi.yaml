@@ -42,27 +42,8 @@ info:
     }));
     ```
     
-    ### 4. GraphQL
-    For complex queries and relationships:
-    ```graphql
-    query SearchMemories($input: MemoryQueryInput!) {
-      search(input: $input) {
-        chunks {
-          chunk {
-            id
-            content
-            summary
-            type
-            tags
-          }
-          score
-        }
-      }
-    }
-    ```
-    
     ## Authentication
-    **REQUIRED**: All HTTP, WebSocket, and GraphQL endpoints require API key authentication.
+    **REQUIRED**: All HTTP, WebSocket, and SSE endpoints require API key authentication.
     stdio transport does not require authentication (process isolation).
     
     Use the `X-API-Key` header for authentication:
@@ -1101,7 +1082,7 @@ components:
         protocol:
           type: string
           description: Protocol that generated the error
-          enum: ["json-rpc", "http", "graphql", "websocket"]
+          enum: ["json-rpc", "http", "websocket", "sse"]
           example: "http"
         trace_id:
           type: string

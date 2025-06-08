@@ -188,7 +188,8 @@ perf(embeddings): optimize batch processing
 lerian-mcp-memory/
 ├── cmd/                    # Command-line applications
 │   ├── server/            # MCP server application
-│   └── demo/              # Demo applications
+│   ├── migrate/           # Database migration tool
+│   └── openapi/           # OpenAPI specification generator
 ├── internal/              # Private application code
 │   ├── mcp/              # MCP protocol implementation
 │   ├── storage/          # Storage backends

@@ -1,6 +1,9 @@
 # Lerian MCP Memory Server 
 # Go-based MCP server providing persistent memory capabilities for AI assistants
 
+# This compose file depends on the .env file in the root directory
+# Copy .env.example to .env and configure as needed
+
 services:
   # Qdrant Vector Database - High-performance vector search engine
   qdrant:
@@ -19,60 +22,28 @@ services:
       - qdrant_data:/qdrant/storage
     networks:
       - lerian_mcp_network
-    healthcheck:
-      test: ["CMD-SHELL", "wget --no-verbose --tries=1 --spider http://localhost:6333/ || exit 1"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 10s
 
   # Lerian MCP Memory Server (Go Backend)
   lerian-mcp-memory:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/lerianstudio/lerian-mcp-memory:latest
     container_name: lerian-mcp-memory-server
     restart: unless-stopped
     depends_on:
-      qdrant:
-        condition: service_healthy
+      - qdrant
     ports:
       - "${MCP_HOST_PORT:-9080}:9080"    # MCP API port
-      - "${MCP_HEALTH_PORT:-9081}:8081"  # Health check port
+      - "${MCP_HEALTH_PORT:-8081}:8081"  # Health check port
       - "${MCP_METRICS_PORT:-9082}:8082" # Metrics port (optional)
+    env_file:
+      - .env
     environment:
-      # Core MCP Memory Server configuration
+      # Override specific values that must be set for container networking
+      - MCP_MEMORY_QDRANT_HOST=qdrant
       - MCP_MEMORY_DATA_DIR=/app/data
       - MCP_MEMORY_CONFIG_DIR=/app/config
-      - MCP_MEMORY_LOG_LEVEL=${MCP_MEMORY_LOG_LEVEL:-info}
       - MCP_MEMORY_HTTP_PORT=9080
       - MCP_MEMORY_HEALTH_PORT=8081
       - MCP_MEMORY_METRICS_PORT=8082
-      
-      # Qdrant vector database configuration
-      - MCP_MEMORY_STORAGE_PROVIDER=qdrant
-      - MCP_MEMORY_QDRANT_HOST=qdrant
-      - MCP_MEMORY_QDRANT_PORT=6334
-      - MCP_MEMORY_QDRANT_COLLECTION=${QDRANT_COLLECTION:-claude_memory}
-      - MCP_MEMORY_VECTOR_DIM=${MCP_MEMORY_EMBEDDING_DIMENSION:-1536}
-      
-      # SQLite storage (embedded database)
-      - MCP_MEMORY_DB_TYPE=sqlite
-      - MCP_MEMORY_DB_PATH=${SQLITE_DB_PATH:-/app/data/memory.db}
-      
-      # Security and backup settings
-      - MCP_MEMORY_ENCRYPTION_ENABLED=${MCP_MEMORY_ENCRYPTION_ENABLED:-true}
-      - MCP_MEMORY_BACKUP_ENABLED=${MCP_MEMORY_BACKUP_ENABLED:-true}
-      - MCP_MEMORY_BACKUP_INTERVAL=${MCP_MEMORY_BACKUP_INTERVAL_HOURS:-24}h
-      - MCP_MEMORY_ACCESS_CONTROL_ENABLED=${MCP_MEMORY_ACCESS_CONTROL_ENABLED:-true}
-      
-      # OpenAI API configuration (required for embeddings)
-      - OPENAI_API_KEY=${OPENAI_API_KEY}
-      
-      # CORS configuration for external clients
-      - MCP_MEMORY_CORS_ENABLED=${MCP_MEMORY_CORS_ENABLED:-true}
-      - MCP_MEMORY_CORS_ORIGINS=${MCP_MEMORY_CORS_ORIGINS:-http://localhost:*,https://localhost:*}
-      
     volumes:
       - mcp_data:/app/data
       - mcp_logs:/app/logs
@@ -83,6 +54,29 @@ services:
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: 40s
+    labels:
+      # Enable automatic updates via Watchtower
+      - "com.centurylinklabs.watchtower.enable=true"
+    networks:
+      - lerian_mcp_network
+
+  # Watchtower - Automatic container updates
+  watchtower:
+    image: containrrr/watchtower:latest
+    container_name: lerian-mcp-watchtower
+    restart: unless-stopped
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    env_file:
+      - .env
+    environment:
+      # Override specific Watchtower settings
+      - WATCHTOWER_LOG_LEVEL=info
+      - WATCHTOWER_INCLUDE_STOPPED=false
+      - WATCHTOWER_INCLUDE_RESTARTING=true
+    labels:
+      # Don't auto-update watchtower itself
+      - "com.centurylinklabs.watchtower.enable=false"
     networks:
       - lerian_mcp_network
 
