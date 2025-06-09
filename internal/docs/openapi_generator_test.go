@@ -18,7 +18,7 @@ func TestOpenAPIGenerator_Generate(t *testing.T) {
 	}
 
 	generator := NewOpenAPIGenerator(cfg)
-	
+
 	spec, err := generator.Generate()
 	if err != nil {
 		t.Fatalf("Failed to generate OpenAPI spec: %v", err)

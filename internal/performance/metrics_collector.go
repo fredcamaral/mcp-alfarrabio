@@ -539,3 +539,84 @@ func (mc *MetricsCollector) StartPeriodicCollection(ctx context.Context, interva
 		}
 	}
 }
+
+// MetricsCollectorV2 is an enhanced version of MetricsCollector
+type MetricsCollectorV2 struct {
+	*MetricsCollector
+	advancedMetrics *AdvancedMetrics
+}
+
+// AdvancedMetrics contains additional performance metrics
+type AdvancedMetrics struct {
+	QueryPlanning   time.Duration `json:"query_planning_time"`
+	ExecutionTime   time.Duration `json:"execution_time"`
+	LockWaitTime    time.Duration `json:"lock_wait_time"`
+	IOWaitTime      time.Duration `json:"io_wait_time"`
+	CPUUsage        float64       `json:"cpu_usage_percent"`
+	MemoryUsage     int64         `json:"memory_usage_bytes"`
+	DiskIOReads     int64         `json:"disk_io_reads"`
+	DiskIOWrites    int64         `json:"disk_io_writes"`
+	NetworkBytesIn  int64         `json:"network_bytes_in"`
+	NetworkBytesOut int64         `json:"network_bytes_out"`
+}
+
+// PerformanceMetricV2 represents a performance metric with enhanced metadata
+type PerformanceMetricV2 struct {
+	Name      string                 `json:"name"`
+	Value     interface{}            `json:"value"`
+	Unit      string                 `json:"unit"`
+	Timestamp time.Time              `json:"timestamp"`
+	Labels    map[string]string      `json:"labels"`
+	Metadata  map[string]interface{} `json:"metadata"`
+}
+
+// MetricsConfig contains configuration for metrics collection
+type MetricsConfig struct {
+	EnableQueryMetrics      bool          `json:"enable_query_metrics"`
+	EnableConnectionMetrics bool          `json:"enable_connection_metrics"`
+	EnableCacheMetrics      bool          `json:"enable_cache_metrics"`
+	EnableIndexMetrics      bool          `json:"enable_index_metrics"`
+	EnableTableMetrics      bool          `json:"enable_table_metrics"`
+	CollectionInterval      time.Duration `json:"collection_interval"`
+	MetricsRetention        time.Duration `json:"metrics_retention"`
+}
+
+// NewMetricsCollectorV2 creates a new enhanced metrics collector
+func NewMetricsCollectorV2(db *sql.DB, cfg *config.DatabaseConfig, metricsConfig MetricsConfig) *MetricsCollectorV2 {
+	baseCollector := NewMetricsCollector(db, cfg)
+	return &MetricsCollectorV2{
+		MetricsCollector: baseCollector,
+		advancedMetrics:  &AdvancedMetrics{},
+	}
+}
+
+// CollectAdvancedMetrics collects enhanced performance metrics
+func (mcv2 *MetricsCollectorV2) CollectAdvancedMetrics(ctx context.Context) (*AdvancedMetrics, error) {
+	// This would collect advanced metrics like CPU, memory, I/O stats
+	// For now, return empty metrics to satisfy the interface
+	return &AdvancedMetrics{}, nil
+}
+
+// GetPerformanceMetricsV2 returns enhanced performance metrics
+func (mcv2 *MetricsCollectorV2) GetPerformanceMetricsV2() []*PerformanceMetricV2 {
+	// Return empty slice for now
+	return []*PerformanceMetricV2{}
+}
+
+// GetPerformanceReport returns a comprehensive performance report
+func (mcv2 *MetricsCollectorV2) GetPerformanceReport() map[string]interface{} {
+	baseMetrics := mcv2.MetricsCollector.GetCurrentMetrics()
+
+	return map[string]interface{}{
+		"base_metrics":     baseMetrics,
+		"advanced_metrics": mcv2.advancedMetrics,
+		"collection_time":  time.Now(),
+		"version":          "v2",
+	}
+}
+
+// Shutdown gracefully shuts down the metrics collector
+func (mcv2 *MetricsCollectorV2) Shutdown() error {
+	// Graceful shutdown logic would go here
+	return nil
+}

@@ -119,7 +119,7 @@ func (tm *TemplateMatcher) ApplyTemplate(task *types.Task, template *types.TaskT
 
 	// Note: TaskTemplate fields have changed - Type and DefaultPriority are no longer available
 	// Template data is now stored in TemplateData JSONObject
-	
+
 	// Extract type from template data if available
 	if templateData, ok := template.TemplateData["type"].(string); ok && enhancedTask.Type == "" {
 		enhancedTask.Type = types.TaskType(templateData)
@@ -133,7 +133,7 @@ func (tm *TemplateMatcher) ApplyTemplate(task *types.Task, template *types.TaskT
 		}
 	}
 
-	// Enhance complexity if not analyzed yet  
+	// Enhance complexity if not analyzed yet
 	if enhancedTask.Complexity.Level == "" && template.ComplexityLevel != "" {
 		enhancedTask.Complexity.Level = types.ComplexityLevel(template.ComplexityLevel)
 	}
@@ -282,7 +282,7 @@ func (tm *TemplateMatcher) calculateContextMatch(template *types.TaskTemplate, c
 			}
 		}
 	}
-	
+
 	if len(teamSizes) > 0 {
 		teamMatch := false
 		for _, size := range teamSizes {
@@ -410,7 +410,7 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 	// Keyword matches
 	taskContent := strings.ToLower(task.Title + " " + task.Description)
 	matchedKeywords := []string{}
-	
+
 	// Extract keywords from applicability JSON
 	keywords := []string{}
 	if keywordData, ok := template.Applicability["keywords"].([]interface{}); ok {
@@ -420,7 +420,7 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 			}
 		}
 	}
-	
+
 	for _, keyword := range keywords {
 		if strings.Contains(taskContent, strings.ToLower(keyword)) {
 			matchedKeywords = append(matchedKeywords, keyword)
@@ -437,7 +437,7 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 
 	// Tech stack matches
 	matchedTech := []string{}
-	
+
 	// Extract tech stacks from applicability JSON
 	templateTechStacks := []string{}
 	if techData, ok := template.Applicability["tech_stacks"].([]interface{}); ok {
@@ -447,7 +447,7 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 			}
 		}
 	}
-	
+
 	for _, templateTech := range templateTechStacks {
 		for _, contextTech := range context.TechStack {
 			if strings.Contains(strings.ToLower(contextTech), strings.ToLower(templateTech)) {

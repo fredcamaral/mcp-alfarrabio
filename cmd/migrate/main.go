@@ -36,7 +36,7 @@ func main() {
 		target        = flag.String("target", "", "Target migration version or ID (for up/down actions)")
 		steps         = flag.Int("steps", 0, "Number of migration steps (for up/down actions)")
 		createName    = flag.String("name", "", "Migration name (for create action)")
-		configFile    = flag.String("config", "configs/dev/config.yaml", "Path to configuration file")
+		_             = flag.String("config", "configs/dev/config.yaml", "Path to configuration file")
 	)
 	flag.Parse()
 

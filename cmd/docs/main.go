@@ -20,14 +20,14 @@ const (
 
 func main() {
 	var (
-		outputDir    = flag.String("output", "./docs/api", "Output directory for generated documentation")
-		format       = flag.String("format", "json", "Output format: json, yaml, or both")
-		validate     = flag.Bool("validate", true, "Validate the generated OpenAPI specification")
-		serve        = flag.Bool("serve", false, "Start a local server to serve the documentation")
-		port         = flag.Int("port", 8081, "Port for the documentation server")
+		outputDir        = flag.String("output", "./docs/api", "Output directory for generated documentation")
+		format           = flag.String("format", "json", "Output format: json, yaml, or both")
+		validate         = flag.Bool("validate", true, "Validate the generated OpenAPI specification")
+		serve            = flag.Bool("serve", false, "Start a local server to serve the documentation")
+		port             = flag.Int("port", 8081, "Port for the documentation server")
 		generateExamples = flag.Bool("examples", true, "Generate API examples")
-		verbose      = flag.Bool("verbose", false, "Enable verbose logging")
-		configFile   = flag.String("config", "", "Path to configuration file")
+		verbose          = flag.Bool("verbose", false, "Enable verbose logging")
+		configFile       = flag.String("config", "", "Path to configuration file")
 	)
 	flag.Parse()
 
@@ -67,7 +67,7 @@ func loadConfig(configFile string) (*config.Config, error) {
 		// Load from specific file
 		return config.LoadConfig()
 	}
-	
+
 	// Load default configuration
 	return config.LoadConfig()
 }

@@ -43,7 +43,13 @@ func (m *MockQdrantStore) Store(ctx context.Context, chunk types.ConversationChu
 		return err
 	}
 	if len(chunk.Embeddings) == 0 {
-		return &ValidationError{"chunk must have embeddings"}
+		return &ValidationError{
+			Component: "chunk",
+			Type:      "missing_embeddings",
+			Message:   "chunk must have embeddings",
+			Severity:  "critical",
+			Code:      "VAL001",
+		}
 	}
 	m.chunks[chunk.ID] = chunk
 	m.updateStats(chunk)
@@ -53,7 +59,13 @@ func (m *MockQdrantStore) Store(ctx context.Context, chunk types.ConversationChu
 //nolint:gocritic // Interface requirement - hugeParam: types.MemoryQuery is required by VectorStore interface
 func (m *MockQdrantStore) Search(ctx context.Context, query types.MemoryQuery, embeddings []float64) (*types.SearchResults, error) {
 	if len(embeddings) == 0 {
-		return nil, &ValidationError{"embeddings cannot be empty"}
+		return nil, &ValidationError{
+			Component: "query",
+			Type:      "missing_embeddings",
+			Message:   "embeddings cannot be empty",
+			Severity:  "critical",
+			Code:      "VAL002",
+		}
 	}
 
 	results := &types.SearchResults{
@@ -267,15 +279,6 @@ func (m *MockQdrantStore) BatchDelete(ctx context.Context, ids []string) (*Batch
 //nolint:gocritic // Interface requirement - hugeParam: types.ConversationChunk is required by VectorStore interface
 func (m *MockQdrantStore) updateStats(chunk types.ConversationChunk) {
 	// Update mock stats - simplified
-}
-
-// Error types for testing
-type ValidationError struct {
-	Message string
-}
-
-func (e *ValidationError) Error() string {
-	return e.Message
 }
 
 type NotFoundError struct {

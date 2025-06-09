@@ -27,15 +27,15 @@ type Logger interface {
 
 // MaintenanceOperation represents a database maintenance operation
 type MaintenanceOperation struct {
-	Type        string                 `json:"type"`
-	Target      string                 `json:"target"`
-	Status      string                 `json:"status"`
-	StartTime   time.Time              `json:"start_time"`
-	EndTime     *time.Time             `json:"end_time,omitempty"`
-	Duration    time.Duration          `json:"duration"`
-	RowsAffected int64                 `json:"rows_affected"`
-	Details     map[string]interface{} `json:"details"`
-	Error       string                 `json:"error,omitempty"`
+	Type         string                 `json:"type"`
+	Target       string                 `json:"target"`
+	Status       string                 `json:"status"`
+	StartTime    time.Time              `json:"start_time"`
+	EndTime      *time.Time             `json:"end_time,omitempty"`
+	Duration     time.Duration          `json:"duration"`
+	RowsAffected int64                  `json:"rows_affected"`
+	Details      map[string]interface{} `json:"details"`
+	Error        string                 `json:"error,omitempty"`
 }
 
 // IndexRecommendation represents a recommended index
@@ -63,9 +63,9 @@ func NewMaintenanceManager(db *sql.DB, cfg *config.DatabaseConfig, logger Logger
 // PerformMaintenance executes comprehensive database maintenance
 func (mm *MaintenanceManager) PerformMaintenance(ctx context.Context) ([]*MaintenanceOperation, error) {
 	mm.logger.Info("Starting database maintenance operations")
-	
+
 	var operations []*MaintenanceOperation
-	
+
 	// 1. Analyze tables for statistics
 	analyzeOps, err := mm.analyzeAllTables(ctx)
 	if err != nil {
@@ -73,7 +73,7 @@ func (mm *MaintenanceManager) PerformMaintenance(ctx context.Context) ([]*Mainte
 	} else {
 		operations = append(operations, analyzeOps...)
 	}
-	
+
 	// 2. Vacuum tables to reclaim space
 	vacuumOps, err := mm.vacuumTables(ctx)
 	if err != nil {
@@ -81,7 +81,7 @@ func (mm *MaintenanceManager) PerformMaintenance(ctx context.Context) ([]*Mainte
 	} else {
 		operations = append(operations, vacuumOps...)
 	}
-	
+
 	// 3. Reindex heavily fragmented indexes
 	reindexOps, err := mm.reindexFragmentedIndexes(ctx)
 	if err != nil {
@@ -89,7 +89,7 @@ func (mm *MaintenanceManager) PerformMaintenance(ctx context.Context) ([]*Mainte
 	} else {
 		operations = append(operations, reindexOps...)
 	}
-	
+
 	// 4. Update table statistics
 	statsOps, err := mm.updateTableStatistics(ctx)
 	if err != nil {
@@ -97,7 +97,7 @@ func (mm *MaintenanceManager) PerformMaintenance(ctx context.Context) ([]*Mainte
 	} else {
 		operations = append(operations, statsOps...)
 	}
-	
+
 	mm.logger.Info("Database maintenance completed: %d operations", len(operations))
 	return operations, nil
 }
@@ -110,35 +110,35 @@ func (mm *MaintenanceManager) analyzeAllTables(ctx context.Context) ([]*Maintena
 		FROM pg_tables 
 		WHERE schemaname NOT IN ('information_schema', 'pg_catalog')
 		ORDER BY schemaname, tablename`
-	
+
 	rows, err := mm.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get table list: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var operations []*MaintenanceOperation
-	
+
 	for rows.Next() {
 		var schema, table string
 		if err := rows.Scan(&schema, &table); err != nil {
 			continue
 		}
-		
+
 		op := &MaintenanceOperation{
 			Type:      "ANALYZE",
 			Target:    fmt.Sprintf("%s.%s", schema, table),
 			Status:    "running",
 			StartTime: time.Now(),
 		}
-		
+
 		// Execute ANALYZE
 		analyzeSQL := fmt.Sprintf("ANALYZE %s.%s", schema, table)
 		result, err := mm.db.ExecContext(ctx, analyzeSQL)
-		
+
 		op.EndTime = timePtr(time.Now())
 		op.Duration = op.EndTime.Sub(op.StartTime)
-		
+
 		if err != nil {
 			op.Status = "failed"
 			op.Error = err.Error()
@@ -152,10 +152,10 @@ func (mm *MaintenanceManager) analyzeAllTables(ctx context.Context) ([]*Maintena
 			}
 			mm.logger.Info("Analyzed table %s.%s in %v", schema, table, op.Duration)
 		}
-		
+
 		operations = append(operations, op)
 	}
-	
+
 	return operations, rows.Err()
 }
 
@@ -181,43 +181,43 @@ func (mm *MaintenanceManager) vacuumTables(ctx context.Context) ([]*MaintenanceO
 				ELSE 0 
 			  END > 20  -- More than 20% dead tuples
 		ORDER BY dead_ratio DESC`
-	
+
 	rows, err := mm.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to identify tables for vacuum: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var operations []*MaintenanceOperation
-	
+
 	for rows.Next() {
 		var schema, table string
 		var deadTuples, liveTuples int64
 		var deadRatio float64
-		
+
 		if err := rows.Scan(&schema, &table, &deadTuples, &liveTuples, &deadRatio); err != nil {
 			continue
 		}
-		
+
 		op := &MaintenanceOperation{
 			Type:      "VACUUM",
 			Target:    fmt.Sprintf("%s.%s", schema, table),
 			Status:    "running",
 			StartTime: time.Now(),
 			Details: map[string]interface{}{
-				"dead_tuples":  deadTuples,
-				"live_tuples":  liveTuples,
-				"dead_ratio":   deadRatio,
+				"dead_tuples": deadTuples,
+				"live_tuples": liveTuples,
+				"dead_ratio":  deadRatio,
 			},
 		}
-		
+
 		// Execute VACUUM
 		vacuumSQL := fmt.Sprintf("VACUUM %s.%s", schema, table)
 		result, err := mm.db.ExecContext(ctx, vacuumSQL)
-		
+
 		op.EndTime = timePtr(time.Now())
 		op.Duration = op.EndTime.Sub(op.StartTime)
-		
+
 		if err != nil {
 			op.Status = "failed"
 			op.Error = err.Error()
@@ -229,13 +229,13 @@ func (mm *MaintenanceManager) vacuumTables(ctx context.Context) ([]*MaintenanceO
 					op.RowsAffected = affected
 				}
 			}
-			mm.logger.Info("Vacuumed table %s.%s (%.1f%% dead) in %v", 
+			mm.logger.Info("Vacuumed table %s.%s (%.1f%% dead) in %v",
 				schema, table, deadRatio, op.Duration)
 		}
-		
+
 		operations = append(operations, op)
 	}
-	
+
 	return operations, rows.Err()
 }
 
@@ -255,24 +255,24 @@ func (mm *MaintenanceManager) reindexFragmentedIndexes(ctx context.Context) ([]*
 		WHERE n.nspname NOT IN ('information_schema', 'pg_catalog')
 		  AND pg_relation_size(i.oid) > 1048576  -- Only indexes > 1MB
 		ORDER BY index_size DESC
-		LIMIT 10`  -- Limit to avoid long maintenance windows
-	
+		LIMIT 10`
+
 	rows, err := mm.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to identify fragmented indexes: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var operations []*MaintenanceOperation
-	
+
 	for rows.Next() {
 		var schema, table, index string
 		var indexSize int64
-		
+
 		if err := rows.Scan(&schema, &table, &index, &indexSize); err != nil {
 			continue
 		}
-		
+
 		op := &MaintenanceOperation{
 			Type:      "REINDEX",
 			Target:    fmt.Sprintf("%s.%s.%s", schema, table, index),
@@ -283,14 +283,14 @@ func (mm *MaintenanceManager) reindexFragmentedIndexes(ctx context.Context) ([]*
 				"table_name":       table,
 			},
 		}
-		
+
 		// Execute REINDEX
 		reindexSQL := fmt.Sprintf("REINDEX INDEX %s.%s", schema, index)
 		result, err := mm.db.ExecContext(ctx, reindexSQL)
-		
+
 		op.EndTime = timePtr(time.Now())
 		op.Duration = op.EndTime.Sub(op.StartTime)
-		
+
 		if err != nil {
 			op.Status = "failed"
 			op.Error = err.Error()
@@ -302,33 +302,33 @@ func (mm *MaintenanceManager) reindexFragmentedIndexes(ctx context.Context) ([]*
 					op.RowsAffected = affected
 				}
 			}
-			mm.logger.Info("Reindexed %s.%s (%.1f MB) in %v", 
+			mm.logger.Info("Reindexed %s.%s (%.1f MB) in %v",
 				schema, index, float64(indexSize)/1048576, op.Duration)
 		}
-		
+
 		operations = append(operations, op)
 	}
-	
+
 	return operations, rows.Err()
 }
 
 // updateTableStatistics updates PostgreSQL table statistics
 func (mm *MaintenanceManager) updateTableStatistics(ctx context.Context) ([]*MaintenanceOperation, error) {
 	var operations []*MaintenanceOperation
-	
+
 	op := &MaintenanceOperation{
 		Type:      "UPDATE_STATS",
 		Target:    "pg_stat_statements",
 		Status:    "running",
 		StartTime: time.Now(),
 	}
-	
+
 	// Reset pg_stat_statements to get fresh statistics
 	_, err := mm.db.ExecContext(ctx, "SELECT pg_stat_statements_reset()")
-	
+
 	op.EndTime = timePtr(time.Now())
 	op.Duration = op.EndTime.Sub(op.StartTime)
-	
+
 	if err != nil {
 		op.Status = "failed"
 		op.Error = err.Error()
@@ -337,7 +337,7 @@ func (mm *MaintenanceManager) updateTableStatistics(ctx context.Context) ([]*Mai
 		op.Status = "completed"
 		mm.logger.Info("Reset pg_stat_statements in %v", op.Duration)
 	}
-	
+
 	operations = append(operations, op)
 	return operations, nil
 }
@@ -345,7 +345,7 @@ func (mm *MaintenanceManager) updateTableStatistics(ctx context.Context) ([]*Mai
 // GenerateIndexRecommendations analyzes query patterns and suggests new indexes
 func (mm *MaintenanceManager) GenerateIndexRecommendations(ctx context.Context) ([]*IndexRecommendation, error) {
 	var recommendations []*IndexRecommendation
-	
+
 	// Find tables with high sequential scan ratios
 	tablesQuery := `
 		SELECT 
@@ -361,38 +361,38 @@ func (mm *MaintenanceManager) GenerateIndexRecommendations(ctx context.Context) 
 		  AND n_live_tup > 1000        -- Non-trivial table size
 		ORDER BY seq_tup_read DESC
 		LIMIT 20`
-	
+
 	rows, err := mm.db.QueryContext(ctx, tablesQuery)
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze tables for index recommendations: %w", err)
 	}
 	defer rows.Close()
-	
+
 	for rows.Next() {
 		var schema, table string
 		var seqScan, seqTupRead, idxScan, liveTuples int64
-		
+
 		if err := rows.Scan(&schema, &table, &seqScan, &seqTupRead, &idxScan, &liveTuples); err != nil {
 			continue
 		}
-		
+
 		// Analyze table structure for potential indexes
 		tableRecs, err := mm.analyzeTableForIndexes(ctx, schema, table, seqScan, seqTupRead, liveTuples)
 		if err != nil {
 			mm.logger.Warn("Failed to analyze table %s.%s for indexes: %v", schema, table, err)
 			continue
 		}
-		
+
 		recommendations = append(recommendations, tableRecs...)
 	}
-	
+
 	return recommendations, nil
 }
 
 // analyzeTableForIndexes analyzes a specific table for index opportunities
 func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema, table string, seqScan, seqTupRead, liveTuples int64) ([]*IndexRecommendation, error) {
 	var recommendations []*IndexRecommendation
-	
+
 	// Get table columns for analysis
 	columnsQuery := `
 		SELECT 
@@ -402,40 +402,40 @@ func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema
 		FROM information_schema.columns
 		WHERE table_schema = $1 AND table_name = $2
 		ORDER BY ordinal_position`
-	
+
 	rows, err := mm.db.QueryContext(ctx, columnsQuery, schema, table)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	
+
 	var columns []string
 	var stringColumns []string
 	var numericColumns []string
-	
+
 	for rows.Next() {
 		var columnName, dataType, isNullable string
 		if err := rows.Scan(&columnName, &dataType, &isNullable); err != nil {
 			continue
 		}
-		
+
 		columns = append(columns, columnName)
-		
+
 		// Categorize columns by type for different index strategies
 		if strings.Contains(strings.ToLower(dataType), "char") ||
-		   strings.Contains(strings.ToLower(dataType), "text") {
+			strings.Contains(strings.ToLower(dataType), "text") {
 			stringColumns = append(stringColumns, columnName)
 		} else if strings.Contains(strings.ToLower(dataType), "int") ||
-				  strings.Contains(strings.ToLower(dataType), "numeric") ||
-				  strings.Contains(strings.ToLower(dataType), "decimal") {
+			strings.Contains(strings.ToLower(dataType), "numeric") ||
+			strings.Contains(strings.ToLower(dataType), "decimal") {
 			numericColumns = append(numericColumns, columnName)
 		}
 	}
-	
+
 	// Recommend indexes based on common patterns
-	ratio := float64(seqScan) / float64(seqScan + 1) // Add 1 to avoid division by zero
-	estimatedSize := liveTuples * 50 // Rough estimate
-	
+	ratio := float64(seqScan) / float64(seqScan+1) // Add 1 to avoid division by zero
+	estimatedSize := liveTuples * 50               // Rough estimate
+
 	// High priority recommendations for frequently scanned tables
 	if ratio > 0.8 && seqTupRead > 100000 {
 		// Suggest composite index on first few columns
@@ -453,7 +453,7 @@ func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema
 			}
 			recommendations = append(recommendations, rec)
 		}
-		
+
 		// Suggest partial indexes for string columns
 		for _, col := range stringColumns[:min(len(stringColumns), 2)] {
 			rec := &IndexRecommendation{
@@ -470,7 +470,7 @@ func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema
 			recommendations = append(recommendations, rec)
 		}
 	}
-	
+
 	// Medium priority for moderately scanned tables
 	if ratio > 0.5 && len(numericColumns) > 0 {
 		col := numericColumns[0]
@@ -487,14 +487,14 @@ func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema
 		}
 		recommendations = append(recommendations, rec)
 	}
-	
+
 	return recommendations, nil
 }
 
 // CreateRecommendedIndexes creates indexes based on recommendations
 func (mm *MaintenanceManager) CreateRecommendedIndexes(ctx context.Context, recommendations []*IndexRecommendation, maxIndexes int) ([]*MaintenanceOperation, error) {
 	var operations []*MaintenanceOperation
-	
+
 	// Sort by priority and impact
 	highPriorityRecs := []*IndexRecommendation{}
 	for _, rec := range recommendations {
@@ -502,13 +502,13 @@ func (mm *MaintenanceManager) CreateRecommendedIndexes(ctx context.Context, reco
 			highPriorityRecs = append(highPriorityRecs, rec)
 		}
 	}
-	
+
 	// Limit to prevent excessive index creation
 	toCreate := highPriorityRecs
 	if len(toCreate) > maxIndexes {
 		toCreate = toCreate[:maxIndexes]
 	}
-	
+
 	for _, rec := range toCreate {
 		op := &MaintenanceOperation{
 			Type:      "CREATE_INDEX",
@@ -522,13 +522,13 @@ func (mm *MaintenanceManager) CreateRecommendedIndexes(ctx context.Context, reco
 				"sql":           rec.CreateSQL,
 			},
 		}
-		
+
 		// Execute CREATE INDEX
 		result, err := mm.db.ExecContext(ctx, rec.CreateSQL)
-		
+
 		op.EndTime = timePtr(time.Now())
 		op.Duration = op.EndTime.Sub(op.StartTime)
-		
+
 		if err != nil {
 			op.Status = "failed"
 			op.Error = err.Error()
@@ -540,13 +540,13 @@ func (mm *MaintenanceManager) CreateRecommendedIndexes(ctx context.Context, reco
 					op.RowsAffected = affected
 				}
 			}
-			mm.logger.Info("Created index on %s.%s (%v) in %v", 
+			mm.logger.Info("Created index on %s.%s (%v) in %v",
 				rec.SchemaName, rec.TableName, rec.Columns, op.Duration)
 		}
-		
+
 		operations = append(operations, op)
 	}
-	
+
 	return operations, nil
 }
 
@@ -570,23 +570,23 @@ func (mm *MaintenanceManager) CleanupUnusedIndexes(ctx context.Context) ([]*Main
 		  AND (s.idx_scan = 0 OR s.idx_scan IS NULL)  -- Never used
 		  AND pg_relation_size(i.oid) > 0  -- Has size
 		ORDER BY index_size DESC`
-	
+
 	rows, err := mm.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, fmt.Errorf("failed to identify unused indexes: %w", err)
 	}
 	defer rows.Close()
-	
+
 	var operations []*MaintenanceOperation
-	
+
 	for rows.Next() {
 		var schema, table, index string
 		var indexSize int64
-		
+
 		if err := rows.Scan(&schema, &table, &index, &indexSize); err != nil {
 			continue
 		}
-		
+
 		op := &MaintenanceOperation{
 			Type:      "DROP_INDEX",
 			Target:    fmt.Sprintf("%s.%s", schema, index),
@@ -598,14 +598,14 @@ func (mm *MaintenanceManager) CleanupUnusedIndexes(ctx context.Context) ([]*Main
 				"reason":           "unused index",
 			},
 		}
-		
+
 		// Execute DROP INDEX
 		dropSQL := fmt.Sprintf("DROP INDEX %s.%s", schema, index)
 		result, err := mm.db.ExecContext(ctx, dropSQL)
-		
+
 		op.EndTime = timePtr(time.Now())
 		op.Duration = op.EndTime.Sub(op.StartTime)
-		
+
 		if err != nil {
 			op.Status = "failed"
 			op.Error = err.Error()
@@ -617,13 +617,13 @@ func (mm *MaintenanceManager) CleanupUnusedIndexes(ctx context.Context) ([]*Main
 					op.RowsAffected = affected
 				}
 			}
-			mm.logger.Info("Dropped unused index %s.%s (%.1f MB) in %v", 
+			mm.logger.Info("Dropped unused index %s.%s (%.1f MB) in %v",
 				schema, index, float64(indexSize)/1048576, op.Duration)
 		}
-		
+
 		operations = append(operations, op)
 	}
-	
+
 	return operations, nil
 }
 

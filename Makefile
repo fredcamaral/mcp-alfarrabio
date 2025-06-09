@@ -26,7 +26,10 @@ BLUE := \033[34m
 RESET := \033[0m
 
 .PHONY: help build clean test lint fmt vet dev docker-build docker-up docker-down \
-	setup-env deps tidy ensure-env test-coverage test-integration test-race benchmark ci
+	setup-env deps tidy ensure-env test-coverage test-integration test-race benchmark ci \
+	dev-docker-up dev-docker-down dev-docker-logs dev-docker-rebuild dev-docker-shell \
+	dev-docker-restart dev-logs docker-logs docker-restart docker-rebuild docker-clean \
+	health-check prod-deploy security-scan
 
 # Default target - show help
 help: ## Show this help message
@@ -212,6 +215,13 @@ dev-docker-rebuild: ## Rebuild development Docker image
 dev-docker-shell: ## Open shell in development container
 	@echo "$(GREEN)Opening shell in development container...$(RESET)"
 	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec lerian-mcp-memory /bin/sh
+
+dev-docker-restart: ## Restart development services
+	@echo "$(GREEN)Restarting development services...$(RESET)"
+	docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart
+
+dev-logs: ## View development logs (alias for dev-docker-logs)
+	@$(MAKE) dev-docker-logs
 
 ## Utility Commands
 clean: ## Clean build artifacts

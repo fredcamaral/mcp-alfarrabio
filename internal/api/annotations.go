@@ -9,48 +9,48 @@ import (
 
 // APIAnnotation represents metadata for API endpoints used in OpenAPI generation
 type APIAnnotation struct {
-	Path        string            `json:"path"`
-	Method      string            `json:"method"`
-	Summary     string            `json:"summary"`
-	Description string            `json:"description"`
-	Tags        []string          `json:"tags"`
-	Deprecated  bool              `json:"deprecated"`
-	Security    []string          `json:"security"`
-	Parameters  []ParameterSpec   `json:"parameters"`
-	RequestBody *RequestBodySpec  `json:"requestBody,omitempty"`
+	Path        string                  `json:"path"`
+	Method      string                  `json:"method"`
+	Summary     string                  `json:"summary"`
+	Description string                  `json:"description"`
+	Tags        []string                `json:"tags"`
+	Deprecated  bool                    `json:"deprecated"`
+	Security    []string                `json:"security"`
+	Parameters  []ParameterSpec         `json:"parameters"`
+	RequestBody *RequestBodySpec        `json:"requestBody,omitempty"`
 	Responses   map[string]ResponseSpec `json:"responses"`
 }
 
 // ParameterSpec defines a parameter specification for OpenAPI
 type ParameterSpec struct {
-	Name        string      `json:"name"`
-	In          string      `json:"in"` // query, header, path, cookie
-	Type        string      `json:"type"`
-	Format      string      `json:"format,omitempty"`
-	Description string      `json:"description"`
-	Required    bool        `json:"required"`
-	Default     interface{} `json:"default,omitempty"`
-	Example     interface{} `json:"example,omitempty"`
+	Name        string        `json:"name"`
+	In          string        `json:"in"` // query, header, path, cookie
+	Type        string        `json:"type"`
+	Format      string        `json:"format,omitempty"`
+	Description string        `json:"description"`
+	Required    bool          `json:"required"`
+	Default     interface{}   `json:"default,omitempty"`
+	Example     interface{}   `json:"example,omitempty"`
 	Enum        []interface{} `json:"enum,omitempty"`
-	Pattern     string      `json:"pattern,omitempty"`
-	MinLength   *int        `json:"minLength,omitempty"`
-	MaxLength   *int        `json:"maxLength,omitempty"`
-	Minimum     *float64    `json:"minimum,omitempty"`
-	Maximum     *float64    `json:"maximum,omitempty"`
+	Pattern     string        `json:"pattern,omitempty"`
+	MinLength   *int          `json:"minLength,omitempty"`
+	MaxLength   *int          `json:"maxLength,omitempty"`
+	Minimum     *float64      `json:"minimum,omitempty"`
+	Maximum     *float64      `json:"maximum,omitempty"`
 }
 
 // RequestBodySpec defines the request body specification
 type RequestBodySpec struct {
-	Description string                 `json:"description"`
-	Required    bool                   `json:"required"`
+	Description string                   `json:"description"`
+	Required    bool                     `json:"required"`
 	Content     map[string]MediaTypeSpec `json:"content"`
 }
 
 // ResponseSpec defines a response specification
 type ResponseSpec struct {
-	Description string                 `json:"description"`
+	Description string                   `json:"description"`
 	Content     map[string]MediaTypeSpec `json:"content,omitempty"`
-	Headers     map[string]HeaderSpec  `json:"headers,omitempty"`
+	Headers     map[string]HeaderSpec    `json:"headers,omitempty"`
 }
 
 // MediaTypeSpec defines media type specification
@@ -61,20 +61,20 @@ type MediaTypeSpec struct {
 
 // SchemaSpec defines JSON schema specification
 type SchemaSpec struct {
-	Type                 string                 `json:"type,omitempty"`
-	Format               string                 `json:"format,omitempty"`
-	Description          string                 `json:"description,omitempty"`
-	Properties           map[string]SchemaSpec  `json:"properties,omitempty"`
-	Required             []string               `json:"required,omitempty"`
-	Items                *SchemaSpec            `json:"items,omitempty"`
-	AdditionalProperties interface{}            `json:"additionalProperties,omitempty"`
-	Enum                 []interface{}          `json:"enum,omitempty"`
-	Example              interface{}            `json:"example,omitempty"`
-	Default              interface{}            `json:"default,omitempty"`
-	Ref                  string                 `json:"$ref,omitempty"`
-	OneOf                []SchemaSpec           `json:"oneOf,omitempty"`
-	AnyOf                []SchemaSpec           `json:"anyOf,omitempty"`
-	AllOf                []SchemaSpec           `json:"allOf,omitempty"`
+	Type                 string                `json:"type,omitempty"`
+	Format               string                `json:"format,omitempty"`
+	Description          string                `json:"description,omitempty"`
+	Properties           map[string]SchemaSpec `json:"properties,omitempty"`
+	Required             []string              `json:"required,omitempty"`
+	Items                *SchemaSpec           `json:"items,omitempty"`
+	AdditionalProperties interface{}           `json:"additionalProperties,omitempty"`
+	Enum                 []interface{}         `json:"enum,omitempty"`
+	Example              interface{}           `json:"example,omitempty"`
+	Default              interface{}           `json:"default,omitempty"`
+	Ref                  string                `json:"$ref,omitempty"`
+	OneOf                []SchemaSpec          `json:"oneOf,omitempty"`
+	AnyOf                []SchemaSpec          `json:"anyOf,omitempty"`
+	AllOf                []SchemaSpec          `json:"allOf,omitempty"`
 }
 
 // HeaderSpec defines header specification
@@ -259,14 +259,14 @@ func SchemaFromStruct(v interface{}) SchemaSpec {
 
 		tagParts := strings.Split(jsonTag, ",")
 		fieldName := tagParts[0]
-		
+
 		fieldSchema := schemaFromType(field.Type)
-		
+
 		// Check for description in tag
 		if desc := field.Tag.Get("description"); desc != "" {
 			fieldSchema.Description = desc
 		}
-		
+
 		// Check if field is required (not omitempty)
 		isRequired := true
 		for _, part := range tagParts[1:] {
@@ -275,11 +275,11 @@ func SchemaFromStruct(v interface{}) SchemaSpec {
 				break
 			}
 		}
-		
+
 		if isRequired {
 			required = append(required, fieldName)
 		}
-		
+
 		schema.Properties[fieldName] = fieldSchema
 	}
 

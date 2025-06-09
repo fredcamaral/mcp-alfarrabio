@@ -26,26 +26,26 @@ type SwaggerUIHandler struct {
 
 // SwaggerUIConfig holds configuration for Swagger UI
 type SwaggerUIConfig struct {
-	Title         string
-	Description   string
-	SpecURL       string
-	Version       string
-	ContactName   string
-	ContactURL    string
-	ContactEmail  string
-	LicenseName   string
-	LicenseURL    string
-	ServerURL     string
-	TryItOutEnabled bool
-	DeepLinking   bool
-	DisplayOperationId bool
+	Title                    string
+	Description              string
+	SpecURL                  string
+	Version                  string
+	ContactName              string
+	ContactURL               string
+	ContactEmail             string
+	LicenseName              string
+	LicenseURL               string
+	ServerURL                string
+	TryItOutEnabled          bool
+	DeepLinking              bool
+	DisplayOperationId       bool
 	DefaultModelsExpandDepth int
 	DefaultModelExpandDepth  int
-	DocExpansion string
-	Filter       bool
-	ShowExtensions bool
-	ShowCommonExtensions bool
-	UseUnsafeMarkdown bool
+	DocExpansion             string
+	Filter                   bool
+	ShowExtensions           bool
+	ShowCommonExtensions     bool
+	UseUnsafeMarkdown        bool
 }
 
 // NewSwaggerUIHandler creates a new Swagger UI handler
@@ -64,7 +64,7 @@ func NewSwaggerUIHandler(cfg *config.Config, generator *OpenAPIGenerator) *Swagg
 // ServeHTTP serves the Swagger UI interface
 func (h *SwaggerUIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := strings.TrimPrefix(r.URL.Path, "/docs")
-	
+
 	switch {
 	case path == "" || path == "/":
 		h.serveSwaggerUI(w, r)
@@ -82,7 +82,7 @@ func (h *SwaggerUIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 // serveSwaggerUI serves the main Swagger UI HTML page
 func (h *SwaggerUIHandler) serveSwaggerUI(w http.ResponseWriter, r *http.Request) {
 	config := h.getSwaggerUIConfig(r)
-	
+
 	var buf bytes.Buffer
 	if err := h.template.Execute(&buf, config); err != nil {
 		http.Error(w, fmt.Sprintf("Template execution error: %v", err), http.StatusInternalServerError)
@@ -93,7 +93,7 @@ func (h *SwaggerUIHandler) serveSwaggerUI(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
-	
+
 	w.Write(buf.Bytes())
 }
 
@@ -110,7 +110,7 @@ func (h *SwaggerUIHandler) serveOpenAPIJSON(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	
+
 	w.Write(spec)
 }
 
@@ -127,7 +127,7 @@ func (h *SwaggerUIHandler) serveOpenAPIYAML(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
-	
+
 	w.Write(spec)
 }
 
@@ -135,7 +135,7 @@ func (h *SwaggerUIHandler) serveOpenAPIYAML(w http.ResponseWriter, r *http.Reque
 func (h *SwaggerUIHandler) serveStaticFile(w http.ResponseWriter, r *http.Request, path string) {
 	// Remove /static/ prefix
 	filename := strings.TrimPrefix(path, "/static/")
-	
+
 	// Read file from embedded filesystem
 	content, err := staticFiles.ReadFile(filepath.Join("static", filename))
 	if err != nil {
@@ -147,35 +147,35 @@ func (h *SwaggerUIHandler) serveStaticFile(w http.ResponseWriter, r *http.Reques
 	contentType := getContentType(filename)
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "public, max-age=86400") // Cache for 24 hours
-	
+
 	w.Write(content)
 }
 
 // getSwaggerUIConfig returns configuration for Swagger UI
 func (h *SwaggerUIHandler) getSwaggerUIConfig(r *http.Request) *SwaggerUIConfig {
 	baseURL := getBaseURL(r)
-	
+
 	return &SwaggerUIConfig{
-		Title:         "MCP Memory Server API Documentation",
-		Description:   "Interactive API documentation for the Model Context Protocol Memory Server",
-		SpecURL:       baseURL + "/docs/openapi.json",
-		Version:       "1.0.0",
-		ContactName:   "Lerian Studio",
-		ContactURL:    "https://github.com/lerianstudio/lerian-mcp-memory",
-		ContactEmail:  "support@lerian.studio",
-		LicenseName:   "MIT",
-		LicenseURL:    "https://opensource.org/licenses/MIT",
-		ServerURL:     baseURL,
-		TryItOutEnabled: true,
-		DeepLinking:   true,
-		DisplayOperationId: true,
+		Title:                    "MCP Memory Server API Documentation",
+		Description:              "Interactive API documentation for the Model Context Protocol Memory Server",
+		SpecURL:                  baseURL + "/docs/openapi.json",
+		Version:                  "1.0.0",
+		ContactName:              "Lerian Studio",
+		ContactURL:               "https://github.com/lerianstudio/lerian-mcp-memory",
+		ContactEmail:             "support@lerian.studio",
+		LicenseName:              "MIT",
+		LicenseURL:               "https://opensource.org/licenses/MIT",
+		ServerURL:                baseURL,
+		TryItOutEnabled:          true,
+		DeepLinking:              true,
+		DisplayOperationId:       true,
 		DefaultModelsExpandDepth: 1,
 		DefaultModelExpandDepth:  1,
-		DocExpansion: "list",
-		Filter:       true,
-		ShowExtensions: false,
-		ShowCommonExtensions: false,
-		UseUnsafeMarkdown: false,
+		DocExpansion:             "list",
+		Filter:                   true,
+		ShowExtensions:           false,
+		ShowCommonExtensions:     false,
+		UseUnsafeMarkdown:        false,
 	}
 }
 
@@ -185,40 +185,40 @@ func getBaseURL(r *http.Request) string {
 	if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
 		scheme = "https"
 	}
-	
+
 	host := r.Host
 	if forwarded := r.Header.Get("X-Forwarded-Host"); forwarded != "" {
 		host = forwarded
 	}
-	
+
 	return fmt.Sprintf("%s://%s", scheme, host)
 }
 
 // getContentType returns the appropriate content type for a file
 func getContentType(filename string) string {
 	ext := strings.ToLower(filepath.Ext(filename))
-	
+
 	contentTypes := map[string]string{
-		".html": "text/html; charset=utf-8",
-		".css":  "text/css; charset=utf-8",
-		".js":   "application/javascript; charset=utf-8",
-		".json": "application/json",
-		".png":  "image/png",
-		".jpg":  "image/jpeg",
-		".jpeg": "image/jpeg",
-		".gif":  "image/gif",
-		".svg":  "image/svg+xml",
-		".ico":  "image/x-icon",
-		".woff": "font/woff",
+		".html":  "text/html; charset=utf-8",
+		".css":   "text/css; charset=utf-8",
+		".js":    "application/javascript; charset=utf-8",
+		".json":  "application/json",
+		".png":   "image/png",
+		".jpg":   "image/jpeg",
+		".jpeg":  "image/jpeg",
+		".gif":   "image/gif",
+		".svg":   "image/svg+xml",
+		".ico":   "image/x-icon",
+		".woff":  "font/woff",
 		".woff2": "font/woff2",
-		".ttf":  "font/ttf",
-		".eot":  "application/vnd.ms-fontobject",
+		".ttf":   "font/ttf",
+		".eot":   "application/vnd.ms-fontobject",
 	}
-	
+
 	if contentType, exists := contentTypes[ext]; exists {
 		return contentType
 	}
-	
+
 	return "application/octet-stream"
 }
 
@@ -230,18 +230,18 @@ func DocumentationMiddleware(next http.Handler) http.Handler {
 		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key")
 		w.Header().Set("Access-Control-Max-Age", "86400")
-		
+
 		// Handle preflight requests
 		if r.Method == "OPTIONS" {
 			w.WriteHeader(http.StatusNoContent)
 			return
 		}
-		
+
 		// Add documentation discovery headers
 		w.Header().Set("Link", `</docs/openapi.json>; rel="service-desc"`)
 		w.Header().Set("X-API-Version", "1.0.0")
 		w.Header().Set("X-Documentation-URL", "/docs")
-		
+
 		next.ServeHTTP(w, r)
 	})
 }
@@ -263,36 +263,36 @@ func NewHealthCheckHandler(generator *OpenAPIGenerator) *HealthCheckHandler {
 // ServeHTTP serves health check information with API documentation links
 func (h *HealthCheckHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	uptime := time.Since(h.startTime)
-	
+
 	health := map[string]interface{}{
 		"status":    "healthy",
 		"timestamp": time.Now().Format(time.RFC3339),
 		"version":   "1.0.0",
 		"uptime":    uptime.String(),
 		"documentation": map[string]string{
-			"interactive": "/docs",
+			"interactive":  "/docs",
 			"openapi_json": "/docs/openapi.json",
 			"openapi_yaml": "/docs/openapi.yaml",
 		},
 		"endpoints": map[string]string{
-			"mcp":     "/mcp",
-			"health":  "/health",
-			"metrics": "/metrics",
+			"mcp":       "/mcp",
+			"health":    "/health",
+			"metrics":   "/metrics",
 			"websocket": "/ws",
-			"sse":     "/sse",
+			"sse":       "/sse",
 		},
 	}
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-cache")
-	
+
 	// Validate OpenAPI spec as part of health check
 	if err := h.generator.ValidateSpecification(); err != nil {
 		health["status"] = "degraded"
 		health["warnings"] = []string{"OpenAPI specification validation failed: " + err.Error()}
 		w.WriteHeader(http.StatusOK) // Still return 200 but mark as degraded
 	}
-	
+
 	fmt.Fprintf(w, `{
   "status": "%s",
   "timestamp": "%s",
@@ -334,9 +334,9 @@ func (g *APIExampleGenerator) GenerateExamples() map[string]interface{} {
 				"id":      "1",
 				"method":  "memory_search",
 				"params": map[string]interface{}{
-					"query":     "database optimization techniques",
-					"limit":     10,
-					"threshold": 0.7,
+					"query":      "database optimization techniques",
+					"limit":      10,
+					"threshold":  0.7,
 					"repository": "lerian-mcp-memory",
 				},
 			},
@@ -356,7 +356,7 @@ func (g *APIExampleGenerator) GenerateExamples() map[string]interface{} {
 							},
 						},
 					},
-					"total": 5,
+					"total":      5,
 					"query_time": "15ms",
 				},
 			},
@@ -382,10 +382,10 @@ func (g *APIExampleGenerator) GenerateExamples() map[string]interface{} {
 				"jsonrpc": "2.0",
 				"id":      "2",
 				"result": map[string]interface{}{
-					"chunk_id":   "chunk_002",
-					"stored_at":  "2024-01-15T11:45:00Z",
-					"embedding":  true,
-					"indexed":    true,
+					"chunk_id":       "chunk_002",
+					"stored_at":      "2024-01-15T11:45:00Z",
+					"embedding":      true,
+					"indexed":        true,
 					"similar_chunks": 3,
 				},
 			},
@@ -435,7 +435,7 @@ func (g *APIExampleGenerator) GenerateExamples() map[string]interface{} {
 			},
 		},
 	}
-	
+
 	return examples
 }
 

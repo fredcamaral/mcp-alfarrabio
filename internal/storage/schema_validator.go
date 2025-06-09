@@ -42,6 +42,11 @@ type ValidationError struct {
 	Suggestion string `json:"suggestion,omitempty"`
 }
 
+// Error implements the error interface
+func (ve *ValidationError) Error() string {
+	return fmt.Sprintf("[%s] %s: %s", ve.Code, ve.Component, ve.Message)
+}
+
 // ValidationWarning represents a schema validation warning
 type ValidationWarning struct {
 	Component  string `json:"component"`

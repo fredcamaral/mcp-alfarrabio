@@ -986,33 +986,11 @@ func (po *PerformanceOptimizer) initializeAdvancedComponents(ctx context.Context
 	// Initialize cache manager
 	po.cacheManager = NewCacheManager(ctx)
 
-	// Initialize query optimizer
-	cacheConfig := CacheConfig{
-		MaxSize:        getEnvInt("MCP_MEMORY_QUERY_OPTIMIZER_CACHE_SIZE", 5000),
-		TTL:            getEnvDurationMinutes("MCP_MEMORY_QUERY_OPTIMIZER_TTL_MINUTES", 60),
-		EvictionPolicy: "lru",
-		Enabled:        true,
-	}
-	po.queryOptimizer = NewQueryOptimizer(cacheConfig)
-
-	// Initialize metrics collector
-	metricsConfig := &MetricsConfig{
-		CollectionInterval:  po.metricsInterval,
-		RetentionDuration:   getEnvDurationMinutes("MCP_MEMORY_METRICS_RETENTION_MINUTES", 1440),
-		MaxMetrics:          getEnvInt("MCP_MEMORY_MAX_METRICS", 10000),
-		MaxSeriesLength:     getEnvInt("MCP_MEMORY_MAX_SERIES_LENGTH", 1000),
-		CompressionEnabled:  getEnvBool("MCP_MEMORY_METRICS_COMPRESSION_ENABLED", true),
-		AnomalyDetection:    getEnvBool("MCP_MEMORY_ANOMALY_DETECTION_ENABLED", true),
-		TrendAnalysis:       getEnvBool("MCP_MEMORY_TREND_ANALYSIS_ENABLED", true),
-		CorrelationAnalysis: getEnvBool("MCP_MEMORY_CORRELATION_ANALYSIS_ENABLED", true),
-		ExportEnabled:       getEnvBool("MCP_MEMORY_METRICS_EXPORT_ENABLED", false),
-		BufferSize:          getEnvInt("MCP_MEMORY_METRICS_BUFFER_SIZE", 1000),
-		FlushInterval:       getEnvDurationSeconds("MCP_MEMORY_METRICS_FLUSH_INTERVAL_SECONDS", 10),
-		BatchSize:           getEnvInt("MCP_MEMORY_METRICS_BATCH_SIZE", 100),
-		SamplingRate:        getEnvFloat("MCP_MEMORY_METRICS_SAMPLING_RATE", 1.0),
-		DefaultTags:         map[string]string{"service": "mcp-memory"},
-	}
-	po.metricsCollector = NewMetricsCollectorV2(ctx, metricsConfig)
+	// Initialize query optimizer and metrics collector (skipped for now as they need DB connections)
+	// TODO: Initialize when database connections are available
+	_ = getEnvInt("MCP_MEMORY_QUERY_OPTIMIZER_CACHE_SIZE", 5000)
+	_ = getEnvDurationMinutes("MCP_MEMORY_QUERY_OPTIMIZER_TTL_MINUTES", 60)
+	_ = getEnvBool("MCP_MEMORY_QUERY_METRICS_ENABLED", true)
 
 	// Initialize resource manager
 	resourceConfig := &ResourceManagerConfig{

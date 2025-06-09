@@ -5,7 +5,9 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -54,17 +56,20 @@ type QueryPlanCache struct {
 
 // QueryStats tracks query performance statistics
 type QueryStats struct {
-	TotalQueries   int64         `json:"total_queries"`
-	SlowQueries    int64         `json:"slow_queries"`
-	OptimizedCount int64         `json:"optimized_count"`
-	AvgDuration    time.Duration `json:"avg_duration"`
-	MaxDuration    time.Duration `json:"max_duration"`
-	MinDuration    time.Duration `json:"min_duration"`
-	P95Duration    time.Duration `json:"p95_duration"`
-	IndexHitRatio  float64       `json:"index_hit_ratio"`
-	TableScans     int64         `json:"table_scans"`
-	IndexScans     int64         `json:"index_scans"`
-	CacheHitRatio  float64       `json:"cache_hit_ratio"`
+	TotalQueries     int64         `json:"total_queries"`
+	SlowQueries      int64         `json:"slow_queries"`
+	OptimizedCount   int64         `json:"optimized_count"`
+	AvgDuration      time.Duration `json:"avg_duration"`
+	MaxDuration      time.Duration `json:"max_duration"`
+	MinDuration      time.Duration `json:"min_duration"`
+	P95Duration      time.Duration `json:"p95_duration"`
+	IndexHitRatio    float64       `json:"index_hit_ratio"`
+	TableScans       int64         `json:"table_scans"`
+	IndexScans       int64         `json:"index_scans"`
+	CacheHitRatio    float64       `json:"cache_hit_ratio"`
+	AvgAnalysisTime  time.Duration `json:"avg_analysis_time"`
+	IndexSuggestions int64         `json:"index_suggestions"`
+	QueryRewrites    int64         `json:"query_rewrites"`
 }
 
 // NewQueryOptimizer creates a new query optimizer
@@ -429,4 +434,37 @@ func (qpc *QueryPlanCache) cleanup() {
 			delete(qpc.plans, query)
 		}
 	}
+}
+
+// GetOptimizationReport returns a comprehensive optimization report
+func (qo *QueryOptimizer) GetOptimizationReport() map[string]interface{} {
+	qo.mu.RLock()
+	defer qo.mu.RUnlock()
+
+	return map[string]interface{}{
+		"total_queries_analyzed": qo.stats.TotalQueries,
+		"slow_queries_detected":  qo.stats.SlowQueries,
+		"cache_hit_rate":         qo.stats.CacheHitRatio,
+		"average_analysis_time":  qo.stats.AvgAnalysisTime,
+		"cached_plans":           len(qo.cache.plans),
+		"optimization_suggestions": map[string]interface{}{
+			"index_suggestions": qo.stats.IndexSuggestions,
+			"query_rewrites":    qo.stats.QueryRewrites,
+		},
+	}
+}
+
+// getEnvBool gets a boolean environment variable with a default value
+func getEnvBool(key string, defaultValue bool) bool {
+	value := os.Getenv(key)
+	if value == "" {
+		return defaultValue
+	}
+
+	boolValue, err := strconv.ParseBool(value)
+	if err != nil {
+		return defaultValue
+	}
+
+	return boolValue
 }

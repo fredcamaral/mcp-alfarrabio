@@ -254,11 +254,11 @@ func TestTaskChunkTypeValidation(t *testing.T) {
 // TestTaskStatusValidation tests TaskStatus validation
 func TestTaskStatusValidation(t *testing.T) {
 	validStatuses := []types.TaskStatus{
-		types.TaskStatusTodo,
-		types.TaskStatusInProgress,
-		types.TaskStatusCompleted,
-		types.TaskStatusBlocked,
-		types.TaskStatusCancelled,
+		types.TaskStatus(types.TaskStatusTodo),
+		types.TaskStatus(types.TaskStatusInProgress),
+		types.TaskStatus(types.TaskStatusCompleted),
+		types.TaskStatus(types.TaskStatusBlocked),
+		types.TaskStatus(types.TaskStatusCancelled),
 	}
 
 	for _, status := range validStatuses {

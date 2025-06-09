@@ -28,7 +28,7 @@ func TestTaskChunkIntegration(t *testing.T) {
 				Timestamp: time.Now().Add(-1 * time.Hour), // Recent
 				Metadata: types.ChunkMetadata{
 					Repository:   "security-project",
-					TaskStatus:   taskStatusPtr(types.TaskStatusCompleted),
+					TaskStatus:   taskStatusPtr(types.TaskStatus(types.TaskStatusCompleted)),
 					TaskPriority: stringPtr("high"),
 				},
 			},
@@ -43,7 +43,7 @@ func TestTaskChunkIntegration(t *testing.T) {
 				Timestamp: time.Now().Add(-2 * time.Hour),
 				Metadata: types.ChunkMetadata{
 					Repository:   "auth-project",
-					TaskStatus:   taskStatusPtr(types.TaskStatusInProgress),
+					TaskStatus:   taskStatusPtr(types.TaskStatus(types.TaskStatusInProgress)),
 					TaskPriority: stringPtr("medium"),
 				},
 			},

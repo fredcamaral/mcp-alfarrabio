@@ -322,3 +322,10 @@ func (hc *HealthChecker) performHealthCheck(db *sql.DB) {
 		hc.isHealthy = true
 	}
 }
+
+// setHealthy sets the health status (used for testing)
+func (hc *HealthChecker) setHealthy(healthy bool) {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+	hc.isHealthy = healthy
+}

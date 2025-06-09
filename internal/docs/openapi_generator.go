@@ -14,24 +14,24 @@ import (
 
 // OpenAPIGenerator generates OpenAPI 3.0 specifications from Go code annotations
 type OpenAPIGenerator struct {
-	config      *config.Config
-	spec        *OpenAPISpec
-	paths       map[string]*PathItem
-	components  *Components
-	tags        map[string]*Tag
-	servers     []*Server
+	config     *config.Config
+	spec       *OpenAPISpec
+	paths      map[string]*PathItem
+	components *Components
+	tags       map[string]*Tag
+	servers    []*Server
 }
 
 // OpenAPISpec represents the root OpenAPI 3.0 specification
 type OpenAPISpec struct {
-	OpenAPI    string                `json:"openapi"`
-	Info       *Info                 `json:"info"`
-	Servers    []*Server             `json:"servers,omitempty"`
-	Paths      map[string]*PathItem  `json:"paths"`
-	Components *Components           `json:"components,omitempty"`
-	Security   []SecurityRequirement `json:"security,omitempty"`
-	Tags       []*Tag                `json:"tags,omitempty"`
-	ExternalDocs *ExternalDocs       `json:"externalDocs,omitempty"`
+	OpenAPI      string                `json:"openapi"`
+	Info         *Info                 `json:"info"`
+	Servers      []*Server             `json:"servers,omitempty"`
+	Paths        map[string]*PathItem  `json:"paths"`
+	Components   *Components           `json:"components,omitempty"`
+	Security     []SecurityRequirement `json:"security,omitempty"`
+	Tags         []*Tag                `json:"tags,omitempty"`
+	ExternalDocs *ExternalDocs         `json:"externalDocs,omitempty"`
 }
 
 // Info provides metadata about the API
@@ -73,16 +73,16 @@ type ServerVariable struct {
 
 // PathItem describes operations available on a single path
 type PathItem struct {
-	Summary     string     `json:"summary,omitempty"`
-	Description string     `json:"description,omitempty"`
-	GET         *Operation `json:"get,omitempty"`
-	PUT         *Operation `json:"put,omitempty"`
-	POST        *Operation `json:"post,omitempty"`
-	DELETE      *Operation `json:"delete,omitempty"`
-	OPTIONS     *Operation `json:"options,omitempty"`
-	HEAD        *Operation `json:"head,omitempty"`
-	PATCH       *Operation `json:"patch,omitempty"`
-	TRACE       *Operation `json:"trace,omitempty"`
+	Summary     string       `json:"summary,omitempty"`
+	Description string       `json:"description,omitempty"`
+	GET         *Operation   `json:"get,omitempty"`
+	PUT         *Operation   `json:"put,omitempty"`
+	POST        *Operation   `json:"post,omitempty"`
+	DELETE      *Operation   `json:"delete,omitempty"`
+	OPTIONS     *Operation   `json:"options,omitempty"`
+	HEAD        *Operation   `json:"head,omitempty"`
+	PATCH       *Operation   `json:"patch,omitempty"`
+	TRACE       *Operation   `json:"trace,omitempty"`
 	Parameters  []*Parameter `json:"parameters,omitempty"`
 }
 
@@ -104,33 +104,33 @@ type Operation struct {
 
 // Parameter describes a single operation parameter
 type Parameter struct {
-	Name            string      `json:"name"`
-	In              string      `json:"in"` // "query", "header", "path", "cookie"
-	Description     string      `json:"description,omitempty"`
-	Required        bool        `json:"required,omitempty"`
-	Deprecated      bool        `json:"deprecated,omitempty"`
-	AllowEmptyValue bool        `json:"allowEmptyValue,omitempty"`
-	Style           string      `json:"style,omitempty"`
-	Explode         *bool       `json:"explode,omitempty"`
-	AllowReserved   bool        `json:"allowReserved,omitempty"`
-	Schema          *Schema     `json:"schema,omitempty"`
-	Example         interface{} `json:"example,omitempty"`
+	Name            string              `json:"name"`
+	In              string              `json:"in"` // "query", "header", "path", "cookie"
+	Description     string              `json:"description,omitempty"`
+	Required        bool                `json:"required,omitempty"`
+	Deprecated      bool                `json:"deprecated,omitempty"`
+	AllowEmptyValue bool                `json:"allowEmptyValue,omitempty"`
+	Style           string              `json:"style,omitempty"`
+	Explode         *bool               `json:"explode,omitempty"`
+	AllowReserved   bool                `json:"allowReserved,omitempty"`
+	Schema          *Schema             `json:"schema,omitempty"`
+	Example         interface{}         `json:"example,omitempty"`
 	Examples        map[string]*Example `json:"examples,omitempty"`
 }
 
 // RequestBody describes a single request body
 type RequestBody struct {
-	Description string               `json:"description,omitempty"`
+	Description string                `json:"description,omitempty"`
 	Content     map[string]*MediaType `json:"content"`
-	Required    bool                 `json:"required,omitempty"`
+	Required    bool                  `json:"required,omitempty"`
 }
 
 // Response describes a single response from an API operation
 type Response struct {
-	Description string               `json:"description"`
-	Headers     map[string]*Header   `json:"headers,omitempty"`
+	Description string                `json:"description"`
+	Headers     map[string]*Header    `json:"headers,omitempty"`
 	Content     map[string]*MediaType `json:"content,omitempty"`
-	Links       map[string]*Link     `json:"links,omitempty"`
+	Links       map[string]*Link      `json:"links,omitempty"`
 }
 
 // MediaType provides schema and examples for the media type identified by its key
@@ -201,15 +201,15 @@ type Example struct {
 
 // Header object
 type Header struct {
-	Description     string      `json:"description,omitempty"`
-	Required        bool        `json:"required,omitempty"`
-	Deprecated      bool        `json:"deprecated,omitempty"`
-	AllowEmptyValue bool        `json:"allowEmptyValue,omitempty"`
-	Style           string      `json:"style,omitempty"`
-	Explode         *bool       `json:"explode,omitempty"`
-	AllowReserved   bool        `json:"allowReserved,omitempty"`
-	Schema          *Schema     `json:"schema,omitempty"`
-	Example         interface{} `json:"example,omitempty"`
+	Description     string              `json:"description,omitempty"`
+	Required        bool                `json:"required,omitempty"`
+	Deprecated      bool                `json:"deprecated,omitempty"`
+	AllowEmptyValue bool                `json:"allowEmptyValue,omitempty"`
+	Style           string              `json:"style,omitempty"`
+	Explode         *bool               `json:"explode,omitempty"`
+	AllowReserved   bool                `json:"allowReserved,omitempty"`
+	Schema          *Schema             `json:"schema,omitempty"`
+	Example         interface{}         `json:"example,omitempty"`
 	Examples        map[string]*Example `json:"examples,omitempty"`
 }
 
@@ -297,8 +297,8 @@ type EndpointInfo struct {
 // NewOpenAPIGenerator creates a new OpenAPI specification generator
 func NewOpenAPIGenerator(cfg *config.Config) *OpenAPIGenerator {
 	return &OpenAPIGenerator{
-		config:     cfg,
-		paths:      make(map[string]*PathItem),
+		config: cfg,
+		paths:  make(map[string]*PathItem),
 		components: &Components{
 			Schemas:         make(map[string]*Schema),
 			Responses:       make(map[string]*Response),
@@ -718,8 +718,8 @@ func (g *OpenAPIGenerator) generateSchemas() {
 				Example:     "memory_search",
 			},
 			"params": {
-				Type:        "object",
-				Description: "Method-specific parameters",
+				Type:                 "object",
+				Description:          "Method-specific parameters",
 				AdditionalProperties: true,
 			},
 		},
@@ -743,8 +743,8 @@ func (g *OpenAPIGenerator) generateSchemas() {
 				},
 			},
 			"result": {
-				Description: "Successful response result",
-				Type:        "object",
+				Description:          "Successful response result",
+				Type:                 "object",
 				AdditionalProperties: true,
 			},
 			"error": {
@@ -770,7 +770,7 @@ func (g *OpenAPIGenerator) generateSchemas() {
 				Example:     "Invalid params",
 			},
 			"data": {
-				Description: "Additional error data",
+				Description:          "Additional error data",
 				AdditionalProperties: true,
 			},
 		},
@@ -853,8 +853,8 @@ func (g *OpenAPIGenerator) generateSchemas() {
 				Description: "Error message if unhealthy",
 			},
 			"details": {
-				Type:        "object",
-				Description: "Component-specific health details",
+				Type:                 "object",
+				Description:          "Component-specific health details",
 				AdditionalProperties: true,
 			},
 		},
@@ -1105,27 +1105,27 @@ func generateOperationID(method, path string) string {
 	// Convert path to camelCase operation ID
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	operationID := strings.ToLower(method)
-	
+
 	for _, part := range parts {
 		if part != "" && !strings.HasPrefix(part, "{") {
 			operationID += strings.Title(part)
 		}
 	}
-	
+
 	return operationID
 }
 
 func generateTagDescription(tag string) string {
 	descriptions := map[string]string{
-		"MCP Protocol":   "Model Context Protocol endpoints for memory operations",
-		"Health":         "Health check and status monitoring endpoints",
-		"Monitoring":     "Metrics and performance monitoring endpoints", 
-		"Documentation":  "API documentation and specification endpoints",
-		"Database":       "Database management and optimization endpoints",
-		"WebSocket":      "WebSocket endpoints for real-time communication",
-		"SSE":            "Server-Sent Events for real-time updates",
+		"MCP Protocol":  "Model Context Protocol endpoints for memory operations",
+		"Health":        "Health check and status monitoring endpoints",
+		"Monitoring":    "Metrics and performance monitoring endpoints",
+		"Documentation": "API documentation and specification endpoints",
+		"Database":      "Database management and optimization endpoints",
+		"WebSocket":     "WebSocket endpoints for real-time communication",
+		"SSE":           "Server-Sent Events for real-time updates",
 	}
-	
+
 	if desc, exists := descriptions[tag]; exists {
 		return desc
 	}
@@ -1156,7 +1156,7 @@ func SchemaFromType(t reflect.Type) *Schema {
 		}
 	case reflect.Map:
 		return &Schema{
-			Type: "object",
+			Type:                 "object",
 			AdditionalProperties: SchemaFromType(t.Elem()),
 		}
 	case reflect.Struct:
@@ -1164,7 +1164,7 @@ func SchemaFromType(t reflect.Type) *Schema {
 			Type:       "object",
 			Properties: make(map[string]*Schema),
 		}
-		
+
 		for i := 0; i < t.NumField(); i++ {
 			field := t.Field(i)
 			if field.PkgPath == "" { // exported field
@@ -1175,7 +1175,7 @@ func SchemaFromType(t reflect.Type) *Schema {
 				}
 			}
 		}
-		
+
 		return schema
 	case reflect.Ptr:
 		schema := SchemaFromType(t.Elem())

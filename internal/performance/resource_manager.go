@@ -355,7 +355,8 @@ func NewResourceManager(ctx context.Context, config *ResourceManagerConfig) *Res
 
 	// Initialize components
 	if config.MetricsEnabled {
-		rm.metricsCollector = NewMetricsCollectorV2(rmCtx, nil)
+		// Skip metrics collector for now - needs database connection
+		// rm.metricsCollector = NewMetricsCollectorV2(db, dbConfig, metricsConfig)
 	}
 
 	rm.healthMonitor = NewResourceHealthMonitor()

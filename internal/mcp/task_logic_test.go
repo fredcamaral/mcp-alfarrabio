@@ -275,7 +275,7 @@ func createTagsTestCase() struct {
 // validateBasicMetadata validates basic metadata fields
 func validateBasicMetadata(metadata *types.ChunkMetadata) bool {
 	return metadata.Repository == GlobalMemoryRepository &&
-		validateTaskStatus(metadata, types.TaskStatusTodo) &&
+		validateTaskStatus(metadata, types.TaskStatus(types.TaskStatusTodo)) &&
 		validateTaskPriority(metadata, types.PriorityMedium) &&
 		metadata.Outcome == types.OutcomeInProgress &&
 		metadata.Difficulty == types.DifficultyModerate
@@ -284,7 +284,7 @@ func validateBasicMetadata(metadata *types.ChunkMetadata) bool {
 // validateOptionalFieldsMetadata validates metadata with optional fields
 func validateOptionalFieldsMetadata(metadata *types.ChunkMetadata) bool {
 	return metadata.Repository == "github.com/example/project" &&
-		validateTaskStatus(metadata, types.TaskStatusTodo) &&
+		validateTaskStatus(metadata, types.TaskStatus(types.TaskStatusTodo)) &&
 		validateTaskPriority(metadata, types.PriorityHigh) &&
 		validateTaskAssignee(metadata, "dev@example.com") &&
 		validateTaskEstimate(metadata, 120)
@@ -372,7 +372,7 @@ func extractStatus(params map[string]interface{}) types.TaskStatus {
 	if s, ok := params["status"].(string); ok && s != "" {
 		return types.TaskStatus(s)
 	}
-	return types.TaskStatusTodo
+	return types.TaskStatus(types.TaskStatusTodo)
 }
 
 // addOptionalTaskFields adds optional task-specific fields to metadata

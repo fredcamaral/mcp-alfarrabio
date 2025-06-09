@@ -17,9 +17,9 @@ type ComplexityAnalyzer struct {
 
 // ComplexityConfig represents configuration for complexity analysis
 type ComplexityConfig struct {
-	TechnicalWeights   ComplexityWeights `json:"technical_weights"`
-	IntegrationWeights ComplexityWeights `json:"integration_weights"`
-	BusinessWeights    ComplexityWeights `json:"business_weights"`
+	TechnicalWeights   ComplexityWeights     `json:"technical_weights"`
+	IntegrationWeights ComplexityWeights     `json:"integration_weights"`
+	BusinessWeights    ComplexityWeights     `json:"business_weights"`
 	DefaultRiskLevel   types.RiskLevelEnum   `json:"default_risk_level"`
 	DefaultImpactLevel types.ImpactLevelEnum `json:"default_impact_level"`
 }
