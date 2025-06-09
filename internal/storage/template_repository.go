@@ -5,6 +5,8 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
+	"strings"
 	"time"
 
 	"lerian-mcp-memory/pkg/types"
@@ -82,99 +84,17 @@ func (r *TemplateRepository) GetTemplateByID(ctx context.Context, id string) (*t
 
 // ListTemplates retrieves templates with filtering and pagination
 func (r *TemplateRepository) ListTemplates(ctx context.Context, filters *TemplateFilters) ([]*types.TaskTemplate, error) {
-	query := `
-		SELECT id, name, description, category, template_data, applicability,
-		       variables, project_type, complexity_level, estimated_effort_hours,
-		       required_skills, usage_count, success_rate, avg_completion_time_hours,
-		       user_rating, feedback_count, version, parent_template_id, is_active,
-		       created_by, tags, metadata, created_at, updated_at, deleted_at
-		FROM task_templates
-		WHERE deleted_at IS NULL`
-
-	args := []interface{}{}
-	argCount := 0
-
-	// Add category filter
-	if filters.Category != nil {
-		argCount++
-		query += fmt.Sprintf(" AND category = $%d", argCount)
-		args = append(args, *filters.Category)
-	}
-
-	// Add project type filter
-	if filters.ProjectType != nil {
-		argCount++
-		query += fmt.Sprintf(" AND project_type = $%d", argCount)
-		args = append(args, *filters.ProjectType)
-	}
-
-	// Add complexity filter
-	if filters.ComplexityLevel != nil {
-		argCount++
-		query += fmt.Sprintf(" AND complexity_level = $%d", argCount)
-		args = append(args, *filters.ComplexityLevel)
-	}
-
-	// Add active filter
-	if filters.IsActive != nil {
-		argCount++
-		query += fmt.Sprintf(" AND is_active = $%d", argCount)
-		args = append(args, *filters.IsActive)
-	}
-
-	// Add minimum success rate filter
-	if filters.MinSuccessRate != nil {
-		argCount++
-		query += fmt.Sprintf(" AND success_rate >= $%d", argCount)
-		args = append(args, *filters.MinSuccessRate)
-	}
-
-	// Add ordering
-	switch filters.OrderBy {
-	case "usage_count":
-		query += " ORDER BY usage_count DESC"
-	case "success_rate":
-		query += " ORDER BY success_rate DESC"
-	case "user_rating":
-		query += " ORDER BY user_rating DESC"
-	case "name":
-		query += " ORDER BY name ASC"
-	default:
-		query += " ORDER BY created_at DESC"
-	}
-
-	// Add pagination
-	if filters.Limit > 0 {
-		argCount++
-		query += fmt.Sprintf(" LIMIT $%d", argCount)
-		args = append(args, filters.Limit)
-
-		if filters.Offset > 0 {
-			argCount++
-			query += fmt.Sprintf(" OFFSET $%d", argCount)
-			args = append(args, filters.Offset)
-		}
-	}
+	query, args := r.buildListTemplatesQuery(filters)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query templates: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var templates []*types.TaskTemplate
 	for rows.Next() {
-		template := &types.TaskTemplate{}
-		err := rows.Scan(
-			&template.ID, &template.Name, &template.Description, &template.Category,
-			&template.TemplateData, &template.Applicability, &template.Variables,
-			&template.ProjectType, &template.ComplexityLevel, &template.EstimatedEffortHours,
-			&template.RequiredSkills, &template.UsageCount, &template.SuccessRate,
-			&template.AvgCompletionTimeHours, &template.UserRating, &template.FeedbackCount,
-			&template.Version, &template.ParentTemplateID, &template.IsActive,
-			&template.CreatedBy, &template.Tags, &template.Metadata,
-			&template.CreatedAt, &template.UpdatedAt, &template.DeletedAt,
-		)
+		template, err := r.scanTemplate(rows)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan template: %w", err)
 		}
@@ -182,10 +102,130 @@ func (r *TemplateRepository) ListTemplates(ctx context.Context, filters *Templat
 	}
 
 	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("failed to iterate template rows: %w", err)
+		return nil, fmt.Errorf("row iteration error: %w", err)
 	}
 
 	return templates, nil
+}
+
+func (r *TemplateRepository) buildListTemplatesQuery(filters *TemplateFilters) (query string, args []interface{}) {
+	var queryBuilder strings.Builder
+	queryBuilder.WriteString(`
+		SELECT id, name, description, category, template_data, applicability,
+		       variables, project_type, complexity_level, estimated_effort_hours,
+		       required_skills, usage_count, success_rate, avg_completion_time_hours,
+		       user_rating, feedback_count, version, parent_template_id, is_active,
+		       created_by, tags, metadata, created_at, updated_at, deleted_at
+		FROM task_templates
+		WHERE deleted_at IS NULL`)
+
+	args = make([]interface{}, 0)
+	argCount := 0
+
+	// Add category filter
+	if filters.Category != nil {
+		argCount++
+		queryBuilder.WriteString(fmt.Sprintf(" AND category = $%d", argCount))
+		args = append(args, *filters.Category)
+	}
+
+	// Add project type filter
+	if filters.ProjectType != nil {
+		argCount++
+		queryBuilder.WriteString(fmt.Sprintf(" AND project_type = $%d", argCount))
+		args = append(args, *filters.ProjectType)
+	}
+
+	// Add complexity filter
+	if filters.ComplexityLevel != nil {
+		argCount++
+		queryBuilder.WriteString(fmt.Sprintf(" AND complexity_level = $%d", argCount))
+		args = append(args, *filters.ComplexityLevel)
+	}
+
+	// Add active filter
+	if filters.IsActive != nil {
+		argCount++
+		queryBuilder.WriteString(fmt.Sprintf(" AND is_active = $%d", argCount))
+		args = append(args, *filters.IsActive)
+	}
+
+	// Add minimum success rate filter
+	if filters.MinSuccessRate != nil {
+		argCount++
+		queryBuilder.WriteString(fmt.Sprintf(" AND success_rate >= $%d", argCount))
+		args = append(args, *filters.MinSuccessRate)
+	}
+
+	// Add ordering
+	switch filters.OrderBy {
+	case "usage_count":
+		queryBuilder.WriteString(" ORDER BY usage_count DESC")
+	case "success_rate":
+		queryBuilder.WriteString(" ORDER BY success_rate DESC")
+	case "user_rating":
+		queryBuilder.WriteString(" ORDER BY user_rating DESC")
+	case "name":
+		queryBuilder.WriteString(" ORDER BY name ASC")
+	default:
+		queryBuilder.WriteString(" ORDER BY created_at DESC")
+	}
+
+	// Add pagination
+	if filters.Limit > 0 {
+		argCount++
+		queryBuilder.WriteString(fmt.Sprintf(" LIMIT $%d", argCount))
+		args = append(args, filters.Limit)
+
+		if filters.Offset > 0 {
+			argCount++
+			queryBuilder.WriteString(fmt.Sprintf(" OFFSET $%d", argCount))
+			args = append(args, filters.Offset)
+		}
+	}
+
+	query = queryBuilder.String()
+	return
+}
+
+func (r *TemplateRepository) scanTemplate(rows *sql.Rows) (*types.TaskTemplate, error) {
+	template := &types.TaskTemplate{}
+	err := rows.Scan(
+		&template.ID, &template.Name, &template.Description, &template.Category,
+		&template.TemplateData, &template.Applicability, &template.Variables,
+		&template.ProjectType, &template.ComplexityLevel, &template.EstimatedEffortHours,
+		&template.RequiredSkills, &template.UsageCount, &template.SuccessRate,
+		&template.AvgCompletionTimeHours, &template.UserRating, &template.FeedbackCount,
+		&template.Version, &template.ParentTemplateID, &template.IsActive,
+		&template.CreatedBy, &template.Tags, &template.Metadata,
+		&template.CreatedAt, &template.UpdatedAt, &template.DeletedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return template, nil
+}
+
+// PatternRepository provides database operations for task patterns
+type PatternRepository struct {
+	db *sql.DB
+}
+
+func (r *PatternRepository) calculateNewAvgCompletionTime(currentAvg *int32, currentCount, newCompletionMinutes, newCount int32) *int32 {
+	if currentAvg != nil {
+		total := int64(*currentAvg)*int64(currentCount) + int64(newCompletionMinutes)
+		avg := total / int64(newCount)
+		if avg > math.MaxInt32 || avg < math.MinInt32 {
+			if avg > 0 {
+				avg = math.MaxInt32
+			} else {
+				avg = math.MinInt32
+			}
+		}
+		avgMinutes := int32(avg) // #nosec G115 - overflow check above
+		return &avgMinutes
+	}
+	return &newCompletionMinutes
 }
 
 // UpdateTemplate modifies an existing template
@@ -275,7 +315,7 @@ func (r *TemplateRepository) SearchTemplates(ctx context.Context, searchQuery st
 	if err != nil {
 		return nil, fmt.Errorf("failed to search templates: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var templates []*types.TaskTemplate
 	for rows.Next() {
@@ -372,11 +412,6 @@ func (r *TemplateRepository) IncrementTemplateUsage(ctx context.Context, id stri
 	return nil
 }
 
-// PatternRepository provides database operations for task patterns
-type PatternRepository struct {
-	db *sql.DB
-}
-
 // NewPatternRepository creates a new pattern repository
 func NewPatternRepository(db *sql.DB) *PatternRepository {
 	return &PatternRepository{db: db}
@@ -455,7 +490,8 @@ func (r *PatternRepository) GetPatternByID(ctx context.Context, id string) (*typ
 
 // ListPatterns retrieves patterns with filtering and pagination
 func (r *PatternRepository) ListPatterns(ctx context.Context, filters *PatternFilters) ([]*types.TaskPattern, error) {
-	query := `
+	var queryBuilder strings.Builder
+	queryBuilder.WriteString(`
 		SELECT id, name, description, pattern_type, template, conditions,
 		       task_sequence, occurrence_count, avg_completion_time_minutes,
 		       success_rate, efficiency_score, repositories, project_types,
@@ -465,7 +501,7 @@ func (r *PatternRepository) ListPatterns(ctx context.Context, filters *PatternFi
 		       status, validation_status, discovered_by, created_by, tags,
 		       metadata, created_at, updated_at, deleted_at
 		FROM task_patterns
-		WHERE deleted_at IS NULL`
+		WHERE deleted_at IS NULL`)
 
 	args := []interface{}{}
 	argCount := 0
@@ -473,63 +509,63 @@ func (r *PatternRepository) ListPatterns(ctx context.Context, filters *PatternFi
 	// Add pattern type filter
 	if filters.PatternType != nil {
 		argCount++
-		query += fmt.Sprintf(" AND pattern_type = $%d", argCount)
+		queryBuilder.WriteString(fmt.Sprintf(" AND pattern_type = $%d", argCount))
 		args = append(args, *filters.PatternType)
 	}
 
 	// Add status filter
 	if filters.Status != nil {
 		argCount++
-		query += fmt.Sprintf(" AND status = $%d", argCount)
+		queryBuilder.WriteString(fmt.Sprintf(" AND status = $%d", argCount))
 		args = append(args, *filters.Status)
 	}
 
 	// Add validation status filter
 	if filters.ValidationStatus != nil {
 		argCount++
-		query += fmt.Sprintf(" AND validation_status = $%d", argCount)
+		queryBuilder.WriteString(fmt.Sprintf(" AND validation_status = $%d", argCount))
 		args = append(args, *filters.ValidationStatus)
 	}
 
 	// Add minimum confidence filter
 	if filters.MinConfidence != nil {
 		argCount++
-		query += fmt.Sprintf(" AND confidence_score >= $%d", argCount)
+		queryBuilder.WriteString(fmt.Sprintf(" AND confidence_score >= $%d", argCount))
 		args = append(args, *filters.MinConfidence)
 	}
 
 	// Add ordering
 	switch filters.OrderBy {
 	case "confidence_score":
-		query += " ORDER BY confidence_score DESC"
+		queryBuilder.WriteString(" ORDER BY confidence_score DESC")
 	case "occurrence_count":
-		query += " ORDER BY occurrence_count DESC"
+		queryBuilder.WriteString(" ORDER BY occurrence_count DESC")
 	case "success_rate":
-		query += " ORDER BY success_rate DESC"
+		queryBuilder.WriteString(" ORDER BY success_rate DESC")
 	case "last_used":
-		query += " ORDER BY last_used_at DESC"
+		queryBuilder.WriteString(" ORDER BY last_used_at DESC")
 	default:
-		query += " ORDER BY created_at DESC"
+		queryBuilder.WriteString(" ORDER BY created_at DESC")
 	}
 
 	// Add pagination
 	if filters.Limit > 0 {
 		argCount++
-		query += fmt.Sprintf(" LIMIT $%d", argCount)
+		queryBuilder.WriteString(fmt.Sprintf(" LIMIT $%d", argCount))
 		args = append(args, filters.Limit)
 
 		if filters.Offset > 0 {
 			argCount++
-			query += fmt.Sprintf(" OFFSET $%d", argCount)
+			queryBuilder.WriteString(fmt.Sprintf(" OFFSET $%d", argCount))
 			args = append(args, filters.Offset)
 		}
 	}
 
-	rows, err := r.db.QueryContext(ctx, query, args...)
+	rows, err := r.db.QueryContext(ctx, queryBuilder.String(), args...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query patterns: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var patterns []*types.TaskPattern
 	for rows.Next() {
@@ -561,7 +597,7 @@ func (r *PatternRepository) ListPatterns(ctx context.Context, filters *PatternFi
 }
 
 // UpdatePatternMetrics updates pattern metrics after usage
-func (r *PatternRepository) UpdatePatternMetrics(ctx context.Context, id string, completionMinutes int32, wasSuccessful bool, wasAccepted bool) error {
+func (r *PatternRepository) UpdatePatternMetrics(ctx context.Context, id string, completionMinutes int32, wasSuccessful, wasAccepted bool) error {
 	// Get current pattern first
 	currentPattern, err := r.GetPatternByID(ctx, id)
 	if err != nil {
@@ -574,12 +610,7 @@ func (r *PatternRepository) UpdatePatternMetrics(ctx context.Context, id string,
 	var newSuccessRate *float64
 
 	// Update average completion time
-	if currentPattern.AvgCompletionMinutes != nil {
-		avgMinutes := int32((int64(*currentPattern.AvgCompletionMinutes)*int64(currentPattern.OccurrenceCount) + int64(completionMinutes)) / int64(newOccurrenceCount))
-		newAvgCompletionMinutes = &avgMinutes
-	} else {
-		newAvgCompletionMinutes = &completionMinutes
-	}
+	newAvgCompletionMinutes = r.calculateNewAvgCompletionTime(currentPattern.AvgCompletionMinutes, currentPattern.OccurrenceCount, completionMinutes, newOccurrenceCount)
 
 	// Update success rate
 	if currentPattern.SuccessRate != nil {

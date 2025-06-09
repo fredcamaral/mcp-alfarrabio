@@ -526,7 +526,7 @@ func (ed *EventDistributor) deliverToSubscription(event *Event, subscription *Di
 	subscription.Statistics.EventsReceived++
 	subscription.Statistics.mu.Unlock()
 
-	var deliveryResults []*push.DeliveryResult
+	deliveryResults := make([]*push.DeliveryResult, 0, len(subscription.DeliveryModes))
 
 	// Deliver via each configured delivery mode
 	for _, deliveryMode := range subscription.DeliveryModes {

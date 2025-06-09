@@ -365,62 +365,82 @@ func (m *MockTaskRepository) Delete(ctx context.Context, id string) error {
 }
 
 // List implements TaskRepository.List
-func (m *MockTaskRepository) List(ctx context.Context, filters tasks.TaskFilters) ([]types.Task, error) {
+func (m *MockTaskRepository) List(ctx context.Context, filters *tasks.TaskFilters) ([]types.Task, error) {
 	if m.tasks == nil {
 		return []types.Task{}, nil
 	}
 
+	result := m.filterTasks(filters)
+	result = m.applyPagination(result, filters)
+
+	return result, nil
+}
+
+// filterTasks applies filtering logic to tasks
+func (m *MockTaskRepository) filterTasks(filters *tasks.TaskFilters) []types.Task {
 	result := make([]types.Task, 0)
 	for _, task := range m.tasks {
-		// Simple filtering logic
-		if len(filters.Status) > 0 {
-			found := false
-			for _, status := range filters.Status {
-				if task.Status == status {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-
-		if len(filters.Type) > 0 {
-			found := false
-			for _, taskType := range filters.Type {
-				if task.Type == taskType {
-					found = true
-					break
-				}
-			}
-			if !found {
-				continue
-			}
-		}
-
-		if filters.Assignee != "" && task.Assignee != filters.Assignee {
+		if !m.matchesFilters(task, filters) {
 			continue
 		}
-
 		result = append(result, *task)
 	}
+	return result
+}
 
-	// Apply limit/offset
+// matchesFilters checks if a task matches the given filters
+func (m *MockTaskRepository) matchesFilters(task *types.Task, filters *tasks.TaskFilters) bool {
+	return m.matchesStatusFilter(task, filters) &&
+		m.matchesTypeFilter(task, filters) &&
+		m.matchesAssigneeFilter(task, filters)
+}
+
+// matchesStatusFilter checks status filter
+func (m *MockTaskRepository) matchesStatusFilter(task *types.Task, filters *tasks.TaskFilters) bool {
+	if len(filters.Status) == 0 {
+		return true
+	}
+	for _, status := range filters.Status {
+		if task.Status == status {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesTypeFilter checks type filter
+func (m *MockTaskRepository) matchesTypeFilter(task *types.Task, filters *tasks.TaskFilters) bool {
+	if len(filters.Type) == 0 {
+		return true
+	}
+	for _, taskType := range filters.Type {
+		if task.Type == taskType {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesAssigneeFilter checks assignee filter
+func (m *MockTaskRepository) matchesAssigneeFilter(task *types.Task, filters *tasks.TaskFilters) bool {
+	return filters.Assignee == "" || task.Assignee == filters.Assignee
+}
+
+// applyPagination applies limit and offset to results
+func (m *MockTaskRepository) applyPagination(result []types.Task, filters *tasks.TaskFilters) []types.Task {
 	if filters.Offset > 0 && filters.Offset < len(result) {
 		result = result[filters.Offset:]
 	}
 	if filters.Limit > 0 && filters.Limit < len(result) {
 		result = result[:filters.Limit]
 	}
-
-	return result, nil
+	return result
 }
 
 // Search implements TaskRepository.Search
-func (m *MockTaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (*tasks.SearchResults, error) {
+func (m *MockTaskRepository) Search(ctx context.Context, query *tasks.SearchQuery) (*tasks.SearchResults, error) {
 	// Simple search implementation for mock
-	allTasks, err := m.List(ctx, query.Filters)
+	allTasks, err := m.List(ctx, &query.Filters)
 	if err != nil {
 		return nil, err
 	}
@@ -429,10 +449,11 @@ func (m *MockTaskRepository) Search(ctx context.Context, query tasks.SearchQuery
 	var filteredTasks []types.Task
 	if query.Query != "" {
 		queryLower := strings.ToLower(query.Query)
-		for _, task := range allTasks {
+		for i := range allTasks {
+			task := &allTasks[i]
 			if strings.Contains(strings.ToLower(task.Title), queryLower) ||
 				strings.Contains(strings.ToLower(task.Description), queryLower) {
-				filteredTasks = append(filteredTasks, task)
+				filteredTasks = append(filteredTasks, *task)
 			}
 		}
 	} else {

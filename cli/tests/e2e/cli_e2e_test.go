@@ -260,7 +260,7 @@ logging:
   level: "error"
   format: "text"
 `
-	err = os.WriteFile(configFile, []byte(configContent), 0644)
+	err = os.WriteFile(configFile, []byte(configContent), 0600)
 	require.NoError(t, err)
 
 	return tempDir

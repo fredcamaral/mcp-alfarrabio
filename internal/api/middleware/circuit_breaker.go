@@ -82,7 +82,6 @@ type BreakerMetrics struct {
 	Uptime              time.Duration `json:"uptime"`
 	Downtime            time.Duration `json:"downtime"`
 	AverageResponseTime time.Duration `json:"average_response_time"`
-	mu                  sync.RWMutex
 }
 
 // BreakerResult represents the result of a circuit breaker call
@@ -156,10 +155,10 @@ func DefaultCircuitBreakerConfig() CircuitBreakerConfig {
 }
 
 // NewCircuitBreakerManager creates a new circuit breaker manager
-func NewCircuitBreakerManager(config CircuitBreakerConfig) *CircuitBreakerManager {
+func NewCircuitBreakerManager(config *CircuitBreakerConfig) *CircuitBreakerManager {
 	manager := &CircuitBreakerManager{
 		breakers: make(map[string]*CircuitBreaker),
-		config:   config,
+		config:   *config,
 	}
 
 	// Initialize circuit breakers for configured services

@@ -643,10 +643,8 @@ func NewPerformanceMonitor(ctx context.Context, logger logging.Logger, config *P
 	pm.analyticsEngine = NewAnalyticsEngine()
 
 	// Initialize metrics collector if not provided
-	if pm.metricsCollector == nil {
-		// Skip metrics collector initialization - needs database connection
-		// pm.metricsCollector = performance.NewMetricsCollectorV2(db, dbConfig, metricsConfig)
-	}
+	// Skip metrics collector initialization - needs database connection
+	// pm.metricsCollector = performance.NewMetricsCollectorV2(db, dbConfig, metricsConfig)
 
 	// Initialize default thresholds
 	pm.initializeDefaultThresholds()

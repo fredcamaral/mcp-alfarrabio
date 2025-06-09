@@ -91,7 +91,7 @@ func (r *PRDRepository) GetByRepository(ctx context.Context, repository string, 
 	if err != nil {
 		return nil, fmt.Errorf("failed to query PRDs by repository: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var prds []*types.EnhancedPRD
 	for rows.Next() {
@@ -192,7 +192,7 @@ func (r *PRDRepository) List(ctx context.Context, filters *PRDFilters) ([]*types
 	if err != nil {
 		return nil, fmt.Errorf("failed to query PRDs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var prds []*types.EnhancedPRD
 	for rows.Next() {
@@ -301,7 +301,7 @@ func (r *PRDRepository) Search(ctx context.Context, searchQuery string, limit in
 	if err != nil {
 		return nil, fmt.Errorf("failed to search PRDs: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var prds []*types.EnhancedPRD
 	for rows.Next() {
@@ -330,7 +330,7 @@ func (r *PRDRepository) Search(ctx context.Context, searchQuery string, limit in
 }
 
 // UpdateParseStatus updates the parse status of a PRD
-func (r *PRDRepository) UpdateParseStatus(ctx context.Context, id string, status string, errors []string) error {
+func (r *PRDRepository) UpdateParseStatus(ctx context.Context, id, status string, errors []string) error {
 	query := `
 		UPDATE prds SET 
 			parse_status = $2, 

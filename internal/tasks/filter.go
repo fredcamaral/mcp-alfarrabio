@@ -11,6 +11,12 @@ import (
 	"lerian-mcp-memory/pkg/types"
 )
 
+// Field name constants
+const (
+	FieldTitle       = "title"
+	FieldDescription = "description"
+)
+
 // FilterManager handles task filtering and sorting operations
 type FilterManager struct {
 	config FilterConfig
@@ -142,7 +148,7 @@ func NewFilterManagerWithConfig(config FilterConfig) *FilterManager {
 }
 
 // ValidateFilters validates filtering criteria
-func (fm *FilterManager) ValidateFilters(filters TaskFilters) error {
+func (fm *FilterManager) ValidateFilters(filters *TaskFilters) error {
 	// Validate filter count
 	filterCount := fm.countActiveFilters(filters)
 	if filterCount > fm.config.MaxFilters {
@@ -189,12 +195,12 @@ func (fm *FilterManager) ValidateFilters(filters TaskFilters) error {
 }
 
 // ApplyFilters applies filters to a task list (in-memory filtering)
-func (fm *FilterManager) ApplyFilters(tasks []types.Task, filters TaskFilters) []types.Task {
+func (fm *FilterManager) ApplyFilters(tasks []types.Task, filters *TaskFilters) []types.Task {
 	filtered := make([]types.Task, 0, len(tasks))
 
-	for _, task := range tasks {
-		if fm.matchesFilters(&task, filters) {
-			filtered = append(filtered, task)
+	for i := range tasks {
+		if fm.matchesFilters(&tasks[i], filters) {
+			filtered = append(filtered, tasks[i])
 		}
 	}
 
@@ -212,105 +218,124 @@ func (fm *FilterManager) ApplyFilters(tasks []types.Task, filters TaskFilters) [
 }
 
 // BuildWhereClause builds SQL WHERE clause from filters
-func (fm *FilterManager) BuildWhereClause(filters TaskFilters) (string, []interface{}) {
+func (fm *FilterManager) BuildWhereClause(filters *TaskFilters) (whereClause string, args []interface{}) {
 	var conditions []string
-	var args []interface{}
+	args = make([]interface{}, 0)
 	argIndex := 1
 
+	fm.addListFilters(&conditions, &args, &argIndex, filters)
+	fm.addStringFilters(&conditions, &args, &argIndex, filters)
+	fm.addDateFilters(&conditions, &args, &argIndex, filters)
+	fm.addQualityFilters(&conditions, &args, &argIndex, filters)
+	fm.addTextSearchFilter(&conditions, &args, &argIndex, filters)
+
+	whereClause = fm.buildFinalClause(conditions)
+	return
+}
+
+// addListFilters handles status, type, and priority filters
+func (fm *FilterManager) addListFilters(conditions *[]string, args *[]interface{}, argIndex *int, filters *TaskFilters) {
 	// Status filter
 	if len(filters.Status) > 0 {
-		placeholders := fm.buildPlaceholders(len(filters.Status), &argIndex)
-		conditions = append(conditions, fmt.Sprintf("status IN (%s)", placeholders))
+		placeholders := fm.buildPlaceholders(len(filters.Status), argIndex)
+		*conditions = append(*conditions, fmt.Sprintf("status IN (%s)", placeholders))
 		for _, status := range filters.Status {
-			args = append(args, string(status))
+			*args = append(*args, string(status))
 		}
 	}
 
 	// Type filter
 	if len(filters.Type) > 0 {
-		placeholders := fm.buildPlaceholders(len(filters.Type), &argIndex)
-		conditions = append(conditions, fmt.Sprintf("type IN (%s)", placeholders))
+		placeholders := fm.buildPlaceholders(len(filters.Type), argIndex)
+		*conditions = append(*conditions, fmt.Sprintf("type IN (%s)", placeholders))
 		for _, taskType := range filters.Type {
-			args = append(args, string(taskType))
+			*args = append(*args, string(taskType))
 		}
 	}
 
 	// Priority filter
 	if len(filters.Priority) > 0 {
-		placeholders := fm.buildPlaceholders(len(filters.Priority), &argIndex)
-		conditions = append(conditions, fmt.Sprintf("priority IN (%s)", placeholders))
+		placeholders := fm.buildPlaceholders(len(filters.Priority), argIndex)
+		*conditions = append(*conditions, fmt.Sprintf("priority IN (%s)", placeholders))
 		for _, priority := range filters.Priority {
-			args = append(args, string(priority))
+			*args = append(*args, string(priority))
 		}
 	}
+}
 
-	// Assignee filter
+// addStringFilters handles assignee and repository filters
+func (fm *FilterManager) addStringFilters(conditions *[]string, args *[]interface{}, argIndex *int, filters *TaskFilters) {
 	if filters.Assignee != "" {
-		conditions = append(conditions, fmt.Sprintf("assignee = $%d", argIndex))
-		args = append(args, filters.Assignee)
-		argIndex++
+		*conditions = append(*conditions, fmt.Sprintf("assignee = $%d", *argIndex))
+		*args = append(*args, filters.Assignee)
+		(*argIndex)++
 	}
 
-	// Repository filter
 	if filters.Repository != "" {
-		conditions = append(conditions, fmt.Sprintf("repository = $%d", argIndex))
-		args = append(args, filters.Repository)
-		argIndex++
+		*conditions = append(*conditions, fmt.Sprintf("repository = $%d", *argIndex))
+		*args = append(*args, filters.Repository)
+		(*argIndex)++
 	}
+}
 
-	// Date filters
+// addDateFilters handles date range filters
+func (fm *FilterManager) addDateFilters(conditions *[]string, args *[]interface{}, argIndex *int, filters *TaskFilters) {
 	if filters.CreatedAfter != nil {
-		conditions = append(conditions, fmt.Sprintf("created_at >= $%d", argIndex))
-		args = append(args, *filters.CreatedAfter)
-		argIndex++
+		*conditions = append(*conditions, fmt.Sprintf("created_at >= $%d", *argIndex))
+		*args = append(*args, *filters.CreatedAfter)
+		(*argIndex)++
 	}
 	if filters.CreatedBefore != nil {
-		conditions = append(conditions, fmt.Sprintf("created_at <= $%d", argIndex))
-		args = append(args, *filters.CreatedBefore)
-		argIndex++
+		*conditions = append(*conditions, fmt.Sprintf("created_at <= $%d", *argIndex))
+		*args = append(*args, *filters.CreatedBefore)
+		(*argIndex)++
 	}
 	if filters.UpdatedAfter != nil {
-		conditions = append(conditions, fmt.Sprintf("updated_at >= $%d", argIndex))
-		args = append(args, *filters.UpdatedAfter)
-		argIndex++
+		*conditions = append(*conditions, fmt.Sprintf("updated_at >= $%d", *argIndex))
+		*args = append(*args, *filters.UpdatedAfter)
+		(*argIndex)++
 	}
 	if filters.UpdatedBefore != nil {
-		conditions = append(conditions, fmt.Sprintf("updated_at <= $%d", argIndex))
-		args = append(args, *filters.UpdatedBefore)
-		argIndex++
+		*conditions = append(*conditions, fmt.Sprintf("updated_at <= $%d", *argIndex))
+		*args = append(*args, *filters.UpdatedBefore)
+		(*argIndex)++
 	}
+}
 
-	// Quality score filter
+// addQualityFilters handles quality score filters
+func (fm *FilterManager) addQualityFilters(conditions *[]string, args *[]interface{}, argIndex *int, filters *TaskFilters) {
 	if filters.MinQualityScore > 0 {
-		conditions = append(conditions, fmt.Sprintf("quality_score >= $%d", argIndex))
-		args = append(args, filters.MinQualityScore)
-		argIndex++
+		*conditions = append(*conditions, fmt.Sprintf("quality_score >= $%d", *argIndex))
+		*args = append(*args, filters.MinQualityScore)
+		(*argIndex)++
 	}
 	if filters.MaxQualityScore > 0 {
-		conditions = append(conditions, fmt.Sprintf("quality_score <= $%d", argIndex))
-		args = append(args, filters.MaxQualityScore)
-		argIndex++
+		*conditions = append(*conditions, fmt.Sprintf("quality_score <= $%d", *argIndex))
+		*args = append(*args, filters.MaxQualityScore)
+		(*argIndex)++
 	}
+}
 
-	// Text search filter
+// addTextSearchFilter handles text search filters
+func (fm *FilterManager) addTextSearchFilter(conditions *[]string, args *[]interface{}, argIndex *int, filters *TaskFilters) {
 	if filters.TextSearch != "" {
 		searchPattern := fmt.Sprintf("%%%s%%", filters.TextSearch)
 		if fm.config.CaseSensitive {
-			conditions = append(conditions, fmt.Sprintf("(title LIKE $%d OR description LIKE $%d)", argIndex, argIndex))
+			*conditions = append(*conditions, fmt.Sprintf("(title LIKE $%d OR description LIKE $%d)", *argIndex, *argIndex))
 		} else {
-			conditions = append(conditions, fmt.Sprintf("(title ILIKE $%d OR description ILIKE $%d)", argIndex, argIndex))
+			*conditions = append(*conditions, fmt.Sprintf("(title ILIKE $%d OR description ILIKE $%d)", *argIndex, *argIndex))
 		}
-		args = append(args, searchPattern)
-		argIndex++
+		*args = append(*args, searchPattern)
+		(*argIndex)++
 	}
+}
 
-	// Combine conditions
-	whereClause := ""
+// buildFinalClause combines conditions into final WHERE clause
+func (fm *FilterManager) buildFinalClause(conditions []string) string {
 	if len(conditions) > 0 {
-		whereClause = "WHERE " + strings.Join(conditions, " AND ")
+		return "WHERE " + strings.Join(conditions, " AND ")
 	}
-
-	return whereClause, args
+	return ""
 }
 
 // BuildOrderClause builds SQL ORDER BY clause from sort fields
@@ -340,66 +365,118 @@ func (fm *FilterManager) BuildOrderClause(sortFields []SortField) string {
 
 // Helper methods
 
-func (fm *FilterManager) countActiveFilters(filters TaskFilters) int {
+func (fm *FilterManager) countActiveFilters(filters *TaskFilters) int {
+	return fm.countArrayFilters(filters) +
+		fm.countStringFilters(filters) +
+		fm.countDateFilters(filters) +
+		fm.countNumericFilters(filters) +
+		fm.countBooleanFilters(filters)
+}
+
+// countArrayFilters counts active array-based filters
+func (fm *FilterManager) countArrayFilters(filters *TaskFilters) int {
 	count := 0
-	if len(filters.Status) > 0 {
-		count++
+	arrayFilters := []interface{}{
+		filters.Status,
+		filters.Type,
+		filters.Priority,
+		filters.Tags,
+		filters.Complexity,
 	}
-	if len(filters.Type) > 0 {
-		count++
+
+	for _, filter := range arrayFilters {
+		switch f := filter.(type) {
+		case []types.TaskStatus:
+			if len(f) > 0 {
+				count++
+			}
+		case []types.TaskType:
+			if len(f) > 0 {
+				count++
+			}
+		case []types.TaskPriority:
+			if len(f) > 0 {
+				count++
+			}
+		case []string:
+			if len(f) > 0 {
+				count++
+			}
+		case []types.ComplexityLevel:
+			if len(f) > 0 {
+				count++
+			}
+		}
 	}
-	if len(filters.Priority) > 0 {
-		count++
+	return count
+}
+
+// countStringFilters counts active string-based filters
+func (fm *FilterManager) countStringFilters(filters *TaskFilters) int {
+	count := 0
+	stringFilters := []string{
+		filters.Assignee,
+		filters.Repository,
+		filters.TextSearch,
 	}
-	if filters.Assignee != "" {
-		count++
+
+	for _, filter := range stringFilters {
+		if filter != "" {
+			count++
+		}
 	}
-	if filters.Repository != "" {
-		count++
+	return count
+}
+
+// countDateFilters counts active date-based filters
+func (fm *FilterManager) countDateFilters(filters *TaskFilters) int {
+	count := 0
+	dateFilters := []*time.Time{
+		filters.CreatedAfter,
+		filters.CreatedBefore,
+		filters.UpdatedAfter,
+		filters.UpdatedBefore,
+		filters.DueAfter,
+		filters.DueBefore,
 	}
-	if len(filters.Tags) > 0 {
-		count++
+
+	for _, filter := range dateFilters {
+		if filter != nil {
+			count++
+		}
 	}
-	if filters.CreatedAfter != nil {
-		count++
-	}
-	if filters.CreatedBefore != nil {
-		count++
-	}
-	if filters.UpdatedAfter != nil {
-		count++
-	}
-	if filters.UpdatedBefore != nil {
-		count++
-	}
-	if filters.DueAfter != nil {
-		count++
-	}
-	if filters.DueBefore != nil {
-		count++
-	}
-	if len(filters.Complexity) > 0 {
-		count++
-	}
+	return count
+}
+
+// countNumericFilters counts active numeric-based filters
+func (fm *FilterManager) countNumericFilters(filters *TaskFilters) int {
+	count := 0
 	if filters.MinQualityScore > 0 {
 		count++
 	}
 	if filters.MaxQualityScore > 0 {
 		count++
 	}
-	if filters.HasDependencies != nil {
-		count++
+	return count
+}
+
+// countBooleanFilters counts active boolean-based filters
+func (fm *FilterManager) countBooleanFilters(filters *TaskFilters) int {
+	count := 0
+	booleanFilters := []*bool{
+		filters.HasDependencies,
+		filters.IsBlocked,
 	}
-	if filters.IsBlocked != nil {
-		count++
-	}
-	if filters.TextSearch != "" {
-		count++
+
+	for _, filter := range booleanFilters {
+		if filter != nil {
+			count++
+		}
 	}
 	return count
 }
 
-func (fm *FilterManager) validateDateRanges(filters TaskFilters) error {
+func (fm *FilterManager) validateDateRanges(filters *TaskFilters) error {
 	if filters.CreatedAfter != nil && filters.CreatedBefore != nil {
 		if filters.CreatedAfter.After(*filters.CreatedBefore) {
 			return errors.New("created_after cannot be after created_before")
@@ -456,94 +533,130 @@ func (fm *FilterManager) buildPlaceholders(count int, argIndex *int) string {
 	return strings.Join(placeholders, ", ")
 }
 
-func (fm *FilterManager) matchesFilters(task *types.Task, filters TaskFilters) bool {
-	// Status filter
-	if len(filters.Status) > 0 {
-		found := false
-		for _, status := range filters.Status {
-			if task.Status == status {
-				found = true
-				break
+func (fm *FilterManager) matchesFilters(task *types.Task, filters *TaskFilters) bool {
+	return fm.matchesStringFilters(task, filters) &&
+		fm.matchesTextSearch(task, filters) &&
+		fm.matchesDateFilters(task, filters) &&
+		fm.matchesQualityFilters(task, filters)
+}
+
+// matchesStringFilters checks status, type, priority, and assignee filters
+func (fm *FilterManager) matchesStringFilters(task *types.Task, filters *TaskFilters) bool {
+	stringChecks := []struct {
+		filterSlice []string
+		taskValue   string
+	}{
+		{fm.statusToStrings(filters.Status), string(task.Status)},
+		{fm.typeToStrings(filters.Type), string(task.Type)},
+		{fm.priorityToStrings(filters.Priority), string(task.Priority)},
+	}
+
+	for _, check := range stringChecks {
+		if len(check.filterSlice) > 0 {
+			if !fm.containsString(check.filterSlice, check.taskValue) {
+				return false
 			}
-		}
-		if !found {
-			return false
 		}
 	}
 
-	// Type filter
-	if len(filters.Type) > 0 {
-		found := false
-		for _, taskType := range filters.Type {
-			if task.Type == taskType {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	// Priority filter
-	if len(filters.Priority) > 0 {
-		found := false
-		for _, priority := range filters.Priority {
-			if task.Priority == priority {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-
-	// Assignee filter
+	// Assignee filter (single value, not slice)
 	if filters.Assignee != "" && task.Assignee != filters.Assignee {
 		return false
 	}
 
-	// Text search
-	if filters.TextSearch != "" {
-		searchText := filters.TextSearch
-		if !fm.config.CaseSensitive {
-			searchText = strings.ToLower(searchText)
+	return true
+}
+
+// matchesTextSearch performs text search in task content
+func (fm *FilterManager) matchesTextSearch(task *types.Task, filters *TaskFilters) bool {
+	if filters.TextSearch == "" {
+		return true
+	}
+
+	searchText := filters.TextSearch
+	content := task.Title + " " + task.Description
+
+	if !fm.config.CaseSensitive {
+		searchText = strings.ToLower(searchText)
+		content = strings.ToLower(content)
+	}
+
+	return strings.Contains(content, searchText)
+}
+
+// matchesDateFilters checks created and updated date ranges
+func (fm *FilterManager) matchesDateFilters(task *types.Task, filters *TaskFilters) bool {
+	dateChecks := []struct {
+		filterDate *time.Time
+		taskDate   time.Time
+		isAfter    bool
+	}{
+		{filters.CreatedAfter, task.Timestamps.Created, true},
+		{filters.CreatedBefore, task.Timestamps.Created, false},
+		{filters.UpdatedAfter, task.Timestamps.Updated, true},
+		{filters.UpdatedBefore, task.Timestamps.Updated, false},
+	}
+
+	for _, check := range dateChecks {
+		if check.filterDate != nil {
+			if check.isAfter && check.taskDate.Before(*check.filterDate) {
+				return false
+			}
+			if !check.isAfter && check.taskDate.After(*check.filterDate) {
+				return false
+			}
 		}
-
-		content := task.Title + " " + task.Description
-		if !fm.config.CaseSensitive {
-			content = strings.ToLower(content)
-		}
-
-		if !strings.Contains(content, searchText) {
-			return false
-		}
 	}
 
-	// Date filters
-	if filters.CreatedAfter != nil && task.Timestamps.Created.Before(*filters.CreatedAfter) {
-		return false
-	}
-	if filters.CreatedBefore != nil && task.Timestamps.Created.After(*filters.CreatedBefore) {
-		return false
-	}
-	if filters.UpdatedAfter != nil && task.Timestamps.Updated.Before(*filters.UpdatedAfter) {
-		return false
-	}
-	if filters.UpdatedBefore != nil && task.Timestamps.Updated.After(*filters.UpdatedBefore) {
-		return false
-	}
+	return true
+}
 
-	// Quality score filter
+// matchesQualityFilters checks quality score ranges
+func (fm *FilterManager) matchesQualityFilters(task *types.Task, filters *TaskFilters) bool {
 	if filters.MinQualityScore > 0 && task.QualityScore.OverallScore < filters.MinQualityScore {
 		return false
 	}
 	if filters.MaxQualityScore > 0 && task.QualityScore.OverallScore > filters.MaxQualityScore {
 		return false
 	}
-
 	return true
+}
+
+// containsString checks if a slice contains a specific string value
+func (fm *FilterManager) containsString(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+// statusToStrings converts TaskStatus slice to string slice
+func (fm *FilterManager) statusToStrings(statuses []types.TaskStatus) []string {
+	result := make([]string, len(statuses))
+	for i, status := range statuses {
+		result[i] = string(status)
+	}
+	return result
+}
+
+// typeToStrings converts TaskType slice to string slice
+func (fm *FilterManager) typeToStrings(taskTypes []types.TaskType) []string {
+	result := make([]string, len(taskTypes))
+	for i, taskType := range taskTypes {
+		result[i] = string(taskType)
+	}
+	return result
+}
+
+// priorityToStrings converts TaskPriority slice to string slice
+func (fm *FilterManager) priorityToStrings(priorities []types.TaskPriority) []string {
+	result := make([]string, len(priorities))
+	for i, priority := range priorities {
+		result[i] = string(priority)
+	}
+	return result
 }
 
 func (fm *FilterManager) sortTasks(tasks []types.Task, sortFields []SortField) []types.Task {
@@ -587,10 +700,11 @@ func (fm *FilterManager) PerformTextSearch(tasks []types.Task, query string, opt
 	// Search fields to check
 	searchFields := options.SearchFields
 	if len(searchFields) == 0 {
-		searchFields = []string{"title", "description", "tags"}
+		searchFields = []string{FieldTitle, FieldDescription, "tags"}
 	}
 
-	for _, task := range tasks {
+	for i := range tasks {
+		task := &tasks[i]
 		matched := false
 		taskHighlights := make([]string, 0)
 
@@ -598,9 +712,9 @@ func (fm *FilterManager) PerformTextSearch(tasks []types.Task, query string, opt
 		for _, field := range searchFields {
 			var content string
 			switch field {
-			case "title":
+			case FieldTitle:
 				content = task.Title
-			case "description":
+			case FieldDescription:
 				content = task.Description
 			case "tags":
 				content = strings.Join(task.Tags, " ")
@@ -622,7 +736,7 @@ func (fm *FilterManager) PerformTextSearch(tasks []types.Task, query string, opt
 		}
 
 		if matched {
-			matchedTasks = append(matchedTasks, task)
+			matchedTasks = append(matchedTasks, *task)
 			if len(taskHighlights) > 0 {
 				highlights[task.ID] = taskHighlights
 			}

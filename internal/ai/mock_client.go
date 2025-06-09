@@ -168,6 +168,7 @@ Generated: ` + time.Now().Format("2006-01-02 15:04:05")
 }
 
 func generateMockTRD(input string) string {
+	_ = input // unused parameter, future versions may analyze input
 	return `# Technical Requirements Document
 
 ## System Architecture

@@ -233,7 +233,7 @@ func (hc *HealthChecker) checkEndpointHealth(endpoint *CLIEndpoint) *HealthCheck
 	healthURL := hc.getHealthCheckURL(endpoint)
 
 	// Create request with context for timeout
-	req, err := http.NewRequestWithContext(hc.ctx, "GET", healthURL, nil)
+	req, err := http.NewRequestWithContext(hc.ctx, "GET", healthURL, http.NoBody)
 	if err != nil {
 		result.Success = false
 		result.Error = fmt.Sprintf("Failed to create request: %v", err)
@@ -255,9 +255,8 @@ func (hc *HealthChecker) checkEndpointHealth(endpoint *CLIEndpoint) *HealthCheck
 		return result
 	}
 	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			// Ignore close errors in defer for health checks
-		}
+		// Ignore close errors in defer for health checks
+		_ = resp.Body.Close()
 	}()
 
 	result.StatusCode = resp.StatusCode
@@ -404,6 +403,7 @@ func (hc *HealthChecker) updateMetrics(result *HealthCheckResult) {
 
 // updateCycleMetrics updates metrics after a complete health check cycle
 func (hc *HealthChecker) updateCycleMetrics(total, healthy, unhealthy int, duration time.Duration) {
+	_ = duration // unused parameter, kept for potential future duration-based metrics
 	hc.metrics.mu.Lock()
 	defer hc.metrics.mu.Unlock()
 

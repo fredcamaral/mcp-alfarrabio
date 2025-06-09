@@ -217,15 +217,15 @@ func (s *Server) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	s.hub.RegisterClient(client)
 
 	// Start client pumps
-	go client.WritePump(s.ctx)
-	go client.ReadPump(s.ctx)
+	go client.WritePump(r.Context())
+	go client.ReadPump(r.Context())
 
 	// Start heartbeat monitoring for this client
 	s.heartbeat.AddClient(client)
 
 	// Record metrics
 	// Register connection with metrics collector
-	s.metricsCollector.RegisterConnection(client.ID)
+	_ = s.metricsCollector.RegisterConnection(client.ID)
 
 	log.Printf("WebSocket client %s connected from %s", client.ID, metadata.RemoteAddr)
 }

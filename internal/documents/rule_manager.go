@@ -17,6 +17,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Metadata field constants
+const (
+	FieldDescription = "description"
+)
+
 //go:embed rules/*.mdc rules/*.yaml
 var embeddedRules embed.FS
 
@@ -119,9 +124,23 @@ func (rm *RuleManager) parseRuleFile(path string, content []byte) (*Rule, error)
 	filename := filepath.Base(path)
 	nameWithoutExt := strings.TrimSuffix(filename, filepath.Ext(filename))
 
-	rule := &Rule{
-		Name:      nameWithoutExt,
-		Content:   string(content),
+	rule := rm.createBaseRule(nameWithoutExt, string(content))
+	rm.determineRuleType(rule, nameWithoutExt)
+
+	rm.parseYAMLFrontMatter(rule, content)
+
+	if err := rule.Validate(); err != nil {
+		return nil, err
+	}
+
+	return rule, nil
+}
+
+// createBaseRule creates a rule with default values
+func (rm *RuleManager) createBaseRule(name, content string) *Rule {
+	return &Rule{
+		Name:      name,
+		Content:   content,
 		Version:   "1.0.0",
 		Active:    true,
 		Priority:  50, // Default priority
@@ -129,73 +148,97 @@ func (rm *RuleManager) parseRuleFile(path string, content []byte) (*Rule, error)
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
+}
 
-	// Determine rule type from filename
-	switch {
-	case strings.Contains(nameWithoutExt, "create-prd"):
-		rule.Type = RulePRDGeneration
-		rule.Description = "Rule for generating Product Requirements Documents"
-	case strings.Contains(nameWithoutExt, "create-trd"):
-		rule.Type = RuleTRDGeneration
-		rule.Description = "Rule for generating Technical Requirements Documents"
-	case strings.Contains(nameWithoutExt, "generate-main-tasks"):
-		rule.Type = RuleTaskGeneration
-		rule.Description = "Rule for generating main tasks from PRD/TRD"
-	case strings.Contains(nameWithoutExt, "generate-sub-tasks"):
-		rule.Type = RuleSubTaskGeneration
-		rule.Description = "Rule for generating sub-tasks from main tasks"
-	case strings.Contains(nameWithoutExt, "complexity"):
-		rule.Type = RuleComplexityAnalysis
-		rule.Description = "Rule for analyzing task complexity"
-	case strings.Contains(nameWithoutExt, "validation"):
-		rule.Type = RuleValidation
-		rule.Description = "Rule for validating documents"
-	default:
-		rule.Type = RulePRDGeneration // Default type
+// determineRuleType sets rule type and description based on filename
+func (rm *RuleManager) determineRuleType(rule *Rule, nameWithoutExt string) {
+	ruleTypes := map[string]struct {
+		ruleType    RuleType
+		description string
+	}{
+		"create-prd":          {RulePRDGeneration, "Rule for generating Product Requirements Documents"},
+		"create-trd":          {RuleTRDGeneration, "Rule for generating Technical Requirements Documents"},
+		"generate-main-tasks": {RuleTaskGeneration, "Rule for generating main tasks from PRD/TRD"},
+		"generate-sub-tasks":  {RuleSubTaskGeneration, "Rule for generating sub-tasks from main tasks"},
+		"complexity":          {RuleComplexityAnalysis, "Rule for analyzing task complexity"},
+		"validation":          {RuleValidation, "Rule for validating documents"},
 	}
 
-	// Parse YAML front matter if present
-	if strings.HasPrefix(string(content), "---") {
-		parts := strings.SplitN(string(content), "---", 3)
-		if len(parts) >= 3 {
-			var metadata map[string]interface{}
-			if err := yaml.Unmarshal([]byte(parts[1]), &metadata); err == nil {
-				// Extract metadata
-				if name, ok := metadata["name"].(string); ok {
-					rule.Name = name
-				}
-				if desc, ok := metadata["description"].(string); ok {
-					rule.Description = desc
-				}
-				if typeStr, ok := metadata["type"].(string); ok {
-					rule.Type = RuleType(typeStr)
-				}
-				if priority, ok := metadata["priority"].(int); ok {
-					rule.Priority = priority
-				}
-				if version, ok := metadata["version"].(string); ok {
-					rule.Version = version
-				}
-
-				// Store other metadata
-				for k, v := range metadata {
-					if k != "name" && k != "description" && k != "type" && k != "priority" && k != "version" {
-						rule.Metadata[k] = fmt.Sprintf("%v", v)
-					}
-				}
-			}
-
-			// Update content to exclude front matter
-			rule.Content = strings.TrimSpace(parts[2])
+	for key, config := range ruleTypes {
+		if strings.Contains(nameWithoutExt, key) {
+			rule.Type = config.ruleType
+			rule.Description = config.description
+			return
 		}
 	}
 
-	// Validate rule
-	if err := rule.Validate(); err != nil {
-		return nil, err
+	// Default type
+	rule.Type = RulePRDGeneration
+}
+
+// parseYAMLFrontMatter extracts YAML front matter from content
+func (rm *RuleManager) parseYAMLFrontMatter(rule *Rule, content []byte) {
+	if !strings.HasPrefix(string(content), "---") {
+		return
 	}
 
-	return rule, nil
+	parts := strings.SplitN(string(content), "---", 3)
+	if len(parts) < 3 {
+		return
+	}
+
+	var metadata map[string]interface{}
+	if err := yaml.Unmarshal([]byte(parts[1]), &metadata); err != nil {
+		return // Continue with default values if YAML parsing fails
+	}
+
+	rm.extractMetadataFields(rule, metadata)
+	rule.Content = strings.TrimSpace(parts[2])
+}
+
+// extractMetadataFields extracts known fields from metadata
+func (rm *RuleManager) extractMetadataFields(rule *Rule, metadata map[string]interface{}) {
+	metadataFields := map[string]func(interface{}){
+		"name": func(v interface{}) {
+			if name, ok := v.(string); ok {
+				rule.Name = name
+			}
+		},
+		FieldDescription: func(v interface{}) {
+			if desc, ok := v.(string); ok {
+				rule.Description = desc
+			}
+		},
+		"type": func(v interface{}) {
+			if typeStr, ok := v.(string); ok {
+				rule.Type = RuleType(typeStr)
+			}
+		},
+		"priority": func(v interface{}) {
+			if priority, ok := v.(int); ok {
+				rule.Priority = priority
+			}
+		},
+		"version": func(v interface{}) {
+			if version, ok := v.(string); ok {
+				rule.Version = version
+			}
+		},
+	}
+
+	// Extract known fields
+	for field, extractor := range metadataFields {
+		if value, exists := metadata[field]; exists {
+			extractor(value)
+		}
+	}
+
+	// Store remaining fields as custom metadata
+	for k, v := range metadata {
+		if _, isKnown := metadataFields[k]; !isKnown {
+			rule.Metadata[k] = fmt.Sprintf("%v", v)
+		}
+	}
 }
 
 // addRule adds a rule to the manager
@@ -284,36 +327,9 @@ func (rm *RuleManager) UpdateRule(id string, updates map[string]interface{}) err
 		return fmt.Errorf("rule not found: %s", id)
 	}
 
-	// Apply updates
+	// Apply updates using field updaters
 	for key, value := range updates {
-		switch key {
-		case "name":
-			if name, ok := value.(string); ok {
-				rule.Name = name
-			}
-		case "description":
-			if desc, ok := value.(string); ok {
-				rule.Description = desc
-			}
-		case "content":
-			if content, ok := value.(string); ok {
-				rule.Content = content
-			}
-		case "active":
-			if active, ok := value.(bool); ok {
-				rule.Active = active
-			}
-		case "priority":
-			if priority, ok := value.(int); ok {
-				rule.Priority = priority
-			}
-		case "metadata":
-			if metadata, ok := value.(map[string]string); ok {
-				for k, v := range metadata {
-					rule.Metadata[k] = v
-				}
-			}
-		}
+		rm.updateRuleField(rule, key, value)
 	}
 
 	rule.UpdatedAt = time.Now()
@@ -327,24 +343,24 @@ func (rm *RuleManager) SaveCustomRule(rule *Rule) error {
 	}
 
 	// Ensure directory exists
-	if err := os.MkdirAll(rm.rulesDir, 0755); err != nil {
+	if err := os.MkdirAll(rm.rulesDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create rules directory: %w", err)
 	}
 
 	// Generate filename
 	filename := strings.ReplaceAll(rule.Name, " ", "-") + ".yaml"
-	filepath := filepath.Join(rm.rulesDir, filename)
+	filePath := filepath.Join(rm.rulesDir, filename)
 
 	// Prepare rule data with metadata
 	data := map[string]interface{}{
-		"name":        rule.Name,
-		"type":        string(rule.Type),
-		"description": rule.Description,
-		"priority":    rule.Priority,
-		"version":     rule.Version,
-		"active":      rule.Active,
-		"metadata":    rule.Metadata,
-		"content":     rule.Content,
+		"name":           rule.Name,
+		"type":           string(rule.Type),
+		FieldDescription: rule.Description,
+		"priority":       rule.Priority,
+		"version":        rule.Version,
+		"active":         rule.Active,
+		"metadata":       rule.Metadata,
+		"content":        rule.Content,
 	}
 
 	// Marshal to YAML
@@ -354,7 +370,7 @@ func (rm *RuleManager) SaveCustomRule(rule *Rule) error {
 	}
 
 	// Write file
-	if err := os.WriteFile(filepath, content, 0644); err != nil {
+	if err := os.WriteFile(filePath, content, 0o600); err != nil {
 		return fmt.Errorf("failed to write rule file: %w", err)
 	}
 
@@ -376,10 +392,10 @@ func (rm *RuleManager) DeleteCustomRule(id string) error {
 	// Only delete custom rules, not embedded ones
 	if rm.rulesDir != "" {
 		filename := strings.ReplaceAll(rule.Name, " ", "-") + ".yaml"
-		filepath := filepath.Join(rm.rulesDir, filename)
+		filePath := filepath.Join(rm.rulesDir, filename)
 
-		if _, err := os.Stat(filepath); err == nil {
-			if err := os.Remove(filepath); err != nil {
+		if _, err := os.Stat(filePath); err == nil {
+			if err := os.Remove(filePath); err != nil {
 				return fmt.Errorf("failed to delete rule file: %w", err)
 			}
 		}
@@ -449,16 +465,64 @@ func (rm *RuleManager) ListRules() []map[string]interface{} {
 	list := []map[string]interface{}{}
 	for _, rule := range rm.rules {
 		list = append(list, map[string]interface{}{
-			"id":          rule.ID,
-			"name":        rule.Name,
-			"type":        rule.Type,
-			"description": rule.Description,
-			"priority":    rule.Priority,
-			"active":      rule.Active,
-			"version":     rule.Version,
-			"updated_at":  rule.UpdatedAt,
+			"id":             rule.ID,
+			"name":           rule.Name,
+			"type":           rule.Type,
+			FieldDescription: rule.Description,
+			"priority":       rule.Priority,
+			"active":         rule.Active,
+			"version":        rule.Version,
+			"updated_at":     rule.UpdatedAt,
 		})
 	}
 
 	return list
+}
+
+// updateRuleField updates a specific field of a rule
+func (rm *RuleManager) updateRuleField(rule *Rule, key string, value interface{}) {
+	switch key {
+	case "name":
+		rm.updateStringField(&rule.Name, value)
+	case FieldDescription:
+		rm.updateStringField(&rule.Description, value)
+	case "content":
+		rm.updateStringField(&rule.Content, value)
+	case "active":
+		rm.updateBoolField(&rule.Active, value)
+	case "priority":
+		rm.updateIntField(&rule.Priority, value)
+	case "metadata":
+		rm.updateMetadataField(rule, value)
+	}
+}
+
+// updateStringField updates a string field if value is valid
+func (rm *RuleManager) updateStringField(field *string, value interface{}) {
+	if str, ok := value.(string); ok {
+		*field = str
+	}
+}
+
+// updateBoolField updates a boolean field if value is valid
+func (rm *RuleManager) updateBoolField(field *bool, value interface{}) {
+	if b, ok := value.(bool); ok {
+		*field = b
+	}
+}
+
+// updateIntField updates an integer field if value is valid
+func (rm *RuleManager) updateIntField(field *int, value interface{}) {
+	if i, ok := value.(int); ok {
+		*field = i
+	}
+}
+
+// updateMetadataField updates metadata if value is valid
+func (rm *RuleManager) updateMetadataField(rule *Rule, value interface{}) {
+	if metadata, ok := value.(map[string]string); ok {
+		for k, v := range metadata {
+			rule.Metadata[k] = v
+		}
+	}
 }

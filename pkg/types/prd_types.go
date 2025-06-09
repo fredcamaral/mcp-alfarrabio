@@ -691,7 +691,7 @@ func (ep *EnhancedPRD) ToLegacyPRD() *PRDDocument {
 
 	// Map status
 	switch ep.Status {
-	case "active":
+	case string(StatusActive):
 		prd.Status = PRDStatusProcessed
 	case "draft":
 		prd.Status = PRDStatusDraft
@@ -703,7 +703,7 @@ func (ep *EnhancedPRD) ToLegacyPRD() *PRDDocument {
 	switch ep.PriorityLevel {
 	case "low":
 		prd.Metadata.Priority = PRDPriorityLow
-	case "medium":
+	case string(PRDPriorityMedium):
 		prd.Metadata.Priority = PRDPriorityMedium
 	case "high":
 		prd.Metadata.Priority = PRDPriorityHigh
@@ -745,11 +745,11 @@ func (ep *EnhancedPRD) FromLegacyPRD(prd *PRDDocument) {
 	// Map status
 	switch prd.Status {
 	case PRDStatusProcessed:
-		ep.Status = "active"
+		ep.Status = string(StatusActive)
 	case PRDStatusDraft:
 		ep.Status = "draft"
 	default:
-		ep.Status = "active"
+		ep.Status = string(StatusActive)
 	}
 
 	// Map priority
@@ -757,13 +757,13 @@ func (ep *EnhancedPRD) FromLegacyPRD(prd *PRDDocument) {
 	case PRDPriorityLow:
 		ep.PriorityLevel = "low"
 	case PRDPriorityMedium:
-		ep.PriorityLevel = "medium"
+		ep.PriorityLevel = string(PRDPriorityMedium)
 	case PRDPriorityHigh:
 		ep.PriorityLevel = "high"
 	case PRDPriorityCritical:
 		ep.PriorityLevel = "critical"
 	default:
-		ep.PriorityLevel = "medium"
+		ep.PriorityLevel = string(PRDPriorityMedium)
 	}
 
 	// Set defaults

@@ -11,6 +11,8 @@ import (
 	"lerian-mcp-memory/internal/websocket"
 )
 
+// Removed unused constants
+
 // WebSocketHandler handles WebSocket upgrade requests and management
 type WebSocketHandler struct {
 	server *websocket.Server
@@ -32,15 +34,15 @@ func (wh *WebSocketHandler) HandleUpgrade(w http.ResponseWriter, r *http.Request
 	}
 
 	// Handle preflight requests
-	if r.Method == "OPTIONS" {
-		w.Header().Set("Access-Control-Allow-Methods", "GET")
+	if r.Method == "httpMethodOPTIONS" {
+		w.Header().Set("Access-Control-Allow-Methods", "httpMethodGET")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CLI-Version, X-Request-ID")
 		w.WriteHeader(http.StatusOK)
 		return
 	}
 
-	// Only allow GET requests for WebSocket upgrade
-	if r.Method != "GET" {
+	// Only allow httpMethodGET requests for WebSocket upgrade
+	if r.Method != "httpMethodGET" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -192,7 +194,7 @@ func (wh *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.
 
 // HandleBroadcast allows manual broadcasting of events via HTTP
 func (wh *WebSocketHandler) HandleBroadcast(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if r.Method != "httpMethodPOST" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -260,7 +262,7 @@ func (wh *WebSocketHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Req
 
 // HandleConnectionClose allows manual disconnection of clients
 func (wh *WebSocketHandler) HandleConnectionClose(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" && r.Method != "DELETE" {
+	if r.Method != "httpMethodPOST" && r.Method != "DELETE" {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -311,92 +313,115 @@ func (wh *WebSocketHandler) HandleConnectionsList(w http.ResponseWriter, r *http
 		return
 	}
 
-	// Parse pagination parameters
-	page := 1
+	page, pageSize := wh.parsePaginationParams(r)
+	allConnections := wh.server.GetPool().GetAllConnections()
+	total := len(allConnections)
+
+	if wh.handleEmptyPage(w, page, pageSize, total) {
+		return
+	}
+
+	connections := wh.paginateConnections(allConnections, page, pageSize, total)
+	response := wh.buildConnectionsResponse(connections, page, pageSize, total)
+
+	wh.writeJSONResponse(w, response)
+}
+
+// parsePaginationParams extracts page and pageSize from request
+func (wh *WebSocketHandler) parsePaginationParams(r *http.Request) (page, pageSize int) {
+	page = 1
 	if pageStr := r.URL.Query().Get("page"); pageStr != "" {
 		if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
 			page = p
 		}
 	}
 
-	pageSize := 20
+	pageSize = 20
 	if sizeStr := r.URL.Query().Get("page_size"); sizeStr != "" {
 		if s, err := strconv.Atoi(sizeStr); err == nil && s > 0 && s <= 100 {
 			pageSize = s
 		}
 	}
+	return
+}
 
-	pool := wh.server.GetPool()
-	allConnections := pool.GetAllConnections()
-
-	// Calculate pagination
-	total := len(allConnections)
+// handleEmptyPage handles case when page is beyond available data
+func (wh *WebSocketHandler) handleEmptyPage(w http.ResponseWriter, page, pageSize, total int) bool {
 	startIndex := (page - 1) * pageSize
-	endIndex := startIndex + pageSize
-
-	if startIndex >= total {
-		// Empty page
-		response := map[string]interface{}{
-			"connections": []interface{}{},
-			"pagination": map[string]interface{}{
-				"page":      page,
-				"page_size": pageSize,
-				"total":     total,
-				"pages":     (total + pageSize - 1) / pageSize,
-			},
-		}
-		w.Header().Set("Content-Type", "application/json")
-		if err := json.NewEncoder(w).Encode(response); err != nil {
-			log.Printf("Failed to encode JSON response: %v", err)
-			http.Error(w, "Internal server error", http.StatusInternalServerError)
-			return
-		}
-		return
+	if startIndex < total {
+		return false
 	}
 
+	response := map[string]interface{}{
+		"connections": []interface{}{},
+		"pagination":  wh.buildPaginationInfo(page, pageSize, total),
+	}
+	wh.writeJSONResponse(w, response)
+	return true
+}
+
+// paginateConnections extracts the requested page of connections
+func (wh *WebSocketHandler) paginateConnections(allConnections map[string]*websocket.Client, page, pageSize, total int) []map[string]interface{} {
+	startIndex := (page - 1) * pageSize
+	endIndex := startIndex + pageSize
 	if endIndex > total {
 		endIndex = total
 	}
 
-	// Convert to slice for pagination
 	connections := make([]map[string]interface{}, 0, endIndex-startIndex)
 	i := 0
 	for _, client := range allConnections {
 		if i >= startIndex && i < endIndex {
-			connections = append(connections, map[string]interface{}{
-				"client_id":      client.ID,
-				"repository":     client.Repository,
-				"session_id":     client.SessionID,
-				"remote_addr":    client.Metadata.RemoteAddr,
-				"user_agent":     client.Metadata.UserAgent,
-				"connected_at":   client.Metadata.ConnectedAt,
-				"last_activity":  client.Metadata.LastActivity,
-				"cli_version":    client.Metadata.CLIVersion,
-				"bytes_sent":     client.Metadata.BytesSent,
-				"bytes_received": client.Metadata.BytesReceived,
-			})
+			connections = append(connections, wh.connectionToMap(client))
 		}
 		i++
 		if i >= endIndex {
 			break
 		}
 	}
+	return connections
+}
 
-	response := map[string]interface{}{
-		"connections": connections,
-		"pagination": map[string]interface{}{
-			"page":      page,
-			"page_size": pageSize,
-			"total":     total,
-			"pages":     (total + pageSize - 1) / pageSize,
-		},
-		"timestamp": time.Now(),
+// connectionToMap converts a connection to a map for JSON response
+func (wh *WebSocketHandler) connectionToMap(client *websocket.Client) map[string]interface{} {
+	return map[string]interface{}{
+		"client_id":      client.ID,
+		"repository":     client.Repository,
+		"session_id":     client.SessionID,
+		"remote_addr":    client.Metadata.RemoteAddr,
+		"user_agent":     client.Metadata.UserAgent,
+		"connected_at":   client.Metadata.ConnectedAt,
+		"last_activity":  client.Metadata.LastActivity,
+		"cli_version":    client.Metadata.CLIVersion,
+		"bytes_sent":     client.Metadata.BytesSent,
+		"bytes_received": client.Metadata.BytesReceived,
 	}
+}
 
+// buildConnectionsResponse creates the final response structure
+func (wh *WebSocketHandler) buildConnectionsResponse(connections []map[string]interface{}, page, pageSize, total int) map[string]interface{} {
+	return map[string]interface{}{
+		"connections": connections,
+		"pagination":  wh.buildPaginationInfo(page, pageSize, total),
+		"timestamp":   time.Now(),
+	}
+}
+
+// buildPaginationInfo creates pagination metadata
+func (wh *WebSocketHandler) buildPaginationInfo(page, pageSize, total int) map[string]interface{} {
+	return map[string]interface{}{
+		"page":      page,
+		"page_size": pageSize,
+		"total":     total,
+		"pages":     (total + pageSize - 1) / pageSize,
+	}
+}
+
+// writeJSONResponse writes a JSON response with error handling
+func (wh *WebSocketHandler) writeJSONResponse(w http.ResponseWriter, response map[string]interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Failed to encode JSON response: %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
 	}
 }

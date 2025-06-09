@@ -11,6 +11,20 @@ import (
 	"lerian-mcp-memory/internal/push"
 )
 
+// HTTP method constants
+const (
+	HTTPMethodPOST   = "POST"
+	HTTPMethodGET    = "GET"
+	HTTPMethodPUT    = "PUT"
+	HTTPMethodPATCH  = "PATCH"
+	HTTPMethodDELETE = "DELETE"
+)
+
+// String constants
+const (
+	StringTrue = "true"
+)
+
 // CLIRegistryHandler handles CLI endpoint registration and management
 type CLIRegistryHandler struct {
 	notificationService *push.NotificationService
@@ -25,7 +39,7 @@ func NewCLIRegistryHandler(notificationService *push.NotificationService) *CLIRe
 
 // RegisterEndpoint handles CLI endpoint registration
 func (crh *CLIRegistryHandler) RegisterEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if r.Method != HTTPMethodPOST {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -102,7 +116,7 @@ func (crh *CLIRegistryHandler) RegisterEndpoint(w http.ResponseWriter, r *http.R
 
 // DeregisterEndpoint handles CLI endpoint deregistration
 func (crh *CLIRegistryHandler) DeregisterEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" && r.Method != "DELETE" {
+	if r.Method != HTTPMethodPOST && r.Method != HTTPMethodDELETE {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -149,13 +163,13 @@ func (crh *CLIRegistryHandler) DeregisterEndpoint(w http.ResponseWriter, r *http
 
 // ListEndpoints returns all registered CLI endpoints
 func (crh *CLIRegistryHandler) ListEndpoints(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	if r.Method != HTTPMethodGET {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
 	// Parse query parameters
-	showInactive := r.URL.Query().Get("include_inactive") == "true"
+	showInactive := r.URL.Query().Get("include_inactive") == StringTrue
 	filterVersion := r.URL.Query().Get("version")
 	filterCapability := r.URL.Query().Get("capability")
 
@@ -223,7 +237,7 @@ func (crh *CLIRegistryHandler) ListEndpoints(w http.ResponseWriter, r *http.Requ
 
 // GetEndpoint returns details for a specific CLI endpoint
 func (crh *CLIRegistryHandler) GetEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	if r.Method != HTTPMethodGET {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -264,7 +278,7 @@ func (crh *CLIRegistryHandler) GetEndpoint(w http.ResponseWriter, r *http.Reques
 
 // UpdateEndpointPreferences updates notification preferences for an endpoint
 func (crh *CLIRegistryHandler) UpdateEndpointPreferences(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "PUT" && r.Method != "PATCH" {
+	if r.Method != HTTPMethodPUT && r.Method != HTTPMethodPATCH {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -320,7 +334,7 @@ func (crh *CLIRegistryHandler) UpdateEndpointPreferences(w http.ResponseWriter, 
 
 // CheckEndpointHealth performs a health check for a specific endpoint
 func (crh *CLIRegistryHandler) CheckEndpointHealth(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if r.Method != HTTPMethodPOST {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -349,7 +363,7 @@ func (crh *CLIRegistryHandler) CheckEndpointHealth(w http.ResponseWriter, r *htt
 
 // GetServiceStatus returns push notification service status
 func (crh *CLIRegistryHandler) GetServiceStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "GET" {
+	if r.Method != HTTPMethodGET {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
@@ -366,7 +380,7 @@ func (crh *CLIRegistryHandler) GetServiceStatus(w http.ResponseWriter, r *http.R
 
 // SendTestNotification sends a test notification to verify endpoint connectivity
 func (crh *CLIRegistryHandler) SendTestNotification(w http.ResponseWriter, r *http.Request) {
-	if r.Method != "POST" {
+	if r.Method != HTTPMethodPOST {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}

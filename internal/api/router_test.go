@@ -9,6 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Test constants
+const (
+	TestAPIKey = "testAPIKey"
+)
+
+// Removed unused constant
+
 func TestNewRouter(t *testing.T) {
 	cfg := config.DefaultConfig()
 	router := NewBasicRouter(cfg)
@@ -21,10 +28,10 @@ func TestNewRouter(t *testing.T) {
 func TestHealthEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	// Set a dummy API key for testing
-	cfg.OpenAI.APIKey = "test-key"
+	cfg.OpenAI.APIKey = TestAPIKey
 	router := NewBasicRouter(cfg)
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest("GET", "/health", http.NoBody)
 	w := httptest.NewRecorder()
 
 	router.Handler().ServeHTTP(w, req)
@@ -36,10 +43,10 @@ func TestHealthEndpoint(t *testing.T) {
 func TestAPIV1HealthEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	// Set a dummy API key for testing
-	cfg.OpenAI.APIKey = "test-key"
+	cfg.OpenAI.APIKey = TestAPIKey
 	router := NewBasicRouter(cfg)
 
-	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req := httptest.NewRequest("GET", "/api/v1/health", http.NoBody)
 	w := httptest.NewRecorder()
 
 	router.Handler().ServeHTTP(w, req)
@@ -52,7 +59,7 @@ func TestRootEndpoint(t *testing.T) {
 	cfg := config.DefaultConfig()
 	router := NewBasicRouter(cfg)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest("GET", "/", http.NoBody)
 	w := httptest.NewRecorder()
 
 	router.Handler().ServeHTTP(w, req)
@@ -64,11 +71,11 @@ func TestRootEndpoint(t *testing.T) {
 func TestVersionMiddleware(t *testing.T) {
 	cfg := config.DefaultConfig()
 	// Set a dummy API key for testing
-	cfg.OpenAI.APIKey = "test-key"
+	cfg.OpenAI.APIKey = TestAPIKey
 	router := NewBasicRouter(cfg)
 
 	// Test with supported version
-	req := httptest.NewRequest("GET", "/api/v1/health", nil)
+	req := httptest.NewRequest("GET", "/api/v1/health", http.NoBody)
 	req.Header.Set("X-Client-Version", "1.0.0")
 	w := httptest.NewRecorder()
 
@@ -83,7 +90,7 @@ func TestCORSMiddleware(t *testing.T) {
 	router := NewBasicRouter(cfg)
 
 	// Test preflight request
-	req := httptest.NewRequest("OPTIONS", "/api/v1/health", nil)
+	req := httptest.NewRequest("OPTIONS", "/api/v1/health", http.NoBody)
 	req.Header.Set("Origin", "http://localhost:3000")
 	req.Header.Set("Access-Control-Request-Method", "GET")
 	w := httptest.NewRecorder()
@@ -98,7 +105,7 @@ func TestNotFoundHandler(t *testing.T) {
 	cfg := config.DefaultConfig()
 	router := NewBasicRouter(cfg)
 
-	req := httptest.NewRequest("GET", "/nonexistent", nil)
+	req := httptest.NewRequest("GET", "/nonexistent", http.NoBody)
 	w := httptest.NewRecorder()
 
 	router.Handler().ServeHTTP(w, req)
@@ -111,7 +118,7 @@ func TestMethodNotAllowed(t *testing.T) {
 	cfg := config.DefaultConfig()
 	router := NewBasicRouter(cfg)
 
-	req := httptest.NewRequest("PATCH", "/health", nil)
+	req := httptest.NewRequest("PATCH", "/health", http.NoBody)
 	w := httptest.NewRecorder()
 
 	router.Handler().ServeHTTP(w, req)

@@ -17,6 +17,11 @@ import (
 	"lerian-mcp-memory/pkg/types"
 )
 
+// Content type constants
+const (
+	ContentTypeText = "text"
+)
+
 // PRDHandler handles PRD import and processing requests
 type PRDHandler struct {
 	parser   *prd.Parser
@@ -57,7 +62,7 @@ type PRDHandlerConfig struct {
 func DefaultPRDHandlerConfig() PRDHandlerConfig {
 	return PRDHandlerConfig{
 		MaxFileSize:       10 * 1024 * 1024, // 10MB
-		AllowedFormats:    []string{"markdown", "md", "text", "txt", "plain"},
+		AllowedFormats:    []string{"markdown", "md", ContentTypeText, "txt", "plain"},
 		ProcessingTimeout: 60 * time.Second,
 		EnableAnalysis:    true,
 		AutoProcess:       true,
@@ -206,10 +211,7 @@ func (h *PRDHandler) UpdatePRD(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Apply updates
-	if err := h.applyUpdates(doc, updateReq); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid update", err.Error())
-		return
-	}
+	h.applyUpdates(doc, updateReq)
 
 	// Update document
 	if err := h.storage.Update(ctx, doc); err != nil {
@@ -334,6 +336,7 @@ func (h *PRDHandler) validateImportRequest(req *types.PRDImportRequest) error {
 
 // processPRD processes the PRD document
 func (h *PRDHandler) processPRD(ctx context.Context, req *types.PRDImportRequest) (*types.PRDDocument, error) {
+	_ = ctx // unused parameter, kept for future use
 	// Validate content first
 	if err := h.parser.ValidateContent(req.Content, req.Format, req.Encoding); err != nil {
 		return nil, fmt.Errorf("content validation failed: %w", err)
@@ -387,14 +390,11 @@ func (h *PRDHandler) generateNextSteps(doc *types.PRDDocument) []string {
 
 	switch doc.Status {
 	case types.PRDStatusImported:
-		steps = append(steps, "Process the document to extract structure")
-		steps = append(steps, "Analyze content for completeness")
+		steps = append(steps, "Process the document to extract structure", "Analyze content for completeness")
 	case types.PRDStatusProcessed:
-		steps = append(steps, "Analyze document quality")
-		steps = append(steps, "Extract user stories and requirements")
+		steps = append(steps, "Analyze document quality", "Extract user stories and requirements")
 	case types.PRDStatusAnalyzed:
-		steps = append(steps, "Generate tasks from requirements")
-		steps = append(steps, "Create project timeline")
+		steps = append(steps, "Generate tasks from requirements", "Create project timeline")
 	}
 
 	// Add specific recommendations based on analysis
@@ -465,15 +465,15 @@ func (h *PRDHandler) detectFormatFromFilename(filename string) string {
 	case "md":
 		return "markdown"
 	case "txt":
-		return "text"
-	case "text":
-		return "text"
+		return ContentTypeText
+	case ContentTypeText:
+		return ContentTypeText
 	default:
-		return "text"
+		return ContentTypeText
 	}
 }
 
-func (h *PRDHandler) applyUpdates(doc *types.PRDDocument, updates map[string]interface{}) error {
+func (h *PRDHandler) applyUpdates(doc *types.PRDDocument, updates map[string]interface{}) {
 	// Apply updates to document fields
 	if name, ok := updates["name"].(string); ok {
 		doc.Name = name
@@ -498,6 +498,4 @@ func (h *PRDHandler) applyUpdates(doc *types.PRDDocument, updates map[string]int
 
 	// Update timestamp
 	doc.Timestamps.Updated = time.Now()
-
-	return nil
 }

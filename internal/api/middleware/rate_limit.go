@@ -91,11 +91,11 @@ func DefaultRateLimitConfig() RateLimitConfig {
 }
 
 // NewRateLimiter creates a new rate limiter with configuration
-func NewRateLimiter(config RateLimitConfig) *RateLimiter {
+func NewRateLimiter(config *RateLimitConfig) *RateLimiter {
 	rl := &RateLimiter{
 		rules:   make(map[string]*RateRule),
 		windows: make(map[string]*SlidingWindow),
-		config:  config,
+		config:  *config,
 	}
 
 	// Add default rate limiting rules

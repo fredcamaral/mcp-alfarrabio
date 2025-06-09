@@ -319,6 +319,7 @@ func (erl *EnhancedRateLimit) checkRateLimit(ctx context.Context, key string, li
 
 // handleRateLimited handles rate limited requests
 func (erl *EnhancedRateLimit) handleRateLimited(w http.ResponseWriter, r *http.Request, result *ratelimit.LimitResult, limit *ratelimit.EndpointLimit) {
+	_ = r // unused parameter, kept for potential future request analysis
 	// Set response code
 	responseCode := limit.ResponseCode
 	if responseCode == 0 {
@@ -344,14 +345,14 @@ func (erl *EnhancedRateLimit) handleRateLimited(w http.ResponseWriter, r *http.R
 
 	// Use custom response body if provided
 	if limit.ResponseBody != "" {
-		w.Write([]byte(limit.ResponseBody))
+		_, _ = w.Write([]byte(limit.ResponseBody))
 		return
 	}
 
 	// Encode and send response
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		// Fall back to simple text response
-		w.Write([]byte(`{"error":"rate_limit_exceeded","message":"Rate limit exceeded"}`))
+		_, _ = w.Write([]byte(`{"error":"rate_limit_exceeded","message":"Rate limit exceeded"}`))
 	}
 }
 

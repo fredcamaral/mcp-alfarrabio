@@ -171,10 +171,7 @@ func (g *DocumentGenerator) GenerateDocument(ctx context.Context, req *DocumentG
 // GenerateInteractive generates a document interactively
 func (g *DocumentGenerator) GenerateInteractive(ctx context.Context, req *DocumentGenerationRequest) (*DocumentGenerationResponse, error) {
 	// First, generate initial questions
-	questions, err := g.generateQuestions(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate questions: %w", err)
-	}
+	questions := g.generateQuestions(req)
 
 	return &DocumentGenerationResponse{
 		Type:      req.Type,
@@ -189,17 +186,17 @@ func (g *DocumentGenerator) ContinueInteractive(ctx context.Context, sessionID s
 	// For now, we'll generate based on the answers
 
 	// Build context from answers
-	context := make(map[string]string)
+	answerContext := make(map[string]string)
 	for _, answer := range answers {
-		context[answer.QuestionID] = answer.Answer
+		answerContext[answer.QuestionID] = answer.Answer
 	}
 
 	// Create generation request with context
 	req := &DocumentGenerationRequest{
 		Type:       DocumentTypePRD, // TODO: Get from session
-		Context:    context,
+		Context:    answerContext,
 		SessionID:  sessionID,
-		Repository: context["repository"],
+		Repository: answerContext["repository"],
 	}
 
 	return g.GenerateDocument(ctx, req)
@@ -251,11 +248,8 @@ func (g *DocumentGenerator) buildPrompt(req *DocumentGenerationRequest, ruleCont
 	prompt = strings.ReplaceAll(prompt, "{{CONTEXT}}", contextStr)
 
 	// Add source document content for dependent generation
-	switch req.Type {
-	case DocumentTypeTRD:
-		if req.SourcePRD != nil {
-			prompt = strings.ReplaceAll(prompt, "{{PRD_CONTENT}}", req.SourcePRD.Content)
-		}
+	if req.Type == DocumentTypeTRD && req.SourcePRD != nil {
+		prompt = strings.ReplaceAll(prompt, "{{PRD_CONTENT}}", req.SourcePRD.Content)
 	}
 
 	return prompt, nil
@@ -339,14 +333,14 @@ func (g *DocumentGenerator) parseTRDResponse(content string, req *DocumentGenera
 // parseMainTaskResponse parses AI response into MainTask entities
 
 // generateQuestions generates interactive questions for document creation
-func (g *DocumentGenerator) generateQuestions(req *DocumentGenerationRequest) ([]InteractiveQuestion, error) {
+func (g *DocumentGenerator) generateQuestions(req *DocumentGenerationRequest) []InteractiveQuestion {
 	switch req.Type {
 	case DocumentTypePRD:
-		return g.generatePRDQuestions(), nil
+		return g.generatePRDQuestions()
 	case DocumentTypeTRD:
-		return g.generateTRDQuestions(), nil
+		return g.generateTRDQuestions()
 	default:
-		return []InteractiveQuestion{}, nil
+		return []InteractiveQuestion{}
 	}
 }
 
@@ -452,16 +446,6 @@ func (g *DocumentGenerator) generateTRDQuestions() []InteractiveQuestion {
 	}
 }
 
-// summarizeDocument creates a summary of a document
-func (g *DocumentGenerator) summarizeDocument(doc documents.Document) string {
-	content := doc.GetContent()
-	// Simple summarization - take first 500 characters
-	if len(content) > 500 {
-		return content[:500] + "..."
-	}
-	return content
-}
-
 // extractTechnicalStack extracts technology mentions from content
 func (g *DocumentGenerator) extractTechnicalStack(content string) []string {
 	// Simple extraction based on common technology keywords
@@ -508,6 +492,7 @@ func (g *DocumentGenerator) extractArchitecture(content string) string {
 
 // generateSuggestions generates next-step suggestions
 func (g *DocumentGenerator) generateSuggestions(docType DocumentType, doc documents.Document) []string {
+	_ = doc // unused parameter, kept for potential future content analysis
 	switch docType {
 	case DocumentTypePRD:
 		return []string{

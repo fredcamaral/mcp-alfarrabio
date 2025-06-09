@@ -14,6 +14,16 @@ import (
 	"unicode"
 )
 
+// Removed unused constant
+
+// sanitizationContextKey is a custom type for context values to avoid collisions
+type sanitizationContextKey string
+
+const (
+	// contextKeySecurityThreats is the context key for security threats
+	contextKeySecurityThreats sanitizationContextKey = "security_threats"
+)
+
 // SanitizationMiddleware provides input sanitization and validation
 type SanitizationMiddleware struct {
 	config SanitizationConfig
@@ -117,15 +127,16 @@ type ThreatDetection struct {
 }
 
 // NewSanitizationMiddleware creates a new sanitization middleware
-func NewSanitizationMiddleware(config SanitizationConfig) *SanitizationMiddleware {
+func NewSanitizationMiddleware(config *SanitizationConfig) *SanitizationMiddleware {
 	return &SanitizationMiddleware{
-		config: config,
+		config: *config,
 	}
 }
 
 // NewDefaultSanitizationMiddleware creates middleware with secure defaults
 func NewDefaultSanitizationMiddleware() *SanitizationMiddleware {
-	return NewSanitizationMiddleware(DefaultSanitizationConfig())
+	defaultConfig := DefaultSanitizationConfig()
+	return NewSanitizationMiddleware(&defaultConfig)
 }
 
 // Handler returns the sanitization middleware handler
@@ -134,7 +145,7 @@ func (s *SanitizationMiddleware) Handler() func(http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Check request size
 			if s.config.MaxRequestSize > 0 && r.ContentLength > s.config.MaxRequestSize {
-				s.logThreat(r, ThreatDetection{
+				s.logThreat(r, &ThreatDetection{
 					Type:        ThreatOversized,
 					Description: fmt.Sprintf("Request size %d exceeds limit %d", r.ContentLength, s.config.MaxRequestSize),
 					Severity:    "high",
@@ -145,7 +156,7 @@ func (s *SanitizationMiddleware) Handler() func(http.Handler) http.Handler {
 
 			// Validate content type
 			if !s.isContentTypeAllowed(r) {
-				s.logThreat(r, ThreatDetection{
+				s.logThreat(r, &ThreatDetection{
 					Type:        ThreatInvalidFormat,
 					Description: fmt.Sprintf("Content-Type %s not allowed", r.Header.Get("Content-Type")),
 					Severity:    "medium",
@@ -167,10 +178,10 @@ func (s *SanitizationMiddleware) Handler() func(http.Handler) http.Handler {
 			if len(threats) > 0 {
 				// Log threats
 				for _, threat := range threats {
-					s.logThreat(r, threat)
+					s.logThreat(r, &threat)
 				}
 
-				// Check if any critical threats were found
+				// Check if any severityCritical threats were found
 				if s.hasCriticalThreats(threats) {
 					http.Error(w, "Request contains malicious content", http.StatusBadRequest)
 					return
@@ -178,7 +189,7 @@ func (s *SanitizationMiddleware) Handler() func(http.Handler) http.Handler {
 			}
 
 			// Add threat information to context for audit logging
-			ctx := context.WithValue(r.Context(), "security_threats", threats)
+			ctx := context.WithValue(r.Context(), contextKeySecurityThreats, threats)
 			sanitizedRequest = sanitizedRequest.WithContext(ctx)
 
 			next.ServeHTTP(w, sanitizedRequest)
@@ -523,7 +534,7 @@ func (s *SanitizationMiddleware) detectSQLInjection(field, value string) []Threa
 				Field:       field,
 				Value:       value,
 				Pattern:     pattern,
-				Severity:    "critical",
+				Severity:    "severityCritical",
 			})
 		}
 	}
@@ -609,10 +620,10 @@ func (s *SanitizationMiddleware) sanitizeXSS(input string) string {
 	return input
 }
 
-// hasCriticalThreats checks if any critical threats were detected
+// hasCriticalThreats checks if any severityCritical threats were detected
 func (s *SanitizationMiddleware) hasCriticalThreats(threats []ThreatDetection) bool {
 	for _, threat := range threats {
-		if threat.Severity == "critical" {
+		if threat.Severity == "severityCritical" {
 			return true
 		}
 	}
@@ -620,7 +631,7 @@ func (s *SanitizationMiddleware) hasCriticalThreats(threats []ThreatDetection) b
 }
 
 // logThreat logs a security threat
-func (s *SanitizationMiddleware) logThreat(r *http.Request, threat ThreatDetection) {
+func (s *SanitizationMiddleware) logThreat(r *http.Request, threat *ThreatDetection) {
 	if !s.config.LogSuspiciousRequests {
 		return
 	}
@@ -633,7 +644,7 @@ func (s *SanitizationMiddleware) logThreat(r *http.Request, threat ThreatDetecti
 
 	// In a real implementation, you'd use structured logging
 	switch threat.Severity {
-	case "critical":
+	case "severityCritical":
 		// log.Error(logMessage)
 		fmt.Printf("ERROR: %s\n", logMessage)
 	case "high":

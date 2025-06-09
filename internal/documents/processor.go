@@ -40,7 +40,7 @@ func NewProcessor(ruleManager *RuleManager) *Processor {
 }
 
 // ProcessPRDFile processes a PRD file and returns a PRDEntity
-func (p *Processor) ProcessPRDFile(filePath string, repository string) (*PRDEntity, error) {
+func (p *Processor) ProcessPRDFile(filePath, repository string) (*PRDEntity, error) {
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read PRD file: %w", err)
@@ -154,77 +154,16 @@ func (p *Processor) ProcessTextPRD(content []byte, repository string) (*PRDEntit
 
 // ProcessJSONPRD processes JSON content into a PRD entity
 func (p *Processor) ProcessJSONPRD(content []byte, repository string) (*PRDEntity, error) {
-	var jsonData map[string]interface{}
-	if err := json.Unmarshal(content, &jsonData); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	jsonData, err := p.parseJSONContent(content)
+	if err != nil {
+		return nil, err
 	}
 
-	prd := &PRDEntity{
-		Repository: repository,
-		Metadata:   make(map[string]string),
-		Status:     StatusProcessing,
-	}
-
-	// Extract common fields
-	if title, ok := jsonData["title"].(string); ok {
-		prd.Title = title
-	}
-	if desc, ok := jsonData["description"].(string); ok {
-		prd.Content = desc
-	} else if content, ok := jsonData["content"].(string); ok {
-		prd.Content = content
-	}
-
-	// Convert JSON structure to sections
-	sectionOrder := 0
-	for key, value := range jsonData {
-		if key == "title" || key == "description" || key == "content" {
-			continue
-		}
-		sectionOrder++
-		section := Section{
-			Title: FormatTitle(key),
-			Level: 1,
-			Order: sectionOrder,
-		}
-
-		switch v := value.(type) {
-		case string:
-			section.Content = v
-		case []interface{}:
-			items := []string{}
-			for _, item := range v {
-				if s, ok := item.(string); ok {
-					items = append(items, "- "+s)
-				}
-			}
-			section.Content = strings.Join(items, "\n")
-		default:
-			section.Content = fmt.Sprintf("%v", v)
-		}
-
-		prd.Sections = append(prd.Sections, section)
-	}
-
-	// Generate content from sections if not set
-	if prd.Content == "" {
-		contentParts := []string{}
-		for _, section := range prd.Sections {
-			contentParts = append(contentParts, fmt.Sprintf("# %s\n\n%s", section.Title, section.Content))
-		}
-		prd.Content = strings.Join(contentParts, "\n\n")
-	}
-
-	// Extract parsed content
-	parsedContent := p.extractParsedContent(prd.Content, prd.Sections)
-	prd.ParsedContent = parsedContent
-
-	// Estimate complexity
-	prd.ComplexityScore = EstimateComplexity(prd.Content, prd.Sections)
-	prd.EstimatedDuration = estimateDuration(prd.ComplexityScore)
-
-	// Validate
-	if err := prd.Validate(); err != nil {
+	prd := p.createBasePRD(repository)
+	p.extractCommonFields(prd, jsonData)
+	p.convertJSONToSections(prd, jsonData)
+	p.finalizeContent(prd)
+	if err := p.setComplexityAndValidate(prd); err != nil {
 		return nil, err
 	}
 
@@ -365,28 +304,49 @@ func (p *Processor) ValidatePRD(prd *PRDEntity) error {
 	rules := p.ruleManager.GetRulesByType(RuleValidation)
 
 	for _, rule := range rules {
-		// Apply validation rule (simplified for now)
-		if rule.Metadata["target"] == "prd" {
-			// Check required sections
-			if requiredSections, ok := rule.Metadata["required_sections"]; ok {
-				sections := strings.Split(requiredSections, ",")
-				for _, required := range sections {
-					found := false
-					for _, section := range prd.Sections {
-						if strings.EqualFold(section.Title, strings.TrimSpace(required)) {
-							found = true
-							break
-						}
-					}
-					if !found {
-						return fmt.Errorf("required section missing: %s", required)
-					}
-				}
-			}
+		if err := p.applyValidationRule(rule, prd); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+// applyValidationRule applies a single validation rule to a PRD
+func (p *Processor) applyValidationRule(rule *Rule, prd *PRDEntity) error {
+	if rule.Metadata["target"] != "prd" {
+		return nil
+	}
+
+	requiredSections, ok := rule.Metadata["required_sections"]
+	if !ok {
+		return nil
+	}
+
+	return p.validateRequiredSections(requiredSections, prd.Sections)
+}
+
+// validateRequiredSections checks if all required sections are present
+func (p *Processor) validateRequiredSections(requiredSections string, sections []Section) error {
+	sectionNames := strings.Split(requiredSections, ",")
+
+	for _, required := range sectionNames {
+		required = strings.TrimSpace(required)
+		if !p.sectionExists(required, sections) {
+			return fmt.Errorf("required section missing: %s", required)
+		}
+	}
+	return nil
+}
+
+// sectionExists checks if a section with the given title exists
+func (p *Processor) sectionExists(title string, sections []Section) bool {
+	for _, section := range sections {
+		if strings.EqualFold(section.Title, title) {
+			return true
+		}
+	}
+	return false
 }
 
 // ProcessMarkdownToSections processes markdown content using goldmark
@@ -424,7 +384,7 @@ func (p *Processor) ProcessMarkdownToSections(content []byte) ([]Section, error)
 			var headingText bytes.Buffer
 			for child := node.FirstChild(); child != nil; child = child.NextSibling() {
 				if textNode, ok := child.(*ast.Text); ok {
-					headingText.Write(textNode.Segment.Value(reader.Source()))
+					_, _ = headingText.Write(textNode.Segment.Value(reader.Source()))
 				}
 			}
 			currentSection.Title = strings.TrimSpace(headingText.String())
@@ -433,8 +393,8 @@ func (p *Processor) ProcessMarkdownToSections(content []byte) ([]Section, error)
 			if currentSection != nil {
 				// Collect content for current section - collect text nodes
 				if textNode, ok := n.(*ast.Text); ok {
-					contentBuffer.Write(textNode.Segment.Value(reader.Source()))
-					contentBuffer.WriteString("\n")
+					_, _ = contentBuffer.Write(textNode.Segment.Value(reader.Source()))
+					_, _ = contentBuffer.WriteString("\n")
 				}
 			}
 		}
@@ -516,4 +476,106 @@ func (p *Processor) exportPRDYAML(prd *PRDEntity, writer io.Writer) error {
 		}
 	}()
 	return encoder.Encode(prd)
+}
+
+// parseJSONContent parses JSON bytes into a map
+func (p *Processor) parseJSONContent(content []byte) (map[string]interface{}, error) {
+	var jsonData map[string]interface{}
+	if err := json.Unmarshal(content, &jsonData); err != nil {
+		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+	}
+	return jsonData, nil
+}
+
+// createBasePRD creates a base PRD entity
+func (p *Processor) createBasePRD(repository string) *PRDEntity {
+	return &PRDEntity{
+		Repository: repository,
+		Metadata:   make(map[string]string),
+		Status:     StatusProcessing,
+	}
+}
+
+// extractCommonFields extracts title and content from JSON data
+func (p *Processor) extractCommonFields(prd *PRDEntity, jsonData map[string]interface{}) {
+	if title, ok := jsonData["title"].(string); ok {
+		prd.Title = title
+	}
+	if desc, ok := jsonData["description"].(string); ok {
+		prd.Content = desc
+	} else if content, ok := jsonData["content"].(string); ok {
+		prd.Content = content
+	}
+}
+
+// convertJSONToSections converts JSON structure to sections
+func (p *Processor) convertJSONToSections(prd *PRDEntity, jsonData map[string]interface{}) {
+	sectionOrder := 0
+	for key, value := range jsonData {
+		if p.isReservedField(key) {
+			continue
+		}
+		sectionOrder++
+		section := p.createSectionFromValue(key, value, sectionOrder)
+		prd.Sections = append(prd.Sections, section)
+	}
+}
+
+// isReservedField checks if a field is reserved and shouldn't become a section
+func (p *Processor) isReservedField(key string) bool {
+	return key == "title" || key == "description" || key == "content"
+}
+
+// createSectionFromValue creates a section from a JSON value
+func (p *Processor) createSectionFromValue(key string, value interface{}, order int) Section {
+	section := Section{
+		Title: FormatTitle(key),
+		Level: 1,
+		Order: order,
+	}
+
+	switch v := value.(type) {
+	case string:
+		section.Content = v
+	case []interface{}:
+		section.Content = p.convertArrayToString(v)
+	default:
+		section.Content = fmt.Sprintf("%v", v)
+	}
+
+	return section
+}
+
+// convertArrayToString converts array interface to string list
+func (p *Processor) convertArrayToString(arr []interface{}) string {
+	items := make([]string, 0, len(arr))
+	for _, item := range arr {
+		if s, ok := item.(string); ok {
+			items = append(items, "- "+s)
+		}
+	}
+	return strings.Join(items, "\n")
+}
+
+// finalizeContent generates content from sections if not set
+func (p *Processor) finalizeContent(prd *PRDEntity) {
+	if prd.Content == "" {
+		contentParts := make([]string, 0, len(prd.Sections))
+		for _, section := range prd.Sections {
+			contentParts = append(contentParts, fmt.Sprintf("# %s\n\n%s", section.Title, section.Content))
+		}
+		prd.Content = strings.Join(contentParts, "\n\n")
+	}
+
+	// Extract parsed content
+	parsedContent := p.extractParsedContent(prd.Content, prd.Sections)
+	prd.ParsedContent = parsedContent
+}
+
+// setComplexityAndValidate estimates complexity and validates the PRD
+func (p *Processor) setComplexityAndValidate(prd *PRDEntity) error {
+	prd.ComplexityScore = EstimateComplexity(prd.Content, prd.Sections)
+	prd.EstimatedDuration = estimateDuration(prd.ComplexityScore)
+
+	return prd.Validate()
 }

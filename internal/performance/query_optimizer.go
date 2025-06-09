@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"os"
 	"regexp"
 	"strconv"
@@ -136,7 +137,7 @@ func (qo *QueryOptimizer) getExecutionPlan(ctx context.Context, query string, ar
 	if err != nil {
 		return "", err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var planJSON string
 	for rows.Next() {
@@ -263,19 +264,25 @@ func (qo *QueryOptimizer) parsePlanMetrics(queryPlan *QueryPlan, plan string) {
 	// Parse cost (cost=start..total)
 	costRegex := regexp.MustCompile(`cost=[\d.]+\.\.([\d.]+)`)
 	if matches := costRegex.FindStringSubmatch(plan); len(matches) > 1 {
-		fmt.Sscanf(matches[1], "%f", &queryPlan.Cost)
+		if _, err := fmt.Sscanf(matches[1], "%f", &queryPlan.Cost); err != nil {
+			log.Printf("Warning: failed to parse cost from plan: %v", err)
+		}
 	}
 
 	// Parse row estimates (rows=N)
 	rowsRegex := regexp.MustCompile(`rows=(\d+)`)
 	if matches := rowsRegex.FindStringSubmatch(plan); len(matches) > 1 {
-		fmt.Sscanf(matches[1], "%d", &queryPlan.RowsEstimate)
+		if _, err := fmt.Sscanf(matches[1], "%d", &queryPlan.RowsEstimate); err != nil {
+			log.Printf("Warning: failed to parse row estimate from plan: %v", err)
+		}
 	}
 
 	// Parse actual rows (actual.*rows=N)
 	actualRowsRegex := regexp.MustCompile(`actual.*rows=(\d+)`)
 	if matches := actualRowsRegex.FindStringSubmatch(plan); len(matches) > 1 {
-		fmt.Sscanf(matches[1], "%d", &queryPlan.RowsActual)
+		if _, err := fmt.Sscanf(matches[1], "%d", &queryPlan.RowsActual); err != nil {
+			log.Printf("Warning: failed to parse actual rows from plan: %v", err)
+		}
 	}
 }
 
@@ -359,7 +366,7 @@ func (qo *QueryOptimizer) SuggestIndexes(ctx context.Context) ([]IndexSuggestion
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze table statistics: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var schema, table string

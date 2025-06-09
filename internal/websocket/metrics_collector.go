@@ -67,9 +67,8 @@ type ConnectionMetrics struct {
 	Stability    float64 `json:"stability"`
 
 	// Time series data
-	hourlyStats    [24]*HourlyStats
-	minutelyStats  [60]*MinutelyStats
-	lastStatUpdate time.Time
+	hourlyStats   [24]*HourlyStats
+	minutelyStats [60]*MinutelyStats
 }
 
 // SystemMetrics tracks overall system metrics
@@ -214,7 +213,7 @@ func (mc *MetricsCollector) UnregisterConnection(id string) {
 }
 
 // RecordMessage records a message for metrics tracking
-func (mc *MetricsCollector) RecordMessage(connectionID string, messageType string, size int, direction MessageDirection, latency time.Duration) {
+func (mc *MetricsCollector) RecordMessage(connectionID, messageType string, size int, direction MessageDirection, latency time.Duration) {
 	mc.mu.RLock()
 	conn, exists := mc.connections[connectionID]
 	mc.mu.RUnlock()
@@ -569,7 +568,7 @@ func (mc *MetricsCollector) GetConnectionMetrics(id string) (*ConnectionMetrics,
 	conn.mu.RLock()
 	defer conn.mu.RUnlock()
 
-	copy := &ConnectionMetrics{
+	metricsCopy := &ConnectionMetrics{
 		ID:                    conn.ID,
 		StartTime:             conn.StartTime,
 		LastActivity:          conn.LastActivity,
@@ -595,10 +594,10 @@ func (mc *MetricsCollector) GetConnectionMetrics(id string) (*ConnectionMetrics,
 
 	// Copy message types map
 	for k, v := range conn.MessageTypes {
-		copy.MessageTypes[k] = v
+		metricsCopy.MessageTypes[k] = v
 	}
 
-	return copy, nil
+	return metricsCopy, nil
 }
 
 // GetSystemMetrics returns system-wide metrics

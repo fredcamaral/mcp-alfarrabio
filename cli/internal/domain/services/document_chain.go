@@ -179,6 +179,7 @@ type TaskTemplate struct {
 // DefaultDocumentChainService implements DocumentChainService
 type DefaultDocumentChainService struct {
 	mcpClient ports.MCPClient
+	aiService ports.AIService
 	storage   ports.Storage
 	logger    *slog.Logger
 	chains    map[string]*ChainProgress
@@ -188,11 +189,13 @@ type DefaultDocumentChainService struct {
 // NewDocumentChainService creates a new document chain service
 func NewDocumentChainService(
 	mcpClient ports.MCPClient,
+	aiService ports.AIService,
 	storage ports.Storage,
 	logger *slog.Logger,
 ) *DefaultDocumentChainService {
 	return &DefaultDocumentChainService{
 		mcpClient: mcpClient,
+		aiService: aiService,
 		storage:   storage,
 		logger:    logger,
 		chains:    make(map[string]*ChainProgress),
@@ -309,24 +312,52 @@ func (s *DefaultDocumentChainService) GeneratePRDInteractive(ctx context.Context
 		return nil, errors.New("no user input provided for PRD generation")
 	}
 
-	// Simulate AI generation for now - in full implementation this would call the MCP AI service
-	prd := &PRDEntity{
-		ID:          uuid.New().String(),
-		Title:       s.extractProjectTitle(context.UserInputs[0]),
-		Description: context.UserInputs[0],
-		Features:    s.extractFeatures(context.UserInputs[0]),
-		UserStories: s.generateUserStories(context.UserInputs[0]),
-		Metadata: map[string]interface{}{
-			"generated_by": "ai_chain",
-			"repository":   context.Repository,
-			"project_type": context.ProjectType,
+	// Create AI generation request
+	request := &ports.PRDGenerationRequest{
+		UserInputs:  context.UserInputs,
+		Repository:  context.Repository,
+		ProjectType: context.ProjectType,
+		Preferences: ports.UserPreferences{
+			PreferredTaskSize:   context.UserPrefs.PreferredTaskSize,
+			PreferredComplexity: context.UserPrefs.PreferredComplexity,
+			IncludeTests:        context.UserPrefs.IncludeTests,
+			IncludeDocs:         context.UserPrefs.IncludeDocs,
+			FavoriteTemplates:   context.UserPrefs.FavoriteTemplates,
+			AvoidPatterns:       context.UserPrefs.AvoidPatterns,
 		},
-		CreatedAt: time.Now(),
+		Metadata: context.Metadata,
 	}
 
-	s.logger.Info("generated PRD",
+	// Generate PRD using AI service
+	response, err := s.aiService.GeneratePRD(ctx, request)
+	if err != nil {
+		s.logger.Error("AI PRD generation failed, falling back to mock",
+			slog.Any("error", err))
+
+		// Fallback to mock generation
+		return s.generateMockPRD(context), nil
+	}
+
+	// Convert AI response to PRD entity
+	prd := &PRDEntity{
+		ID:          response.ID,
+		Title:       response.Title,
+		Description: response.Description,
+		Features:    response.Features,
+		UserStories: response.UserStories,
+		Metadata: map[string]interface{}{
+			"generated_by": response.ModelUsed,
+			"repository":   context.Repository,
+			"project_type": context.ProjectType,
+			"generated_at": response.GeneratedAt,
+		},
+		CreatedAt: response.GeneratedAt,
+	}
+
+	s.logger.Info("generated PRD using AI",
 		slog.String("prd_id", prd.ID),
 		slog.String("title", prd.Title),
+		slog.String("model", response.ModelUsed),
 		slog.Int("features", len(prd.Features)))
 
 	return prd, nil
@@ -338,26 +369,53 @@ func (s *DefaultDocumentChainService) GenerateTRDFromPRD(ctx context.Context, pr
 		return nil, errors.New("PRD cannot be nil")
 	}
 
-	// Simulate AI generation for now
-	trd := &TRDEntity{
-		ID:             uuid.New().String(),
-		PRDID:          prd.ID,
-		Title:          "Technical Requirements for " + prd.Title,
-		Architecture:   s.generateArchitecture(prd),
-		TechStack:      s.generateTechStack(prd),
-		Requirements:   s.generateTechnicalRequirements(prd),
-		Implementation: s.generateImplementationSteps(prd),
+	// Create TRD content from PRD
+	prdContent := fmt.Sprintf("Title: %s\nDescription: %s\nFeatures: %v\nUser Stories: %v",
+		prd.Title, prd.Description, prd.Features, prd.UserStories)
+
+	// Create AI generation request
+	request := &ports.TRDGenerationRequest{
+		PRDID:       prd.ID,
+		PRDContent:  prdContent,
+		Repository:  getStringFromMetadata(prd.Metadata, "repository"),
+		ProjectType: getStringFromMetadata(prd.Metadata, "project_type"),
 		Metadata: map[string]interface{}{
-			"generated_by": "ai_chain",
-			"prd_id":       prd.ID,
-			"features":     len(prd.Features),
+			"prd_features_count": len(prd.Features),
 		},
-		CreatedAt: time.Now(),
 	}
 
-	s.logger.Info("generated TRD",
+	// Generate TRD using AI service
+	response, err := s.aiService.GenerateTRD(ctx, request)
+	if err != nil {
+		s.logger.Error("AI TRD generation failed, falling back to mock",
+			slog.Any("error", err))
+
+		// Fallback to mock generation
+		return s.generateMockTRD(prd), nil
+	}
+
+	// Convert AI response to TRD entity
+	trd := &TRDEntity{
+		ID:             response.ID,
+		PRDID:          response.PRDID,
+		Title:          response.Title,
+		Architecture:   response.Architecture,
+		TechStack:      response.TechStack,
+		Requirements:   response.Requirements,
+		Implementation: response.Implementation,
+		Metadata: map[string]interface{}{
+			"generated_by": response.ModelUsed,
+			"prd_id":       prd.ID,
+			"features":     len(prd.Features),
+			"generated_at": response.GeneratedAt,
+		},
+		CreatedAt: response.GeneratedAt,
+	}
+
+	s.logger.Info("generated TRD using AI",
 		slog.String("trd_id", trd.ID),
 		slog.String("prd_id", prd.ID),
+		slog.String("model", response.ModelUsed),
 		slog.Int("requirements", len(trd.Requirements)))
 
 	return trd, nil
@@ -369,30 +427,51 @@ func (s *DefaultDocumentChainService) GenerateMainTasksFromTRD(ctx context.Conte
 		return nil, errors.New("TRD cannot be nil")
 	}
 
-	var mainTasks []*MainTask
+	// Create TRD content for AI
+	trdContent := fmt.Sprintf("Title: %s\nArchitecture: %s\nTech Stack: %v\nRequirements: %v\nImplementation: %v",
+		trd.Title, trd.Architecture, trd.TechStack, trd.Requirements, trd.Implementation)
 
-	// Generate tasks based on implementation steps
-	for i, step := range trd.Implementation {
-		task := &MainTask{
-			ID:               fmt.Sprintf("MT-%03d", i+1),
-			Name:             s.extractTaskName(step),
-			Description:      step,
-			Phase:            s.determinePhase(step, i, len(trd.Implementation)),
-			Duration:         s.estimateMainTaskDuration(step),
-			AtomicValidation: s.validateAtomicTask(step),
-			Dependencies:     s.extractDependencies(step, i, mainTasks),
-			Content:          step,
-			CreatedAt:        time.Now(),
-		}
-
-		mainTasks = append(mainTasks, task)
+	// Create AI generation request
+	request := &ports.MainTaskGenerationRequest{
+		TRDID:      trd.ID,
+		TRDContent: trdContent,
+		Repository: getStringFromMetadata(trd.Metadata, "repository"),
+		Metadata: map[string]interface{}{
+			"requirements_count":   len(trd.Requirements),
+			"implementation_count": len(trd.Implementation),
+		},
 	}
 
-	// Detect dependencies between main tasks
-	s.detectMainTaskDependencies(mainTasks)
+	// Generate main tasks using AI service
+	response, err := s.aiService.GenerateMainTasks(ctx, request)
+	if err != nil {
+		s.logger.Error("AI main task generation failed, falling back to mock",
+			slog.Any("error", err))
 
-	s.logger.Info("generated main tasks from TRD",
+		// Fallback to mock generation
+		return s.generateMockMainTasks(trd), nil
+	}
+
+	// Convert AI response to main task entities
+	var mainTasks []*MainTask
+	for _, task := range response.Tasks {
+		mainTask := &MainTask{
+			ID:               task.ID,
+			Name:             task.Name,
+			Description:      task.Description,
+			Phase:            task.Phase,
+			Duration:         task.Duration,
+			AtomicValidation: task.AtomicValidation,
+			Dependencies:     task.Dependencies,
+			Content:          task.Content,
+			CreatedAt:        response.GeneratedAt,
+		}
+		mainTasks = append(mainTasks, mainTask)
+	}
+
+	s.logger.Info("generated main tasks using AI",
 		slog.String("trd_id", trd.ID),
+		slog.String("model", response.ModelUsed),
 		slog.Int("task_count", len(mainTasks)))
 
 	return mainTasks, nil
@@ -404,22 +483,41 @@ func (s *DefaultDocumentChainService) GenerateSubTasksFromMain(ctx context.Conte
 		return nil, errors.New("main task cannot be nil")
 	}
 
-	var subTasks []*SubTask
+	// Create AI generation request
+	request := &ports.SubTaskGenerationRequest{
+		MainTaskID:      mainTask.ID,
+		MainTaskContent: fmt.Sprintf("Name: %s\nDescription: %s\nPhase: %s\nContent: %s", mainTask.Name, mainTask.Description, mainTask.Phase, mainTask.Content),
+		Repository:      "current-project", // Default for now
+		Metadata: map[string]interface{}{
+			"phase":    mainTask.Phase,
+			"duration": mainTask.Duration,
+		},
+	}
 
-	// Break down main task into 2-4 hour sub-tasks
-	steps := s.breakDownTask(mainTask.Content)
-	for i, step := range steps {
+	// Generate sub-tasks using AI service
+	response, err := s.aiService.GenerateSubTasks(ctx, request)
+	if err != nil {
+		s.logger.Error("AI sub-task generation failed, falling back to mock",
+			slog.Any("error", err))
+
+		// Fallback to mock generation
+		return s.generateMockSubTasks(mainTask), nil
+	}
+
+	// Convert AI response to sub-task entities
+	var subTasks []*SubTask
+	for _, task := range response.Tasks {
 		subTask := &SubTask{
-			ID:                 fmt.Sprintf("ST-%s-%03d", mainTask.ID, i+1),
-			ParentTaskID:       mainTask.ID,
-			Name:               s.extractSubTaskName(step),
-			Duration:           s.estimateSubTaskDuration(step),
-			Type:               s.determineImplementationType(step),
-			Deliverables:       s.extractDeliverables(step),
-			AcceptanceCriteria: s.generateAcceptanceCriteria(step),
-			Dependencies:       s.extractSubTaskDependencies(step, i, subTasks),
-			Content:            step,
-			CreatedAt:          time.Now(),
+			ID:                 task.ID,
+			ParentTaskID:       task.ParentTaskID,
+			Name:               task.Name,
+			Duration:           task.Duration,
+			Type:               task.Type,
+			Deliverables:       task.Deliverables,
+			AcceptanceCriteria: task.AcceptanceCriteria,
+			Dependencies:       task.Dependencies,
+			Content:            task.Content,
+			CreatedAt:          response.GeneratedAt,
 		}
 
 		// Ensure duration is within 2-4 hour range
@@ -435,8 +533,9 @@ func (s *DefaultDocumentChainService) GenerateSubTasksFromMain(ctx context.Conte
 	// Update main task sub-task count
 	mainTask.SubTaskCount = len(subTasks)
 
-	s.logger.Info("generated sub-tasks from main task",
+	s.logger.Info("generated sub-tasks using AI",
 		slog.String("main_task_id", mainTask.ID),
+		slog.String("model", response.ModelUsed),
 		slog.Int("sub_task_count", len(subTasks)))
 
 	return subTasks, nil
@@ -828,4 +927,113 @@ func joinWords(words []string) string {
 		result += " " + words[i]
 	}
 	return result
+}
+
+// Mock generation methods for fallback when AI service fails
+
+// generateMockPRD creates a mock PRD when AI service fails
+func (s *DefaultDocumentChainService) generateMockPRD(context *GenerationContext) *PRDEntity {
+	return &PRDEntity{
+		ID:          uuid.New().String(),
+		Title:       s.extractProjectTitle(context.UserInputs[0]),
+		Description: context.UserInputs[0],
+		Features:    s.extractFeatures(context.UserInputs[0]),
+		UserStories: s.generateUserStories(context.UserInputs[0]),
+		Metadata: map[string]interface{}{
+			"generated_by": "mock_fallback",
+			"repository":   context.Repository,
+			"project_type": context.ProjectType,
+		},
+		CreatedAt: time.Now(),
+	}
+}
+
+// generateMockTRD creates a mock TRD when AI service fails
+func (s *DefaultDocumentChainService) generateMockTRD(prd *PRDEntity) *TRDEntity {
+	return &TRDEntity{
+		ID:             uuid.New().String(),
+		PRDID:          prd.ID,
+		Title:          "Technical Requirements for " + prd.Title,
+		Architecture:   s.generateArchitecture(prd),
+		TechStack:      s.generateTechStack(prd),
+		Requirements:   s.generateTechnicalRequirements(prd),
+		Implementation: s.generateImplementationSteps(prd),
+		Metadata: map[string]interface{}{
+			"generated_by": "mock_fallback",
+			"prd_id":       prd.ID,
+			"features":     len(prd.Features),
+		},
+		CreatedAt: time.Now(),
+	}
+}
+
+// generateMockMainTasks creates mock main tasks when AI service fails
+func (s *DefaultDocumentChainService) generateMockMainTasks(trd *TRDEntity) []*MainTask {
+	var mainTasks []*MainTask
+
+	// Generate tasks based on implementation steps
+	for i, step := range trd.Implementation {
+		task := &MainTask{
+			ID:               fmt.Sprintf("MT-%03d", i+1),
+			Name:             s.extractTaskName(step),
+			Description:      step,
+			Phase:            s.determinePhase(step, i, len(trd.Implementation)),
+			Duration:         s.estimateMainTaskDuration(step),
+			AtomicValidation: s.validateAtomicTask(step),
+			Dependencies:     s.extractDependencies(step, i, mainTasks),
+			Content:          step,
+			CreatedAt:        time.Now(),
+		}
+		mainTasks = append(mainTasks, task)
+	}
+
+	// Detect dependencies between main tasks
+	s.detectMainTaskDependencies(mainTasks)
+	return mainTasks
+}
+
+// generateMockSubTasks creates mock sub-tasks when AI service fails
+func (s *DefaultDocumentChainService) generateMockSubTasks(mainTask *MainTask) []*SubTask {
+	var subTasks []*SubTask
+
+	// Break down main task into 2-4 hour sub-tasks
+	steps := s.breakDownTask(mainTask.Content)
+	for i, step := range steps {
+		subTask := &SubTask{
+			ID:                 fmt.Sprintf("ST-%s-%03d", mainTask.ID, i+1),
+			ParentTaskID:       mainTask.ID,
+			Name:               s.extractSubTaskName(step),
+			Duration:           s.estimateSubTaskDuration(step),
+			Type:               s.determineImplementationType(step),
+			Deliverables:       s.extractDeliverables(step),
+			AcceptanceCriteria: s.generateAcceptanceCriteria(step),
+			Dependencies:       s.extractSubTaskDependencies(step, i, subTasks),
+			Content:            step,
+			CreatedAt:          time.Now(),
+		}
+
+		// Ensure duration is within 2-4 hour range
+		if subTask.Duration < 2 {
+			subTask.Duration = 2
+		} else if subTask.Duration > 4 {
+			subTask.Duration = 4
+		}
+
+		subTasks = append(subTasks, subTask)
+	}
+
+	return subTasks
+}
+
+// getStringFromMetadata safely extracts string value from metadata map
+func getStringFromMetadata(metadata map[string]interface{}, key string) string {
+	if metadata == nil {
+		return ""
+	}
+	if value, ok := metadata[key]; ok {
+		if str, ok := value.(string); ok {
+			return str
+		}
+	}
+	return ""
 }

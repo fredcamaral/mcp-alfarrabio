@@ -120,6 +120,7 @@ func (h *HealthHandler) performHealthChecks(ctx context.Context) map[string]Chec
 
 // checkQdrant performs Qdrant database health check
 func (h *HealthHandler) checkQdrant(ctx context.Context) Check {
+	_ = ctx // unused parameter, kept for interface consistency
 	start := time.Now()
 
 	// TODO: Implement actual Qdrant health check when storage layer is available

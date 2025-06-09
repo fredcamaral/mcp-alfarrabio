@@ -334,7 +334,10 @@ func (rm *RecoveryManager) tryReconnect(client *RecoverableClient) bool {
 		HandshakeTimeout: 10 * time.Second,
 	}
 
-	conn, _, err := dialer.DialContext(ctx, client.URL, nil)
+	conn, resp, err := dialer.DialContext(ctx, client.URL, nil)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	if err != nil {
 		log.Printf("Reconnection failed for client %s: %v", client.ID, err)
 		return false

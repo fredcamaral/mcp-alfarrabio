@@ -11,6 +11,12 @@ import (
 	"lerian-mcp-memory/internal/config"
 )
 
+// Operation status constants
+const (
+	StatusFailed    = "failed"
+	StatusCompleted = "completed"
+)
+
 // MaintenanceManager handles database maintenance operations
 type MaintenanceManager struct {
 	db     *sql.DB
@@ -91,12 +97,8 @@ func (mm *MaintenanceManager) PerformMaintenance(ctx context.Context) ([]*Mainte
 	}
 
 	// 4. Update table statistics
-	statsOps, err := mm.updateTableStatistics(ctx)
-	if err != nil {
-		mm.logger.Error("Failed to update statistics: %v", err)
-	} else {
-		operations = append(operations, statsOps...)
-	}
+	statsOps := mm.updateTableStatistics(ctx)
+	operations = append(operations, statsOps...)
 
 	mm.logger.Info("Database maintenance completed: %d operations", len(operations))
 	return operations, nil
@@ -115,7 +117,7 @@ func (mm *MaintenanceManager) analyzeAllTables(ctx context.Context) ([]*Maintena
 	if err != nil {
 		return nil, fmt.Errorf("failed to get table list: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var operations []*MaintenanceOperation
 
@@ -140,11 +142,11 @@ func (mm *MaintenanceManager) analyzeAllTables(ctx context.Context) ([]*Maintena
 		op.Duration = op.EndTime.Sub(op.StartTime)
 
 		if err != nil {
-			op.Status = "failed"
+			op.Status = StatusFailed
 			op.Error = err.Error()
 			mm.logger.Warn("Failed to analyze table %s.%s: %v", schema, table, err)
 		} else {
-			op.Status = "completed"
+			op.Status = StatusCompleted
 			if result != nil {
 				if affected, err := result.RowsAffected(); err == nil {
 					op.RowsAffected = affected
@@ -186,7 +188,7 @@ func (mm *MaintenanceManager) vacuumTables(ctx context.Context) ([]*MaintenanceO
 	if err != nil {
 		return nil, fmt.Errorf("failed to identify tables for vacuum: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var operations []*MaintenanceOperation
 
@@ -219,11 +221,11 @@ func (mm *MaintenanceManager) vacuumTables(ctx context.Context) ([]*MaintenanceO
 		op.Duration = op.EndTime.Sub(op.StartTime)
 
 		if err != nil {
-			op.Status = "failed"
+			op.Status = StatusFailed
 			op.Error = err.Error()
 			mm.logger.Warn("Failed to vacuum table %s.%s: %v", schema, table, err)
 		} else {
-			op.Status = "completed"
+			op.Status = StatusCompleted
 			if result != nil {
 				if affected, err := result.RowsAffected(); err == nil {
 					op.RowsAffected = affected
@@ -261,7 +263,7 @@ func (mm *MaintenanceManager) reindexFragmentedIndexes(ctx context.Context) ([]*
 	if err != nil {
 		return nil, fmt.Errorf("failed to identify fragmented indexes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var operations []*MaintenanceOperation
 
@@ -292,11 +294,11 @@ func (mm *MaintenanceManager) reindexFragmentedIndexes(ctx context.Context) ([]*
 		op.Duration = op.EndTime.Sub(op.StartTime)
 
 		if err != nil {
-			op.Status = "failed"
+			op.Status = StatusFailed
 			op.Error = err.Error()
 			mm.logger.Warn("Failed to reindex %s.%s: %v", schema, index, err)
 		} else {
-			op.Status = "completed"
+			op.Status = StatusCompleted
 			if result != nil {
 				if affected, err := result.RowsAffected(); err == nil {
 					op.RowsAffected = affected
@@ -313,7 +315,7 @@ func (mm *MaintenanceManager) reindexFragmentedIndexes(ctx context.Context) ([]*
 }
 
 // updateTableStatistics updates PostgreSQL table statistics
-func (mm *MaintenanceManager) updateTableStatistics(ctx context.Context) ([]*MaintenanceOperation, error) {
+func (mm *MaintenanceManager) updateTableStatistics(ctx context.Context) []*MaintenanceOperation {
 	var operations []*MaintenanceOperation
 
 	op := &MaintenanceOperation{
@@ -330,16 +332,16 @@ func (mm *MaintenanceManager) updateTableStatistics(ctx context.Context) ([]*Mai
 	op.Duration = op.EndTime.Sub(op.StartTime)
 
 	if err != nil {
-		op.Status = "failed"
+		op.Status = StatusFailed
 		op.Error = err.Error()
 		mm.logger.Warn("Failed to reset pg_stat_statements: %v", err)
 	} else {
-		op.Status = "completed"
+		op.Status = StatusCompleted
 		mm.logger.Info("Reset pg_stat_statements in %v", op.Duration)
 	}
 
 	operations = append(operations, op)
-	return operations, nil
+	return operations
 }
 
 // GenerateIndexRecommendations analyzes query patterns and suggests new indexes
@@ -366,7 +368,7 @@ func (mm *MaintenanceManager) GenerateIndexRecommendations(ctx context.Context) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to analyze tables for index recommendations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	for rows.Next() {
 		var schema, table string
@@ -407,7 +409,7 @@ func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var columns []string
 	var stringColumns []string
@@ -455,13 +457,13 @@ func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema
 		}
 
 		// Suggest partial indexes for string columns
-		for _, col := range stringColumns[:min(len(stringColumns), 2)] {
+		for _, col := range stringColumns[:minInt(len(stringColumns), 2)] {
 			rec := &IndexRecommendation{
 				TableName:     table,
 				SchemaName:    schema,
 				Columns:       []string{col},
 				IndexType:     "btree",
-				Reason:        fmt.Sprintf("String column with high scan activity, consider partial index"),
+				Reason:        "String column with high scan activity, consider partial index",
 				Priority:      "medium",
 				EstimatedSize: estimatedSize / 3,
 				Impact:        "medium",
@@ -479,7 +481,7 @@ func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema
 			SchemaName:    schema,
 			Columns:       []string{col},
 			IndexType:     "btree",
-			Reason:        fmt.Sprintf("Numeric column with moderate scan activity"),
+			Reason:        "Numeric column with moderate scan activity",
 			Priority:      "medium",
 			EstimatedSize: estimatedSize / 2,
 			Impact:        "medium",
@@ -493,7 +495,7 @@ func (mm *MaintenanceManager) analyzeTableForIndexes(ctx context.Context, schema
 
 // CreateRecommendedIndexes creates indexes based on recommendations
 func (mm *MaintenanceManager) CreateRecommendedIndexes(ctx context.Context, recommendations []*IndexRecommendation, maxIndexes int) ([]*MaintenanceOperation, error) {
-	var operations []*MaintenanceOperation
+	operations := make([]*MaintenanceOperation, 0, maxIndexes)
 
 	// Sort by priority and impact
 	highPriorityRecs := []*IndexRecommendation{}
@@ -530,11 +532,11 @@ func (mm *MaintenanceManager) CreateRecommendedIndexes(ctx context.Context, reco
 		op.Duration = op.EndTime.Sub(op.StartTime)
 
 		if err != nil {
-			op.Status = "failed"
+			op.Status = StatusFailed
 			op.Error = err.Error()
 			mm.logger.Warn("Failed to create index on %s.%s: %v", rec.SchemaName, rec.TableName, err)
 		} else {
-			op.Status = "completed"
+			op.Status = StatusCompleted
 			if result != nil {
 				if affected, err := result.RowsAffected(); err == nil {
 					op.RowsAffected = affected
@@ -575,7 +577,7 @@ func (mm *MaintenanceManager) CleanupUnusedIndexes(ctx context.Context) ([]*Main
 	if err != nil {
 		return nil, fmt.Errorf("failed to identify unused indexes: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var operations []*MaintenanceOperation
 
@@ -607,11 +609,11 @@ func (mm *MaintenanceManager) CleanupUnusedIndexes(ctx context.Context) ([]*Main
 		op.Duration = op.EndTime.Sub(op.StartTime)
 
 		if err != nil {
-			op.Status = "failed"
+			op.Status = StatusFailed
 			op.Error = err.Error()
 			mm.logger.Warn("Failed to drop unused index %s.%s: %v", schema, index, err)
 		} else {
-			op.Status = "completed"
+			op.Status = StatusCompleted
 			if result != nil {
 				if affected, err := result.RowsAffected(); err == nil {
 					op.RowsAffected = affected
@@ -633,7 +635,7 @@ func timePtr(t time.Time) *time.Time {
 	return &t
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}

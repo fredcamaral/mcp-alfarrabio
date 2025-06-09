@@ -2,34 +2,16 @@
 package ai
 
 import (
-	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
-	"io"
-	"log"
-	"net/http"
 	"time"
 
 	"lerian-mcp-memory/internal/config"
 )
 
-// ClaudeConfig represents Claude API configuration
-type ClaudeConfig struct {
-	APIKey      string        `json:"api_key"`
-	BaseURL     string        `json:"base_url"`
-	Model       string        `json:"model"`
-	MaxTokens   int           `json:"max_tokens"`
-	Temperature float64       `json:"temperature"`
-	Timeout     time.Duration `json:"timeout"`
-	Enabled     bool          `json:"enabled"`
-}
-
 // ClaudeClient implements AI client interface for Claude Sonnet 4
 type ClaudeClient struct {
-	config     ClaudeConfig
-	httpClient *http.Client
-	rateLimits RateLimits
+	*BaseClient
 }
 
 // claudeRequest represents the structure for Claude API requests
@@ -76,144 +58,31 @@ type claudeError struct {
 	Message string `json:"message"`
 }
 
-// NewClaudeClient creates a new Claude API client
-func NewClaudeClient(cfg config.ClaudeClientConfig) (*ClaudeClient, error) {
-	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("claude API key is required")
-	}
+// ClaudeRequestConverter implements RequestConverter for Claude API
+type ClaudeRequestConverter struct{}
 
-	claudeConfig := ClaudeConfig{
-		APIKey:      cfg.APIKey,
-		BaseURL:     cfg.BaseURL,
-		Model:       cfg.Model,
-		MaxTokens:   cfg.MaxTokens,
-		Temperature: cfg.Temperature,
-		Timeout:     cfg.Timeout,
-		Enabled:     cfg.Enabled,
-	}
-
-	// Set defaults
-	if claudeConfig.BaseURL == "" {
-		claudeConfig.BaseURL = "https://api.anthropic.com/v1/messages"
-	}
-	if claudeConfig.Model == "" {
-		claudeConfig.Model = "claude-3-5-sonnet-20241022"
-	}
-	if claudeConfig.MaxTokens == 0 {
-		claudeConfig.MaxTokens = 4000
-	}
-	if claudeConfig.Timeout == 0 {
-		claudeConfig.Timeout = 30 * time.Second
-	}
-
-	httpClient := &http.Client{
-		Timeout: claudeConfig.Timeout,
-	}
-
-	rateLimits := RateLimits{
-		RequestsPerMinute: 50, // Claude rate limits
-		TokensPerMinute:   100000,
-		ResetTime:         time.Minute,
-	}
-
-	return &ClaudeClient{
-		config:     claudeConfig,
-		httpClient: httpClient,
-		rateLimits: rateLimits,
-	}, nil
-}
-
-// ProcessRequest processes a request using Claude API
-func (c *ClaudeClient) ProcessRequest(ctx context.Context, req *Request) (*Response, error) {
-	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
-	}
-
-	startTime := time.Now()
-
-	// Convert to Claude format
-	claudeReq, err := c.convertToClaudeRequest(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert request: %w", err)
-	}
-
-	// Make API call
-	claudeResp, err := c.makeAPICall(ctx, claudeReq)
-	if err != nil {
-		return nil, fmt.Errorf("claude API call failed: %w", err)
-	}
-
-	// Convert response
-	response, err := c.convertFromClaudeResponse(claudeResp, startTime)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert response: %w", err)
-	}
-
-	return response, nil
-}
-
-// convertToClaudeRequest converts internal request to Claude format
-func (c *ClaudeClient) convertToClaudeRequest(req *Request) (*claudeRequest, error) {
+// ConvertRequest converts internal request to Claude format
+func (c *ClaudeRequestConverter) ConvertRequest(req *Request, cfg *BaseConfig) (interface{}, error) {
 	claudeMessages := make([]claudeMessage, len(req.Messages))
 	for i, msg := range req.Messages {
-		claudeMessages[i] = claudeMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-		}
+		claudeMessages[i] = claudeMessage(msg)
 	}
 
 	return &claudeRequest{
-		Model:       c.config.Model,
+		Model:       cfg.Model,
 		Messages:    claudeMessages,
-		MaxTokens:   c.config.MaxTokens,
-		Temperature: c.config.Temperature,
+		MaxTokens:   cfg.MaxTokens,
+		Temperature: cfg.Temperature,
 	}, nil
 }
 
-// makeAPICall makes the actual HTTP call to Claude API
-func (c *ClaudeClient) makeAPICall(ctx context.Context, req *claudeRequest) (*claudeResponse, error) {
-	// Serialize request
-	jsonData, err := json.Marshal(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal request: %w", err)
-	}
+// ClaudeResponseConverter implements ResponseConverter for Claude API
+type ClaudeResponseConverter struct{}
 
-	// Create HTTP request
-	httpReq, err := http.NewRequestWithContext(ctx, "POST", c.config.BaseURL, bytes.NewBuffer(jsonData))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create HTTP request: %w", err)
-	}
-
-	// Set headers
-	httpReq.Header.Set("Content-Type", "application/json")
-	httpReq.Header.Set("x-api-key", c.config.APIKey)
-	httpReq.Header.Set("anthropic-version", "2023-06-01")
-
-	// Make request
-	resp, err := c.httpClient.Do(httpReq)
-	if err != nil {
-		return nil, fmt.Errorf("HTTP request failed: %w", err)
-	}
-	defer func() {
-		if err := resp.Body.Close(); err != nil {
-			log.Printf("Failed to close response body: %v", err)
-		}
-	}()
-
-	// Read response body
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	// Check status code
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("claude API returned status %d: %s", resp.StatusCode, string(body))
-	}
-
-	// Parse response
+// ConvertResponse converts Claude response to internal format
+func (c *ClaudeResponseConverter) ConvertResponse(data []byte, startTime time.Time) (*Response, error) {
 	var claudeResp claudeResponse
-	if err := json.Unmarshal(body, &claudeResp); err != nil {
+	if err := json.Unmarshal(data, &claudeResp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
 	}
 
@@ -222,11 +91,6 @@ func (c *ClaudeClient) makeAPICall(ctx context.Context, req *claudeRequest) (*cl
 		return nil, fmt.Errorf("claude API error: %s", claudeResp.Error.Message)
 	}
 
-	return &claudeResp, nil
-}
-
-// convertFromClaudeResponse converts Claude response to internal format
-func (c *ClaudeClient) convertFromClaudeResponse(claudeResp *claudeResponse, startTime time.Time) (*Response, error) {
 	// Extract content text
 	var content string
 	if len(claudeResp.Content) > 0 {
@@ -262,29 +126,47 @@ func (c *ClaudeClient) convertFromClaudeResponse(claudeResp *claudeResponse, sta
 	}, nil
 }
 
+// NewClaudeClient creates a new Claude API client
+func NewClaudeClient(cfg *config.ClaudeClientConfig) (*ClaudeClient, error) {
+	if cfg.APIKey == "" {
+		return nil, fmt.Errorf("claude API key is required")
+	}
+
+	baseConfig := BaseConfig{
+		APIKey:      cfg.APIKey,
+		BaseURL:     cfg.BaseURL,
+		Model:       cfg.Model,
+		MaxTokens:   cfg.MaxTokens,
+		Temperature: cfg.Temperature,
+		Timeout:     cfg.Timeout,
+		Enabled:     cfg.Enabled,
+	}
+
+	defaults := ProviderDefaults{
+		BaseURL:   "https://api.anthropic.com/v1/messages",
+		Model:     "claude-3-5-sonnet-20241022",
+		MaxTokens: 4000,
+		RateLimits: RateLimits{
+			RequestsPerMinute: 50, // Claude rate limits
+			TokensPerMinute:   100000,
+			ResetTime:         time.Minute,
+		},
+	}
+
+	baseClient := NewBaseClient(
+		&baseConfig,
+		defaults,
+		&ClaudeAuth{},
+		&ClaudeRequestConverter{},
+		&ClaudeResponseConverter{},
+	)
+
+	return &ClaudeClient{
+		BaseClient: baseClient,
+	}, nil
+}
+
 // GetModel returns the model identifier
 func (c *ClaudeClient) GetModel() Model {
 	return ModelClaude
-}
-
-// IsHealthy checks if the Claude client is operational
-func (c *ClaudeClient) IsHealthy(ctx context.Context) error {
-	// Simple health check - try a minimal request
-	healthReq := &claudeRequest{
-		Model:     c.config.Model,
-		Messages:  []claudeMessage{{Role: "user", Content: "Hello"}},
-		MaxTokens: 10,
-	}
-
-	// Use a shorter timeout for health checks
-	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-
-	_, err := c.makeAPICall(healthCtx, healthReq)
-	return err
-}
-
-// GetLimits returns rate limiting information
-func (c *ClaudeClient) GetLimits() RateLimits {
-	return c.rateLimits
 }

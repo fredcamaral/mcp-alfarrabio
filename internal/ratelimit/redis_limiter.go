@@ -3,6 +3,7 @@ package ratelimit
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"strconv"
@@ -129,7 +130,7 @@ func (rl *RedisLimiter) CheckMultiple(ctx context.Context, keys []string, limits
 
 	// Use pipeline for efficiency
 	pipe := rl.client.Pipeline()
-	var commands []*redis.Cmd
+	commands := make([]*redis.Cmd, 0, len(keys))
 
 	for i, key := range keys {
 		fullKey := rl.buildKey(key)
@@ -338,7 +339,7 @@ func (rl *RedisLimiter) GetStats(ctx context.Context, key string) (map[string]in
 	ttlCmd := pipe.TTL(ctx, fullKey)
 
 	_, err := pipe.Exec(ctx)
-	if err != nil && err != redis.Nil {
+	if err != nil && !errors.Is(err, redis.Nil) {
 		return nil, fmt.Errorf("failed to get stats: %w", err)
 	}
 
@@ -479,6 +480,7 @@ local resetTime = now + window
 return {allowed, current, remaining, resetTime}
 `
 
+// #nosec G101 - This is a Redis Lua script, not hardcoded credentials
 const tokenBucketScript = `
 -- Token bucket rate limiting
 -- KEYS[1]: rate limit key

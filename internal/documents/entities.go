@@ -13,6 +13,13 @@ import (
 	"golang.org/x/text/language"
 )
 
+// Document version constants
+const (
+	DefaultDocumentVersion = "defaultDocumentVersion"
+)
+
+// Removed unused constant
+
 // PRDEntity represents a Product Requirements Document
 type PRDEntity struct {
 	ID                string            `json:"id"`
@@ -207,7 +214,7 @@ func (p *PRDEntity) Validate() error {
 		p.LastModified = time.Now()
 	}
 	if p.Version == "" {
-		p.Version = "1.0.0"
+		p.Version = DefaultDocumentVersion
 	}
 	if p.Status == "" {
 		p.Status = StatusDraft
@@ -236,7 +243,7 @@ func (t *TRDEntity) Validate() error {
 		t.LastModified = time.Now()
 	}
 	if t.Version == "" {
-		t.Version = "1.0.0"
+		t.Version = "defaultDocumentVersion"
 	}
 	if t.Status == "" {
 		t.Status = StatusDraft
@@ -317,7 +324,7 @@ func (r *Rule) Validate() error {
 		return errors.New("rule type is required")
 	}
 	if r.Version == "" {
-		r.Version = "1.0.0"
+		r.Version = "defaultDocumentVersion"
 	}
 	if r.CreatedAt.IsZero() {
 		r.CreatedAt = time.Now()

@@ -5,10 +5,20 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
 	"lerian-mcp-memory/pkg/types"
+)
+
+// Validation status constants
+const (
+	ValidationStatusPass    = "pass"
+	ValidationStatusFail    = "fail"
+	ValidationStatusWarning = "warning"
+	ValidationStatusExists  = "exists"
+	ValidationStatusMissing = "missing"
 )
 
 // SchemaValidator provides validation functionality for database schema compliance
@@ -153,20 +163,20 @@ func (sv *SchemaValidator) validateCoreTables(ctx context.Context, result *Valid
 		checkItem := SchemaCheckItem{
 			Name:        tableName,
 			Type:        "table",
-			Expected:    "exists",
+			Expected:    ValidationStatusExists,
 			Description: fmt.Sprintf("Core table '%s' should exist", tableName),
 		}
 
 		if exists {
-			checkItem.Status = "pass"
-			checkItem.Actual = "exists"
+			checkItem.Status = ValidationStatusPass
+			checkItem.Actual = ValidationStatusExists
 		} else {
-			checkItem.Status = "fail"
-			checkItem.Actual = "missing"
+			checkItem.Status = ValidationStatusFail
+			checkItem.Actual = ValidationStatusMissing
 			result.IsValid = false
 			result.Errors = append(result.Errors, ValidationError{
 				Component:  tableName,
-				Type:       "missing",
+				Type:       ValidationStatusMissing,
 				Message:    fmt.Sprintf("Required table '%s' is missing", tableName),
 				Severity:   "critical",
 				Code:       "MISSING_TABLE",
@@ -224,38 +234,38 @@ func (sv *SchemaValidator) validateTableStructure(ctx context.Context, result *V
 	// Check for missing columns
 	for expectedCol, expectedType := range expectedTasksColumns {
 		checkItem := SchemaCheckItem{
-			Name:        fmt.Sprintf("tasks.%s", expectedCol),
+			Name:        "tasks." + expectedCol,
 			Type:        "column",
 			Expected:    expectedType,
-			Description: fmt.Sprintf("Column '%s' should exist with type '%s'", expectedCol, expectedType),
+			Description: "Column '" + expectedCol + "' should exist with type '" + expectedType + "'",
 		}
 
 		if actualType, exists := actualColumns[expectedCol]; exists {
-			checkItem.Status = "pass"
+			checkItem.Status = ValidationStatusPass
 			checkItem.Actual = actualType
 
 			// Check type compatibility
 			if !sv.isTypeCompatible(expectedType, actualType) {
-				checkItem.Status = "warning"
+				checkItem.Status = ValidationStatusWarning
 				result.Warnings = append(result.Warnings, ValidationWarning{
-					Component:  fmt.Sprintf("tasks.%s", expectedCol),
+					Component:  "tasks." + expectedCol,
 					Type:       "type_mismatch",
-					Message:    fmt.Sprintf("Column '%s' has type '%s', expected '%s'", expectedCol, actualType, expectedType),
+					Message:    "Column '" + expectedCol + "' has type '" + actualType + "', expected '" + expectedType + "'",
 					Suggestion: "Consider type migration if necessary",
 					Code:       "TYPE_MISMATCH",
 				})
 			}
 		} else {
-			checkItem.Status = "fail"
-			checkItem.Actual = "missing"
+			checkItem.Status = ValidationStatusFail
+			checkItem.Actual = ValidationStatusMissing
 			result.IsValid = false
 			result.Errors = append(result.Errors, ValidationError{
-				Component:  fmt.Sprintf("tasks.%s", expectedCol),
-				Type:       "missing",
-				Message:    fmt.Sprintf("Required column '%s' is missing from tasks table", expectedCol),
+				Component:  "tasks." + expectedCol,
+				Type:       ValidationStatusMissing,
+				Message:    "Required column '" + expectedCol + "' is missing from tasks table",
 				Severity:   "major",
 				Code:       "MISSING_COLUMN",
-				Suggestion: fmt.Sprintf("Add column '%s' with type '%s'", expectedCol, expectedType),
+				Suggestion: "Add column '" + expectedCol + "' with type '" + expectedType + "'",
 			})
 		}
 
@@ -289,19 +299,19 @@ func (sv *SchemaValidator) validateIndexes(ctx context.Context, result *Validati
 		checkItem := SchemaCheckItem{
 			Name:        indexName,
 			Type:        "index",
-			Expected:    "exists",
+			Expected:    ValidationStatusExists,
 			Description: fmt.Sprintf("Index '%s' should exist for performance", indexName),
 		}
 
 		if sv.indexExists(existingIndexes, indexName) {
-			checkItem.Status = "pass"
-			checkItem.Actual = "exists"
+			checkItem.Status = ValidationStatusPass
+			checkItem.Actual = ValidationStatusExists
 		} else {
-			checkItem.Status = "warning"
-			checkItem.Actual = "missing"
+			checkItem.Status = ValidationStatusWarning
+			checkItem.Actual = ValidationStatusMissing
 			result.Warnings = append(result.Warnings, ValidationWarning{
 				Component:  indexName,
-				Type:       "missing",
+				Type:       ValidationStatusMissing,
 				Message:    fmt.Sprintf("Recommended index '%s' is missing", indexName),
 				Suggestion: "Create index for better query performance",
 				Code:       "MISSING_INDEX",
@@ -337,24 +347,24 @@ func (sv *SchemaValidator) validateConstraints(ctx context.Context, result *Vali
 		checkItem := SchemaCheckItem{
 			Name:        fkName,
 			Type:        "constraint",
-			Expected:    "exists",
+			Expected:    ValidationStatusExists,
 			Description: fmt.Sprintf("Foreign key constraint '%s' (%s)", fkName, description),
 		}
 
 		if exists {
-			checkItem.Status = "pass"
-			checkItem.Actual = "exists"
+			checkItem.Status = ValidationStatusPass
+			checkItem.Actual = ValidationStatusExists
 		} else {
-			checkItem.Status = "fail"
-			checkItem.Actual = "missing"
+			checkItem.Status = ValidationStatusFail
+			checkItem.Actual = ValidationStatusMissing
 			result.IsValid = false
 			result.Errors = append(result.Errors, ValidationError{
 				Component:  fkName,
-				Type:       "missing",
+				Type:       ValidationStatusMissing,
 				Message:    fmt.Sprintf("Foreign key constraint '%s' is missing", fkName),
 				Severity:   "major",
 				Code:       "MISSING_CONSTRAINT",
-				Suggestion: fmt.Sprintf("Add foreign key constraint for %s", description),
+				Suggestion: "Add foreign key constraint for " + description,
 			})
 		}
 
@@ -382,19 +392,19 @@ func (sv *SchemaValidator) validateTriggers(ctx context.Context, result *Validat
 		checkItem := SchemaCheckItem{
 			Name:        triggerName,
 			Type:        "trigger",
-			Expected:    "exists",
+			Expected:    ValidationStatusExists,
 			Description: fmt.Sprintf("Trigger '%s' should exist", triggerName),
 		}
 
 		if exists {
-			checkItem.Status = "pass"
-			checkItem.Actual = "exists"
+			checkItem.Status = ValidationStatusPass
+			checkItem.Actual = ValidationStatusExists
 		} else {
-			checkItem.Status = "warning"
-			checkItem.Actual = "missing"
+			checkItem.Status = ValidationStatusWarning
+			checkItem.Actual = ValidationStatusMissing
 			result.Warnings = append(result.Warnings, ValidationWarning{
 				Component:  triggerName,
-				Type:       "missing",
+				Type:       ValidationStatusMissing,
 				Message:    fmt.Sprintf("Trigger '%s' is missing", triggerName),
 				Suggestion: "Create trigger for automated functionality",
 				Code:       "MISSING_TRIGGER",
@@ -419,12 +429,12 @@ func (sv *SchemaValidator) validateDataIntegrity(ctx context.Context, result *Va
 		Name:        "orphaned_tasks",
 		Type:        "data_integrity",
 		Expected:    "0",
-		Actual:      fmt.Sprintf("%d", orphanedCount),
+		Actual:      strconv.Itoa(orphanedCount),
 		Description: "Tasks with invalid parent_task_id references",
 	}
 
 	if orphanedCount == 0 {
-		checkItem.Status = "pass"
+		checkItem.Status = ValidationStatusPass
 	} else {
 		checkItem.Status = "warning"
 		result.Warnings = append(result.Warnings, ValidationWarning{
@@ -448,12 +458,12 @@ func (sv *SchemaValidator) validateDataIntegrity(ctx context.Context, result *Va
 		Name:        "status_timestamp_consistency",
 		Type:        "data_integrity",
 		Expected:    "0",
-		Actual:      fmt.Sprintf("%d", inconsistentCount),
+		Actual:      strconv.Itoa(inconsistentCount),
 		Description: "Tasks with inconsistent status and timestamp combinations",
 	}
 
 	if inconsistentCount == 0 {
-		checkItem.Status = "pass"
+		checkItem.Status = ValidationStatusPass
 	} else {
 		checkItem.Status = "warning"
 		result.Warnings = append(result.Warnings, ValidationWarning{
@@ -491,13 +501,13 @@ func (sv *SchemaValidator) validatePerformance(ctx context.Context, result *Vali
 		if strings.Contains(tableSize, "5") || strings.Contains(tableSize, "6") ||
 			strings.Contains(tableSize, "7") || strings.Contains(tableSize, "8") ||
 			strings.Contains(tableSize, "9") {
-			checkItem.Status = "warning"
+			checkItem.Status = ValidationStatusWarning
 			result.Suggestions = append(result.Suggestions, "Consider implementing table partitioning for large datasets")
 		} else {
-			checkItem.Status = "pass"
+			checkItem.Status = ValidationStatusPass
 		}
 	} else {
-		checkItem.Status = "pass"
+		checkItem.Status = ValidationStatusPass
 	}
 
 	result.CheckedItems = append(result.CheckedItems, checkItem)
@@ -530,7 +540,7 @@ func (sv *SchemaValidator) getTableColumns(ctx context.Context, tableName string
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	columns := make(map[string]string)
 	for rows.Next() {
@@ -554,7 +564,7 @@ func (sv *SchemaValidator) getTableIndexes(ctx context.Context, tableName string
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var indexes []string
 	for rows.Next() {
@@ -616,15 +626,15 @@ func (sv *SchemaValidator) checkPrimaryKey(ctx context.Context, tableName, colum
 	}
 
 	if exists {
-		checkItem.Status = "pass"
+		checkItem.Status = ValidationStatusPass
 		checkItem.Actual = "primary key"
 	} else {
-		checkItem.Status = "fail"
-		checkItem.Actual = "missing"
+		checkItem.Status = ValidationStatusFail
+		checkItem.Actual = ValidationStatusMissing
 		result.IsValid = false
 		result.Errors = append(result.Errors, ValidationError{
 			Component:  fmt.Sprintf("%s.%s", tableName, columnName),
-			Type:       "missing",
+			Type:       ValidationStatusMissing,
 			Message:    fmt.Sprintf("Primary key constraint missing on %s.%s", tableName, columnName),
 			Severity:   "critical",
 			Code:       "MISSING_PRIMARY_KEY",
@@ -704,11 +714,11 @@ func (sv *SchemaValidator) calculateValidationScore(result *ValidationResult) {
 
 	for _, item := range result.CheckedItems {
 		switch item.Status {
-		case "pass":
+		case ValidationStatusPass:
 			passedChecks++
-		case "warning":
+		case ValidationStatusWarning:
 			warningChecks++
-		case "fail":
+		case ValidationStatusFail:
 			failedChecks++
 		}
 	}
@@ -779,7 +789,7 @@ func (sv *SchemaValidator) ValidateTask(ctx context.Context, task *types.Task) (
 	if task.Description == "" {
 		result.Warnings = append(result.Warnings, types.ValidationWarning{
 			Field:      "description",
-			Type:       "missing",
+			Type:       ValidationStatusMissing,
 			Message:    "Description is empty",
 			Suggestion: "Add a description for better task clarity",
 			Code:       "MISSING_DESCRIPTION",

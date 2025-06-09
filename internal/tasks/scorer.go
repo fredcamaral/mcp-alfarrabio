@@ -96,14 +96,14 @@ func NewScorer() *Scorer {
 }
 
 // NewScorerWithConfig creates a new task scorer with custom config
-func NewScorerWithConfig(config ScorerConfig) *Scorer {
+func NewScorerWithConfig(config *ScorerConfig) *Scorer {
 	return &Scorer{
-		config: config,
+		config: *config,
 	}
 }
 
 // ScoreTask calculates a comprehensive quality score for a task
-func (s *Scorer) ScoreTask(task *types.Task, context types.TaskGenerationContext) types.QualityScore {
+func (s *Scorer) ScoreTask(task *types.Task, context *types.TaskGenerationContext) types.QualityScore {
 	if task == nil {
 		return types.QualityScore{
 			OverallScore: 0.0,
@@ -401,58 +401,14 @@ func (s *Scorer) scoreSpecificityFactor(task *types.Task) float64 {
 }
 
 // scoreFeasibilityFactor scores how feasible the task is given context
-func (s *Scorer) scoreFeasibilityFactor(task *types.Task, context types.TaskGenerationContext) float64 {
+func (s *Scorer) scoreFeasibilityFactor(task *types.Task, context *types.TaskGenerationContext) float64 {
 	score := 0.8 // Start with good baseline
 
-	// Check effort vs complexity alignment
-	if task.EstimatedEffort.Hours > 0 && task.Complexity.Level != "" {
-		complexityHours := map[types.ComplexityLevel]float64{
-			types.ComplexityTrivial:     2.0,
-			types.ComplexitySimple:      8.0,
-			types.ComplexityModerate:    24.0,
-			types.ComplexityComplex:     80.0,
-			types.ComplexityVeryComplex: 200.0,
-		}
-
-		if expectedHours, exists := complexityHours[task.Complexity.Level]; exists {
-			ratio := task.EstimatedEffort.Hours / expectedHours
-			if ratio < 0.3 || ratio > 3.0 {
-				score -= 0.2 // Significantly misaligned effort vs complexity
-			} else if ratio < 0.5 || ratio > 2.0 {
-				score -= 0.1 // Somewhat misaligned
-			}
-		}
-	}
-
-	// Check for unrealistic timelines
-	if task.EstimatedEffort.Hours > 160 { // More than 4 weeks
-		score -= 0.3
-	} else if task.EstimatedEffort.Hours > 80 { // More than 2 weeks
-		score -= 0.1
-	}
-
-	// Check for required skills vs team size
-	if len(task.Complexity.RequiredSkills) > context.TeamSize*2 {
-		score -= 0.2 // Too many diverse skills required
-	}
-
-	// Check for technology stack alignment
-	content := strings.ToLower(task.Title + " " + task.Description)
-	mentionedTech := 0
-	for _, tech := range context.TechStack {
-		if strings.Contains(content, strings.ToLower(tech)) {
-			mentionedTech++
-		}
-	}
-	if len(context.TechStack) > 0 && mentionedTech == 0 {
-		// Task doesn't mention any known technologies
-		score -= 0.1
-	}
-
-	// Check for external dependencies
-	if len(task.Complexity.ExternalDependencies) > 3 {
-		score -= 0.1 // Many external dependencies increase risk
-	}
+	score -= s.scoreComplexityAlignment(task)
+	score -= s.scoreTimelineRealism(task)
+	score -= s.scoreSkillRequirements(task, context)
+	score -= s.scoreTechStackAlignment(task, context)
+	score -= s.scoreExternalDependencies(task)
 
 	return math.Max(score, 0.0)
 }
@@ -661,7 +617,7 @@ func (s *Scorer) GetQualityLevel(score float64) string {
 }
 
 // ScoreMultipleTasks scores multiple tasks and returns aggregate statistics
-func (s *Scorer) ScoreMultipleTasks(tasks []types.Task, context types.TaskGenerationContext) TaskSetScore {
+func (s *Scorer) ScoreMultipleTasks(tasks []types.Task, context *types.TaskGenerationContext) TaskSetScore {
 	if len(tasks) == 0 {
 		return TaskSetScore{
 			TaskCount:    0,
@@ -683,8 +639,8 @@ func (s *Scorer) ScoreMultipleTasks(tasks []types.Task, context types.TaskGenera
 		"Poor":      0,
 	}
 
-	for _, task := range tasks {
-		quality := s.ScoreTask(&task, context)
+	for i := range tasks {
+		quality := s.ScoreTask(&tasks[i], context)
 		totalScore += quality.OverallScore
 		level := s.GetQualityLevel(quality.OverallScore)
 		distribution[level]++
@@ -702,4 +658,74 @@ type TaskSetScore struct {
 	TaskCount         int            `json:"task_count"`
 	AverageScore      float64        `json:"average_score"`
 	ScoreDistribution map[string]int `json:"score_distribution"`
+}
+
+// scoreComplexityAlignment checks effort vs complexity alignment
+func (s *Scorer) scoreComplexityAlignment(task *types.Task) float64 {
+	if task.EstimatedEffort.Hours <= 0 || task.Complexity.Level == "" {
+		return 0
+	}
+
+	complexityHours := map[types.ComplexityLevel]float64{
+		types.ComplexityTrivial:     2.0,
+		types.ComplexitySimple:      8.0,
+		types.ComplexityModerate:    24.0,
+		types.ComplexityComplex:     80.0,
+		types.ComplexityVeryComplex: 200.0,
+	}
+
+	expectedHours, exists := complexityHours[task.Complexity.Level]
+	if !exists {
+		return 0
+	}
+
+	ratio := task.EstimatedEffort.Hours / expectedHours
+	if ratio < 0.3 || ratio > 3.0 {
+		return 0.2 // Significantly misaligned effort vs complexity
+	} else if ratio < 0.5 || ratio > 2.0 {
+		return 0.1 // Somewhat misaligned
+	}
+	return 0
+}
+
+// scoreTimelineRealism checks for unrealistic timelines
+func (s *Scorer) scoreTimelineRealism(task *types.Task) float64 {
+	if task.EstimatedEffort.Hours > 160 { // More than 4 weeks
+		return 0.3
+	} else if task.EstimatedEffort.Hours > 80 { // More than 2 weeks
+		return 0.1
+	}
+	return 0
+}
+
+// scoreSkillRequirements checks required skills vs team size
+func (s *Scorer) scoreSkillRequirements(task *types.Task, context *types.TaskGenerationContext) float64 {
+	if len(task.Complexity.RequiredSkills) > context.TeamSize*2 {
+		return 0.2 // Too many diverse skills required
+	}
+	return 0
+}
+
+// scoreTechStackAlignment checks technology stack alignment
+func (s *Scorer) scoreTechStackAlignment(task *types.Task, context *types.TaskGenerationContext) float64 {
+	if len(context.TechStack) == 0 {
+		return 0
+	}
+
+	content := strings.ToLower(task.Title + " " + task.Description)
+	for _, tech := range context.TechStack {
+		if strings.Contains(content, strings.ToLower(tech)) {
+			return 0 // Found tech stack mention
+		}
+	}
+
+	return 0.1 // Task doesn't mention any known technologies
+}
+
+// scoreExternalDependencies checks for external dependencies
+func (s *Scorer) scoreExternalDependencies(task *types.Task) float64 {
+	if len(task.Complexity.ExternalDependencies) > 3 {
+		return 0.1 // Many external dependencies increase risk
+	}
+	return 0
 }

@@ -33,6 +33,7 @@ const (
 type Task struct {
 	ID            string     `json:"id" validate:"required,uuid"`
 	Content       string     `json:"content" validate:"required,min=1,max=1000"`
+	Type          string     `json:"type,omitempty"`
 	Status        Status     `json:"status" validate:"required,oneof=pending in_progress completed cancelled"`
 	Priority      Priority   `json:"priority" validate:"required,oneof=low medium high"`
 	Repository    string     `json:"repository" validate:"required"`

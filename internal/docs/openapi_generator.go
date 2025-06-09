@@ -10,6 +10,9 @@ import (
 	"time"
 
 	"lerian-mcp-memory/internal/config"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // OpenAPIGenerator generates OpenAPI 3.0 specifications from Go code annotations
@@ -1001,7 +1004,7 @@ func (g *OpenAPIGenerator) generateCommonParameters() {
 
 // convertTagsToSlice converts the tags map to a slice for the specification
 func (g *OpenAPIGenerator) convertTagsToSlice() []*Tag {
-	var tags []*Tag
+	tags := make([]*Tag, 0, len(g.tags))
 	for _, tag := range g.tags {
 		tags = append(tags, tag)
 	}
@@ -1077,6 +1080,7 @@ func (g *OpenAPIGenerator) ValidateSpecification() error {
 
 // validatePathItem validates a single path item
 func (g *OpenAPIGenerator) validatePathItem(path string, pathItem *PathItem) error {
+	_ = path // unused parameter, kept for potential future path-specific validations
 	operations := []*Operation{
 		pathItem.GET, pathItem.POST, pathItem.PUT, pathItem.DELETE,
 		pathItem.PATCH, pathItem.OPTIONS, pathItem.HEAD, pathItem.TRACE,
@@ -1105,10 +1109,11 @@ func generateOperationID(method, path string) string {
 	// Convert path to camelCase operation ID
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	operationID := strings.ToLower(method)
+	caser := cases.Title(language.English)
 
 	for _, part := range parts {
 		if part != "" && !strings.HasPrefix(part, "{") {
-			operationID += strings.Title(part)
+			operationID += caser.String(part)
 		}
 	}
 

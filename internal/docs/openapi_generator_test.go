@@ -158,14 +158,10 @@ func TestOpenAPIGenerator_AddEndpoint(t *testing.T) {
 	// Check if endpoint was added
 	if pathItem, exists := generator.paths["/test"]; !exists {
 		t.Error("Endpoint was not added to paths")
-	} else {
-		if pathItem.GET == nil {
-			t.Error("GET operation was not set")
-		} else {
-			if pathItem.GET.Summary != "Test endpoint" {
-				t.Error("Summary was not set correctly")
-			}
-		}
+	} else if pathItem.GET == nil {
+		t.Error("GET operation was not set")
+	} else if pathItem.GET.Summary != "Test endpoint" {
+		t.Error("Summary was not set correctly")
 	}
 
 	// Check if tag was added

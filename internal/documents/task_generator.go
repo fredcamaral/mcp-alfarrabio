@@ -13,6 +13,11 @@ import (
 	"github.com/google/uuid"
 )
 
+// Task phase constants
+const (
+	PhaseProduction = "production"
+)
+
 // TaskGenerator handles generation of main tasks and sub-tasks
 type TaskGenerator struct {
 	complexityAnalyzer *ComplexityAnalyzer
@@ -42,7 +47,8 @@ func (g *TaskGenerator) GenerateMainTasks(prd *PRDEntity, trd *TRDEntity) ([]*Ma
 
 	// Generate main tasks
 	mainTasks := []*MainTask{}
-	for i, phase := range phases {
+	for i := range phases {
+		phase := &phases[i]
 		task := &MainTask{
 			ID:                 uuid.New().String(),
 			PRDID:              prd.ID,
@@ -139,22 +145,6 @@ type TaskComponent struct {
 	TechnicalDetails   map[string]string
 }
 
-// determineTaskCount determines the number of main tasks based on complexity
-func (g *TaskGenerator) determineTaskCount(complexity int) int {
-	switch {
-	case complexity < 30:
-		return 3 // Small project: 3 main tasks
-	case complexity < 50:
-		return 5 // Medium project: 5 main tasks
-	case complexity < 70:
-		return 6 // Large project: 6 main tasks
-	case complexity < 85:
-		return 7 // Very large project: 7 main tasks
-	default:
-		return 8 // Enterprise project: 8 main tasks
-	}
-}
-
 // extractDeliverables extracts key deliverables from PRD and TRD
 func (g *TaskGenerator) extractDeliverables(prd *PRDEntity, trd *TRDEntity) []string {
 	deliverables := []string{}
@@ -198,6 +188,7 @@ func (g *TaskGenerator) extractDeliverables(prd *PRDEntity, trd *TRDEntity) []st
 
 // identifyProjectPhases identifies project phases based on deliverables and analysis
 func (g *TaskGenerator) identifyProjectPhases(deliverables []string, analysis *ComplexityAnalysis) []ProjectPhase {
+	_ = deliverables // unused parameter, kept for future deliverable-based phase identification
 	// Use templates to identify common phases
 	template := g.templateManager.GetProjectTemplate(analysis.ProjectType)
 
@@ -280,7 +271,7 @@ func (g *TaskGenerator) identifyProjectPhases(deliverables []string, analysis *C
 	phases = append(phases, ProjectPhase{
 		Name:        "Production Readiness",
 		Description: "Prepare system for production deployment",
-		Type:        "production",
+		Type:        PhaseProduction,
 		Complexity:  15,
 		Deliverables: []string{
 			"Production configuration",
@@ -318,7 +309,7 @@ func (g *TaskGenerator) setTaskDependencies(tasks []*MainTask) {
 					}
 				}
 			}
-		case "production":
+		case PhaseProduction:
 			// Production depends on all previous phases
 			for j := 0; j < i; j++ {
 				if !contains(task.Dependencies, tasks[j].TaskID) {
@@ -357,7 +348,7 @@ func (g *TaskGenerator) determineSubTaskBreakdown(mainTask *MainTask, analysis *
 		components = append(components, g.getIntegrationComponents(mainTask)...)
 	case "advanced":
 		components = append(components, g.getAdvancedComponents(mainTask)...)
-	case "production":
+	case PhaseProduction:
 		components = append(components, g.getProductionComponents(mainTask)...)
 	default:
 		components = append(components, g.getGenericComponents(mainTask, analysis)...)
@@ -369,78 +360,157 @@ func (g *TaskGenerator) determineSubTaskBreakdown(mainTask *MainTask, analysis *
 	return components
 }
 
+// getStandardPhaseComponents returns standard components for a given phase
+func (g *TaskGenerator) getStandardPhaseComponents(phase string) []TaskComponent {
+	switch phase {
+	case "foundation":
+		return []TaskComponent{
+			{
+				Name:           "Create project structure and configuration",
+				Description:    "Set up project directory structure, configuration files, and build system",
+				Type:           "setup",
+				EstimatedHours: 3,
+				TechnicalDetails: map[string]string{
+					"structure": "Follow standard project layout",
+					"config":    "Environment-based configuration",
+					"build":     "Set up build tools and scripts",
+				},
+				AcceptanceCriteria: []string{
+					"Project structure follows conventions",
+					"Configuration system works",
+					"Build process successful",
+				},
+			},
+			{
+				Name:           "Implement core architecture",
+				Description:    "Create base architecture patterns and interfaces",
+				Type:           "architecture",
+				EstimatedHours: 4,
+				TechnicalDetails: map[string]string{
+					"pattern":    "Implement chosen architecture pattern",
+					"interfaces": "Define core interfaces",
+					"separation": "Ensure proper separation of concerns",
+				},
+				AcceptanceCriteria: []string{
+					"Architecture pattern implemented",
+					"Interfaces defined and documented",
+					"Dependencies properly managed",
+				},
+			},
+			{
+				Name:           "Set up development environment",
+				Description:    "Configure development tools, linters, and local environment",
+				Type:           "tooling",
+				EstimatedHours: 2,
+				TechnicalDetails: map[string]string{
+					"tools":   "Install and configure dev tools",
+					"linting": "Set up code quality tools",
+					"scripts": "Create development scripts",
+				},
+				AcceptanceCriteria: []string{
+					"Development environment reproducible",
+					"Linting and formatting configured",
+					"Dev scripts functional",
+				},
+			},
+			{
+				Name:           "Create initial tests and CI/CD",
+				Description:    "Set up testing framework and continuous integration",
+				Type:           "testing",
+				EstimatedHours: 3,
+				TechnicalDetails: map[string]string{
+					"testing":  "Configure test framework",
+					"ci":       "Set up CI pipeline",
+					"coverage": "Configure code coverage",
+				},
+				AcceptanceCriteria: []string{
+					"Test framework operational",
+					"CI pipeline running",
+					"Coverage reporting working",
+				},
+			},
+		}
+	case PhaseProduction:
+		return []TaskComponent{
+			{
+				Name:           "Configure production environment",
+				Description:    "Set up production configuration and secrets",
+				Type:           "deployment",
+				EstimatedHours: 3,
+				TechnicalDetails: map[string]string{
+					"config":  "Production configuration",
+					"secrets": "Secret management",
+					"env":     "Environment setup",
+				},
+				AcceptanceCriteria: []string{
+					"Production config complete",
+					"Secrets properly managed",
+					"Environment validated",
+				},
+			},
+			{
+				Name:           "Implement monitoring and logging",
+				Description:    "Set up comprehensive monitoring and log aggregation",
+				Type:           "observability",
+				EstimatedHours: 4,
+				TechnicalDetails: map[string]string{
+					"monitoring": "Metrics and monitoring",
+					"logging":    "Structured logging",
+					"alerting":   "Alert configuration",
+				},
+				AcceptanceCriteria: []string{
+					"Monitoring operational",
+					"Logs properly structured",
+					"Alerts configured",
+				},
+			},
+			{
+				Name:           "Create deployment automation",
+				Description:    "Automate deployment process with rollback capability",
+				Type:           "automation",
+				EstimatedHours: 3,
+				TechnicalDetails: map[string]string{
+					"deployment": "Deployment scripts",
+					"rollback":   "Rollback procedures",
+					"validation": "Post-deployment checks",
+				},
+				AcceptanceCriteria: []string{
+					"Deployment automated",
+					"Rollback tested",
+					"Validation working",
+				},
+			},
+			{
+				Name:           "Complete documentation",
+				Description:    "Write comprehensive user and developer documentation",
+				Type:           "documentation",
+				EstimatedHours: 4,
+				TechnicalDetails: map[string]string{
+					"user":      "User documentation",
+					"developer": "Developer guides",
+					"api":       "API documentation",
+				},
+				AcceptanceCriteria: []string{
+					"User docs complete",
+					"Developer docs comprehensive",
+					"API docs generated",
+				},
+			},
+		}
+	default:
+		return []TaskComponent{}
+	}
+}
+
 // getFoundationComponents returns standard foundation phase components
 func (g *TaskGenerator) getFoundationComponents(mainTask *MainTask) []TaskComponent {
-	return []TaskComponent{
-		{
-			Name:           "Create project structure and configuration",
-			Description:    "Set up project directory structure, configuration files, and build system",
-			Type:           "setup",
-			EstimatedHours: 3,
-			TechnicalDetails: map[string]string{
-				"structure": "Follow standard project layout",
-				"config":    "Environment-based configuration",
-				"build":     "Set up build tools and scripts",
-			},
-			AcceptanceCriteria: []string{
-				"Project structure follows conventions",
-				"Configuration system works",
-				"Build process successful",
-			},
-		},
-		{
-			Name:           "Implement core architecture",
-			Description:    "Create base architecture patterns and interfaces",
-			Type:           "architecture",
-			EstimatedHours: 4,
-			TechnicalDetails: map[string]string{
-				"pattern":    "Implement chosen architecture pattern",
-				"interfaces": "Define core interfaces",
-				"separation": "Ensure proper separation of concerns",
-			},
-			AcceptanceCriteria: []string{
-				"Architecture pattern implemented",
-				"Interfaces defined and documented",
-				"Dependencies properly managed",
-			},
-		},
-		{
-			Name:           "Set up development environment",
-			Description:    "Configure development tools, linters, and local environment",
-			Type:           "tooling",
-			EstimatedHours: 2,
-			TechnicalDetails: map[string]string{
-				"tools":   "Install and configure dev tools",
-				"linting": "Set up code quality tools",
-				"scripts": "Create development scripts",
-			},
-			AcceptanceCriteria: []string{
-				"Development environment reproducible",
-				"Linting and formatting configured",
-				"Dev scripts functional",
-			},
-		},
-		{
-			Name:           "Create initial tests and CI/CD",
-			Description:    "Set up testing framework and continuous integration",
-			Type:           "testing",
-			EstimatedHours: 3,
-			TechnicalDetails: map[string]string{
-				"testing":  "Configure test framework",
-				"ci":       "Set up CI pipeline",
-				"coverage": "Configure code coverage",
-			},
-			AcceptanceCriteria: []string{
-				"Test framework operational",
-				"CI pipeline running",
-				"Coverage reporting working",
-			},
-		},
-	}
+	_ = mainTask // unused parameter, kept for potential future task-specific components
+	return g.getStandardPhaseComponents("foundation")
 }
 
 // getCoreComponents returns core feature implementation components
 func (g *TaskGenerator) getCoreComponents(mainTask *MainTask, analysis *TaskAnalysis) []TaskComponent {
+	_ = analysis // unused parameter, kept for future analysis-based component generation
 	components := []TaskComponent{}
 
 	// Create components for each deliverable
@@ -469,6 +539,7 @@ func (g *TaskGenerator) getCoreComponents(mainTask *MainTask, analysis *TaskAnal
 
 // getIntegrationComponents returns integration phase components
 func (g *TaskGenerator) getIntegrationComponents(mainTask *MainTask) []TaskComponent {
+	_ = mainTask // unused parameter, kept for potential future task-specific integration
 	return []TaskComponent{
 		{
 			Name:           "Design and implement API endpoints",
@@ -585,72 +656,8 @@ func (g *TaskGenerator) getAdvancedComponents(mainTask *MainTask) []TaskComponen
 
 // getProductionComponents returns production readiness components
 func (g *TaskGenerator) getProductionComponents(mainTask *MainTask) []TaskComponent {
-	return []TaskComponent{
-		{
-			Name:           "Configure production environment",
-			Description:    "Set up production configuration and secrets",
-			Type:           "deployment",
-			EstimatedHours: 3,
-			TechnicalDetails: map[string]string{
-				"config":  "Production configuration",
-				"secrets": "Secret management",
-				"env":     "Environment setup",
-			},
-			AcceptanceCriteria: []string{
-				"Production config complete",
-				"Secrets properly managed",
-				"Environment validated",
-			},
-		},
-		{
-			Name:           "Implement monitoring and logging",
-			Description:    "Set up comprehensive monitoring and log aggregation",
-			Type:           "observability",
-			EstimatedHours: 4,
-			TechnicalDetails: map[string]string{
-				"monitoring": "Metrics and monitoring",
-				"logging":    "Structured logging",
-				"alerting":   "Alert configuration",
-			},
-			AcceptanceCriteria: []string{
-				"Monitoring operational",
-				"Logs properly structured",
-				"Alerts configured",
-			},
-		},
-		{
-			Name:           "Create deployment automation",
-			Description:    "Automate deployment process with rollback capability",
-			Type:           "automation",
-			EstimatedHours: 3,
-			TechnicalDetails: map[string]string{
-				"deployment": "Deployment scripts",
-				"rollback":   "Rollback procedures",
-				"validation": "Post-deployment checks",
-			},
-			AcceptanceCriteria: []string{
-				"Deployment automated",
-				"Rollback tested",
-				"Validation working",
-			},
-		},
-		{
-			Name:           "Complete documentation",
-			Description:    "Write comprehensive user and developer documentation",
-			Type:           "documentation",
-			EstimatedHours: 4,
-			TechnicalDetails: map[string]string{
-				"user":      "User documentation",
-				"developer": "Developer guides",
-				"api":       "API documentation",
-			},
-			AcceptanceCriteria: []string{
-				"User docs complete",
-				"Developer docs comprehensive",
-				"API docs generated",
-			},
-		},
-	}
+	_ = mainTask // unused parameter, kept for potential future task-specific production config
+	return g.getStandardPhaseComponents(PhaseProduction)
 }
 
 // getGenericComponents returns generic task components
@@ -1043,28 +1050,28 @@ func (tm *TemplateManager) initializeTemplates() {
 		Type:                "web-application",
 		HasFoundation:       true,
 		RequiresIntegration: true,
-		StandardPhases:      []string{"foundation", "core", "integration", "advanced", "production"},
+		StandardPhases:      []string{"foundation", "core", "integration", "advanced", PhaseProduction},
 	}
 
 	tm.projectTemplates["api-service"] = &ProjectTemplate{
 		Type:                "api-service",
 		HasFoundation:       true,
 		RequiresIntegration: true,
-		StandardPhases:      []string{"foundation", "core", "integration", "production"},
+		StandardPhases:      []string{"foundation", "core", "integration", PhaseProduction},
 	}
 
 	tm.projectTemplates["cli-tool"] = &ProjectTemplate{
 		Type:                "cli-tool",
 		HasFoundation:       true,
 		RequiresIntegration: false,
-		StandardPhases:      []string{"foundation", "core", "advanced", "production"},
+		StandardPhases:      []string{"foundation", "core", "advanced", PhaseProduction},
 	}
 
 	tm.projectTemplates["general"] = &ProjectTemplate{
 		Type:                "general",
 		HasFoundation:       true,
 		RequiresIntegration: true,
-		StandardPhases:      []string{"foundation", "core", "integration", "advanced", "production"},
+		StandardPhases:      []string{"foundation", "core", "integration", "advanced", PhaseProduction},
 	}
 }
 

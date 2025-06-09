@@ -37,7 +37,7 @@ func (s ConnectionState) String() string {
 	case StateError:
 		return "error"
 	default:
-		return "unknown"
+		return string(HealthDiagUnknown)
 	}
 }
 
@@ -145,7 +145,7 @@ func (ec *EnhancedClient) EnhancedWritePump(ctx context.Context) {
 			}
 
 			// Record message being sent
-			messageSize := ec.estimateMessageSize(event)
+			messageSize := ec.estimateMessageSize(&event)
 			ec.recordMessageSent(messageSize)
 
 			if err := ec.Connection.WriteJSON(event); err != nil {
@@ -252,78 +252,92 @@ func (ec *EnhancedClient) handleEnhancedClientMessage(msg map[string]interface{}
 		return
 	}
 
-	switch msgType {
-	case "subscribe":
-		// Handle subscription requests
-		if repo, ok := msg["repository"].(string); ok {
-			ec.Repository = repo
-			if ec.Metadata != nil {
-				ec.Metadata.Repository = repo
-			}
-			log.Printf("Enhanced client %s subscribed to repository: %s", ec.ID, repo)
-		}
-		if session, ok := msg["session_id"].(string); ok {
-			ec.SessionID = session
-			if ec.Metadata != nil {
-				ec.Metadata.SessionID = session
-			}
-			log.Printf("Enhanced client %s subscribed to session: %s", ec.ID, session)
-		}
+	messageHandlers := map[string]func(map[string]interface{}){
+		"subscribe":          ec.handleSubscribeMessage,
+		"unsubscribe":        ec.handleUnsubscribeMessage,
+		"ping":               ec.handlePingMessage,
+		"metrics_request":    ec.handleMetricsRequest,
+		"rate_limit_request": ec.handleRateLimitRequest,
+	}
 
-	case "unsubscribe":
-		// Handle unsubscription requests
-		if _, ok := msg["repository"]; ok {
-			ec.Repository = ""
-			if ec.Metadata != nil {
-				ec.Metadata.Repository = ""
-			}
-			log.Printf("Enhanced client %s unsubscribed from repository", ec.ID)
-		}
-		if _, ok := msg["session_id"]; ok {
-			ec.SessionID = ""
-			if ec.Metadata != nil {
-				ec.Metadata.SessionID = ""
-			}
-			log.Printf("Enhanced client %s unsubscribed from session", ec.ID)
-		}
-
-	case "ping":
-		// Respond to ping with pong and latency info
-		startTime := time.Now()
-		pong := MemoryEvent{
-			Type:      "pong",
-			Timestamp: startTime,
-			Data: map[string]interface{}{
-				"client_id":   ec.ID,
-				"server_time": startTime.Unix(),
-			},
-		}
-		select {
-		case ec.Send <- pong:
-			// Calculate and record latency
-			if pingTime, ok := msg["timestamp"].(float64); ok {
-				latency := startTime.Sub(time.Unix(int64(pingTime), 0))
-				ec.recordLatency(latency)
-			}
-		default:
-			// Channel full, client will be removed
-			ec.recordError()
-		}
-
-	case "metrics_request":
-		// Handle metrics request
-		ec.sendMetrics()
-
-	case "rate_limit_request":
-		// Handle rate limit adjustment request
-		if newLimit, ok := msg["messages_per_second"].(float64); ok && newLimit > 0 && newLimit <= 100 {
-			ec.rateLimiter.messagesPerSecond = int(newLimit)
-			log.Printf("Updated rate limit for client %s to %d msg/sec", ec.ID, int(newLimit))
-		}
-
-	default:
-		// Unknown message type
+	if handler, exists := messageHandlers[msgType]; exists {
+		handler(msg)
+	} else {
 		log.Printf("Unknown message type from client %s: %s", ec.ID, msgType)
+	}
+}
+
+// handleSubscribeMessage handles subscription requests
+func (ec *EnhancedClient) handleSubscribeMessage(msg map[string]interface{}) {
+	if repo, ok := msg["repository"].(string); ok {
+		ec.Repository = repo
+		if ec.Metadata != nil {
+			ec.Metadata.Repository = repo
+		}
+		log.Printf("Enhanced client %s subscribed to repository: %s", ec.ID, repo)
+	}
+	if session, ok := msg["session_id"].(string); ok {
+		ec.SessionID = session
+		if ec.Metadata != nil {
+			ec.Metadata.SessionID = session
+		}
+		log.Printf("Enhanced client %s subscribed to session: %s", ec.ID, session)
+	}
+}
+
+// handleUnsubscribeMessage handles unsubscription requests
+func (ec *EnhancedClient) handleUnsubscribeMessage(msg map[string]interface{}) {
+	if _, ok := msg["repository"]; ok {
+		ec.Repository = ""
+		if ec.Metadata != nil {
+			ec.Metadata.Repository = ""
+		}
+		log.Printf("Enhanced client %s unsubscribed from repository", ec.ID)
+	}
+	if _, ok := msg["session_id"]; ok {
+		ec.SessionID = ""
+		if ec.Metadata != nil {
+			ec.Metadata.SessionID = ""
+		}
+		log.Printf("Enhanced client %s unsubscribed from session", ec.ID)
+	}
+}
+
+// handlePingMessage responds to ping with pong and latency info
+func (ec *EnhancedClient) handlePingMessage(msg map[string]interface{}) {
+	startTime := time.Now()
+	pong := MemoryEvent{
+		Type:      "pong",
+		Timestamp: startTime,
+		Data: map[string]interface{}{
+			"client_id":   ec.ID,
+			"server_time": startTime.Unix(),
+		},
+	}
+
+	select {
+	case ec.Send <- pong:
+		// Calculate and record latency
+		if pingTime, ok := msg["timestamp"].(float64); ok {
+			latency := startTime.Sub(time.Unix(int64(pingTime), 0))
+			ec.recordLatency(latency)
+		}
+	default:
+		// Channel full, client will be removed
+		ec.recordError()
+	}
+}
+
+// handleMetricsRequest handles metrics request
+func (ec *EnhancedClient) handleMetricsRequest(_ map[string]interface{}) {
+	ec.sendMetrics()
+}
+
+// handleRateLimitRequest handles rate limit adjustment request
+func (ec *EnhancedClient) handleRateLimitRequest(msg map[string]interface{}) {
+	if newLimit, ok := msg["messages_per_second"].(float64); ok && newLimit > 0 && newLimit <= 100 {
+		ec.rateLimiter.messagesPerSecond = int(newLimit)
+		log.Printf("Updated rate limit for client %s to %d msg/sec", ec.ID, int(newLimit))
 	}
 }
 
@@ -423,7 +437,7 @@ func (ec *EnhancedClient) GetIdleTime() time.Duration {
 }
 
 // estimateMessageSize estimates the size of a MemoryEvent
-func (ec *EnhancedClient) estimateMessageSize(event MemoryEvent) int64 {
+func (ec *EnhancedClient) estimateMessageSize(event *MemoryEvent) int64 {
 	// Rough estimation based on string lengths
 	size := int64(len(event.Type) + len(event.Action) + len(event.ChunkID) +
 		len(event.Repository) + len(event.SessionID) + len(event.Content) + len(event.Summary))

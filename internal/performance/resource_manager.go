@@ -176,9 +176,8 @@ type ResourceManager struct {
 	config      *ResourceManagerConfig
 
 	// Monitoring and alerting
-	healthMonitor    *ResourceHealthMonitor
-	alertingEngine   *ResourceAlertingEngine
-	metricsCollector *MetricsCollectorV2
+	healthMonitor  *ResourceHealthMonitor
+	alertingEngine *ResourceAlertingEngine
 
 	// Advanced features
 	autoScaler      *ResourceAutoScaler
@@ -354,10 +353,10 @@ func NewResourceManager(ctx context.Context, config *ResourceManagerConfig) *Res
 	}
 
 	// Initialize components
-	if config.MetricsEnabled {
-		// Skip metrics collector for now - needs database connection
-		// rm.metricsCollector = NewMetricsCollectorV2(db, dbConfig, metricsConfig)
-	}
+	// Skip metrics collector for now - needs database connection
+	// if config.MetricsEnabled {
+	//     rm.metricsCollector = NewMetricsCollectorV2(db, dbConfig, metricsConfig)
+	// }
 
 	rm.healthMonitor = NewResourceHealthMonitor()
 	rm.alertingEngine = NewResourceAlertingEngine()

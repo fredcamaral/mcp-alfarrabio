@@ -86,19 +86,20 @@ func (p *Parser) ParseDocument(content, format, encoding string) (*types.PRDDocu
 	var err error
 	switch strings.ToLower(format) {
 	case "markdown", "md":
-		err = p.parseMarkdown(doc)
+		p.parseMarkdown(doc)
 	case "text", "txt", "plain":
-		err = p.parseText(doc)
+		p.parseText(doc)
 	default:
 		// Try to auto-detect format
 		if strings.Contains(content, "#") || strings.Contains(content, "**") {
-			err = p.parseMarkdown(doc)
+			p.parseMarkdown(doc)
 		} else {
-			err = p.parseText(doc)
+			p.parseText(doc)
 		}
 	}
 
-	if err != nil {
+	// Parsing completed successfully - no error checking needed as functions don't return errors
+	if false { // placeholder to maintain structure
 		p.addProcessingStep(doc, "document_parsing", types.StepStatusFailed, startTime, time.Now(), err.Error())
 		return nil, fmt.Errorf("failed to parse document: %w", err)
 	}
@@ -112,7 +113,7 @@ func (p *Parser) ParseDocument(content, format, encoding string) (*types.PRDDocu
 }
 
 // parseMarkdown parses markdown content
-func (p *Parser) parseMarkdown(doc *types.PRDDocument) error {
+func (p *Parser) parseMarkdown(doc *types.PRDDocument) {
 	content := doc.Content.Raw
 	sections := []types.PRDSection{}
 
@@ -195,12 +196,10 @@ func (p *Parser) parseMarkdown(doc *types.PRDDocument) error {
 		HasCode:        hasCode,
 		HasDiagrams:    p.detectDiagrams(content),
 	}
-
-	return nil
 }
 
 // parseText parses plain text content
-func (p *Parser) parseText(doc *types.PRDDocument) error {
+func (p *Parser) parseText(doc *types.PRDDocument) {
 	content := doc.Content.Raw
 	lines := strings.Split(content, "\n")
 
@@ -279,8 +278,6 @@ func (p *Parser) parseText(doc *types.PRDDocument) error {
 		HasCode:        false,
 		HasDiagrams:    false,
 	}
-
-	return nil
 }
 
 // detectSectionType detects the type of a section based on its title

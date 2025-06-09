@@ -403,7 +403,7 @@ func matchWildcard(pattern, endpoint string) bool {
 
 // hasWildcard checks if a pattern contains a wildcard
 func hasWildcard(pattern string) bool {
-	return len(pattern) > 0 && pattern[len(pattern)-1] == '*'
+	return pattern != "" && pattern[len(pattern)-1] == '*'
 }
 
 // ShouldBypass checks if a request should bypass rate limiting

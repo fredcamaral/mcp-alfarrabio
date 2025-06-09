@@ -215,21 +215,23 @@ func (eb *EventBus) Unsubscribe(subscriberID, subscriptionID string) error {
 
 	// Find and remove subscription
 	for i, sub := range subscriptions {
-		if sub.ID == subscriptionID {
-			// Close channel
-			close(sub.Channel)
-
-			// Remove from slice
-			eb.subscribers[subscriberID] = append(subscriptions[:i], subscriptions[i+1:]...)
-
-			// Clean up empty subscriber
-			if len(eb.subscribers[subscriberID]) == 0 {
-				delete(eb.subscribers, subscriberID)
-			}
-
-			log.Printf("Removed subscription %s for subscriber %s", subscriptionID, subscriberID)
-			return nil
+		if sub.ID != subscriptionID {
+			continue
 		}
+
+		// Close channel
+		close(sub.Channel)
+
+		// Remove from slice
+		eb.subscribers[subscriberID] = append(subscriptions[:i], subscriptions[i+1:]...)
+
+		// Clean up empty subscriber
+		if len(eb.subscribers[subscriberID]) == 0 {
+			delete(eb.subscribers, subscriberID)
+		}
+
+		log.Printf("Removed subscription %s for subscriber %s", subscriptionID, subscriberID)
+		return nil
 	}
 
 	return fmt.Errorf("subscription not found: %s", subscriptionID)
@@ -454,6 +456,7 @@ func (eb *EventBus) updateMetrics(updateFunc func(*BusMetrics)) {
 
 // updateSubscriptionStats updates subscription statistics
 func (eb *EventBus) updateSubscriptionStats(subscription *Subscription, event *Event, latency time.Duration) {
+	_ = event // unused parameter, kept for potential future event-specific stats
 	subscription.mu.Lock()
 	defer subscription.mu.Unlock()
 

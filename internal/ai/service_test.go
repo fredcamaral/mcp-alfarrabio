@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testAPIKey = "test-key"
+
 func TestNewService(t *testing.T) {
 	cfg := config.DefaultConfig()
 
 	// Enable at least one client for testing
 	cfg.AI.Claude.Enabled = true
-	cfg.AI.Claude.APIKey = "test-key"
+	cfg.AI.Claude.APIKey = testAPIKey
 
 	logger := logging.NewLogger(logging.DEBUG)
 	service, err := NewService(cfg, logger)
@@ -55,9 +57,9 @@ func TestNewServiceWithNoEnabledClients(t *testing.T) {
 func TestGetAvailableModels(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.AI.Claude.Enabled = true
-	cfg.AI.Claude.APIKey = "test-key"
+	cfg.AI.Claude.APIKey = testAPIKey
 	cfg.AI.OpenAI.Enabled = true
-	cfg.AI.OpenAI.APIKey = "test-key"
+	cfg.AI.OpenAI.APIKey = testAPIKey
 
 	logger := logging.NewLogger(logging.DEBUG)
 	service, err := NewService(cfg, logger)
@@ -73,9 +75,9 @@ func TestGetAvailableModels(t *testing.T) {
 func TestSetPrimaryModel(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.AI.Claude.Enabled = true
-	cfg.AI.Claude.APIKey = "test-key"
+	cfg.AI.Claude.APIKey = testAPIKey
 	cfg.AI.OpenAI.Enabled = true
-	cfg.AI.OpenAI.APIKey = "test-key"
+	cfg.AI.OpenAI.APIKey = testAPIKey
 
 	logger := logging.NewLogger(logging.DEBUG)
 	service, err := NewService(cfg, logger)
@@ -95,7 +97,7 @@ func TestSetPrimaryModel(t *testing.T) {
 func TestProcessRequestWithNilRequest(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.AI.Claude.Enabled = true
-	cfg.AI.Claude.APIKey = "test-key"
+	cfg.AI.Claude.APIKey = testAPIKey
 
 	logger := logging.NewLogger(logging.DEBUG)
 	service, err := NewService(cfg, logger)
@@ -112,7 +114,7 @@ func TestProcessRequestWithNilRequest(t *testing.T) {
 func TestProcessRequestWithEmptyModel(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.AI.Claude.Enabled = true
-	cfg.AI.Claude.APIKey = "test-key"
+	cfg.AI.Claude.APIKey = testAPIKey
 
 	logger := logging.NewLogger(logging.DEBUG)
 	service, err := NewService(cfg, logger)
@@ -143,7 +145,7 @@ func TestProcessRequestWithEmptyModel(t *testing.T) {
 func TestServiceClose(t *testing.T) {
 	cfg := config.DefaultConfig()
 	cfg.AI.Claude.Enabled = true
-	cfg.AI.Claude.APIKey = "test-key"
+	cfg.AI.Claude.APIKey = testAPIKey
 
 	logger := logging.NewLogger(logging.DEBUG)
 	service, err := NewService(cfg, logger)

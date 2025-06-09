@@ -82,9 +82,9 @@ func NewValidator() *Validator {
 }
 
 // NewValidatorWithConfig creates a new task validator with custom config
-func NewValidatorWithConfig(config ValidationConfig) *Validator {
+func NewValidatorWithConfig(config *ValidationConfig) *Validator {
 	return &Validator{
-		config: config,
+		config: *config,
 	}
 }
 

@@ -359,7 +359,7 @@ func (fm *FailoverManager) activateHTTPPolling(ctx context.Context, connection *
 	defer connection.mu.Unlock()
 
 	// Create HTTP fallback
-	fallbackCtx, cancel := context.WithCancel(context.Background())
+	fallbackCtx, cancel := context.WithCancel(ctx)
 
 	httpFallback := &HTTPFallback{
 		Client: &http.Client{
@@ -377,7 +377,7 @@ func (fm *FailoverManager) activateHTTPPolling(ctx context.Context, connection *
 	connection.CurrentEndpoint = httpFallback.PollURL
 
 	// Start polling
-	go fm.runHTTPPolling(httpFallback)
+	go fm.runHTTPPolling(fallbackCtx, httpFallback)
 
 	// Call fallback activated callback
 	if connection.OnFallbackActivated != nil {
@@ -393,7 +393,7 @@ func (fm *FailoverManager) activateHTTPPolling(ctx context.Context, connection *
 }
 
 // activateSSE activates Server-Sent Events fallback
-func (fm *FailoverManager) activateSSE(ctx context.Context, connection *FailoverConnection) error {
+func (fm *FailoverManager) activateSSE(_ context.Context, connection *FailoverConnection) error {
 	connection.mu.Lock()
 	defer connection.mu.Unlock()
 
@@ -429,7 +429,7 @@ func (fm *FailoverManager) activateSSE(ctx context.Context, connection *Failover
 }
 
 // runHTTPPolling runs HTTP polling fallback
-func (fm *FailoverManager) runHTTPPolling(fallback *HTTPFallback) {
+func (fm *FailoverManager) runHTTPPolling(ctx context.Context, fallback *HTTPFallback) {
 	fallback.Running = true
 	defer func() {
 		fallback.Running = false
@@ -441,7 +441,7 @@ func (fm *FailoverManager) runHTTPPolling(fallback *HTTPFallback) {
 	for {
 		select {
 		case <-ticker.C:
-			fm.performHTTPPoll(fallback)
+			fm.performHTTPPoll(ctx, fallback)
 		case <-fallback.ctx.Done():
 			return
 		}
@@ -449,11 +449,11 @@ func (fm *FailoverManager) runHTTPPolling(fallback *HTTPFallback) {
 }
 
 // performHTTPPoll performs a single HTTP poll
-func (fm *FailoverManager) performHTTPPoll(fallback *HTTPFallback) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (fm *FailoverManager) performHTTPPoll(ctx context.Context, fallback *HTTPFallback) {
+	pollCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", fallback.PollURL, nil)
+	req, err := http.NewRequestWithContext(pollCtx, "GET", fallback.PollURL, http.NoBody)
 	if err != nil {
 		atomic.AddInt64(&fallback.ErrorCount, 1)
 		return
@@ -464,7 +464,7 @@ func (fm *FailoverManager) performHTTPPoll(fallback *HTTPFallback) {
 		atomic.AddInt64(&fallback.ErrorCount, 1)
 		return
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode == http.StatusOK {
 		// Read response body and queue message
@@ -674,7 +674,7 @@ func (fm *FailoverManager) checkConnectionHealth(connection *FailoverConnection)
 
 	// Trigger failover if unhealthy
 	if !healthy && fm.failoverStrategies["health_based"].ShouldFailover(connection) {
-		fm.executeFailover(connection, fm.failoverStrategies["health_based"])
+		_ = fm.executeFailover(connection, fm.failoverStrategies["health_based"])
 	}
 }
 

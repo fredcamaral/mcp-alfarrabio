@@ -25,9 +25,9 @@ func (r *REPL) handleImportCommand(ctx context.Context, docType, filename string
 	}
 
 	switch docType {
-	case "prd":
+	case DocTypePRD:
 		return r.importPRD(ctx, filename)
-	case "trd":
+	case DocTypeTRD:
 		return r.importTRD(ctx, filename)
 	default:
 		return "", fmt.Errorf("unsupported document type for import: %s", docType)
@@ -36,6 +36,7 @@ func (r *REPL) handleImportCommand(ctx context.Context, docType, filename string
 
 // importPRD imports a PRD from file
 func (r *REPL) importPRD(ctx context.Context, filename string) (string, error) {
+	_ = ctx // unused parameter, kept for potential future context-aware operations
 	r.printInfo("Importing PRD from: " + filename)
 
 	// Process the PRD file
@@ -57,11 +58,11 @@ func (r *REPL) importPRD(ctx context.Context, filename string) (string, error) {
 	r.session.mu.Unlock()
 
 	// Send notification
-	r.sendNotification(Notification{
+	r.sendNotification(&Notification{
 		Type:    "document_imported",
 		Message: "PRD imported: " + prd.Title,
 		Data: map[string]interface{}{
-			"document_type": "prd",
+			"document_type": DocTypePRD,
 			"document_id":   prd.ID,
 			"complexity":    prd.ComplexityScore,
 		},
@@ -72,6 +73,7 @@ func (r *REPL) importPRD(ctx context.Context, filename string) (string, error) {
 
 // importTRD imports a TRD from file
 func (r *REPL) importTRD(ctx context.Context, filename string) (string, error) {
+	_ = ctx // unused parameter, kept for potential future context-aware operations
 	// Check if we have a current PRD
 	r.session.mu.RLock()
 	currentPRD, hasPRD := r.session.Context["current_prd"].(*documents.PRDEntity)
@@ -126,7 +128,7 @@ func (r *REPL) importTRD(ctx context.Context, filename string) (string, error) {
 // handleGenerateCommand handles document generation
 func (r *REPL) handleGenerateCommand(ctx context.Context, docType string, args []string) (string, error) {
 	switch docType {
-	case "trd":
+	case DocTypeTRD:
 		return r.generateTRD(ctx)
 	case "tasks":
 		return r.generateTasks(ctx)
@@ -190,6 +192,7 @@ func (r *REPL) generateTRD(ctx context.Context) (string, error) {
 
 // generateTasks generates main tasks from PRD and TRD
 func (r *REPL) generateTasks(ctx context.Context) (string, error) {
+	_ = ctx // unused parameter, kept for potential future context-aware operations
 	// Check if we have PRD and TRD
 	r.session.mu.RLock()
 	currentPRD, hasPRD := r.session.Context["current_prd"].(*documents.PRDEntity)
@@ -233,6 +236,7 @@ func (r *REPL) generateTasks(ctx context.Context) (string, error) {
 
 // generateSubTasks generates sub-tasks for a main task
 func (r *REPL) generateSubTasks(ctx context.Context, taskID string) (string, error) {
+	_ = ctx // unused parameter, kept for potential future context-aware operations
 	// Get main tasks from context
 	r.session.mu.RLock()
 	mainTasks, hasTasks := r.session.Context["main_tasks"].([]*documents.MainTask)
@@ -289,10 +293,11 @@ func (r *REPL) generateSubTasks(ctx context.Context, taskID string) (string, err
 
 // handleAnalyzeCommand handles document analysis
 func (r *REPL) handleAnalyzeCommand(ctx context.Context, docType string, args []string) (string, error) {
+	_ = args // unused parameter, kept for potential future argument-based analysis
 	switch docType {
-	case "prd":
+	case DocTypePRD:
 		return r.analyzePRD(ctx)
-	case "trd":
+	case DocTypeTRD:
 		return r.analyzeTRD(ctx)
 	case "complexity":
 		return r.analyzeComplexity(ctx)
@@ -303,6 +308,7 @@ func (r *REPL) handleAnalyzeCommand(ctx context.Context, docType string, args []
 
 // analyzePRD analyzes the current PRD
 func (r *REPL) analyzePRD(ctx context.Context) (string, error) {
+	_ = ctx // unused parameter, kept for potential future context-aware operations
 	r.session.mu.RLock()
 	currentPRD, hasPRD := r.session.Context["current_prd"].(*documents.PRDEntity)
 	r.session.mu.RUnlock()
@@ -451,9 +457,9 @@ func (r *REPL) listRules() (string, error) {
 // handleShowCommand handles showing detailed information
 func (r *REPL) handleShowCommand(item string, args []string) (string, error) {
 	switch item {
-	case "prd":
+	case DocTypePRD:
 		return r.showPRD()
-	case "trd":
+	case DocTypeTRD:
 		return r.showTRD()
 	case "task":
 		if len(args) == 0 {
@@ -491,7 +497,7 @@ func (r *REPL) showPRD() (string, error) {
 }
 
 // handleRulesCommand handles rule management
-func (r *REPL) handleRulesCommand(args []string) error {
+func (r *REPL) handleRulesCommand(_ context.Context, args []string) error {
 	if len(args) == 0 {
 		rules := r.ruleManager.GetActiveRules()
 		r.printInfo("Active rules: " + strconv.Itoa(len(rules)))
@@ -579,7 +585,7 @@ func (r *REPL) createTRDInteractive(ctx context.Context) (string, error) {
 	// Ask questions
 	answers := []ai.InteractiveAnswer{}
 	for _, question := range resp.Questions {
-		answer, err := r.askQuestion(question)
+		answer, err := r.askQuestion(&question)
 		if err != nil {
 			return "", err
 		}
@@ -629,47 +635,49 @@ func (r *REPL) showTask(taskID string) (string, error) {
 
 	// Find the task
 	for _, task := range mainTasks {
-		if task.TaskID == taskID {
-			var output strings.Builder
-			output.WriteString("Task: " + task.TaskID + "\n")
-			output.WriteString("Name: " + task.Name + "\n")
-			output.WriteString("Phase: " + task.Phase + "\n")
-			output.WriteString("Duration: " + task.DurationEstimate + "\n")
-			output.WriteString("Complexity: " + strconv.Itoa(task.ComplexityScore) + "\n")
-			output.WriteString("\nDescription:\n" + task.Description + "\n")
-
-			if len(task.Dependencies) > 0 {
-				output.WriteString("\nDependencies: " + strings.Join(task.Dependencies, ", ") + "\n")
-			}
-
-			if len(task.Deliverables) > 0 {
-				output.WriteString("\nDeliverables:\n")
-				for _, d := range task.Deliverables {
-					output.WriteString("  - " + d + "\n")
-				}
-			}
-
-			if len(task.AcceptanceCriteria) > 0 {
-				output.WriteString("\nAcceptance Criteria:\n")
-				for _, ac := range task.AcceptanceCriteria {
-					output.WriteString("  - " + ac + "\n")
-				}
-			}
-
-			// Check for sub-tasks
-			r.session.mu.RLock()
-			if subTaskMap, ok := r.session.Context["subtasks"].(map[string][]*documents.SubTask); ok {
-				if subTasks, hasSubTasks := subTaskMap[taskID]; hasSubTasks {
-					output.WriteString("\nSub-tasks (" + strconv.Itoa(len(subTasks)) + "):\n")
-					for _, st := range subTasks {
-						output.WriteString("  " + st.SubTaskID + ": " + st.Name + " (" + strconv.Itoa(st.EstimatedHours) + " hours)\n")
-					}
-				}
-			}
-			r.session.mu.RUnlock()
-
-			return output.String(), nil
+		if task.TaskID != taskID {
+			continue
 		}
+
+		var output strings.Builder
+		output.WriteString("Task: " + task.TaskID + "\n")
+		output.WriteString("Name: " + task.Name + "\n")
+		output.WriteString("Phase: " + task.Phase + "\n")
+		output.WriteString("Duration: " + task.DurationEstimate + "\n")
+		output.WriteString("Complexity: " + strconv.Itoa(task.ComplexityScore) + "\n")
+		output.WriteString("\nDescription:\n" + task.Description + "\n")
+
+		if len(task.Dependencies) > 0 {
+			output.WriteString("\nDependencies: " + strings.Join(task.Dependencies, ", ") + "\n")
+		}
+
+		if len(task.Deliverables) > 0 {
+			output.WriteString("\nDeliverables:\n")
+			for _, d := range task.Deliverables {
+				output.WriteString("  - " + d + "\n")
+			}
+		}
+
+		if len(task.AcceptanceCriteria) > 0 {
+			output.WriteString("\nAcceptance Criteria:\n")
+			for _, ac := range task.AcceptanceCriteria {
+				output.WriteString("  - " + ac + "\n")
+			}
+		}
+
+		// Check for sub-tasks
+		r.session.mu.RLock()
+		if subTaskMap, ok := r.session.Context["subtasks"].(map[string][]*documents.SubTask); ok {
+			if subTasks, hasSubTasks := subTaskMap[taskID]; hasSubTasks {
+				output.WriteString("\nSub-tasks (" + strconv.Itoa(len(subTasks)) + "):\n")
+				for _, st := range subTasks {
+					output.WriteString("  " + st.SubTaskID + ": " + st.Name + " (" + strconv.Itoa(st.EstimatedHours) + " hours)\n")
+				}
+			}
+		}
+		r.session.mu.RUnlock()
+
+		return output.String(), nil
 	}
 
 	return "", fmt.Errorf("task not found: %s", taskID)
@@ -677,6 +685,7 @@ func (r *REPL) showTask(taskID string) (string, error) {
 
 // analyzeTRD analyzes the current TRD
 func (r *REPL) analyzeTRD(ctx context.Context) (string, error) {
+	_ = ctx // unused parameter, kept for potential future context-aware operations
 	r.session.mu.RLock()
 	currentTRD, hasTRD := r.session.Context["current_trd"].(*documents.TRDEntity)
 	r.session.mu.RUnlock()
@@ -708,6 +717,7 @@ Technical Details:
 
 // analyzeComplexity performs complexity analysis
 func (r *REPL) analyzeComplexity(ctx context.Context) (string, error) {
+	_ = ctx // unused parameter, kept for potential future context-aware operations
 	r.session.mu.RLock()
 	currentPRD, hasPRD := r.session.Context["current_prd"].(*documents.PRDEntity)
 	currentTRD, hasTRD := r.session.Context["current_trd"].(*documents.TRDEntity)
@@ -843,82 +853,110 @@ func (r *REPL) ExportSession(writer io.Writer) error {
 
 // ExportDocuments exports all documents to a directory
 func (r *REPL) ExportDocuments(dir string) error {
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	r.session.mu.RLock()
 	defer r.session.mu.RUnlock()
 
-	// Export PRD
-	if prd, ok := r.session.Context["current_prd"].(*documents.PRDEntity); ok {
-		prdFile := dir + "/prd_" + prd.ID + ".md"
-		file, err := os.Create(prdFile)
-		if err != nil {
-			return fmt.Errorf("failed to create PRD file: %w", err)
-		}
-		defer func() {
-			if err := file.Close(); err != nil {
-				log.Printf("Failed to close file: %v", err)
-			}
-		}()
-
-		if err := r.processor.ExportPRD(prd, "markdown", file); err != nil {
-			return fmt.Errorf("failed to export PRD: %w", err)
-		}
+	if err := r.exportPRD(dir); err != nil {
+		return err
 	}
 
-	// Export TRD
-	if trd, ok := r.session.Context["current_trd"].(*documents.TRDEntity); ok {
-		trdFile := dir + "/trd_" + trd.ID + ".md"
-		file, err := os.Create(trdFile)
-		if err != nil {
-			return fmt.Errorf("failed to create TRD file: %w", err)
-		}
-		defer func() {
-			if err := file.Close(); err != nil {
-				log.Printf("Failed to close file: %v", err)
-			}
-		}()
-
-		// Export TRD (similar to PRD export)
-		if _, err := fmt.Fprintf(file, "# %s\n\n", trd.Title); err != nil {
-			return fmt.Errorf("failed to write TRD title: %w", err)
-		}
-		if _, err := fmt.Fprintf(file, "**Architecture:** %s\n", trd.Architecture); err != nil {
-			return fmt.Errorf("failed to write TRD architecture: %w", err)
-		}
-		if _, err := fmt.Fprintf(file, "**Tech Stack:** %s\n\n", strings.Join(trd.TechnicalStack, ", ")); err != nil {
-			return fmt.Errorf("failed to write TRD tech stack: %w", err)
-		}
-
-		for _, section := range trd.Sections {
-			prefix := strings.Repeat("#", section.Level)
-			if _, err := fmt.Fprintf(file, "%s %s\n\n%s\n\n", prefix, section.Title, section.Content); err != nil {
-				return fmt.Errorf("failed to write TRD section: %w", err)
-			}
-		}
+	if err := r.exportTRD(dir); err != nil {
+		return err
 	}
 
-	// Export tasks
-	if mainTasks, ok := r.session.Context["main_tasks"].([]*documents.MainTask); ok {
-		tasksFile := dir + "/main_tasks.json"
-		file, err := os.Create(tasksFile)
-		if err != nil {
-			return fmt.Errorf("failed to create tasks file: %w", err)
-		}
-		defer func() {
-			if err := file.Close(); err != nil {
-				log.Printf("Failed to close file: %v", err)
-			}
-		}()
-
-		encoder := json.NewEncoder(file)
-		encoder.SetIndent("", "  ")
-		if err := encoder.Encode(mainTasks); err != nil {
-			return fmt.Errorf("failed to export tasks: %w", err)
-		}
+	if err := r.exportTasks(dir); err != nil {
+		return err
 	}
 
 	return nil
+}
+
+// exportPRD exports PRD document if it exists
+func (r *REPL) exportPRD(dir string) error {
+	prd, ok := r.session.Context["current_prd"].(*documents.PRDEntity)
+	if !ok {
+		return nil
+	}
+
+	prdFile := dir + "/prd_" + prd.ID + ".md"
+	file, err := os.Create(prdFile)
+	if err != nil {
+		return fmt.Errorf("failed to create PRD file: %w", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file: %v", err)
+		}
+	}()
+
+	return r.processor.ExportPRD(prd, "markdown", file)
+}
+
+// exportTRD exports TRD document if it exists
+func (r *REPL) exportTRD(dir string) error {
+	trd, ok := r.session.Context["current_trd"].(*documents.TRDEntity)
+	if !ok {
+		return nil
+	}
+
+	trdFile := dir + "/trd_" + trd.ID + ".md"
+	file, err := os.Create(trdFile)
+	if err != nil {
+		return fmt.Errorf("failed to create TRD file: %w", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file: %v", err)
+		}
+	}()
+
+	return r.writeTRDContent(file, trd)
+}
+
+// writeTRDContent writes TRD content to file
+func (r *REPL) writeTRDContent(file *os.File, trd *documents.TRDEntity) error {
+	if _, err := fmt.Fprintf(file, "# %s\n\n", trd.Title); err != nil {
+		return fmt.Errorf("failed to write TRD title: %w", err)
+	}
+	if _, err := fmt.Fprintf(file, "**Architecture:** %s\n", trd.Architecture); err != nil {
+		return fmt.Errorf("failed to write TRD architecture: %w", err)
+	}
+	if _, err := fmt.Fprintf(file, "**Tech Stack:** %s\n\n", strings.Join(trd.TechnicalStack, ", ")); err != nil {
+		return fmt.Errorf("failed to write TRD tech stack: %w", err)
+	}
+
+	for _, section := range trd.Sections {
+		prefix := strings.Repeat("#", section.Level)
+		if _, err := fmt.Fprintf(file, "%s %s\n\n%s\n\n", prefix, section.Title, section.Content); err != nil {
+			return fmt.Errorf("failed to write TRD section: %w", err)
+		}
+	}
+	return nil
+}
+
+// exportTasks exports tasks if they exist
+func (r *REPL) exportTasks(dir string) error {
+	mainTasks, ok := r.session.Context["main_tasks"].([]*documents.MainTask)
+	if !ok {
+		return nil
+	}
+
+	tasksFile := dir + "/main_tasks.json"
+	file, err := os.Create(tasksFile)
+	if err != nil {
+		return fmt.Errorf("failed to create tasks file: %w", err)
+	}
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file: %v", err)
+		}
+	}()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	return encoder.Encode(mainTasks)
 }

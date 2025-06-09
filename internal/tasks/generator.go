@@ -88,10 +88,7 @@ func (g *Generator) GenerateTasks(ctx context.Context, req *types.TaskSuggestion
 	}
 
 	// Process and enhance tasks
-	processedTasks, err := g.processTasks(ctx, rawTasks, req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to process tasks: %w", err)
-	}
+	processedTasks := g.processTasks(ctx, rawTasks, req)
 
 	// Filter by quality threshold
 	qualityTasks, filteredCount := g.filterByQuality(processedTasks, req.Options.MinQualityScore)
@@ -216,8 +213,8 @@ func (g *Generator) buildGenerationPrompt(req *types.TaskSuggestionRequest) stri
 	// Add existing tasks for context
 	if len(req.ExistingTasks) > 0 {
 		prompt.WriteString("\nEXISTING TASKS:\n")
-		for _, task := range req.ExistingTasks {
-			prompt.WriteString(fmt.Sprintf("- %s (%s, %s)\n", task.Title, task.Type, task.Status))
+		for i := range req.ExistingTasks {
+			prompt.WriteString(fmt.Sprintf("- %s (%s, %s)\n", req.ExistingTasks[i].Title, req.ExistingTasks[i].Type, req.ExistingTasks[i].Status))
 		}
 	}
 
@@ -227,11 +224,11 @@ func (g *Generator) buildGenerationPrompt(req *types.TaskSuggestionRequest) stri
 	prompt.WriteString(fmt.Sprintf("- Generation style: %s\n", req.Options.GenerationStyle))
 
 	if len(req.Options.TaskTypes) > 0 {
-		types := make([]string, len(req.Options.TaskTypes))
+		taskTypes := make([]string, len(req.Options.TaskTypes))
 		for i, t := range req.Options.TaskTypes {
-			types[i] = string(t)
+			taskTypes[i] = string(t)
 		}
-		prompt.WriteString(fmt.Sprintf("- Preferred task types: %s\n", strings.Join(types, ", ")))
+		prompt.WriteString(fmt.Sprintf("- Preferred task types: %s\n", strings.Join(taskTypes, ", ")))
 	}
 
 	// Add response format
@@ -320,7 +317,22 @@ func (g *Generator) parseAIResponse(content string) ([]types.Task, error) {
 
 // convertRawTask converts raw task data to Task struct
 func (g *Generator) convertRawTask(raw map[string]interface{}, index int) (types.Task, error) {
-	task := types.Task{
+	task := g.createBaseTask(index)
+
+	if err := g.setRequiredFields(&task, raw); err != nil {
+		return task, err
+	}
+
+	g.setOptionalTaskFields(&task, raw)
+	g.setArrayTaskFields(&task, raw)
+	task.Status = types.TaskStatusLegacyTodo
+
+	return task, nil
+}
+
+// createBaseTask creates the base task structure
+func (g *Generator) createBaseTask(index int) types.Task {
+	return types.Task{
 		ID: fmt.Sprintf("task_%d_%d", time.Now().Unix(), index),
 		Timestamps: types.TaskTimestamps{
 			Created: time.Now(),
@@ -330,20 +342,27 @@ func (g *Generator) convertRawTask(raw map[string]interface{}, index int) (types
 			GenerationSource: "ai_generated",
 		},
 	}
+}
 
-	// Extract required fields
+// setRequiredFields sets required task fields from raw data
+func (g *Generator) setRequiredFields(task *types.Task, raw map[string]interface{}) error {
 	if title, ok := raw["title"].(string); ok {
 		task.Title = title
 	} else {
-		return task, errors.New("missing or invalid title")
+		return errors.New("missing or invalid title")
 	}
 
 	if desc, ok := raw["description"].(string); ok {
 		task.Description = desc
 	} else {
-		return task, errors.New("missing or invalid description")
+		return errors.New("missing or invalid description")
 	}
 
+	return nil
+}
+
+// setOptionalTaskFields sets optional fields with defaults
+func (g *Generator) setOptionalTaskFields(task *types.Task, raw map[string]interface{}) {
 	// Extract task type
 	if taskType, ok := raw["type"].(string); ok {
 		task.Type = types.TaskType(taskType)
@@ -367,109 +386,97 @@ func (g *Generator) convertRawTask(raw map[string]interface{}, index int) (types
 			EstimationMethod: "ai_generated",
 		}
 	}
+}
 
+// setArrayTaskFields sets array fields from raw data
+func (g *Generator) setArrayTaskFields(task *types.Task, raw map[string]interface{}) {
 	// Extract acceptance criteria
 	if criteria, ok := raw["acceptance_criteria"].([]interface{}); ok {
-		task.AcceptanceCriteria = make([]string, 0, len(criteria))
-		for _, c := range criteria {
-			if cStr, ok := c.(string); ok {
-				task.AcceptanceCriteria = append(task.AcceptanceCriteria, cStr)
-			}
-		}
+		task.AcceptanceCriteria = g.extractStringSlice(criteria)
 	}
 
 	// Extract required skills
 	if skills, ok := raw["required_skills"].([]interface{}); ok {
-		skillList := make([]string, 0, len(skills))
-		for _, s := range skills {
-			if sStr, ok := s.(string); ok {
-				skillList = append(skillList, sStr)
-			}
-		}
-		task.Complexity.RequiredSkills = skillList
+		task.Complexity.RequiredSkills = g.extractStringSlice(skills)
 	}
 
 	// Extract dependencies
 	if deps, ok := raw["dependencies"].([]interface{}); ok {
-		task.Dependencies = make([]string, 0, len(deps))
-		for _, d := range deps {
-			if dStr, ok := d.(string); ok {
-				task.Dependencies = append(task.Dependencies, dStr)
-			}
-		}
+		task.Dependencies = g.extractStringSlice(deps)
 	}
 
 	// Extract tags
 	if tags, ok := raw["tags"].([]interface{}); ok {
-		task.Tags = make([]string, 0, len(tags))
-		for _, t := range tags {
-			if tStr, ok := t.(string); ok {
-				task.Tags = append(task.Tags, tStr)
-			}
+		task.Tags = g.extractStringSlice(tags)
+	}
+}
+
+// extractStringSlice extracts string slice from interface slice
+func (g *Generator) extractStringSlice(items []interface{}) []string {
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		if str, ok := item.(string); ok {
+			result = append(result, str)
 		}
 	}
-
-	// Set default status
-	task.Status = types.TaskStatusLegacyTodo
-
-	return task, nil
+	return result
 }
 
 // processTasks processes and enhances generated tasks
-func (g *Generator) processTasks(ctx context.Context, tasks []types.Task, req *types.TaskSuggestionRequest) ([]types.Task, error) {
+func (g *Generator) processTasks(ctx context.Context, tasks []types.Task, req *types.TaskSuggestionRequest) []types.Task {
 	processedTasks := make([]types.Task, 0, len(tasks))
 
-	for _, task := range tasks {
+	for i := range tasks {
 		// Enhance with complexity analysis
 		if g.config.EnableComplexityAnalysis {
-			complexity, err := g.complexityAnalyzer.AnalyzeComplexity(ctx, &task, req.Context)
+			complexity, err := g.complexityAnalyzer.AnalyzeComplexity(ctx, &tasks[i], &req.Context)
 			if err != nil {
 				// Log error but continue
-				task.Complexity = types.TaskComplexity{
+				tasks[i].Complexity = types.TaskComplexity{
 					Level: types.ComplexityModerate,
 					Score: 0.5,
 				}
 			} else {
-				task.Complexity = complexity
+				tasks[i].Complexity = complexity
 			}
 		}
 
 		// Apply template matching if enabled
 		if g.config.EnableTemplates && req.Options.UseTemplates {
-			if template := g.templateMatcher.FindBestMatch(&task, req.Context); template != nil {
-				task = g.templateMatcher.ApplyTemplate(&task, template)
+			if template := g.templateMatcher.FindBestMatch(&tasks[i], &req.Context); template != nil {
+				tasks[i] = g.templateMatcher.ApplyTemplate(&tasks[i], template)
 			}
 		}
 
 		// Validate task
-		validation := g.validator.ValidateTask(&task)
+		validation := g.validator.ValidateTask(&tasks[i])
 		if !validation.IsValid {
 			// Skip invalid tasks or try to fix them
 			continue
 		}
 
 		// Calculate quality score
-		qualityScore := g.scorer.ScoreTask(&task, req.Context)
-		task.QualityScore = qualityScore
+		qualityScore := g.scorer.ScoreTask(&tasks[i], &req.Context)
+		tasks[i].QualityScore = qualityScore
 
-		processedTasks = append(processedTasks, task)
+		processedTasks = append(processedTasks, tasks[i])
 	}
 
-	return processedTasks, nil
+	return processedTasks
 }
 
 // filterByQuality filters tasks by quality threshold
-func (g *Generator) filterByQuality(tasks []types.Task, threshold float64) ([]types.Task, int) {
+func (g *Generator) filterByQuality(tasks []types.Task, threshold float64) (filtered []types.Task, filteredCount int) {
 	if threshold <= 0 {
 		return tasks, 0
 	}
 
-	filtered := make([]types.Task, 0, len(tasks))
-	filteredCount := 0
+	filtered = make([]types.Task, 0, len(tasks))
+	filteredCount = 0
 
-	for _, task := range tasks {
-		if task.QualityScore.OverallScore >= threshold {
-			filtered = append(filtered, task)
+	for i := range tasks {
+		if tasks[i].QualityScore.OverallScore >= threshold {
+			filtered = append(filtered, tasks[i])
 		} else {
 			filteredCount++
 		}
@@ -487,10 +494,10 @@ func (g *Generator) generateRecommendations(tasks []types.Task, req *types.TaskS
 	priorityCount := make(map[types.TaskPriority]int)
 	complexityCount := make(map[types.ComplexityLevel]int)
 
-	for _, task := range tasks {
-		typeCount[task.Type]++
-		priorityCount[task.Priority]++
-		complexityCount[task.Complexity.Level]++
+	for i := range tasks {
+		typeCount[tasks[i].Type]++
+		priorityCount[tasks[i].Priority]++
+		complexityCount[tasks[i].Complexity.Level]++
 	}
 
 	// Generate recommendations based on analysis
@@ -523,15 +530,16 @@ func (g *Generator) generateNextSteps(tasks []types.Task, projectState *types.Pr
 	nextSteps := []string{}
 
 	if len(tasks) > 0 {
-		nextSteps = append(nextSteps, "Review and prioritize generated tasks")
-		nextSteps = append(nextSteps, "Assign tasks to team members based on skills and availability")
-		nextSteps = append(nextSteps, "Create project timeline and sprint planning")
+		nextSteps = append(nextSteps,
+			"Review and prioritize generated tasks",
+			"Assign tasks to team members based on skills and availability",
+			"Create project timeline and sprint planning")
 	}
 
 	// Find tasks with no dependencies (can start immediately)
 	readyTasks := 0
-	for _, task := range tasks {
-		if len(task.Dependencies) == 0 {
+	for i := range tasks {
+		if len(tasks[i].Dependencies) == 0 {
 			readyTasks++
 		}
 	}

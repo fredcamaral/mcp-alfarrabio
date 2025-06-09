@@ -24,6 +24,13 @@ import (
 	"github.com/google/uuid"
 )
 
+// Document type constants
+const (
+	DocTypePRD   = "prd"
+	DocTypeTRD   = "trd"
+	DocTypeTasks = "tasks"
+)
+
 // Mode represents the REPL operation mode
 type Mode string
 
@@ -136,7 +143,7 @@ func (r *REPL) Start(ctx context.Context, httpPort int) error {
 	if httpPort > 0 {
 		r.session.HTTPServer = NewHTTPServer(r.session, httpPort, r.logger)
 		go func() {
-			if err := r.session.HTTPServer.Start(); err != nil && err != http.ErrServerClosed {
+			if err := r.session.HTTPServer.Start(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 				r.logger.Error("HTTP server error", "error", err)
 			}
 		}()
@@ -151,9 +158,9 @@ func (r *REPL) Start(ctx context.Context, httpPort int) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return r.shutdown()
+			return r.shutdown(ctx)
 		case notification := <-r.session.NotificationChan:
-			r.handleNotification(notification)
+			r.handleNotification(&notification)
 		default:
 			// Show prompt
 			r.showPrompt()
@@ -163,7 +170,7 @@ func (r *REPL) Start(ctx context.Context, httpPort int) error {
 				if err := scanner.Err(); err != nil {
 					return fmt.Errorf("input error: %w", err)
 				}
-				return r.shutdown()
+				return r.shutdown(ctx)
 			}
 
 			input := strings.TrimSpace(scanner.Text())
@@ -173,8 +180,8 @@ func (r *REPL) Start(ctx context.Context, httpPort int) error {
 
 			// Process command
 			if err := r.processCommand(ctx, input); err != nil {
-				if err == io.EOF {
-					return r.shutdown()
+				if errors.Is(err, io.EOF) {
+					return r.shutdown(ctx)
 				}
 				r.printError("Error: " + err.Error())
 			}
@@ -243,61 +250,12 @@ func (r *REPL) handleSpecialCommand(ctx context.Context, input string) error {
 	command := parts[0]
 	args := parts[1:]
 
-	switch command {
-	case ":help", ":h":
-		r.printHelp()
-		return nil
-
-	case ":quit", ":q", ":exit":
-		return io.EOF
-
-	case ":mode":
-		if len(args) == 0 {
-			r.printInfo("Current mode: " + string(r.session.Mode))
-			return nil
-		}
-		return r.setMode(Mode(args[0]))
-
-	case ":context", ":ctx":
-		r.printContext()
-		return nil
-
-	case ":history", ":hist":
-		r.printHistory()
-		return nil
-
-	case ":clear":
-		r.clearScreen()
-		return nil
-
-	case ":save":
-		if len(args) == 0 {
-			return errors.New("filename required")
-		}
-		return r.saveSession(args[0])
-
-	case ":load":
-		if len(args) == 0 {
-			return errors.New("filename required")
-		}
-		return r.loadSession(args[0])
-
-	case ":workflow":
-		if len(args) == 0 {
-			return r.showWorkflowStatus()
-		}
-		return r.handleWorkflowSubcommand(ctx, args)
-
-	case ":rules":
-		return r.handleRulesCommand(args)
-
-	case ":status":
-		r.printStatus()
-		return nil
-
-	default:
-		return fmt.Errorf("unknown command: %s", command)
+	// Use command dispatcher for better organization
+	if handler, exists := r.getCommandHandlers()[command]; exists {
+		return handler(ctx, args)
 	}
+
+	return fmt.Errorf("unknown command: %s", command)
 }
 
 // handleInteractiveCommand handles commands in interactive mode
@@ -353,12 +311,13 @@ func (r *REPL) handleInteractiveCommand(ctx context.Context, input string) (stri
 
 // handleCreateCommand handles document creation
 func (r *REPL) handleCreateCommand(ctx context.Context, docType string, args []string) (string, error) {
+	_ = args // unused parameter, kept for potential future argument-based creation
 	switch docType {
-	case "prd":
+	case DocTypePRD:
 		return r.createPRDInteractive(ctx)
-	case "trd":
+	case DocTypeTRD:
 		return r.createTRDInteractive(ctx)
-	case "tasks":
+	case DocTypeTasks:
 		return r.createTasksInteractive(ctx)
 	default:
 		return "", fmt.Errorf("unknown document type: %s", docType)
@@ -385,7 +344,7 @@ func (r *REPL) createPRDInteractive(ctx context.Context) (string, error) {
 	// Ask questions
 	answers := []ai.InteractiveAnswer{}
 	for _, question := range resp.Questions {
-		answer, err := r.askQuestion(question)
+		answer, err := r.askQuestion(&question)
 		if err != nil {
 			return "", err
 		}
@@ -405,11 +364,11 @@ func (r *REPL) createPRDInteractive(ctx context.Context) (string, error) {
 	r.session.mu.Unlock()
 
 	// Send notification
-	r.sendNotification(Notification{
+	r.sendNotification(&Notification{
 		Type:    "document_created",
 		Message: "PRD created successfully",
 		Data: map[string]interface{}{
-			"document_type": "prd",
+			"document_type": DocTypePRD,
 			"document_id":   finalResp.Document.GetID(),
 		},
 	})
@@ -418,56 +377,91 @@ func (r *REPL) createPRDInteractive(ctx context.Context) (string, error) {
 }
 
 // askQuestion prompts the user with a question
-func (r *REPL) askQuestion(question ai.InteractiveQuestion) (ai.InteractiveAnswer, error) {
+func (r *REPL) askQuestion(question *ai.InteractiveQuestion) (ai.InteractiveAnswer, error) {
 	r.printInfo(question.Question)
+	r.renderPrompt(question)
 
-	if question.Type == "choice" && len(question.Options) > 0 {
-		for i, option := range question.Options {
-			if _, err := fmt.Fprintf(r.output, "  %d. %s\n", i+1, option); err != nil {
-				r.logger.Error("Failed to print option", "error", err)
-			}
-		}
-		if _, err := fmt.Fprintf(r.output, "Enter choice (1-%d): ", len(question.Options)); err != nil {
-			r.logger.Error("Failed to print choice prompt", "error", err)
-		}
-	} else {
-		if question.Default != "" {
-			if _, err := fmt.Fprintf(r.output, "[%s]: ", question.Default); err != nil {
-				r.logger.Error("Failed to print default prompt", "error", err)
-			}
-		} else {
-			if _, err := fmt.Fprint(r.output, "> "); err != nil {
-				r.logger.Error("Failed to print prompt", "error", err)
-			}
-		}
+	answer, err := r.getUserInput()
+	if err != nil {
+		return ai.InteractiveAnswer{}, err
 	}
 
-	scanner := bufio.NewScanner(r.input)
-	if !scanner.Scan() {
-		return ai.InteractiveAnswer{}, errors.New("input cancelled")
-	}
-
-	answer := strings.TrimSpace(scanner.Text())
-
-	// Use default if empty and available
-	if answer == "" && question.Default != "" {
-		answer = question.Default
-	}
-
-	// Validate choice
-	if question.Type == "choice" && len(question.Options) > 0 {
-		var choiceNum int
-		if _, err := fmt.Sscanf(answer, "%d", &choiceNum); err == nil {
-			if choiceNum >= 1 && choiceNum <= len(question.Options) {
-				answer = question.Options[choiceNum-1]
-			}
-		}
-	}
+	answer = r.processAnswer(answer, question)
 
 	return ai.InteractiveAnswer{
 		QuestionID: question.ID,
 		Answer:     answer,
 	}, nil
+}
+
+// renderPrompt renders the appropriate prompt based on question type
+func (r *REPL) renderPrompt(question *ai.InteractiveQuestion) {
+	if question.Type == "choice" && len(question.Options) > 0 {
+		r.renderChoicePrompt(question)
+		return
+	}
+	r.renderTextPrompt(question)
+}
+
+// renderChoicePrompt renders a choice prompt with numbered options
+func (r *REPL) renderChoicePrompt(question *ai.InteractiveQuestion) {
+	for i, option := range question.Options {
+		if _, err := fmt.Fprintf(r.output, "  %d. %s\n", i+1, option); err != nil {
+			r.logger.Error("Failed to print option", "error", err)
+		}
+	}
+	if _, err := fmt.Fprintf(r.output, "Enter choice (1-%d): ", len(question.Options)); err != nil {
+		r.logger.Error("Failed to print choice prompt", "error", err)
+	}
+}
+
+// renderTextPrompt renders a text input prompt
+func (r *REPL) renderTextPrompt(question *ai.InteractiveQuestion) {
+	if question.Default != "" {
+		if _, err := fmt.Fprintf(r.output, "[%s]: ", question.Default); err != nil {
+			r.logger.Error("Failed to print default prompt", "error", err)
+		}
+		return
+	}
+
+	if _, err := fmt.Fprint(r.output, "> "); err != nil {
+		r.logger.Error("Failed to print prompt", "error", err)
+	}
+}
+
+// getUserInput reads and returns user input
+func (r *REPL) getUserInput() (string, error) {
+	scanner := bufio.NewScanner(r.input)
+	if !scanner.Scan() {
+		return "", errors.New("input cancelled")
+	}
+	return strings.TrimSpace(scanner.Text()), nil
+}
+
+// processAnswer processes the user's answer based on question type
+func (r *REPL) processAnswer(answer string, question *ai.InteractiveQuestion) string {
+	// Use default if empty and available
+	if answer == "" && question.Default != "" {
+		return question.Default
+	}
+
+	// Validate choice
+	if question.Type == "choice" && len(question.Options) > 0 {
+		return r.validateChoice(answer, question.Options)
+	}
+
+	return answer
+}
+
+// validateChoice validates and converts choice input to the actual option value
+func (r *REPL) validateChoice(answer string, options []string) string {
+	var choiceNum int
+	if _, err := fmt.Sscanf(answer, "%d", &choiceNum); err == nil {
+		if choiceNum >= 1 && choiceNum <= len(options) {
+			return options[choiceNum-1]
+		}
+	}
+	return answer
 }
 
 // handleWorkflowCommand handles commands in workflow mode
@@ -513,6 +507,7 @@ func (r *REPL) handleDebugCommand(ctx context.Context, input string) (string, er
 
 // handleAIInteraction handles natural language AI interaction
 func (r *REPL) handleAIInteraction(ctx context.Context, input string) (string, error) {
+	_ = ctx // unused parameter, kept for potential future context-aware AI operations
 	// This would integrate with the AI service for natural language understanding
 	return "AI: I understand you want to: " + input, nil
 }
@@ -690,14 +685,16 @@ func (r *REPL) clearScreen() {
 func (r *REPL) setMode(mode Mode) error {
 	validModes := []Mode{ModeInteractive, ModeWorkflow, ModeDebug}
 	for _, m := range validModes {
-		if m == mode {
-			r.session.mu.Lock()
-			r.session.Mode = mode
-			r.session.UpdatedAt = time.Now()
-			r.session.mu.Unlock()
-			r.printInfo("Mode changed to: " + string(mode))
-			return nil
+		if m != mode {
+			continue
 		}
+
+		r.session.mu.Lock()
+		r.session.Mode = mode
+		r.session.UpdatedAt = time.Now()
+		r.session.mu.Unlock()
+		r.printInfo("Mode changed to: " + string(mode))
+		return nil
 	}
 	return fmt.Errorf("invalid mode: %s", mode)
 }
@@ -709,12 +706,12 @@ func (r *REPL) addToHistory(cmd Command) {
 	r.session.UpdatedAt = time.Now()
 }
 
-func (r *REPL) sendNotification(notification Notification) {
+func (r *REPL) sendNotification(notification *Notification) {
 	notification.ID = uuid.New().String()
 	notification.Timestamp = time.Now()
 
 	select {
-	case r.session.NotificationChan <- notification:
+	case r.session.NotificationChan <- *notification:
 		// Sent successfully
 	default:
 		// Channel full, log warning
@@ -723,7 +720,7 @@ func (r *REPL) sendNotification(notification Notification) {
 	}
 }
 
-func (r *REPL) handleNotification(notification Notification) {
+func (r *REPL) handleNotification(notification *Notification) {
 	// Display notification
 	r.printInfo("\n[Notification] " + notification.Type + ": " + notification.Message)
 
@@ -740,7 +737,7 @@ func (r *REPL) saveSession(filename string) error {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0644); err != nil {
+	if err := os.WriteFile(filename, data, 0o600); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -779,14 +776,14 @@ func (r *REPL) loadSession(filename string) error {
 	return nil
 }
 
-func (r *REPL) shutdown() error {
+func (r *REPL) shutdown(ctx context.Context) error {
 	r.printInfo("Shutting down...")
 
 	// Stop HTTP server if running
 	if r.session.HTTPServer != nil {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		shutdownCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		defer cancel()
-		if err := r.session.HTTPServer.Shutdown(ctx); err != nil {
+		if err := r.session.HTTPServer.Shutdown(shutdownCtx); err != nil {
 			r.logger.Error("Error shutting down HTTP server", "error", err)
 		}
 	}
@@ -823,6 +820,87 @@ func (r *REPL) abortWorkflow() (string, error) {
 func (r *REPL) processWorkflowInput(ctx context.Context, input string) (string, error) {
 	// Implementation for processing workflow input
 	return "", errors.New("workflow input processing not yet implemented")
+}
+
+// getCommandHandlers returns a map of command handlers
+func (r *REPL) getCommandHandlers() map[string]func(context.Context, []string) error {
+	return map[string]func(context.Context, []string) error{
+		":help":     r.handleHelpCommand,
+		":h":        r.handleHelpCommand,
+		":quit":     r.handleQuitCommand,
+		":q":        r.handleQuitCommand,
+		":exit":     r.handleQuitCommand,
+		":mode":     r.handleModeCommand,
+		":context":  r.handleContextCommand,
+		":ctx":      r.handleContextCommand,
+		":history":  r.handleHistoryCommand,
+		":hist":     r.handleHistoryCommand,
+		":clear":    r.handleClearCommand,
+		":save":     r.handleSaveCommand,
+		":load":     r.handleLoadCommand,
+		":workflow": r.handleWorkflowSpecialCommand,
+		":rules":    r.handleRulesCommand,
+		":status":   r.handleStatusCommand,
+	}
+}
+
+// Command handler implementations
+func (r *REPL) handleHelpCommand(ctx context.Context, args []string) error {
+	r.printHelp()
+	return nil
+}
+
+func (r *REPL) handleQuitCommand(ctx context.Context, args []string) error {
+	return io.EOF
+}
+
+func (r *REPL) handleModeCommand(_ context.Context, args []string) error {
+	if len(args) == 0 {
+		r.printInfo("Current mode: " + string(r.session.Mode))
+		return nil
+	}
+	return r.setMode(Mode(args[0]))
+}
+
+func (r *REPL) handleContextCommand(ctx context.Context, args []string) error {
+	r.printContext()
+	return nil
+}
+
+func (r *REPL) handleHistoryCommand(ctx context.Context, args []string) error {
+	r.printHistory()
+	return nil
+}
+
+func (r *REPL) handleClearCommand(_ context.Context, _ []string) error {
+	r.clearScreen()
+	return nil
+}
+
+func (r *REPL) handleSaveCommand(_ context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("filename required")
+	}
+	return r.saveSession(args[0])
+}
+
+func (r *REPL) handleLoadCommand(_ context.Context, args []string) error {
+	if len(args) == 0 {
+		return errors.New("filename required")
+	}
+	return r.loadSession(args[0])
+}
+
+func (r *REPL) handleWorkflowSpecialCommand(ctx context.Context, args []string) error {
+	if len(args) == 0 {
+		return r.showWorkflowStatus()
+	}
+	return r.handleWorkflowSubcommand(ctx, args)
+}
+
+func (r *REPL) handleStatusCommand(ctx context.Context, args []string) error {
+	r.printStatus()
+	return nil
 }
 
 // Additional helper methods would be implemented here...

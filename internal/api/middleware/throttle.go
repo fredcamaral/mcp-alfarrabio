@@ -16,7 +16,6 @@ type Throttler struct {
 	queues  map[Priority]*RequestQueue
 	workers int
 	timeout time.Duration
-	mu      sync.RWMutex
 	config  ThrottleConfig
 	metrics *ThrottleMetrics
 	ctx     context.Context
@@ -258,7 +257,7 @@ func (t *Throttler) determinePriority(r *http.Request) Priority {
 	path := r.URL.Path
 
 	// Check priority rules in order of specificity
-	var matchedPriority Priority = ThrottlePriorityLow
+	var matchedPriority = ThrottlePriorityLow
 
 	for pattern, priority := range t.config.PriorityRules {
 		if t.matchesPattern(path, pattern) {
@@ -370,6 +369,7 @@ func (t *Throttler) recordDrop(queue *RequestQueue) {
 }
 
 func (t *Throttler) worker(id int) {
+	_ = id // unused parameter, kept for potential worker identification
 	for {
 		select {
 		case <-t.ctx.Done():

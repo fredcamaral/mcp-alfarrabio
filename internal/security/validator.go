@@ -143,15 +143,16 @@ func DefaultValidationConfig() ValidationConfig {
 }
 
 // NewValidator creates a new security validator
-func NewValidator(config ValidationConfig) *Validator {
+func NewValidator(config *ValidationConfig) *Validator {
 	return &Validator{
-		config: config,
+		config: *config,
 	}
 }
 
 // NewDefaultValidator creates a validator with secure defaults
 func NewDefaultValidator() *Validator {
-	return NewValidator(DefaultValidationConfig())
+	defaultConfig := DefaultValidationConfig()
+	return NewValidator(&defaultConfig)
 }
 
 // ValidateString validates a string value against security rules
@@ -495,36 +496,50 @@ func (v *Validator) isAllowedScheme(scheme string) bool {
 
 // validateHost validates URL host
 func (v *Validator) validateHost(field, host, fullURL string, result *ValidationResult) {
-	// Check for IP addresses
+	// Check for IP addresses first
 	if ip := net.ParseIP(host); ip != nil {
-		if !v.config.AllowIPAddresses {
-			result.Valid = false
-			result.Errors = append(result.Errors, ValidationError{
-				Field:    field,
-				Value:    fullURL,
-				Rule:     "ip_addresses",
-				Message:  "IP addresses not allowed in URLs",
-				Severity: "medium",
-				Code:     "IP_ADDRESS_FORBIDDEN",
-			})
-		}
-
-		// Check for localhost IP
-		if !v.config.AllowLocalhost && (ip.IsLoopback() || ip.IsPrivate()) {
-			result.Valid = false
-			result.Errors = append(result.Errors, ValidationError{
-				Field:    field,
-				Value:    fullURL,
-				Rule:     "localhost",
-				Message:  "Localhost/private IP addresses not allowed",
-				Severity: "medium",
-				Code:     "LOCALHOST_FORBIDDEN",
-			})
-		}
+		v.validateIPAddress(field, fullURL, ip, result)
 		return
 	}
 
 	// Check localhost domain
+	v.validateLocalhost(field, host, fullURL, result)
+
+	// Check domain policies
+	v.validateDomainWhitelist(field, host, fullURL, result)
+	v.validateDomainBlacklist(field, host, fullURL, result)
+}
+
+// validateIPAddress validates IP address restrictions
+func (v *Validator) validateIPAddress(field, fullURL string, ip net.IP, result *ValidationResult) {
+	if !v.config.AllowIPAddresses {
+		result.Valid = false
+		result.Errors = append(result.Errors, ValidationError{
+			Field:    field,
+			Value:    fullURL,
+			Rule:     "ip_addresses",
+			Message:  "IP addresses not allowed in URLs",
+			Severity: "medium",
+			Code:     "IP_ADDRESS_FORBIDDEN",
+		})
+	}
+
+	// Check for localhost IP
+	if !v.config.AllowLocalhost && (ip.IsLoopback() || ip.IsPrivate()) {
+		result.Valid = false
+		result.Errors = append(result.Errors, ValidationError{
+			Field:    field,
+			Value:    fullURL,
+			Rule:     "localhost",
+			Message:  "Localhost/private IP addresses not allowed",
+			Severity: "medium",
+			Code:     "LOCALHOST_FORBIDDEN",
+		})
+	}
+}
+
+// validateLocalhost validates localhost domain restrictions
+func (v *Validator) validateLocalhost(field, host, fullURL string, result *ValidationResult) {
 	if !v.config.AllowLocalhost && (strings.EqualFold(host, "localhost") || strings.HasSuffix(host, ".local")) {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -536,30 +551,34 @@ func (v *Validator) validateHost(field, host, fullURL string, result *Validation
 			Code:     "LOCALHOST_DOMAIN_FORBIDDEN",
 		})
 	}
+}
 
-	// Check domain whitelist
-	if len(v.config.AllowedDomains) > 0 {
-		allowed := false
-		for _, allowedDomain := range v.config.AllowedDomains {
-			if strings.EqualFold(host, allowedDomain) || strings.HasSuffix(host, "."+allowedDomain) {
-				allowed = true
-				break
-			}
-		}
-		if !allowed {
-			result.Valid = false
-			result.Errors = append(result.Errors, ValidationError{
-				Field:    field,
-				Value:    fullURL,
-				Rule:     "domain_whitelist",
-				Message:  fmt.Sprintf("Domain '%s' not in allowed list", host),
-				Severity: "high",
-				Code:     "DOMAIN_NOT_ALLOWED",
-			})
+// validateDomainWhitelist validates domain whitelist restrictions
+func (v *Validator) validateDomainWhitelist(field, host, fullURL string, result *ValidationResult) {
+	if len(v.config.AllowedDomains) == 0 {
+		return // No whitelist configured
+	}
+
+	for _, allowedDomain := range v.config.AllowedDomains {
+		if strings.EqualFold(host, allowedDomain) || strings.HasSuffix(host, "."+allowedDomain) {
+			return // Domain is allowed
 		}
 	}
 
-	// Check domain blacklist
+	// Domain not in whitelist
+	result.Valid = false
+	result.Errors = append(result.Errors, ValidationError{
+		Field:    field,
+		Value:    fullURL,
+		Rule:     "domain_whitelist",
+		Message:  fmt.Sprintf("Domain '%s' not in allowed list", host),
+		Severity: "high",
+		Code:     "DOMAIN_NOT_ALLOWED",
+	})
+}
+
+// validateDomainBlacklist validates domain blacklist restrictions
+func (v *Validator) validateDomainBlacklist(field, host, fullURL string, result *ValidationResult) {
 	for _, disallowed := range v.config.DisallowedDomains {
 		if strings.EqualFold(host, disallowed) || strings.HasSuffix(host, "."+disallowed) {
 			result.Valid = false
@@ -571,7 +590,7 @@ func (v *Validator) validateHost(field, host, fullURL string, result *Validation
 				Severity: "critical",
 				Code:     "DOMAIN_BLACKLISTED",
 			})
-			break
+			return
 		}
 	}
 }

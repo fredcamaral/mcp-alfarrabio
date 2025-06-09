@@ -382,17 +382,15 @@ func (ns *NotificationService) CreateTaskUpdateNotification(taskID, status strin
 	}
 
 	// Add metadata if provided
-	if metadata != nil {
-		for key, value := range metadata {
-			payload[key] = value
-		}
+	for key, value := range metadata {
+		payload[key] = value
 	}
 
 	return CreateNotification("task_update", payload)
 }
 
 // CreateSystemAlertNotification creates a notification for system alerts
-func (ns *NotificationService) CreateSystemAlertNotification(alertType, message string, severity string) *Notification {
+func (ns *NotificationService) CreateSystemAlertNotification(alertType, message, severity string) *Notification {
 	notification := CreateNotification("system_alert", map[string]interface{}{
 		"alert_type": alertType,
 		"message":    message,

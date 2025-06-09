@@ -379,38 +379,63 @@ func (d *Dispatcher) shouldDeliverToEndpoint(notification *Notification, endpoin
 	}
 
 	// Check endpoint preferences
-	if endpoint.Preferences != nil {
-		// Check enabled events
-		if len(endpoint.Preferences.EnabledEvents) > 0 {
-			enabled := false
-			for _, event := range endpoint.Preferences.EnabledEvents {
-				if event == notification.Type {
-					enabled = true
-					break
-				}
-			}
-			if !enabled {
-				return false
-			}
-		}
-
-		// Check disabled events
-		for _, event := range endpoint.Preferences.DisabledEvents {
-			if event == notification.Type {
-				return false
-			}
-		}
-
-		// Check filters
-		if len(endpoint.Preferences.Filters) > 0 {
-			for key, value := range endpoint.Preferences.Filters {
-				if notificationValue, exists := notification.Metadata[key]; !exists || notificationValue != value {
-					return false
-				}
-			}
-		}
+	if endpoint.Preferences == nil {
+		return true
 	}
 
+	return d.checkEndpointPreferences(notification, endpoint.Preferences)
+}
+
+// checkEndpointPreferences validates notification against endpoint preferences
+func (d *Dispatcher) checkEndpointPreferences(notification *Notification, preferences *NotificationPreferences) bool {
+	if !d.isEventEnabled(notification.Type, preferences) {
+		return false
+	}
+
+	if d.isEventDisabled(notification.Type, preferences) {
+		return false
+	}
+
+	return d.passesFilters(notification, preferences)
+}
+
+// isEventEnabled checks if the notification type is in the enabled events list
+func (d *Dispatcher) isEventEnabled(notificationType string, preferences *NotificationPreferences) bool {
+	// If no enabled events are specified, all events are enabled by default
+	if len(preferences.EnabledEvents) == 0 {
+		return true
+	}
+
+	for _, event := range preferences.EnabledEvents {
+		if event == notificationType {
+			return true
+		}
+	}
+	return false
+}
+
+// isEventDisabled checks if the notification type is in the disabled events list
+func (d *Dispatcher) isEventDisabled(notificationType string, preferences *NotificationPreferences) bool {
+	for _, event := range preferences.DisabledEvents {
+		if event == notificationType {
+			return true
+		}
+	}
+	return false
+}
+
+// passesFilters checks if the notification passes all endpoint filters
+func (d *Dispatcher) passesFilters(notification *Notification, preferences *NotificationPreferences) bool {
+	if len(preferences.Filters) == 0 {
+		return true
+	}
+
+	for key, value := range preferences.Filters {
+		notificationValue, exists := notification.Metadata[key]
+		if !exists || notificationValue != value {
+			return false
+		}
+	}
 	return true
 }
 

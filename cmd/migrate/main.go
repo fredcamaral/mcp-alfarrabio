@@ -25,6 +25,10 @@ const (
 )
 
 func main() {
+	os.Exit(run())
+}
+
+func run() int {
 	var (
 		action        = flag.String("action", "up", "Migration action: up, down, status, validate, create")
 		migrationsDir = flag.String("migrations-dir", "./migrations", "Path to migrations directory")
@@ -48,13 +52,15 @@ func main() {
 	// Load configuration
 	cfg, err := config.LoadConfig()
 	if err != nil {
-		log.Fatalf("Failed to load config: %v", err)
+		log.Printf("Failed to load config: %v", err)
+		return 1
 	}
 
 	// Create database connection
 	db, err := createDatabaseConnection(cfg)
 	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+		log.Printf("Failed to connect to database: %v", err)
+		return 1
 	}
 	defer func() {
 		if closeErr := db.Close(); closeErr != nil {
@@ -79,12 +85,15 @@ func main() {
 	case "create":
 		err = createMigration(*migrationsDir, *createName)
 	default:
-		log.Fatalf("Unknown action: %s. Available actions: up, down, status, validate, create", *action)
+		err = fmt.Errorf("unknown action: %s. Available actions: up, down, status, validate, create", *action)
 	}
 
 	if err != nil {
-		log.Fatalf("Migration action failed: %v", err)
+		log.Printf("Migration action failed: %v", err)
+		return 1
 	}
+
+	return 0
 }
 
 // createDatabaseConnection creates a PostgreSQL database connection
@@ -393,7 +402,7 @@ func createMigration(migrationsDir, name string) error {
 	}
 
 	// Create migrations directory if it doesn't exist
-	if err := os.MkdirAll(migrationsDir, 0o755); err != nil {
+	if err := os.MkdirAll(migrationsDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create migrations directory: %w", err)
 	}
 
@@ -447,7 +456,7 @@ func createMigration(migrationsDir, name string) error {
 `, nextNumber, name, name, time.Now().Format("2006-01-02"), migrationVersion)
 
 	// Write migration file
-	if err := os.WriteFile(filePath, []byte(template), 0o644); err != nil {
+	if err := os.WriteFile(filePath, []byte(template), 0o600); err != nil {
 		return fmt.Errorf("failed to write migration file: %w", err)
 	}
 
@@ -461,35 +470,55 @@ func filterMigrations(migrations []*migration.Migration, target string, steps in
 		return migrations
 	}
 
-	var filtered []*migration.Migration
-
 	if target != "" {
-		// Filter by target version or ID
-		if targetVersion, err := strconv.Atoi(target); err == nil {
-			// Target is a version number
-			for _, mig := range migrations {
-				if forward && mig.Version <= targetVersion {
-					filtered = append(filtered, mig)
-				} else if !forward && mig.Version >= targetVersion {
-					filtered = append(filtered, mig)
-				}
-			}
-		} else {
-			// Target is a migration ID
-			for _, mig := range migrations {
-				filtered = append(filtered, mig)
-				if mig.ID == target {
-					break
-				}
-			}
-		}
-	} else if steps > 0 {
-		// Filter by number of steps
-		if steps > len(migrations) {
-			steps = len(migrations)
-		}
-		filtered = migrations[:steps]
+		return filterByTarget(migrations, target, forward)
 	}
 
+	if steps > 0 {
+		return filterBySteps(migrations, steps)
+	}
+
+	return migrations
+}
+
+// filterByTarget filters migrations by target version or ID
+func filterByTarget(migrations []*migration.Migration, target string, forward bool) []*migration.Migration {
+	targetVersion, err := strconv.Atoi(target)
+	if err == nil {
+		return filterByVersion(migrations, targetVersion, forward)
+	}
+	return filterByID(migrations, target)
+}
+
+// filterByVersion filters migrations by version number
+func filterByVersion(migrations []*migration.Migration, targetVersion int, forward bool) []*migration.Migration {
+	var filtered []*migration.Migration
+	for _, mig := range migrations {
+		if forward && mig.Version <= targetVersion {
+			filtered = append(filtered, mig)
+		} else if !forward && mig.Version >= targetVersion {
+			filtered = append(filtered, mig)
+		}
+	}
 	return filtered
+}
+
+// filterByID filters migrations by ID
+func filterByID(migrations []*migration.Migration, targetID string) []*migration.Migration {
+	filtered := make([]*migration.Migration, 0, len(migrations))
+	for _, mig := range migrations {
+		filtered = append(filtered, mig)
+		if mig.ID == targetID {
+			break
+		}
+	}
+	return filtered
+}
+
+// filterBySteps filters migrations by number of steps
+func filterBySteps(migrations []*migration.Migration, steps int) []*migration.Migration {
+	if steps > len(migrations) {
+		steps = len(migrations)
+	}
+	return migrations[:steps]
 }

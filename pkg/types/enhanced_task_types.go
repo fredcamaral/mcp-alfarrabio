@@ -5,6 +5,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"math"
 	"time"
 )
 
@@ -280,7 +281,19 @@ type TaskAuditLog struct {
 
 // ToLegacyTask converts EnhancedTask to legacy Task structure
 func (et *EnhancedTask) ToLegacyTask() *Task {
-	task := &Task{
+	task := et.createBaseTask()
+	et.setOptionalFields(task)
+	et.setArrayFields(task)
+	et.setComplexityFields(task)
+	et.setEffortFields(task)
+	et.setQualityFields(task)
+	et.setMetadataFields(task)
+	return task
+}
+
+// createBaseTask creates the base task structure
+func (et *EnhancedTask) createBaseTask() *Task {
+	return &Task{
 		ID:          et.ID,
 		Title:       et.Title,
 		Description: "",
@@ -295,30 +308,34 @@ func (et *EnhancedTask) ToLegacyTask() *Task {
 			DueDate:   et.DueDate,
 		},
 	}
+}
 
+// setOptionalFields sets optional string fields
+func (et *EnhancedTask) setOptionalFields(task *Task) {
 	if et.Description != nil {
 		task.Description = *et.Description
 	}
-
 	if et.Assignee != nil {
 		task.Assignee = *et.Assignee
 	}
-
 	if et.SourcePRDID != nil {
 		task.SourcePRDID = *et.SourcePRDID
 	}
-
 	if et.SourceSection != nil {
 		task.SourceSection = *et.SourceSection
 	}
+}
 
-	// Convert JSON arrays to string slices
+// setArrayFields sets array fields from JSON
+func (et *EnhancedTask) setArrayFields(task *Task) {
 	task.Tags = jsonArrayToStringSlice(et.Tags)
 	task.Dependencies = jsonArrayToStringSlice(et.Dependencies)
 	task.Blocks = jsonArrayToStringSlice(et.Blocks)
 	task.AcceptanceCriteria = jsonArrayToStringSlice(et.AcceptanceCriteria)
+}
 
-	// Set complexity
+// setComplexityFields sets complexity-related fields
+func (et *EnhancedTask) setComplexityFields(task *Task) {
 	if et.Complexity != "" {
 		task.Complexity = TaskComplexity{
 			Level: ComplexityLevel(et.Complexity),
@@ -327,8 +344,10 @@ func (et *EnhancedTask) ToLegacyTask() *Task {
 			task.Complexity.Score = *et.ComplexityScore
 		}
 	}
+}
 
-	// Set effort estimate
+// setEffortFields sets effort estimation fields
+func (et *EnhancedTask) setEffortFields(task *Task) {
 	if et.EstimatedHours != nil {
 		task.EstimatedEffort = EffortEstimate{
 			Hours: *et.EstimatedHours,
@@ -341,15 +360,19 @@ func (et *EnhancedTask) ToLegacyTask() *Task {
 			task.EstimatedEffort.StoryPoints = &storyPoints
 		}
 	}
+}
 
-	// Set quality score
+// setQualityFields sets quality score fields
+func (et *EnhancedTask) setQualityFields(task *Task) {
 	if et.QualityScore != nil {
 		task.QualityScore = QualityScore{
 			OverallScore: *et.QualityScore,
 		}
 	}
+}
 
-	// Set metadata
+// setMetadataFields sets metadata fields
+func (et *EnhancedTask) setMetadataFields(task *Task) {
 	if et.Metadata != nil {
 		metadata := TaskMetadata{
 			ExtendedData: map[string]interface{}(et.Metadata),
@@ -368,85 +391,17 @@ func (et *EnhancedTask) ToLegacyTask() *Task {
 		}
 		task.Metadata = metadata
 	}
-
-	return task
 }
 
 // FromLegacyTask converts legacy Task to EnhancedTask structure
 func (et *EnhancedTask) FromLegacyTask(task *Task) {
-	et.ID = task.ID
-	et.Title = task.Title
-	et.Description = &task.Description
-	et.Content = task.Description // Use description as content
-	et.Type = TaskTypeEnum(task.Type)
-	et.Priority = TaskPriorityEnum(task.Priority)
-	et.Status = TaskStatusEnum(task.Status)
-	et.CreatedAt = task.Timestamps.Created
-	et.UpdatedAt = task.Timestamps.Updated
-	et.StartedAt = task.Timestamps.Started
-	et.CompletedAt = task.Timestamps.Completed
-	et.DueDate = task.Timestamps.DueDate
-
-	if task.Assignee != "" {
-		et.Assignee = &task.Assignee
-	}
-
-	if task.SourcePRDID != "" {
-		et.SourcePRDID = &task.SourcePRDID
-	}
-
-	if task.SourceSection != "" {
-		et.SourceSection = &task.SourceSection
-	}
-
-	// Convert string slices to JSON arrays
-	et.Tags = stringSliceToJSONArray(task.Tags)
-	et.Dependencies = stringSliceToJSONArray(task.Dependencies)
-	et.Blocks = stringSliceToJSONArray(task.Blocks)
-	et.AcceptanceCriteria = stringSliceToJSONArray(task.AcceptanceCriteria)
-
-	// Set complexity
-	if task.Complexity.Level != "" {
-		et.Complexity = TaskComplexityEnum(task.Complexity.Level)
-		if task.Complexity.Score > 0 {
-			et.ComplexityScore = &task.Complexity.Score
-		}
-	}
-
-	// Set effort estimate
-	if task.EstimatedEffort.Hours > 0 {
-		et.EstimatedHours = &task.EstimatedEffort.Hours
-		if task.EstimatedEffort.Days > 0 {
-			et.EstimatedDays = &task.EstimatedEffort.Days
-		}
-		if task.EstimatedEffort.StoryPoints != nil {
-			storyPoints := int32(*task.EstimatedEffort.StoryPoints)
-			et.StoryPoints = &storyPoints
-		}
-	}
-
-	// Set quality score
-	if task.QualityScore.OverallScore > 0 {
-		et.QualityScore = &task.QualityScore.OverallScore
-	}
-
-	// Set metadata
-	if task.Metadata.GenerationSource != "" {
-		et.GenerationSource = &task.Metadata.GenerationSource
-	}
-	if task.Metadata.AIModel != "" {
-		et.AIModel = &task.Metadata.AIModel
-	}
-	if task.Metadata.GenerationPrompt != "" {
-		et.GenerationPrompt = &task.Metadata.GenerationPrompt
-	}
-	if task.Metadata.TemplateID != "" {
-		et.TemplateID = &task.Metadata.TemplateID
-	}
-	if task.Metadata.ExtendedData != nil {
-		et.Metadata = JSONObject(task.Metadata.ExtendedData)
-	}
-
+	et.setBasicFields(task)
+	et.setOptionalStringFields(task)
+	et.setArrayFieldsFromLegacy(task)
+	et.setComplexityFromLegacy(task)
+	et.setEffortFromLegacy(task)
+	et.setQualityFromLegacy(task)
+	et.setMetadataFromLegacy(task)
 	et.Version = 1
 }
 
@@ -463,11 +418,103 @@ func jsonArrayToStringSlice(ja JSONArray) []string {
 }
 
 func stringSliceToJSONArray(slice []string) JSONArray {
-	var result JSONArray
+	result := make(JSONArray, 0, len(slice))
 	for _, str := range slice {
 		result = append(result, str)
 	}
 	return result
+}
+
+// setBasicFields sets the basic required fields
+func (et *EnhancedTask) setBasicFields(task *Task) {
+	et.ID = task.ID
+	et.Title = task.Title
+	et.Description = &task.Description
+	et.Content = task.Description // Use description as content
+	et.Type = TaskTypeEnum(task.Type)
+	et.Priority = TaskPriorityEnum(task.Priority)
+	et.Status = TaskStatusEnum(task.Status)
+	et.CreatedAt = task.Timestamps.Created
+	et.UpdatedAt = task.Timestamps.Updated
+	et.StartedAt = task.Timestamps.Started
+	et.CompletedAt = task.Timestamps.Completed
+	et.DueDate = task.Timestamps.DueDate
+}
+
+// setOptionalStringFields sets optional string fields from legacy task
+func (et *EnhancedTask) setOptionalStringFields(task *Task) {
+	if task.Assignee != "" {
+		et.Assignee = &task.Assignee
+	}
+	if task.SourcePRDID != "" {
+		et.SourcePRDID = &task.SourcePRDID
+	}
+	if task.SourceSection != "" {
+		et.SourceSection = &task.SourceSection
+	}
+}
+
+// setArrayFieldsFromLegacy converts string slices to JSON arrays
+func (et *EnhancedTask) setArrayFieldsFromLegacy(task *Task) {
+	et.Tags = stringSliceToJSONArray(task.Tags)
+	et.Dependencies = stringSliceToJSONArray(task.Dependencies)
+	et.Blocks = stringSliceToJSONArray(task.Blocks)
+	et.AcceptanceCriteria = stringSliceToJSONArray(task.AcceptanceCriteria)
+}
+
+// setComplexityFromLegacy sets complexity fields from legacy task
+func (et *EnhancedTask) setComplexityFromLegacy(task *Task) {
+	if task.Complexity.Level != "" {
+		et.Complexity = TaskComplexityEnum(task.Complexity.Level)
+		if task.Complexity.Score > 0 {
+			et.ComplexityScore = &task.Complexity.Score
+		}
+	}
+}
+
+// setEffortFromLegacy sets effort estimation fields from legacy task
+func (et *EnhancedTask) setEffortFromLegacy(task *Task) {
+	if task.EstimatedEffort.Hours > 0 {
+		et.EstimatedHours = &task.EstimatedEffort.Hours
+		if task.EstimatedEffort.Days > 0 {
+			et.EstimatedDays = &task.EstimatedEffort.Days
+		}
+		if task.EstimatedEffort.StoryPoints != nil {
+			sp := *task.EstimatedEffort.StoryPoints
+			if sp > math.MaxInt32 {
+				sp = math.MaxInt32
+			}
+			// #nosec G115 - Integer overflow is handled by the check above
+			storyPoints := int32(sp)
+			et.StoryPoints = &storyPoints
+		}
+	}
+}
+
+// setQualityFromLegacy sets quality score from legacy task
+func (et *EnhancedTask) setQualityFromLegacy(task *Task) {
+	if task.QualityScore.OverallScore > 0 {
+		et.QualityScore = &task.QualityScore.OverallScore
+	}
+}
+
+// setMetadataFromLegacy sets metadata fields from legacy task
+func (et *EnhancedTask) setMetadataFromLegacy(task *Task) {
+	if task.Metadata.GenerationSource != "" {
+		et.GenerationSource = &task.Metadata.GenerationSource
+	}
+	if task.Metadata.AIModel != "" {
+		et.AIModel = &task.Metadata.AIModel
+	}
+	if task.Metadata.GenerationPrompt != "" {
+		et.GenerationPrompt = &task.Metadata.GenerationPrompt
+	}
+	if task.Metadata.TemplateID != "" {
+		et.TemplateID = &task.Metadata.TemplateID
+	}
+	if task.Metadata.ExtendedData != nil {
+		et.Metadata = JSONObject(task.Metadata.ExtendedData)
+	}
 }
 
 // Validation methods
@@ -476,7 +523,18 @@ func stringSliceToJSONArray(slice []string) JSONArray {
 func ValidateEnhancedTask(task *EnhancedTask) []ValidationError {
 	var errors []ValidationError
 
-	// Required field validation
+	errors = append(errors, validateRequiredFields(task)...)
+	errors = append(errors, validateScoreFields(task)...)
+	errors = append(errors, validateTemporalFields(task)...)
+	errors = append(errors, validateStatusConsistency(task)...)
+
+	return errors
+}
+
+// validateRequiredFields validates required fields of a task
+func validateRequiredFields(task *EnhancedTask) []ValidationError {
+	var errors []ValidationError
+
 	if task.Title == "" {
 		errors = append(errors, ValidationError{
 			Field:    "title",
@@ -507,7 +565,13 @@ func ValidateEnhancedTask(task *EnhancedTask) []ValidationError {
 		})
 	}
 
-	// Score validation
+	return errors
+}
+
+// validateScoreFields validates score-related fields
+func validateScoreFields(task *EnhancedTask) []ValidationError {
+	var errors []ValidationError
+
 	if task.ComplexityScore != nil && (*task.ComplexityScore < 0 || *task.ComplexityScore > 1) {
 		errors = append(errors, ValidationError{
 			Field:    "complexity_score",
@@ -528,7 +592,13 @@ func ValidateEnhancedTask(task *EnhancedTask) []ValidationError {
 		})
 	}
 
-	// Time validation
+	return errors
+}
+
+// validateTemporalFields validates time-related fields
+func validateTemporalFields(task *EnhancedTask) []ValidationError {
+	var errors []ValidationError
+
 	if task.StartedAt != nil && task.StartedAt.Before(task.CreatedAt) {
 		errors = append(errors, ValidationError{
 			Field:    "started_at",
@@ -549,7 +619,13 @@ func ValidateEnhancedTask(task *EnhancedTask) []ValidationError {
 		})
 	}
 
-	// Status consistency validation
+	return errors
+}
+
+// validateStatusConsistency validates status consistency
+func validateStatusConsistency(task *EnhancedTask) []ValidationError {
+	var errors []ValidationError
+
 	if task.Status == TaskStatusCompleted && task.CompletedAt == nil {
 		errors = append(errors, ValidationError{
 			Field:    "completed_at",

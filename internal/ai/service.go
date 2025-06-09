@@ -161,7 +161,7 @@ func (s *Service) initializeClients() error {
 
 	// Initialize Claude client
 	if s.config.AI.Claude.Enabled {
-		claudeClient, err := NewClaudeClient(s.config.AI.Claude)
+		claudeClient, err := NewClaudeClient(&s.config.AI.Claude)
 		if err != nil {
 			return fmt.Errorf("failed to create Claude client: %w", err)
 		}
@@ -170,7 +170,7 @@ func (s *Service) initializeClients() error {
 
 	// Initialize Perplexity client
 	if s.config.AI.Perplexity.Enabled {
-		perplexityClient, err := NewPerplexityClient(s.config.AI.Perplexity)
+		perplexityClient, err := NewPerplexityClient(&s.config.AI.Perplexity)
 		if err != nil {
 			return fmt.Errorf("failed to create Perplexity client: %w", err)
 		}
@@ -179,7 +179,7 @@ func (s *Service) initializeClients() error {
 
 	// Initialize OpenAI client
 	if s.config.AI.OpenAI.Enabled {
-		openaiClient, err := NewOpenAIClient(s.config.AI.OpenAI)
+		openaiClient, err := NewOpenAIClient(&s.config.AI.OpenAI)
 		if err != nil {
 			return fmt.Errorf("failed to create OpenAI client: %w", err)
 		}

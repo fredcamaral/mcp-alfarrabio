@@ -2496,7 +2496,10 @@ func (ms *MemoryServer) handleRecentResource(ctx context.Context, parts []string
 	if err != nil {
 		return nil, err
 	}
-	chunksJSON, _ := json.Marshal(chunks)
+	chunksJSON, err := json.Marshal(chunks)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal chunks: %w", err)
+	}
 	return []protocol.Content{protocol.NewContent(string(chunksJSON))}, nil
 }
 
@@ -2515,7 +2518,10 @@ func (ms *MemoryServer) handlePatternsResource(ctx context.Context, parts []stri
 		"repository": repository,
 		"patterns":   patterns,
 	}
-	resultJSON, _ := json.Marshal(result)
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal patterns result: %w", err)
+	}
 	return []protocol.Content{protocol.NewContent(string(resultJSON))}, nil
 }
 
@@ -2547,7 +2553,10 @@ func (ms *MemoryServer) handleDecisionsResource(ctx context.Context, parts []str
 		"repository": repository,
 		"decisions":  decisions,
 	}
-	resultJSON, _ := json.Marshal(result)
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal decisions result: %w", err)
+	}
 	return []protocol.Content{protocol.NewContent(string(resultJSON))}, nil
 }
 
@@ -2563,7 +2572,10 @@ func (ms *MemoryServer) handleGlobalResource(parts []string) ([]protocol.Content
 		"message": "Global insights feature coming soon",
 		"status":  "not_implemented",
 	}
-	resultJSON, _ := json.Marshal(result)
+	resultJSON, err := json.Marshal(result)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal global result: %w", err)
+	}
 	return []protocol.Content{protocol.NewContent(string(resultJSON))}, nil
 }
 

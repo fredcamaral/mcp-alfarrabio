@@ -157,7 +157,9 @@ func NewEventStore(config *PersistenceConfig) (*EventStore, error) {
 
 	// Initialize database schema
 	if err := store.initDatabase(); err != nil {
-		db.Close()
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("Error closing database during cleanup: %v", closeErr)
+		}
 		return nil, fmt.Errorf("failed to initialize database: %w", err)
 	}
 
@@ -295,7 +297,11 @@ func (es *EventStore) Retrieve(query *EventQuery) ([]*Event, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to execute query: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			log.Printf("Error closing rows: %v", err)
+		}
+	}()
 
 	events := make([]*Event, 0)
 	for rows.Next() {
@@ -342,7 +348,7 @@ func (es *EventStore) GetEvent(eventID string) (*Event, error) {
 	row := es.db.QueryRowContext(es.ctx, sqlQuery, eventID)
 	event, err := es.scanEventRow(row)
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, sql.ErrNoRows) {
 			return nil, fmt.Errorf("event not found: %s", eventID)
 		}
 		return nil, fmt.Errorf("failed to retrieve event: %w", err)
@@ -486,7 +492,9 @@ func (es *EventStore) writeProcessor() {
 			if !ok {
 				// Channel closed, flush remaining events and exit
 				if len(es.batchBuffer) > 0 {
-					es.flushBatch()
+					if err := es.flushBatch(); err != nil {
+						log.Printf("Error flushing batch: %v", err)
+					}
 				}
 				return
 			}
@@ -495,13 +503,17 @@ func (es *EventStore) writeProcessor() {
 
 			// Flush if batch is full
 			if len(es.batchBuffer) >= es.config.BatchSize {
-				es.flushBatch()
+				if err := es.flushBatch(); err != nil {
+					log.Printf("Error flushing batch: %v", err)
+				}
 			}
 
 		case <-ticker.C:
 			// Flush on timer
 			if len(es.batchBuffer) > 0 {
-				es.flushBatch()
+				if err := es.flushBatch(); err != nil {
+					log.Printf("Error flushing batch: %v", err)
+				}
 			}
 
 		case <-es.ctx.Done():
@@ -529,10 +541,16 @@ func (es *EventStore) flushBatch() error {
 			payload, metadata, sequence_number, ttl, expires_at, processed_at, delivered_at, acknowledged_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
 	if err != nil {
-		tx.Rollback()
+		if rollbackErr := tx.Rollback(); rollbackErr != nil {
+			log.Printf("Error rolling back transaction: %v", rollbackErr)
+		}
 		return fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() {
+		if err := stmt.Close(); err != nil {
+			log.Printf("Error closing statement: %v", err)
+		}
+	}()
 
 	for _, event := range es.batchBuffer {
 		if err := es.insertEvent(stmt, event); err != nil {
@@ -573,9 +591,18 @@ func (es *EventStore) flushBatch() error {
 // insertEvent inserts a single event using a prepared statement
 func (es *EventStore) insertEvent(stmt *sql.Stmt, event *Event) error {
 	// Convert complex fields to JSON
-	tagsJSON, _ := json.Marshal(event.Tags)
-	payloadJSON, _ := json.Marshal(event.Payload)
-	metadataJSON, _ := json.Marshal(event.Metadata)
+	tagsJSON, err := json.Marshal(event.Tags)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event tags: %w", err)
+	}
+	payloadJSON, err := json.Marshal(event.Payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event payload: %w", err)
+	}
+	metadataJSON, err := json.Marshal(event.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal event metadata: %w", err)
+	}
 
 	var ttl *int64
 	if event.TTL > 0 {
@@ -583,7 +610,7 @@ func (es *EventStore) insertEvent(stmt *sql.Stmt, event *Event) error {
 		ttl = &ttlValue
 	}
 
-	_, err := stmt.ExecContext(es.ctx,
+	_, err = stmt.ExecContext(es.ctx,
 		event.ID, event.Type, event.Action, event.Version, event.Timestamp, event.Source,
 		event.Repository, event.SessionID, event.UserID, event.ClientID,
 		string(tagsJSON), event.CorrelationID, event.CausationID, event.ParentID,
@@ -594,7 +621,7 @@ func (es *EventStore) insertEvent(stmt *sql.Stmt, event *Event) error {
 }
 
 // buildQuery builds a SQL query from an EventQuery
-func (es *EventStore) buildQuery(query *EventQuery) (string, []interface{}) {
+func (es *EventStore) buildQuery(query *EventQuery) (sqlString string, args []interface{}) {
 	sqlQuery := `SELECT id, type, action, version, timestamp, source, repository, session_id, 
 		user_id, client_id, tags, correlation_id, causation_id, parent_id, payload, metadata, 
 		sequence_number, ttl, expires_at, processed_at, delivered_at, acknowledged_at 
@@ -630,9 +657,8 @@ func (es *EventStore) buildQuery(query *EventQuery) (string, []interface{}) {
 }
 
 // buildWhereClause builds the WHERE clause for a query
-func (es *EventStore) buildWhereClause(query *EventQuery) (string, []interface{}) {
+func (es *EventStore) buildWhereClause(query *EventQuery) (whereClause string, args []interface{}) {
 	var conditions []string
-	var args []interface{}
 
 	if len(query.Types) > 0 {
 		placeholders := make([]string, len(query.Types))
@@ -717,16 +743,7 @@ func (es *EventStore) scanEvent(rows *sql.Rows) (*Event, error) {
 		return nil, err
 	}
 
-	// Parse JSON fields
-	json.Unmarshal([]byte(tagsJSON), &event.Tags)
-	json.Unmarshal([]byte(payloadJSON), &event.Payload)
-	json.Unmarshal([]byte(metadataJSON), &event.Metadata)
-
-	if ttl != nil {
-		event.TTL = time.Duration(*ttl)
-	}
-
-	return &event, nil
+	return es.parseEventFields(&event, tagsJSON, payloadJSON, metadataJSON, ttl)
 }
 
 // scanEventRow scans a single database row into an Event
@@ -745,16 +762,27 @@ func (es *EventStore) scanEventRow(row *sql.Row) (*Event, error) {
 		return nil, err
 	}
 
+	return es.parseEventFields(&event, tagsJSON, payloadJSON, metadataJSON, ttl)
+}
+
+// parseEventFields parses JSON fields and TTL for an event
+func (es *EventStore) parseEventFields(event *Event, tagsJSON, payloadJSON, metadataJSON string, ttl *int64) (*Event, error) {
 	// Parse JSON fields
-	json.Unmarshal([]byte(tagsJSON), &event.Tags)
-	json.Unmarshal([]byte(payloadJSON), &event.Payload)
-	json.Unmarshal([]byte(metadataJSON), &event.Metadata)
+	if err := json.Unmarshal([]byte(tagsJSON), &event.Tags); err != nil {
+		log.Printf("Error unmarshaling tags JSON: %v", err)
+	}
+	if err := json.Unmarshal([]byte(payloadJSON), &event.Payload); err != nil {
+		log.Printf("Error unmarshaling payload JSON: %v", err)
+	}
+	if err := json.Unmarshal([]byte(metadataJSON), &event.Metadata); err != nil {
+		log.Printf("Error unmarshaling metadata JSON: %v", err)
+	}
 
 	if ttl != nil {
 		event.TTL = time.Duration(*ttl)
 	}
 
-	return &event, nil
+	return event, nil
 }
 
 // cleanupRoutine performs periodic cleanup of expired events

@@ -19,6 +19,53 @@ type TaskRepository struct {
 	filter *tasks.FilterManager
 }
 
+// scanTaskFromRows scans a single task from database rows to reduce duplicate code
+func (tr *TaskRepository) scanTaskFromRows(rows *sql.Rows) (*types.Task, error) {
+	var task types.Task
+	var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
+	var repository, branch sql.NullString
+
+	err := rows.Scan(
+		&task.ID, &task.Title, &task.Description, &task.Type, &task.Priority, &task.Status, &task.Assignee,
+		&task.SourcePRDID, &task.DueDate, &task.Timestamps.Created, &task.Timestamps.Updated,
+		&task.Timestamps.Started, &task.Timestamps.Completed,
+		&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
+		&task.Complexity.Level, &task.Complexity.Score, &task.QualityScore.OverallScore,
+		&metadataJSON, &repository, &branch,
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Deserialize complex fields
+	if err := json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal acceptance criteria: %w", err)
+	}
+	if err := json.Unmarshal(dependenciesJSON, &task.Dependencies); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal dependencies: %w", err)
+	}
+	if err := json.Unmarshal(tagsJSON, &task.Tags); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal tags: %w", err)
+	}
+	if err := json.Unmarshal(metadataJSON, &task.Metadata); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	}
+
+	// Handle nullable fields
+	if task.Metadata.ExtendedData == nil {
+		task.Metadata.ExtendedData = make(map[string]interface{})
+	}
+	if repository.Valid {
+		task.Metadata.ExtendedData["repository"] = repository.String
+	}
+	if branch.Valid {
+		task.Metadata.ExtendedData["branch"] = branch.String
+	}
+
+	return &task, nil
+}
+
 // NewTaskRepository creates a new task repository
 func NewTaskRepository(db *sql.DB) *TaskRepository {
 	return &TaskRepository{
@@ -45,12 +92,24 @@ func (tr *TaskRepository) Create(ctx context.Context, task *types.Task) error {
 		)`
 
 	// Serialize complex fields
-	acceptanceCriteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
-	dependenciesJSON, _ := json.Marshal(task.Dependencies)
-	tagsJSON, _ := json.Marshal(task.Tags)
-	metadataJSON, _ := json.Marshal(task.Metadata)
+	acceptanceCriteriaJSON, err := json.Marshal(task.AcceptanceCriteria)
+	if err != nil {
+		return fmt.Errorf("failed to marshal acceptance criteria: %w", err)
+	}
+	dependenciesJSON, err := json.Marshal(task.Dependencies)
+	if err != nil {
+		return fmt.Errorf("failed to marshal dependencies: %w", err)
+	}
+	tagsJSON, err := json.Marshal(task.Tags)
+	if err != nil {
+		return fmt.Errorf("failed to marshal tags: %w", err)
+	}
+	metadataJSON, err := json.Marshal(task.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
 
-	_, err := tr.db.ExecContext(ctx, query,
+	_, err = tr.db.ExecContext(ctx, query,
 		task.ID, task.Title, task.Description, task.Type, task.Priority, task.Status, task.Assignee,
 		task.SourcePRDID, task.DueDate, task.Timestamps.Created, task.Timestamps.Updated,
 		acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, task.EstimatedEffort.Hours,
@@ -124,10 +183,22 @@ func (tr *TaskRepository) Update(ctx context.Context, task *types.Task) error {
 		WHERE id = $1`
 
 	// Serialize complex fields
-	acceptanceCriteriaJSON, _ := json.Marshal(task.AcceptanceCriteria)
-	dependenciesJSON, _ := json.Marshal(task.Dependencies)
-	tagsJSON, _ := json.Marshal(task.Tags)
-	metadataJSON, _ := json.Marshal(task.Metadata)
+	acceptanceCriteriaJSON, err := json.Marshal(task.AcceptanceCriteria)
+	if err != nil {
+		return fmt.Errorf("failed to marshal acceptance criteria: %w", err)
+	}
+	dependenciesJSON, err := json.Marshal(task.Dependencies)
+	if err != nil {
+		return fmt.Errorf("failed to marshal dependencies: %w", err)
+	}
+	tagsJSON, err := json.Marshal(task.Tags)
+	if err != nil {
+		return fmt.Errorf("failed to marshal tags: %w", err)
+	}
+	metadataJSON, err := json.Marshal(task.Metadata)
+	if err != nil {
+		return fmt.Errorf("failed to marshal metadata: %w", err)
+	}
 
 	var repository, branch interface{}
 	if task.Metadata.ExtendedData != nil {
@@ -181,7 +252,7 @@ func (tr *TaskRepository) Delete(ctx context.Context, id string) error {
 }
 
 // List retrieves tasks with filtering and pagination
-func (tr *TaskRepository) List(ctx context.Context, filters tasks.TaskFilters) ([]types.Task, error) {
+func (tr *TaskRepository) List(ctx context.Context, filters *tasks.TaskFilters) ([]types.Task, error) {
 	// Build query with filters
 	baseQuery := `
 		SELECT id, title, description, type, priority, status, assignee,
@@ -209,55 +280,24 @@ func (tr *TaskRepository) List(ctx context.Context, filters tasks.TaskFilters) (
 		return nil, err
 	}
 	defer func() {
-		if err := rows.Close(); err != nil {
-			// Ignore close errors in defer
-		}
+		// Ignore close errors in defer
+		_ = rows.Close()
 	}()
 
-	var tasks []types.Task
+	var taskList []types.Task
 	for rows.Next() {
-		var task types.Task
-		var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
-		var repository, branch sql.NullString
-
-		err := rows.Scan(
-			&task.ID, &task.Title, &task.Description, &task.Type, &task.Priority, &task.Status, &task.Assignee,
-			&task.SourcePRDID, &task.DueDate, &task.Timestamps.Created, &task.Timestamps.Updated,
-			&task.Timestamps.Started, &task.Timestamps.Completed,
-			&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
-			&task.Complexity.Level, &task.Complexity.Score, &task.QualityScore.OverallScore,
-			&metadataJSON, &repository, &branch,
-		)
-
+		task, err := tr.scanTaskFromRows(rows)
 		if err != nil {
 			return nil, err
 		}
-
-		// Deserialize complex fields
-		_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
-		_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
-		_ = json.Unmarshal(tagsJSON, &task.Tags)
-		_ = json.Unmarshal(metadataJSON, &task.Metadata)
-
-		// Handle nullable fields
-		if task.Metadata.ExtendedData == nil {
-			task.Metadata.ExtendedData = make(map[string]interface{})
-		}
-		if repository.Valid {
-			task.Metadata.ExtendedData["repository"] = repository.String
-		}
-		if branch.Valid {
-			task.Metadata.ExtendedData["branch"] = branch.String
-		}
-
-		tasks = append(tasks, task)
+		taskList = append(taskList, *task)
 	}
 
-	return tasks, rows.Err()
+	return taskList, rows.Err()
 }
 
 // Search performs full-text search on tasks
-func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (interface{}, error) {
+func (tr *TaskRepository) Search(ctx context.Context, query *tasks.SearchQuery) (interface{}, error) {
 	startTime := time.Now()
 
 	// Build search query with full-text search capabilities
@@ -272,7 +312,7 @@ func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (
 		WHERE search_vector @@ plainto_tsquery($1)`
 
 	// Add additional filters
-	whereClause, args := tr.filter.BuildWhereClause(query.Filters)
+	whereClause, args := tr.filter.BuildWhereClause(&query.Filters)
 	if whereClause != "" {
 		// Remove "WHERE" since we already have it
 		whereClause = strings.Replace(whereClause, "WHERE", "AND", 1)
@@ -293,12 +333,11 @@ func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (
 		return nil, err
 	}
 	defer func() {
-		if err := rows.Close(); err != nil {
-			// Ignore close errors in defer
-		}
+		// Ignore close errors in defer
+		_ = rows.Close()
 	}()
 
-	var tasks []types.Task
+	var taskList []types.Task
 	for rows.Next() {
 		var task types.Task
 		var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
@@ -335,7 +374,7 @@ func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (
 			task.Metadata.ExtendedData["branch"] = branch.String
 		}
 
-		tasks = append(tasks, task)
+		taskList = append(taskList, task)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -343,15 +382,15 @@ func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (
 	}
 
 	results := map[string]interface{}{
-		"tasks":         tasks,
-		"total_results": len(tasks),
+		"tasks":         taskList,
+		"total_results": len(taskList),
 		"search_time":   time.Since(startTime),
 		"query":         query.Query,
 	}
 
 	// Add highlights if requested
 	if query.Options.HighlightMatches {
-		results["highlights"] = tr.generateHighlights(tasks, query.Query)
+		results["highlights"] = tr.generateHighlights(taskList, query.Query)
 	}
 
 	return results, nil
@@ -364,9 +403,8 @@ func (tr *TaskRepository) BatchUpdate(ctx context.Context, updates []tasks.Batch
 		return err
 	}
 	defer func() {
-		if err := tx.Rollback(); err != nil {
-			// Ignore rollback errors in defer - transaction might be committed
-		}
+		// Ignore rollback errors in defer - transaction might be committed
+		_ = tx.Rollback()
 	}()
 
 	for _, update := range updates {
@@ -443,63 +481,33 @@ func (tr *TaskRepository) GetByIDs(ctx context.Context, ids []string) ([]types.T
 		return nil, err
 	}
 	defer func() {
-		if err := rows.Close(); err != nil {
-			// Ignore close errors in defer
-		}
+		// Ignore close errors in defer
+		_ = rows.Close()
 	}()
 
-	var tasks []types.Task
+	var taskList []types.Task
 	for rows.Next() {
-		var task types.Task
-		var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
-		var repository, branch sql.NullString
-
-		err := rows.Scan(
-			&task.ID, &task.Title, &task.Description, &task.Type, &task.Priority, &task.Status, &task.Assignee,
-			&task.SourcePRDID, &task.DueDate, &task.Timestamps.Created, &task.Timestamps.Updated,
-			&task.Timestamps.Started, &task.Timestamps.Completed,
-			&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
-			&task.Complexity.Level, &task.Complexity.Score, &task.QualityScore.OverallScore,
-			&metadataJSON, &repository, &branch,
-		)
-
+		task, err := tr.scanTaskFromRows(rows)
 		if err != nil {
 			return nil, err
 		}
-
-		// Deserialize complex fields
-		_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
-		_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
-		_ = json.Unmarshal(tagsJSON, &task.Tags)
-		_ = json.Unmarshal(metadataJSON, &task.Metadata)
-
-		// Handle nullable fields
-		if task.Metadata.ExtendedData == nil {
-			task.Metadata.ExtendedData = make(map[string]interface{})
-		}
-		if repository.Valid {
-			task.Metadata.ExtendedData["repository"] = repository.String
-		}
-		if branch.Valid {
-			task.Metadata.ExtendedData["branch"] = branch.String
-		}
-
-		tasks = append(tasks, task)
+		taskList = append(taskList, *task)
 	}
 
-	return tasks, rows.Err()
+	return taskList, rows.Err()
 }
 
 // generateHighlights generates search result highlights
-func (tr *TaskRepository) generateHighlights(tasks []types.Task, query string) map[string][]string {
+func (tr *TaskRepository) generateHighlights(taskList []types.Task, query string) map[string][]string {
 	highlights := make(map[string][]string)
 
-	for _, task := range tasks {
+	for i := range taskList {
+		task := &taskList[i]
 		taskHighlights := make([]string, 0)
 
 		// Simple highlighting logic - could be enhanced
 		if strings.Contains(strings.ToLower(task.Title), strings.ToLower(query)) {
-			taskHighlights = append(taskHighlights, fmt.Sprintf("Title: %s", task.Title))
+			taskHighlights = append(taskHighlights, "Title: "+task.Title)
 		}
 		if strings.Contains(strings.ToLower(task.Description), strings.ToLower(query)) {
 			// Truncate description for highlight
@@ -507,7 +515,7 @@ func (tr *TaskRepository) generateHighlights(tasks []types.Task, query string) m
 			if len(desc) > 100 {
 				desc = desc[:100] + "..."
 			}
-			taskHighlights = append(taskHighlights, fmt.Sprintf("Description: %s", desc))
+			taskHighlights = append(taskHighlights, "Description: "+desc)
 		}
 
 		if len(taskHighlights) > 0 {

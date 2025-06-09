@@ -66,14 +66,14 @@ func NewComplexityAnalyzer() *ComplexityAnalyzer {
 }
 
 // NewComplexityAnalyzerWithConfig creates a new complexity analyzer with custom config
-func NewComplexityAnalyzerWithConfig(config ComplexityConfig) *ComplexityAnalyzer {
+func NewComplexityAnalyzerWithConfig(config *ComplexityConfig) *ComplexityAnalyzer {
 	return &ComplexityAnalyzer{
-		config: config,
+		config: *config,
 	}
 }
 
 // AnalyzeComplexity analyzes the complexity of a task
-func (ca *ComplexityAnalyzer) AnalyzeComplexity(ctx context.Context, task *types.Task, projectContext types.TaskGenerationContext) (types.TaskComplexity, error) {
+func (ca *ComplexityAnalyzer) AnalyzeComplexity(ctx context.Context, task *types.Task, projectContext *types.TaskGenerationContext) (types.TaskComplexity, error) {
 	if task == nil {
 		return types.TaskComplexity{}, errors.New("task cannot be nil")
 	}
@@ -112,19 +112,19 @@ func (ca *ComplexityAnalyzer) AnalyzeComplexity(ctx context.Context, task *types
 }
 
 // calculateComplexityFactors calculates individual complexity factors
-func (ca *ComplexityAnalyzer) calculateComplexityFactors(task *types.Task, context types.TaskGenerationContext) types.ComplexityFactors {
+func (ca *ComplexityAnalyzer) calculateComplexityFactors(task *types.Task, projectContext *types.TaskGenerationContext) types.ComplexityFactors {
 	return types.ComplexityFactors{
-		TechnicalComplexity:     ca.calculateTechnicalComplexity(task, context),
-		IntegrationComplexity:   ca.calculateIntegrationComplexity(task, context),
-		BusinessLogicComplexity: ca.calculateBusinessLogicComplexity(task, context),
-		DataComplexity:          ca.calculateDataComplexity(task, context),
-		UIComplexity:            ca.calculateUIComplexity(task, context),
-		TestingComplexity:       ca.calculateTestingComplexity(task, context),
+		TechnicalComplexity:     ca.calculateTechnicalComplexity(task, projectContext),
+		IntegrationComplexity:   ca.calculateIntegrationComplexity(task, projectContext),
+		BusinessLogicComplexity: ca.calculateBusinessLogicComplexity(task, projectContext),
+		DataComplexity:          ca.calculateDataComplexity(task, projectContext),
+		UIComplexity:            ca.calculateUIComplexity(task, projectContext),
+		TestingComplexity:       ca.calculateTestingComplexity(task, projectContext),
 	}
 }
 
 // calculateTechnicalComplexity calculates technical complexity score
-func (ca *ComplexityAnalyzer) calculateTechnicalComplexity(task *types.Task, context types.TaskGenerationContext) float64 {
+func (ca *ComplexityAnalyzer) calculateTechnicalComplexity(task *types.Task, projectContext *types.TaskGenerationContext) float64 {
 	score := 0.0
 
 	// Task type influences technical complexity
@@ -170,7 +170,7 @@ func (ca *ComplexityAnalyzer) calculateTechnicalComplexity(task *types.Task, con
 		"postgresql", "mongodb", "redis", "elasticsearch", "kafka",
 	}
 
-	for _, tech := range context.TechStack {
+	for _, tech := range projectContext.TechStack {
 		for _, complex := range complexTech {
 			if strings.Contains(strings.ToLower(tech), complex) {
 				score += 0.05
@@ -183,7 +183,8 @@ func (ca *ComplexityAnalyzer) calculateTechnicalComplexity(task *types.Task, con
 }
 
 // calculateIntegrationComplexity calculates integration complexity score
-func (ca *ComplexityAnalyzer) calculateIntegrationComplexity(task *types.Task, context types.TaskGenerationContext) float64 {
+func (ca *ComplexityAnalyzer) calculateIntegrationComplexity(task *types.Task, projectContext *types.TaskGenerationContext) float64 {
+	_ = projectContext // unused parameter, kept for potential future context-aware complexity calculation
 	score := 0.0
 
 	// Task type influences integration complexity
@@ -224,7 +225,8 @@ func (ca *ComplexityAnalyzer) calculateIntegrationComplexity(task *types.Task, c
 }
 
 // calculateBusinessLogicComplexity calculates business logic complexity score
-func (ca *ComplexityAnalyzer) calculateBusinessLogicComplexity(task *types.Task, context types.TaskGenerationContext) float64 {
+func (ca *ComplexityAnalyzer) calculateBusinessLogicComplexity(task *types.Task, projectContext *types.TaskGenerationContext) float64 {
+	_ = projectContext // unused parameter, kept for potential future context-aware complexity calculation
 	score := 0.0
 
 	// Business logic keywords
@@ -270,7 +272,8 @@ func (ca *ComplexityAnalyzer) calculateBusinessLogicComplexity(task *types.Task,
 }
 
 // calculateDataComplexity calculates data complexity score
-func (ca *ComplexityAnalyzer) calculateDataComplexity(task *types.Task, context types.TaskGenerationContext) float64 {
+func (ca *ComplexityAnalyzer) calculateDataComplexity(task *types.Task, projectContext *types.TaskGenerationContext) float64 {
+	_ = projectContext // unused parameter, kept for potential future context-aware complexity calculation
 	score := 0.0
 
 	// Data-related keywords
@@ -304,7 +307,8 @@ func (ca *ComplexityAnalyzer) calculateDataComplexity(task *types.Task, context 
 }
 
 // calculateUIComplexity calculates UI complexity score
-func (ca *ComplexityAnalyzer) calculateUIComplexity(task *types.Task, context types.TaskGenerationContext) float64 {
+func (ca *ComplexityAnalyzer) calculateUIComplexity(task *types.Task, projectContext *types.TaskGenerationContext) float64 {
+	_ = projectContext // unused parameter, kept for potential future context-aware complexity calculation
 	score := 0.0
 
 	// UI-related task types
@@ -344,7 +348,8 @@ func (ca *ComplexityAnalyzer) calculateUIComplexity(task *types.Task, context ty
 }
 
 // calculateTestingComplexity calculates testing complexity score
-func (ca *ComplexityAnalyzer) calculateTestingComplexity(task *types.Task, context types.TaskGenerationContext) float64 {
+func (ca *ComplexityAnalyzer) calculateTestingComplexity(task *types.Task, projectContext *types.TaskGenerationContext) float64 {
+	_ = projectContext // unused parameter, kept for potential future context-aware complexity calculation
 	score := 0.0
 
 	// Testing task type
@@ -413,7 +418,8 @@ func (ca *ComplexityAnalyzer) determineComplexityLevel(score float64) types.Comp
 }
 
 // assessTechnicalRisk assesses technical risk level
-func (ca *ComplexityAnalyzer) assessTechnicalRisk(task *types.Task, factors types.ComplexityFactors, context types.TaskGenerationContext) types.RiskLevelEnum {
+func (ca *ComplexityAnalyzer) assessTechnicalRisk(task *types.Task, factors types.ComplexityFactors, projectContext *types.TaskGenerationContext) types.RiskLevelEnum {
+	_ = projectContext // unused parameter, kept for potential future context-aware risk assessment
 	riskScore := 0.0
 
 	// High technical complexity increases risk
@@ -448,7 +454,7 @@ func (ca *ComplexityAnalyzer) assessTechnicalRisk(task *types.Task, factors type
 }
 
 // assessBusinessImpact assesses business impact level
-func (ca *ComplexityAnalyzer) assessBusinessImpact(task *types.Task, context types.TaskGenerationContext) types.ImpactLevel {
+func (ca *ComplexityAnalyzer) assessBusinessImpact(task *types.Task, _ *types.TaskGenerationContext) types.ImpactLevel {
 	impactScore := 0.0
 
 	// Priority influences business impact
@@ -491,7 +497,7 @@ func (ca *ComplexityAnalyzer) assessBusinessImpact(task *types.Task, context typ
 }
 
 // extractRequiredSkills extracts required skills from task content
-func (ca *ComplexityAnalyzer) extractRequiredSkills(task *types.Task, context types.TaskGenerationContext) []string {
+func (ca *ComplexityAnalyzer) extractRequiredSkills(task *types.Task, _ *types.TaskGenerationContext) []string {
 	skills := make(map[string]bool)
 
 	// Add existing required skills
@@ -534,7 +540,7 @@ func (ca *ComplexityAnalyzer) extractRequiredSkills(task *types.Task, context ty
 }
 
 // identifyExternalDependencies identifies external dependencies
-func (ca *ComplexityAnalyzer) identifyExternalDependencies(task *types.Task, context types.TaskGenerationContext) []string {
+func (ca *ComplexityAnalyzer) identifyExternalDependencies(task *types.Task, _ *types.TaskGenerationContext) []string {
 	deps := make(map[string]bool)
 
 	// External dependency keywords

@@ -263,42 +263,70 @@ func (m *Migrator) parseMetadata(content string) *MigrationMetadata {
 		}
 
 		comment := strings.TrimSpace(strings.TrimPrefix(line, "--"))
-
-		// Parse different metadata types
-		if strings.HasPrefix(comment, "DESTRUCTIVE:") {
-			metadata.IsDestructive = strings.Contains(strings.ToLower(comment), "true")
-		} else if strings.HasPrefix(comment, "DEPENDS:") {
-			deps := strings.TrimSpace(strings.TrimPrefix(comment, "DEPENDS:"))
-			if deps != "" {
-				metadata.Dependencies = strings.Split(deps, ",")
-				for i := range metadata.Dependencies {
-					metadata.Dependencies[i] = strings.TrimSpace(metadata.Dependencies[i])
-				}
-			}
-		} else if strings.HasPrefix(comment, "TAGS:") {
-			tags := strings.TrimSpace(strings.TrimPrefix(comment, "TAGS:"))
-			if tags != "" {
-				metadata.Tags = strings.Split(tags, ",")
-				for i := range metadata.Tags {
-					metadata.Tags[i] = strings.TrimSpace(metadata.Tags[i])
-				}
-			}
-		} else if strings.HasPrefix(comment, "PRIORITY:") {
-			priority := strings.TrimSpace(strings.TrimPrefix(comment, "PRIORITY:"))
-			if priority != "" {
-				metadata.Priority = strings.ToLower(priority)
-			}
-		} else if strings.HasPrefix(comment, "TYPE:") {
-			migType := strings.TrimSpace(strings.TrimPrefix(comment, "TYPE:"))
-			if migType != "" {
-				metadata.MigrationType = strings.ToLower(migType)
-			}
-		} else if strings.HasPrefix(comment, "NOTES:") {
-			metadata.Notes = strings.TrimSpace(strings.TrimPrefix(comment, "NOTES:"))
-		}
+		m.parseMetadataComment(comment, metadata)
 	}
 
 	return metadata
+}
+
+// parseMetadataComment parses a single metadata comment
+func (m *Migrator) parseMetadataComment(comment string, metadata *MigrationMetadata) {
+	switch {
+	case strings.HasPrefix(comment, "DESTRUCTIVE:"):
+		metadata.IsDestructive = strings.Contains(strings.ToLower(comment), "true")
+	case strings.HasPrefix(comment, "DEPENDS:"):
+		m.parseDependencies(comment, metadata)
+	case strings.HasPrefix(comment, "TAGS:"):
+		m.parseTags(comment, metadata)
+	case strings.HasPrefix(comment, "PRIORITY:"):
+		m.parsePriority(comment, metadata)
+	case strings.HasPrefix(comment, "TYPE:"):
+		m.parseType(comment, metadata)
+	case strings.HasPrefix(comment, "NOTES:"):
+		metadata.Notes = strings.TrimSpace(strings.TrimPrefix(comment, "NOTES:"))
+	}
+}
+
+// parseDependencies parses dependency information
+func (m *Migrator) parseDependencies(comment string, metadata *MigrationMetadata) {
+	deps := strings.TrimSpace(strings.TrimPrefix(comment, "DEPENDS:"))
+	if deps == "" {
+		return
+	}
+
+	metadata.Dependencies = strings.Split(deps, ",")
+	for i := range metadata.Dependencies {
+		metadata.Dependencies[i] = strings.TrimSpace(metadata.Dependencies[i])
+	}
+}
+
+// parseTags parses tag information
+func (m *Migrator) parseTags(comment string, metadata *MigrationMetadata) {
+	tags := strings.TrimSpace(strings.TrimPrefix(comment, "TAGS:"))
+	if tags == "" {
+		return
+	}
+
+	metadata.Tags = strings.Split(tags, ",")
+	for i := range metadata.Tags {
+		metadata.Tags[i] = strings.TrimSpace(metadata.Tags[i])
+	}
+}
+
+// parsePriority parses priority information
+func (m *Migrator) parsePriority(comment string, metadata *MigrationMetadata) {
+	priority := strings.TrimSpace(strings.TrimPrefix(comment, "PRIORITY:"))
+	if priority != "" {
+		metadata.Priority = strings.ToLower(priority)
+	}
+}
+
+// parseType parses migration type information
+func (m *Migrator) parseType(comment string, metadata *MigrationMetadata) {
+	migType := strings.TrimSpace(strings.TrimPrefix(comment, "TYPE:"))
+	if migType != "" {
+		metadata.MigrationType = strings.ToLower(migType)
+	}
 }
 
 // GetExecutedMigrations returns all executed migrations for the current environment
@@ -316,7 +344,7 @@ func (m *Migrator) GetExecutedMigrations(ctx context.Context) ([]*Migration, err
 	if err != nil {
 		return nil, fmt.Errorf("failed to query executed migrations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var migrations []*Migration
 	for rows.Next() {
@@ -532,50 +560,9 @@ func (m *Migrator) validateMigration(ctx context.Context, migration *Migration) 
 	return nil
 }
 
-// migrationExists checks if a migration has been executed
-func (m *Migrator) migrationExists(ctx context.Context, migrationID string) (bool, error) {
-	query := `
-		SELECT EXISTS(
-			SELECT 1 FROM schema_migrations 
-			WHERE migration_id = $1 AND environment = $2 AND is_rolled_back = false
-		)`
+// Removed unused method migrationExists
 
-	var exists bool
-	err := m.db.QueryRowContext(ctx, query, migrationID, m.environment).Scan(&exists)
-	if err != nil {
-		return false, err
-	}
-
-	return exists, nil
-}
-
-// checkDestructiveOperations validates potentially dangerous SQL operations
-func (m *Migrator) checkDestructiveOperations(migration *Migration) error {
-	sql := strings.ToUpper(migration.UpSQL)
-
-	destructivePatterns := []string{
-		"DROP TABLE",
-		"DROP DATABASE",
-		"DROP SCHEMA",
-		"TRUNCATE",
-		"DELETE FROM",
-		"ALTER TABLE.*DROP COLUMN",
-		"ALTER TABLE.*DROP CONSTRAINT",
-	}
-
-	for _, pattern := range destructivePatterns {
-		matched, err := regexp.MatchString(pattern, sql)
-		if err != nil {
-			continue // Skip invalid regex patterns
-		}
-
-		if matched && !migration.IsDestructive {
-			return fmt.Errorf("potentially destructive operation detected (%s) but migration not marked as destructive", pattern)
-		}
-	}
-
-	return nil
-}
+// Removed unused method checkDestructiveOperations
 
 // GetCurrentVersion returns the current migration version
 func (m *Migrator) GetCurrentVersion(ctx context.Context) (int, error) {

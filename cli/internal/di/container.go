@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"lerian-mcp-memory-cli/internal/adapters/primary/cli"
+	"lerian-mcp-memory-cli/internal/adapters/secondary/ai"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/config"
+	"lerian-mcp-memory-cli/internal/adapters/secondary/filesystem"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/mcp"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/repository"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/storage"
+	"lerian-mcp-memory-cli/internal/adapters/secondary/visualization"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 	"lerian-mcp-memory-cli/internal/domain/services"
@@ -29,7 +32,30 @@ type Container struct {
 	MCPClient          ports.MCPClient
 	TaskService        *services.TaskService
 	RepositoryDetector ports.RepositoryDetector
+	AIService          ports.AIService
+	DocumentChain      services.DocumentChainService
+	BatchSyncService   *services.BatchSyncService
 	CLI                *cli.CLI
+
+	// Intelligence Services
+	PatternDetector   services.PatternDetector
+	SuggestionService services.SuggestionService
+	TemplateService   services.TemplateService
+	AnalyticsService  services.AnalyticsService
+	CrossRepoAnalyzer services.CrossRepoAnalyzer
+	ContextAnalyzer   services.ContextAnalyzer
+	ProjectClassifier services.ProjectClassifier
+	MetricsCalculator *services.MetricsCalculator
+
+	// Intelligence Adapters
+	Visualizer        ports.Visualizer
+	AnalyticsExporter ports.AnalyticsExporter
+
+	// Storage for intelligence features
+	PatternStore  ports.PatternStorage
+	TemplateStore ports.TemplateStorage
+	SessionStore  ports.SessionStorage
+	InsightStore  ports.InsightStorage
 
 	// Internal fields
 	logFile *os.File
@@ -58,8 +84,20 @@ func NewContainer() (*Container, error) {
 	// Initialize repository detector
 	container.initRepositoryDetector()
 
+	// Initialize AI service
+	container.initAIService()
+
+	// Initialize document chain service
+	container.initDocumentChainService()
+
 	// Initialize task service
 	container.initTaskService()
+
+	// Initialize batch sync service
+	container.initBatchSyncService()
+
+	// Initialize intelligence services
+	container.initIntelligenceServices()
 
 	// Initialize CLI
 	container.initCLI()
@@ -90,7 +128,15 @@ func NewTestContainer(cfg *entities.Config) (*Container, error) {
 
 	container.initRepositoryDetector()
 
+	container.initAIService()
+
+	container.initDocumentChainService()
+
 	container.initTaskService()
+
+	container.initBatchSyncService()
+
+	container.initIntelligenceServices()
 
 	container.initCLI()
 
@@ -242,9 +288,162 @@ func (c *Container) initTaskService() {
 	c.Logger.Info("task service initialized")
 }
 
+// initAIService initializes the AI service
+func (c *Container) initAIService() {
+	// Check if AI service is configured
+	aiConfig := &ai.AIServiceConfig{
+		BaseURL: c.Config.Server.URL, // Use the same base URL as MCP server
+		APIKey:  "",                  // No API key needed for MCP server
+		Timeout: 30 * time.Second,
+	}
+
+	if c.Config.Server.URL == "" {
+		c.Logger.Info("AI service disabled (no server URL configured)")
+		// We'll create a mock or nil service
+		c.AIService = nil
+		return
+	}
+
+	c.AIService = ai.NewHTTPAIService(aiConfig)
+	c.Logger.Info("AI service initialized", slog.String("base_url", aiConfig.BaseURL))
+}
+
+// initDocumentChainService initializes the document chain service
+func (c *Container) initDocumentChainService() {
+	c.DocumentChain = services.NewDocumentChainService(c.MCPClient, c.AIService, c.Storage, c.Logger)
+	c.Logger.Info("document chain service initialized")
+}
+
+// initBatchSyncService initializes the batch sync service
+func (c *Container) initBatchSyncService() {
+	c.BatchSyncService = services.NewBatchSyncService(c.MCPClient, c.Storage, c.Logger)
+	c.Logger.Info("batch sync service initialized")
+}
+
+// initIntelligenceServices initializes all intelligence-related services
+func (c *Container) initIntelligenceServices() {
+	// Initialize storage layers for intelligence features
+	c.initIntelligenceStorage()
+
+	// Initialize adapters
+	c.initIntelligenceAdapters()
+
+	// Initialize core intelligence services
+	c.initCoreIntelligenceServices()
+
+	c.Logger.Info("intelligence services initialized")
+}
+
+// initIntelligenceStorage initializes storage layers for intelligence features
+func (c *Container) initIntelligenceStorage() {
+	// For now, use file-based storage adapters
+	// In production, these could be replaced with database implementations
+	c.PatternStore = storage.NewFilePatternStorage(c.Logger)
+	c.TemplateStore = storage.NewFileTemplateStorage(c.Logger)
+	c.SessionStore = storage.NewFileSessionStorage(c.Logger)
+	c.InsightStore = storage.NewFileInsightStorage(c.Logger)
+}
+
+// initIntelligenceAdapters initializes adapters for intelligence features
+func (c *Container) initIntelligenceAdapters() {
+	// Initialize visualizer adapter to bridge visualization.Visualizer to ports.Visualizer
+	terminalViz := visualization.NewSimpleTerminalVisualizer()
+	c.Visualizer = visualization.NewVisualizerAdapter(terminalViz)
+
+	// Initialize analytics exporter
+	c.AnalyticsExporter = visualization.NewAnalyticsExporter(c.Logger)
+}
+
+// initCoreIntelligenceServices initializes the core intelligence services
+func (c *Container) initCoreIntelligenceServices() {
+	// Initialize metrics calculator
+	c.MetricsCalculator = services.NewMetricsCalculator()
+
+	// Create repository adapters for services that need them
+	taskRepo := storage.NewTaskRepositoryAdapter(c.Storage)
+	sessionRepo := storage.NewSessionRepositoryAdapter(c.SessionStore)
+	patternRepo := storage.NewPatternRepositoryAdapter(c.PatternStore)
+
+	// Initialize context analyzer
+	c.ContextAnalyzer = services.NewContextAnalyzer(
+		taskRepo,
+		sessionRepo,
+		patternRepo,
+		nil, // analytics engine - will be initialized later
+		nil, // config - will use defaults
+		c.Logger,
+	)
+
+	// Initialize project classifier (needs file analyzer)
+	fileAnalyzer := filesystem.NewFileAnalyzer(nil, c.Logger)
+	c.ProjectClassifier = services.NewProjectClassifier(
+		fileAnalyzer,
+		nil, // config - will use defaults
+		c.Logger,
+	)
+
+	// Initialize pattern detector
+	c.PatternDetector = services.NewPatternDetector(
+		taskRepo,
+		patternRepo,
+		sessionRepo,
+		nil, // analytics engine - will be initialized later
+		nil, // config - will use defaults
+		c.Logger,
+	)
+
+	// Initialize suggestion service
+	c.SuggestionService = services.NewSuggestionService(
+		taskRepo,
+		patternRepo,
+		sessionRepo,
+		c.ContextAnalyzer,
+		c.PatternDetector,
+		nil, // analytics engine - will be initialized later
+		nil, // config - will use defaults
+		c.Logger,
+	)
+
+	// Initialize template service
+	templateRepo := storage.NewTemplateRepositoryAdapter(c.TemplateStore)
+	c.TemplateService = services.NewTemplateService(
+		templateRepo,
+		taskRepo,
+		c.ProjectClassifier,
+		nil, // config - will use defaults
+		c.Logger,
+	)
+
+	// Initialize analytics service with nil dependencies for now
+	// TODO: Fix interface mismatches and implement proper adapters
+	c.AnalyticsService = nil
+
+	// Initialize cross-repository analyzer with nil dependencies for now
+	// TODO: Fix interface mismatches and implement proper adapters
+	c.CrossRepoAnalyzer = nil
+}
+
 // initCLI initializes the CLI
 func (c *Container) initCLI() {
-	c.CLI = cli.NewCLI(c.TaskService, c.ConfigManager, c.Logger)
+	// Create CLI dependencies struct for intelligence services
+	intelligenceDeps := cli.IntelligenceDependencies{
+		PatternDetector:   c.PatternDetector,
+		SuggestionService: c.SuggestionService,
+		TemplateService:   c.TemplateService,
+		AnalyticsService:  c.AnalyticsService,
+		CrossRepoAnalyzer: c.CrossRepoAnalyzer,
+	}
+
+	c.CLI = cli.NewCLIWithIntelligence(
+		c.TaskService,
+		c.ConfigManager,
+		c.Logger,
+		c.DocumentChain,
+		c.AIService,
+		c.RepositoryDetector,
+		c.BatchSyncService,
+		intelligenceDeps,
+	)
 }
 
 // HealthCheck validates critical dependencies
@@ -297,4 +496,11 @@ func (c *Container) Shutdown(ctx context.Context) error {
 
 	c.Logger.Info("application shutdown complete")
 	return nil
+}
+
+// Close gracefully closes the container and all its resources
+func (c *Container) Close() error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return c.Shutdown(ctx)
 }

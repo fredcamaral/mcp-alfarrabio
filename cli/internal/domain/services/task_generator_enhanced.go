@@ -457,12 +457,12 @@ func (g *DefaultTaskGeneratorService) createTaskFromFeature(feature string, anal
 
 	// Create task entity
 	task := &entities.Task{
-		ID:             uuid.New().String(),
-		Content:        content,
-		Status:         entities.StatusPending,
-		Priority:       g.determinePriority(complexity, template),
-		Repository:     context.Repository,
-		Tags:           g.generateTags(feature, template, complexity),
+		ID:            uuid.New().String(),
+		Content:       content,
+		Status:        entities.StatusPending,
+		Priority:      g.determinePriority(complexity, template),
+		Repository:    context.Repository,
+		Tags:          g.generateTags(feature, template, complexity),
 		EstimatedMins: g.complexityAnalyzer.EstimateEffort(complexity) * 60, // Convert hours to minutes
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -488,12 +488,12 @@ func (g *DefaultTaskGeneratorService) createTaskFromTechnicalReq(techReq string,
 	}
 
 	task := &entities.Task{
-		ID:             uuid.New().String(),
-		Content:        "Technical Requirement: " + techReq,
-		Status:         entities.StatusPending,
-		Priority:       entities.PriorityMedium, // Tech reqs typically medium priority
-		Repository:     context.Repository,
-		Tags:           []string{"technical", "requirement", template.Category},
+		ID:            uuid.New().String(),
+		Content:       "Technical Requirement: " + techReq,
+		Status:        entities.StatusPending,
+		Priority:      entities.PriorityMedium, // Tech reqs typically medium priority
+		Repository:    context.Repository,
+		Tags:          []string{"technical", "requirement", template.Category},
 		EstimatedMins: g.complexityAnalyzer.EstimateEffort(complexity) * 60, // Convert hours to minutes
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -510,12 +510,12 @@ func (g *DefaultTaskGeneratorService) generateSubTasksFromTask(parentTask *entit
 	var subTasks []*entities.Task
 	for _, desc := range subTaskDescriptions {
 		subTask := &entities.Task{
-			ID:             uuid.New().String(),
-			Content:        desc,
-			Status:         entities.StatusPending,
-			Priority:       parentTask.Priority,
-			Repository:     parentTask.Repository,
-			Tags:           append(parentTask.Tags, "subtask"),
+			ID:            uuid.New().String(),
+			Content:       desc,
+			Status:        entities.StatusPending,
+			Priority:      parentTask.Priority,
+			Repository:    parentTask.Repository,
+			Tags:          append(parentTask.Tags, "subtask"),
 			EstimatedMins: g.config.SubTaskMaxHours * 60, // Convert max hours to minutes
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
@@ -532,12 +532,12 @@ func (g *DefaultTaskGeneratorService) generateTestingTasks(analysis *AIAnalysis,
 
 	// Generate unit test task
 	unitTestTask := &entities.Task{
-		ID:             uuid.New().String(),
-		Content:        "Implement comprehensive unit tests for core functionality",
-		Status:         entities.StatusPending,
-		Priority:       entities.PriorityMedium,
-		Repository:     context.Repository,
-		Tags:           []string{"testing", "unit-tests", "quality"},
+		ID:            uuid.New().String(),
+		Content:       "Implement comprehensive unit tests for core functionality",
+		Status:        entities.StatusPending,
+		Priority:      entities.PriorityMedium,
+		Repository:    context.Repository,
+		Tags:          []string{"testing", "unit-tests", "quality"},
 		EstimatedMins: 8 * 60, // 8 hours in minutes
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -548,12 +548,12 @@ func (g *DefaultTaskGeneratorService) generateTestingTasks(analysis *AIAnalysis,
 	// Generate integration test task if complexity is medium or high
 	if analysis.Complexity != "low" {
 		integrationTestTask := &entities.Task{
-			ID:             uuid.New().String(),
-			Content:        "Implement integration tests for system components",
-			Status:         entities.StatusPending,
-			Priority:       entities.PriorityMedium,
-			Repository:     context.Repository,
-			Tags:           []string{"testing", "integration-tests", "quality"},
+			ID:            uuid.New().String(),
+			Content:       "Implement integration tests for system components",
+			Status:        entities.StatusPending,
+			Priority:      entities.PriorityMedium,
+			Repository:    context.Repository,
+			Tags:          []string{"testing", "integration-tests", "quality"},
 			EstimatedMins: 12 * 60, // 12 hours in minutes
 			CreatedAt:     time.Now(),
 			UpdatedAt:     time.Now(),
@@ -570,12 +570,12 @@ func (g *DefaultTaskGeneratorService) generateDocumentationTasks(analysis *AIAna
 
 	// Generate API documentation task
 	apiDocTask := &entities.Task{
-		ID:             uuid.New().String(),
-		Content:        "Create comprehensive API documentation with examples",
-		Status:         entities.StatusPending,
-		Priority:       entities.PriorityLow,
-		Repository:     context.Repository,
-		Tags:           []string{"documentation", "api", "examples"},
+		ID:            uuid.New().String(),
+		Content:       "Create comprehensive API documentation with examples",
+		Status:        entities.StatusPending,
+		Priority:      entities.PriorityLow,
+		Repository:    context.Repository,
+		Tags:          []string{"documentation", "api", "examples"},
 		EstimatedMins: 6 * 60, // 6 hours in minutes
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
@@ -585,12 +585,12 @@ func (g *DefaultTaskGeneratorService) generateDocumentationTasks(analysis *AIAna
 
 	// Generate user guide task
 	userGuideTask := &entities.Task{
-		ID:             uuid.New().String(),
-		Content:        "Write user guide and getting started documentation",
-		Status:         entities.StatusPending,
-		Priority:       entities.PriorityLow,
-		Repository:     context.Repository,
-		Tags:           []string{"documentation", "user-guide", "onboarding"},
+		ID:            uuid.New().String(),
+		Content:       "Write user guide and getting started documentation",
+		Status:        entities.StatusPending,
+		Priority:      entities.PriorityLow,
+		Repository:    context.Repository,
+		Tags:          []string{"documentation", "user-guide", "onboarding"},
 		EstimatedMins: 8 * 60, // 8 hours in minutes
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),

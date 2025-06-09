@@ -2,45 +2,22 @@ package main
 
 import (
 	"fmt"
-	"log/slog"
 	"os"
 
-	"lerian-mcp-memory-cli/internal/adapters/primary/cli"
-	"lerian-mcp-memory-cli/internal/adapters/secondary/config"
-	"lerian-mcp-memory-cli/internal/adapters/secondary/repository"
-	"lerian-mcp-memory-cli/internal/adapters/secondary/storage"
-	"lerian-mcp-memory-cli/internal/domain/services"
+	"lerian-mcp-memory-cli/internal/di"
 )
 
 func main() {
-	// Setup logger
-	logger := slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
-		Level: slog.LevelWarn, // Default to warn, can be changed via config
-	}))
-
-	// Initialize configuration manager
-	configMgr, err := config.NewViperConfigManager(logger)
+	// Initialize DI container
+	container, err := di.NewContainer()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: failed to initialize configuration: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: failed to initialize container: %v\n", err)
 		os.Exit(1)
 	}
+	defer container.Close()
 
-	// Initialize storage
-	fileStorage, err := storage.NewFileStorage()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error: failed to initialize storage: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Initialize repository detector
-	repoDetector := repository.NewGitDetector()
-
-	// Initialize task service
-	taskService := services.NewTaskService(fileStorage, repoDetector, logger)
-
-	// Create and run CLI
-	cliApp := cli.NewCLI(taskService, configMgr, logger)
-	if err := cliApp.Execute(); err != nil {
+	// Run CLI application
+	if err := container.CLI.Execute(); err != nil {
 		// Error already formatted by CLI
 		os.Exit(1)
 	}

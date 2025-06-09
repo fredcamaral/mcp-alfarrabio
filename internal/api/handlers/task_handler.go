@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -106,9 +107,10 @@ func (h *TaskHandler) SuggestTasks(w http.ResponseWriter, r *http.Request) {
 	// Generate contextual suggestions if enabled
 	var suggestions []tasks.TaskSuggestion
 	if h.config.EnableSuggestions && req.ProjectState.Phase != "" {
-		suggestions, err = h.suggester.SuggestTasks(ctx, req.ProjectState, req.ExistingTasks, req.Context)
+		suggestions, err = h.suggester.SuggestTasks(ctx, &req.ProjectState, req.ExistingTasks, &req.Context)
 		if err != nil {
 			// Log error but don't fail the request
+			log.Printf("Failed to generate task suggestions: %v", err)
 			// suggestions will remain empty
 		}
 	}
@@ -205,7 +207,7 @@ func (h *TaskHandler) GetTaskSuggestions(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Generate suggestions
-	suggestions, err := h.suggester.SuggestTasks(ctx, req.ProjectState, req.ExistingTasks, req.Context)
+	suggestions, err := h.suggester.SuggestTasks(ctx, &req.ProjectState, req.ExistingTasks, &req.Context)
 	if err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "Failed to generate suggestions", err.Error())
 		return
@@ -217,7 +219,7 @@ func (h *TaskHandler) GetTaskSuggestions(w http.ResponseWriter, r *http.Request)
 		TotalSuggestions:         len(suggestions),
 		ProjectPhase:             req.ProjectState.Phase,
 		SuggestionCategories:     h.categorizeSuggestions(suggestions),
-		NextPhaseRecommendations: h.getNextPhaseRecommendations(req.ProjectState),
+		NextPhaseRecommendations: h.getNextPhaseRecommendations(&req.ProjectState),
 		RequestMetadata: RequestMetadata{
 			RequestID:      r.Header.Get("X-Request-ID"),
 			ProcessedAt:    time.Now(),
@@ -264,7 +266,7 @@ func (h *TaskHandler) ScoreTask(w http.ResponseWriter, r *http.Request) {
 
 	// Create scorer and calculate score
 	scorer := tasks.NewScorer()
-	qualityScore := scorer.ScoreTask(&req.Task, req.Context)
+	qualityScore := scorer.ScoreTask(&req.Task, &req.Context)
 
 	// Create response
 	scoreResponse := TaskScoringResponse{
@@ -356,16 +358,17 @@ func (h *TaskHandler) createTaskRequestFromPRD(prdDoc *types.PRDDocument, req *P
 }
 
 // analyzeTaskBreakdown analyzes the breakdown of generated tasks
-func (h *TaskHandler) analyzeTaskBreakdown(tasks []types.Task) TaskBreakdown {
+func (h *TaskHandler) analyzeTaskBreakdown(taskList []types.Task) TaskBreakdown {
 	breakdown := TaskBreakdown{
-		TotalTasks:   len(tasks),
+		TotalTasks:   len(taskList),
 		ByType:       make(map[string]int),
 		ByPriority:   make(map[string]int),
 		ByComplexity: make(map[string]int),
 	}
 
 	totalEffort := 0.0
-	for _, task := range tasks {
+	for i := range taskList {
+		task := &taskList[i]
 		// Count by type
 		breakdown.ByType[string(task.Type)]++
 
@@ -380,13 +383,13 @@ func (h *TaskHandler) analyzeTaskBreakdown(tasks []types.Task) TaskBreakdown {
 	}
 
 	breakdown.TotalEstimatedHours = totalEffort
-	breakdown.AverageTaskSize = totalEffort / float64(len(tasks))
+	breakdown.AverageTaskSize = totalEffort / float64(len(taskList))
 
 	return breakdown
 }
 
 // generatePRDInsights generates insights from PRD analysis and task generation
-func (h *TaskHandler) generatePRDInsights(prdDoc *types.PRDDocument, tasks []types.Task) []string {
+func (h *TaskHandler) generatePRDInsights(prdDoc *types.PRDDocument, taskList []types.Task) []string {
 	insights := []string{}
 
 	// PRD quality insights
@@ -396,13 +399,14 @@ func (h *TaskHandler) generatePRDInsights(prdDoc *types.PRDDocument, tasks []typ
 
 	// Task complexity insights
 	complexTasks := 0
-	for _, task := range tasks {
+	for i := range taskList {
+		task := &taskList[i]
 		if task.Complexity.Level == types.ComplexityComplex || task.Complexity.Level == types.ComplexityVeryComplex {
 			complexTasks++
 		}
 	}
 
-	if float64(complexTasks)/float64(len(tasks)) > 0.3 {
+	if float64(complexTasks)/float64(len(taskList)) > 0.3 {
 		insights = append(insights, "High proportion of complex tasks - consider breaking down into smaller components")
 	}
 
@@ -413,8 +417,8 @@ func (h *TaskHandler) generatePRDInsights(prdDoc *types.PRDDocument, tasks []typ
 
 	// Task type distribution insights
 	typeCount := make(map[types.TaskType]int)
-	for _, task := range tasks {
-		typeCount[task.Type]++
+	for i := range taskList {
+		typeCount[taskList[i].Type]++
 	}
 
 	if typeCount[types.TaskTypeLegacyTesting] == 0 {
@@ -431,35 +435,29 @@ func (h *TaskHandler) generatePRDInsights(prdDoc *types.PRDDocument, tasks []typ
 // categorizeSuggestions categorizes suggestions by type
 func (h *TaskHandler) categorizeSuggestions(suggestions []tasks.TaskSuggestion) map[string]int {
 	categories := make(map[string]int)
-	for _, suggestion := range suggestions {
-		categories[string(suggestion.Category)]++
+	for i := range suggestions {
+		categories[string(suggestions[i].Category)]++
 	}
 	return categories
 }
 
 // getNextPhaseRecommendations provides recommendations for moving to next phase
-func (h *TaskHandler) getNextPhaseRecommendations(projectState types.ProjectState) []string {
+func (h *TaskHandler) getNextPhaseRecommendations(projectState *types.ProjectState) []string {
 	recommendations := []string{}
 
 	switch projectState.Phase {
 	case types.PhaseDiscovery:
-		recommendations = append(recommendations, "Complete user research and market analysis")
-		recommendations = append(recommendations, "Define clear success metrics and KPIs")
+		recommendations = append(recommendations, "Complete user research and market analysis", "Define clear success metrics and KPIs")
 	case types.PhaseRequirements:
-		recommendations = append(recommendations, "Create comprehensive PRD with user stories")
-		recommendations = append(recommendations, "Validate requirements with stakeholders")
+		recommendations = append(recommendations, "Create comprehensive PRD with user stories", "Validate requirements with stakeholders")
 	case types.PhaseDesign:
-		recommendations = append(recommendations, "Finalize system architecture and technical decisions")
-		recommendations = append(recommendations, "Create detailed UI/UX designs and prototypes")
+		recommendations = append(recommendations, "Finalize system architecture and technical decisions", "Create detailed UI/UX designs and prototypes")
 	case types.PhaseDevelopment:
-		recommendations = append(recommendations, "Ensure adequate test coverage and quality gates")
-		recommendations = append(recommendations, "Prepare deployment and monitoring infrastructure")
+		recommendations = append(recommendations, "Ensure adequate test coverage and quality gates", "Prepare deployment and monitoring infrastructure")
 	case types.PhaseTesting:
-		recommendations = append(recommendations, "Complete comprehensive testing across all scenarios")
-		recommendations = append(recommendations, "Prepare rollback and incident response procedures")
+		recommendations = append(recommendations, "Complete comprehensive testing across all scenarios", "Prepare rollback and incident response procedures")
 	case types.PhaseDeployment:
-		recommendations = append(recommendations, "Monitor system performance and user feedback")
-		recommendations = append(recommendations, "Plan for ongoing maintenance and improvements")
+		recommendations = append(recommendations, "Monitor system performance and user feedback", "Plan for ongoing maintenance and improvements")
 	}
 
 	return recommendations
@@ -478,8 +476,7 @@ func (h *TaskHandler) generateValidationRecommendations(result *types.TaskValida
 	}
 
 	if result.Score < 0.7 {
-		recommendations = append(recommendations, "Task quality is below recommended threshold")
-		recommendations = append(recommendations, "Add more specific acceptance criteria and technical details")
+		recommendations = append(recommendations, "Task quality is below recommended threshold", "Add more specific acceptance criteria and technical details")
 	}
 
 	return recommendations

@@ -91,13 +91,9 @@ func (v *MigrationValidator) ValidateMigration(ctx context.Context, migration *M
 		return result, fmt.Errorf("dependency validation failed: %w", err)
 	}
 
-	if err := v.validateSchemaChanges(ctx, migration, result); err != nil {
-		return result, fmt.Errorf("schema change validation failed: %w", err)
-	}
+	v.validateSchemaChanges(ctx, migration, result)
 
-	if err := v.validatePerformanceImpact(ctx, migration, result); err != nil {
-		return result, fmt.Errorf("performance impact validation failed: %w", err)
-	}
+	v.validatePerformanceImpact(ctx, migration, result)
 
 	// Generate suggestions based on issues found
 	result.Suggestions = v.generateSuggestions(result.Issues)
@@ -128,9 +124,10 @@ func (v *MigrationValidator) runValidationRule(ctx context.Context, rule Validat
 			}
 			result.Issues = append(result.Issues, issue)
 
-			if rule.Severity == SeverityError {
+			switch rule.Severity {
+			case SeverityError:
 				result.Errors++
-			} else if rule.Severity == SeverityWarning {
+			case SeverityWarning:
 				result.Warnings++
 			}
 		}
@@ -141,9 +138,9 @@ func (v *MigrationValidator) runValidationRule(ctx context.Context, rule Validat
 
 // validatePattern performs pattern-based validation
 func (v *MigrationValidator) validatePattern(rule ValidationRule, migration *Migration, result *ValidationResult) error {
-	sql := strings.ToUpper(migration.UpSQL)
+	sqlQuery := strings.ToUpper(migration.UpSQL)
 
-	if rule.Pattern.MatchString(sql) {
+	if rule.Pattern.MatchString(sqlQuery) {
 		lines := strings.Split(migration.UpSQL, "\n")
 		for lineNum, line := range lines {
 			if rule.Pattern.MatchString(strings.ToUpper(line)) {
@@ -156,9 +153,10 @@ func (v *MigrationValidator) validatePattern(rule ValidationRule, migration *Mig
 
 				result.Issues = append(result.Issues, issue)
 
-				if rule.Severity == SeverityError {
+				switch rule.Severity {
+				case SeverityError:
 					result.Errors++
-				} else if rule.Severity == SeverityWarning {
+				case SeverityWarning:
 					result.Warnings++
 				}
 				break
@@ -192,8 +190,9 @@ func (v *MigrationValidator) validateDependencies(ctx context.Context, migration
 }
 
 // validateSchemaChanges analyzes schema modification impact
-func (v *MigrationValidator) validateSchemaChanges(ctx context.Context, migration *Migration, result *ValidationResult) error {
-	sql := strings.ToUpper(migration.UpSQL)
+func (v *MigrationValidator) validateSchemaChanges(ctx context.Context, migration *Migration, result *ValidationResult) {
+	_ = ctx // unused parameter, kept for potential future context-aware validation
+	sqlQuery := strings.ToUpper(migration.UpSQL)
 
 	// Check for potentially risky operations
 	riskPatterns := map[string]string{
@@ -205,47 +204,67 @@ func (v *MigrationValidator) validateSchemaChanges(ctx context.Context, migratio
 	}
 
 	for pattern, warning := range riskPatterns {
-		matched, err := regexp.MatchString(pattern, sql)
+		matched, err := regexp.MatchString(pattern, sqlQuery)
 		if err != nil {
 			continue
 		}
 
 		if matched {
-			severity := SeverityWarning
-			if strings.Contains(pattern, "DROP") || strings.Contains(pattern, "TRUNCATE") {
-				severity = SeverityError
-				if !migration.IsDestructive {
-					issue := ValidationIssue{
-						Rule:     "destructive_operation",
-						Severity: SeverityError,
-						Message:  "Destructive operation found but migration not marked as destructive",
-					}
-					result.Issues = append(result.Issues, issue)
-					result.Errors++
-				}
-			}
+			v.processMatchedPattern(pattern, warning, migration, result)
+		}
+	}
+}
 
-			issue := ValidationIssue{
-				Rule:     "schema_risk",
-				Severity: severity,
-				Message:  warning,
-			}
-			result.Issues = append(result.Issues, issue)
+// processMatchedPattern processes a matched risk pattern and adds appropriate issues
+func (v *MigrationValidator) processMatchedPattern(pattern, warning string, migration *Migration, result *ValidationResult) {
+	severity := SeverityWarning
 
-			if severity == SeverityError {
-				result.Errors++
-			} else {
-				result.Warnings++
-			}
+	if v.isDestructivePattern(pattern) {
+		severity = SeverityError
+		if !migration.IsDestructive {
+			v.addDestructiveOperationIssue(result)
 		}
 	}
 
-	return nil
+	v.addSchemaRiskIssue(result, severity, warning)
+}
+
+// isDestructivePattern checks if a pattern represents a destructive operation
+func (v *MigrationValidator) isDestructivePattern(pattern string) bool {
+	return strings.Contains(pattern, "DROP") || strings.Contains(pattern, "TRUNCATE")
+}
+
+// addDestructiveOperationIssue adds an issue for unmarked destructive operations
+func (v *MigrationValidator) addDestructiveOperationIssue(result *ValidationResult) {
+	issue := ValidationIssue{
+		Rule:     "destructive_operation",
+		Severity: SeverityError,
+		Message:  "Destructive operation found but migration not marked as destructive",
+	}
+	result.Issues = append(result.Issues, issue)
+	result.Errors++
+}
+
+// addSchemaRiskIssue adds a schema risk issue with the given severity
+func (v *MigrationValidator) addSchemaRiskIssue(result *ValidationResult, severity ValidationSeverity, warning string) {
+	issue := ValidationIssue{
+		Rule:     "schema_risk",
+		Severity: severity,
+		Message:  warning,
+	}
+	result.Issues = append(result.Issues, issue)
+
+	if severity == SeverityError {
+		result.Errors++
+	} else {
+		result.Warnings++
+	}
 }
 
 // validatePerformanceImpact checks for potential performance issues
-func (v *MigrationValidator) validatePerformanceImpact(ctx context.Context, migration *Migration, result *ValidationResult) error {
-	sql := strings.ToUpper(migration.UpSQL)
+func (v *MigrationValidator) validatePerformanceImpact(ctx context.Context, migration *Migration, result *ValidationResult) {
+	_ = ctx // unused parameter, kept for potential future context-aware validation
+	sqlQuery := strings.ToUpper(migration.UpSQL)
 
 	// Check for operations that might be slow on large tables
 	performancePatterns := map[string]string{
@@ -255,14 +274,14 @@ func (v *MigrationValidator) validatePerformanceImpact(ctx context.Context, migr
 	}
 
 	for pattern, warning := range performancePatterns {
-		matched, err := regexp.MatchString(pattern, sql)
+		matched, err := regexp.MatchString(pattern, sqlQuery)
 		if err != nil {
 			continue
 		}
 
 		if matched {
 			// Check if CONCURRENTLY is used for index creation
-			if strings.Contains(pattern, "INDEX") && !strings.Contains(sql, "CONCURRENTLY") {
+			if strings.Contains(pattern, "INDEX") && !strings.Contains(sqlQuery, "CONCURRENTLY") {
 				issue := ValidationIssue{
 					Rule:       "performance_impact",
 					Severity:   SeverityWarning,
@@ -282,8 +301,6 @@ func (v *MigrationValidator) validatePerformanceImpact(ctx context.Context, migr
 			}
 		}
 	}
-
-	return nil
 }
 
 // checkMigrationExists verifies if a migration has been executed
@@ -338,8 +355,7 @@ func (v *MigrationValidator) generateSuggestions(issues []ValidationIssue) []str
 	}
 
 	if hasPerformance {
-		suggestions = append(suggestions, "Consider running during maintenance window")
-		suggestions = append(suggestions, "Test migration on production-sized data first")
+		suggestions = append(suggestions, "Consider running during maintenance window", "Test migration on production-sized data first")
 	}
 
 	return suggestions
@@ -367,6 +383,7 @@ func (v *MigrationValidator) ValidateMigrationBatch(ctx context.Context, migrati
 
 // validateBatchConsistency checks for issues across multiple migrations
 func (v *MigrationValidator) validateBatchConsistency(ctx context.Context, migrations []*Migration, results []*ValidationResult) error {
+	_ = ctx // unused parameter, kept for potential future context-aware validation
 	// Check for dependency cycles
 	if err := v.checkDependencyCycles(migrations); err != nil {
 		return err
@@ -461,7 +478,7 @@ func (v *MigrationValidator) checkConflictingChanges(migrations []*Migration, re
 }
 
 // extractTableNames extracts table names from SQL
-func (v *MigrationValidator) extractTableNames(sql string) []string {
+func (v *MigrationValidator) extractTableNames(sqlStatement string) []string {
 	tables := []string{}
 
 	// Simple regex patterns for common table operations
@@ -476,7 +493,7 @@ func (v *MigrationValidator) extractTableNames(sql string) []string {
 
 	for _, pattern := range patterns {
 		re := regexp.MustCompile(`(?i)` + pattern)
-		matches := re.FindAllStringSubmatch(sql, -1)
+		matches := re.FindAllStringSubmatch(sqlStatement, -1)
 		for _, match := range matches {
 			if len(match) > 1 {
 				tables = append(tables, strings.ToLower(match[1]))
@@ -528,19 +545,64 @@ func getDefaultValidationRules() []ValidationRule {
 			Name:        "reserved_keywords",
 			Description: "Check for use of reserved SQL keywords as identifiers",
 			Severity:    SeverityWarning,
-			Pattern:     regexp.MustCompile(`(?i)\b(order|group|select|from|where|table|index|constraint)\b\s+(?!by|from|into|table|if)`),
+			CheckFunc: func(ctx context.Context, migration *Migration, db *sql.DB) error {
+				// Check for reserved keywords used as identifiers
+				keywords := []string{"order", "group", "select", "from", "where", "table", "index", "constraint"}
+				allowedAfter := []string{"by", "from", "into", "table", "if"}
+				sqlContent := strings.ToLower(migration.UpSQL)
+
+				for _, keyword := range keywords {
+					pattern := regexp.MustCompile(`\b` + keyword + `\b\s+(\w+)`)
+					if matches := pattern.FindAllStringSubmatch(sqlContent, -1); matches != nil {
+						for _, match := range matches {
+							nextWord := match[1]
+							isAllowed := false
+							for _, allowed := range allowedAfter {
+								if nextWord == allowed {
+									isAllowed = true
+									break
+								}
+							}
+							if !isAllowed {
+								return fmt.Errorf("potential use of reserved keyword '%s' as identifier", keyword)
+							}
+						}
+					}
+				}
+				return nil
+			},
 		},
 		{
 			Name:        "missing_if_exists",
 			Description: "DROP statements should use IF EXISTS for safety",
 			Severity:    SeverityWarning,
-			Pattern:     regexp.MustCompile(`(?i)drop\s+(table|index|constraint|function)\s+(?!if\s+exists)`),
+			CheckFunc: func(ctx context.Context, migration *Migration, db *sql.DB) error {
+				// Check for DROP statements without IF EXISTS
+				dropPattern := regexp.MustCompile(`(?i)drop\s+(table|index|constraint|function)\s+(\w+)`)
+				ifExistsPattern := regexp.MustCompile(`(?i)drop\s+(table|index|constraint|function)\s+if\s+exists`)
+
+				migrationSQL := migration.UpSQL
+				if dropPattern.MatchString(migrationSQL) && !ifExistsPattern.MatchString(migrationSQL) {
+					return fmt.Errorf("DROP statement should use IF EXISTS for safety")
+				}
+				return nil
+			},
 		},
 		{
 			Name:        "concurrent_index",
 			Description: "CREATE INDEX should use CONCURRENTLY to avoid locking",
 			Severity:    SeverityInfo,
-			Pattern:     regexp.MustCompile(`(?i)create\s+index\s+(?!concurrently)`),
+			CheckFunc: func(ctx context.Context, migration *Migration, db *sql.DB) error {
+				// Check for CREATE INDEX without CONCURRENTLY
+				createIndexPattern := regexp.MustCompile(`(?i)create\s+index`)
+				concurrentlyPattern := regexp.MustCompile(`(?i)create\s+index\s+concurrently`)
+
+				migrationSQL := migration.UpSQL
+				if createIndexPattern.MatchString(migrationSQL) && !concurrentlyPattern.MatchString(migrationSQL) {
+					return fmt.Errorf("CREATE INDEX should use CONCURRENTLY to avoid locking")
+				}
+				return nil
+			},
 		},
 	}
 }

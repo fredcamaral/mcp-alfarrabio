@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -79,11 +80,7 @@ func (h *TaskSearchHandler) SearchTasks(w http.ResponseWriter, r *http.Request) 
 	}
 
 	// Parse filters
-	filters, err := h.parseFilters(r)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid filters", err.Error())
-		return
-	}
+	filters := h.parseFilters(r)
 
 	// Build search query
 	searchQuery := tasks.SearchQuery{
@@ -96,7 +93,7 @@ func (h *TaskSearchHandler) SearchTasks(w http.ResponseWriter, r *http.Request) 
 	userID := h.getUserID(r)
 
 	// Perform search
-	results, err := h.service.SearchTasks(r.Context(), searchQuery, userID)
+	results, err := h.service.SearchTasks(r.Context(), &searchQuery, userID)
 	if err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "Search failed", err.Error())
 		return
@@ -136,7 +133,7 @@ func (h *TaskSearchHandler) AdvancedSearch(w http.ResponseWriter, r *http.Reques
 	searchQuery := h.buildAdvancedSearchQuery(&req)
 
 	// Perform search
-	results, err := h.service.SearchTasks(r.Context(), searchQuery, userID)
+	results, err := h.service.SearchTasks(r.Context(), &searchQuery, userID)
 	if err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "Search failed", err.Error())
 		return
@@ -275,72 +272,104 @@ func (h *TaskSearchHandler) parseSearchOptions(r *http.Request) (tasks.SearchOpt
 	return options, nil
 }
 
-func (h *TaskSearchHandler) parseFilters(r *http.Request) (tasks.TaskFilters, error) {
+func (h *TaskSearchHandler) parseFilters(r *http.Request) tasks.TaskFilters {
 	filters := tasks.TaskFilters{}
+	query := r.URL.Query()
 
-	// Parse status filter (multiple values)
-	if statusParam := r.URL.Query().Get("status"); statusParam != "" {
-		statusList := strings.Split(statusParam, ",")
-		for _, status := range statusList {
-			filters.Status = append(filters.Status, types.TaskStatus(strings.TrimSpace(status)))
-		}
+	h.parseStringArrayFilters(&filters, query)
+	h.parseSimpleStringFilters(&filters, query)
+	h.parseDateFilters(&filters, query)
+	h.parseQualityScoreFilters(&filters, query)
+
+	return filters
+}
+
+// parseStringArrayFilters handles comma-separated array filters
+func (h *TaskSearchHandler) parseStringArrayFilters(filters *tasks.TaskFilters, query url.Values) {
+	arrayFilters := map[string]func(string){
+		"status": func(value string) {
+			for _, status := range h.splitAndTrim(value) {
+				filters.Status = append(filters.Status, types.TaskStatus(status))
+			}
+		},
+		"type": func(value string) {
+			for _, taskType := range h.splitAndTrim(value) {
+				filters.Type = append(filters.Type, types.TaskType(taskType))
+			}
+		},
+		"priority": func(value string) {
+			for _, priority := range h.splitAndTrim(value) {
+				filters.Priority = append(filters.Priority, types.TaskPriority(priority))
+			}
+		},
+		"tags": func(value string) {
+			filters.Tags = h.splitAndTrim(value)
+		},
 	}
 
-	// Parse type filter (multiple values)
-	if typeParam := r.URL.Query().Get("type"); typeParam != "" {
-		typeList := strings.Split(typeParam, ",")
-		for _, taskType := range typeList {
-			filters.Type = append(filters.Type, types.TaskType(strings.TrimSpace(taskType)))
+	for param, parser := range arrayFilters {
+		if value := query.Get(param); value != "" {
+			parser(value)
 		}
 	}
+}
 
-	// Parse priority filter (multiple values)
-	if priorityParam := r.URL.Query().Get("priority"); priorityParam != "" {
-		priorityList := strings.Split(priorityParam, ",")
-		for _, priority := range priorityList {
-			filters.Priority = append(filters.Priority, types.TaskPriority(strings.TrimSpace(priority)))
-		}
+// parseSimpleStringFilters handles single-value string filters
+func (h *TaskSearchHandler) parseSimpleStringFilters(filters *tasks.TaskFilters, query url.Values) {
+	filters.Assignee = query.Get("assignee")
+	filters.Repository = query.Get("repository")
+}
+
+// parseDateFilters handles date-based filters
+func (h *TaskSearchHandler) parseDateFilters(filters *tasks.TaskFilters, query url.Values) {
+	dateFilters := map[string]*time.Time{
+		"created_after":  nil,
+		"created_before": nil,
+		"updated_after":  nil,
+		"updated_before": nil,
 	}
 
-	// Parse assignee filter
-	filters.Assignee = r.URL.Query().Get("assignee")
-
-	// Parse repository filter
-	filters.Repository = r.URL.Query().Get("repository")
-
-	// Parse tags filter
-	if tagsParam := r.URL.Query().Get("tags"); tagsParam != "" {
-		filters.Tags = strings.Split(tagsParam, ",")
-		for i, tag := range filters.Tags {
-			filters.Tags[i] = strings.TrimSpace(tag)
+	for param := range dateFilters {
+		if dateParam := query.Get(param); dateParam != "" {
+			if parsedDate, err := time.Parse(time.RFC3339, dateParam); err == nil {
+				switch param {
+				case "created_after":
+					filters.CreatedAfter = &parsedDate
+				case "created_before":
+					filters.CreatedBefore = &parsedDate
+				case "updated_after":
+					filters.UpdatedAfter = &parsedDate
+				case "updated_before":
+					filters.UpdatedBefore = &parsedDate
+				}
+			}
 		}
 	}
+}
 
-	// Parse date filters
-	if createdAfterParam := r.URL.Query().Get("created_after"); createdAfterParam != "" {
-		if createdAfter, err := time.Parse(time.RFC3339, createdAfterParam); err == nil {
-			filters.CreatedAfter = &createdAfter
-		}
-	}
-	if createdBeforeParam := r.URL.Query().Get("created_before"); createdBeforeParam != "" {
-		if createdBefore, err := time.Parse(time.RFC3339, createdBeforeParam); err == nil {
-			filters.CreatedBefore = &createdBefore
-		}
+// parseQualityScoreFilters handles quality score range filters
+func (h *TaskSearchHandler) parseQualityScoreFilters(filters *tasks.TaskFilters, query url.Values) {
+	scoreFilters := map[string]func(float64){
+		"min_quality_score": func(score float64) { filters.MinQualityScore = score },
+		"max_quality_score": func(score float64) { filters.MaxQualityScore = score },
 	}
 
-	// Parse quality score filters
-	if minScoreParam := r.URL.Query().Get("min_quality_score"); minScoreParam != "" {
-		if minScore, err := strconv.ParseFloat(minScoreParam, 64); err == nil && minScore >= 0 && minScore <= 1 {
-			filters.MinQualityScore = minScore
+	for param, setter := range scoreFilters {
+		if scoreParam := query.Get(param); scoreParam != "" {
+			if score, err := strconv.ParseFloat(scoreParam, 64); err == nil && score >= 0 && score <= 1 {
+				setter(score)
+			}
 		}
 	}
-	if maxScoreParam := r.URL.Query().Get("max_quality_score"); maxScoreParam != "" {
-		if maxScore, err := strconv.ParseFloat(maxScoreParam, 64); err == nil && maxScore >= 0 && maxScore <= 1 {
-			filters.MaxQualityScore = maxScore
-		}
-	}
+}
 
-	return filters, nil
+// splitAndTrim splits a comma-separated string and trims whitespace
+func (h *TaskSearchHandler) splitAndTrim(value string) []string {
+	items := strings.Split(value, ",")
+	for i, item := range items {
+		items[i] = strings.TrimSpace(item)
+	}
+	return items
 }
 
 func (h *TaskSearchHandler) validateAdvancedSearchRequest(req *AdvancedSearchRequest) error {
@@ -379,8 +408,7 @@ func (h *TaskSearchHandler) generateSearchSuggestions(query string, results *tas
 		}
 	} else if len(results.Tasks) < 5 {
 		// Few results, suggest related terms
-		suggestions = append(suggestions, fmt.Sprintf("Try '%s tasks'", query))
-		suggestions = append(suggestions, fmt.Sprintf("Search for '%s implementation'", query))
+		suggestions = append(suggestions, fmt.Sprintf("Try '%s tasks'", query), fmt.Sprintf("Search for '%s implementation'", query))
 	}
 
 	return suggestions
@@ -395,7 +423,8 @@ func (h *TaskSearchHandler) generateSearchAnalytics(results *tasks.SearchResults
 		PriorityBreakdown: make(map[string]int),
 	}
 
-	for _, task := range results.Tasks {
+	for i := range results.Tasks {
+		task := &results.Tasks[i]
 		analytics.StatusBreakdown[string(task.Status)]++
 		analytics.TypeBreakdown[string(task.Type)]++
 		analytics.PriorityBreakdown[string(task.Priority)]++
@@ -412,7 +441,8 @@ func (h *TaskSearchHandler) generateFacets(results *tasks.SearchResults) map[str
 	typeCounts := make(map[string]int)
 	assigneeCounts := make(map[string]int)
 
-	for _, task := range results.Tasks {
+	for i := range results.Tasks {
+		task := &results.Tasks[i]
 		statusCounts[string(task.Status)]++
 		typeCounts[string(task.Type)]++
 		if task.Assignee != "" {
@@ -427,7 +457,8 @@ func (h *TaskSearchHandler) generateFacets(results *tasks.SearchResults) map[str
 	return facets
 }
 
-func (h *TaskSearchHandler) generateQuerySuggestions(query string, userID string) []string {
+func (h *TaskSearchHandler) generateQuerySuggestions(query, userID string) []string {
+	_ = userID // unused parameter, kept for future user-specific suggestions
 	suggestions := make([]string, 0)
 
 	// Simple suggestion logic
@@ -464,7 +495,7 @@ func (h *TaskSearchHandler) getUserID(r *http.Request) string {
 	if userID := r.Header.Get("X-User-ID"); userID != "" {
 		return userID
 	}
-	return "default_user"
+	return DefaultUserID
 }
 
 // Request/Response types

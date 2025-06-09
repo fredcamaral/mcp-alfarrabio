@@ -20,7 +20,7 @@ func TestVersionChecker_Handler(t *testing.T) {
 		}
 	})
 
-	req := httptest.NewRequest("GET", "/api/v1/test", nil)
+	req := httptest.NewRequest("GET", "/api/v1/test", http.NoBody)
 	req.Header.Set("X-Client-Version", "1.0.0")
 	w := httptest.NewRecorder()
 
@@ -42,7 +42,7 @@ func TestVersionChecker_UnsupportedVersion(t *testing.T) {
 		}
 	})
 
-	req := httptest.NewRequest("GET", "/api/v1/test", nil)
+	req := httptest.NewRequest("GET", "/api/v1/test", http.NoBody)
 	req.Header.Set("X-Client-Version", "2.0.0")
 	w := httptest.NewRecorder()
 
@@ -62,7 +62,7 @@ func TestVersionChecker_PublicEndpoint(t *testing.T) {
 		}
 	})
 
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest("GET", "/health", http.NoBody)
 	w := httptest.NewRecorder()
 
 	handler(nextHandler).ServeHTTP(w, req)
@@ -81,7 +81,7 @@ func TestVersionChecker_NoVersion(t *testing.T) {
 		}
 	})
 
-	req := httptest.NewRequest("GET", "/api/v1/test", nil)
+	req := httptest.NewRequest("GET", "/api/v1/test", http.NoBody)
 	w := httptest.NewRecorder()
 
 	handler(nextHandler).ServeHTTP(w, req)

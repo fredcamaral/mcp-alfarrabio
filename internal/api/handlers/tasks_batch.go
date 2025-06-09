@@ -241,7 +241,8 @@ func (h *TaskBatchHandler) validateBatchCreateRequest(req *BatchCreateRequest) e
 		return fmt.Errorf("batch size %d exceeds maximum %d", len(req.Tasks), h.config.MaxBatchSize)
 	}
 
-	for i, task := range req.Tasks {
+	for i := range req.Tasks {
+		task := &req.Tasks[i]
 		if task.Title == "" {
 			return fmt.Errorf("task %d: title is required", i)
 		}
@@ -318,7 +319,8 @@ func (h *TaskBatchHandler) processBatchCreate(req *BatchCreateRequest, userID st
 		Failed:         make([]BatchCreateError, 0),
 	}
 
-	for i, taskReq := range req.Tasks {
+	for i := range req.Tasks {
+		taskReq := &req.Tasks[i]
 		// Convert to task
 		task := types.Task{
 			Title:              taskReq.Title,
@@ -337,7 +339,7 @@ func (h *TaskBatchHandler) processBatchCreate(req *BatchCreateRequest, userID st
 		if err := h.service.CreateTask(r.Context(), &task, userID); err != nil {
 			result.Failed = append(result.Failed, BatchCreateError{
 				Index: i,
-				Task:  taskReq,
+				Task:  *taskReq,
 				Error: err.Error(),
 			})
 		} else {
@@ -477,7 +479,7 @@ func (h *TaskBatchHandler) getUserID(r *http.Request) string {
 	if userID := r.Header.Get("X-User-ID"); userID != "" {
 		return userID
 	}
-	return "default_user"
+	return DefaultUserID
 }
 
 // Request/Response types

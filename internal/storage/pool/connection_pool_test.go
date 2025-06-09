@@ -117,7 +117,7 @@ func TestConnectionPoolIntegration(t *testing.T) {
 	if err != nil {
 		t.Skipf("Could not connect to test database: %v", err)
 	}
-	defer pool.Close()
+	defer func() { _ = pool.Close() }()
 
 	// Test basic operations
 	ctx := context.Background()
@@ -126,7 +126,7 @@ func TestConnectionPoolIntegration(t *testing.T) {
 	rows, err := pool.Query(ctx, "SELECT 1")
 	require.NoError(t, err)
 	require.NotNil(t, rows)
-	rows.Close()
+	_ = rows.Close()
 
 	// Test single row query
 	row := pool.QueryRow(ctx, "SELECT 1")

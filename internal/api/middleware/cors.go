@@ -22,7 +22,7 @@ type CORSMiddleware struct {
 }
 
 // NewCORSMiddleware creates a new CORS middleware with configuration
-func NewCORSMiddleware(config CORSConfig) *CORSMiddleware {
+func NewCORSMiddleware(config *CORSConfig) *CORSMiddleware {
 	// Set defaults if not provided
 	if len(config.AllowedMethods) == 0 {
 		config.AllowedMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
@@ -54,12 +54,12 @@ func NewCORSMiddleware(config CORSConfig) *CORSMiddleware {
 		config.MaxAge = 86400 // 24 hours
 	}
 
-	return &CORSMiddleware{config: config}
+	return &CORSMiddleware{config: *config}
 }
 
 // NewDefaultCORSMiddleware creates CORS middleware with sensible defaults for development
 func NewDefaultCORSMiddleware() *CORSMiddleware {
-	return NewCORSMiddleware(CORSConfig{
+	return NewCORSMiddleware(&CORSConfig{
 		AllowedOrigins: []string{
 			"http://localhost:2001",
 			"http://localhost:3000",
@@ -74,7 +74,7 @@ func NewDefaultCORSMiddleware() *CORSMiddleware {
 
 // NewProductionCORSMiddleware creates CORS middleware for production with specific origins
 func NewProductionCORSMiddleware(allowedOrigins []string) *CORSMiddleware {
-	return NewCORSMiddleware(CORSConfig{
+	return NewCORSMiddleware(&CORSConfig{
 		AllowedOrigins:   allowedOrigins,
 		AllowCredentials: true,
 	})

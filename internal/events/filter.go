@@ -112,19 +112,21 @@ func (fe *FilterEngine) AddRule(rule *FilterRule) error {
 
 	// Validate and compile regex patterns
 	for _, condition := range rule.Conditions {
-		if condition.Operator == FilterOpRegex {
-			pattern, ok := condition.Value.(string)
-			if !ok {
-				return errors.New("regex condition value must be a string")
-			}
-
-			compiledRegex, err := regexp.Compile(pattern)
-			if err != nil {
-				return fmt.Errorf("invalid regex pattern: %v", err)
-			}
-
-			fe.compiledRegexes[rule.ID+"_"+condition.Field] = compiledRegex
+		if condition.Operator != FilterOpRegex {
+			continue
 		}
+
+		pattern, ok := condition.Value.(string)
+		if !ok {
+			return errors.New("regex condition value must be a string")
+		}
+
+		compiledRegex, err := regexp.Compile(pattern)
+		if err != nil {
+			return fmt.Errorf("invalid regex pattern: %w", err)
+		}
+
+		fe.compiledRegexes[rule.ID+"_"+condition.Field] = compiledRegex
 	}
 
 	fe.filterRules[rule.ID] = rule
@@ -218,7 +220,7 @@ func (fe *FilterEngine) QuickFilter(event *Event, filter *EventFilter) bool {
 }
 
 // CreateSimpleFilter creates a simple event filter from parameters
-func CreateSimpleFilter(eventTypes []EventType, actions []string, sources []string) *EventFilter {
+func CreateSimpleFilter(eventTypes []EventType, actions, sources []string) *EventFilter {
 	return &EventFilter{
 		Types:   eventTypes,
 		Actions: actions,
@@ -412,52 +414,51 @@ func (fe *FilterEngine) conditionMatches(event *Event, condition *FilterConditio
 
 // getFieldValue extracts a field value from an event
 func (fe *FilterEngine) getFieldValue(event *Event, field string) interface{} {
-	switch field {
-	case "id":
-		return event.ID
-	case "type":
-		return event.Type
-	case "action":
-		return event.Action
-	case "version":
-		return event.Version
-	case "timestamp":
-		return event.Timestamp
-	case "source":
-		return event.Source
-	case "repository":
-		return event.Repository
-	case "session_id":
-		return event.SessionID
-	case "user_id":
-		return event.UserID
-	case "client_id":
-		return event.ClientID
-	case "tags":
-		return event.Tags
-	case "correlation_id":
-		return event.CorrelationID
-	case "causation_id":
-		return event.CausationID
-	case "parent_id":
-		return event.ParentID
-	case "payload":
-		return event.Payload
-	default:
-		// Check metadata
-		if strings.HasPrefix(field, "metadata.") {
-			metadataKey := strings.TrimPrefix(field, "metadata.")
-			return event.Metadata[metadataKey]
-		}
-		// Check payload fields
-		if strings.HasPrefix(field, "payload.") && event.Payload != nil {
-			if payloadMap, ok := event.Payload.(map[string]interface{}); ok {
-				payloadKey := strings.TrimPrefix(field, "payload.")
-				return payloadMap[payloadKey]
-			}
-		}
-		return nil
+	// Define field extractors for better organization
+	fieldExtractors := map[string]func(*Event) interface{}{
+		"id":             func(e *Event) interface{} { return e.ID },
+		"type":           func(e *Event) interface{} { return e.Type },
+		"action":         func(e *Event) interface{} { return e.Action },
+		"version":        func(e *Event) interface{} { return e.Version },
+		"timestamp":      func(e *Event) interface{} { return e.Timestamp },
+		"source":         func(e *Event) interface{} { return e.Source },
+		"repository":     func(e *Event) interface{} { return e.Repository },
+		"session_id":     func(e *Event) interface{} { return e.SessionID },
+		"user_id":        func(e *Event) interface{} { return e.UserID },
+		"client_id":      func(e *Event) interface{} { return e.ClientID },
+		"tags":           func(e *Event) interface{} { return e.Tags },
+		"correlation_id": func(e *Event) interface{} { return e.CorrelationID },
+		"causation_id":   func(e *Event) interface{} { return e.CausationID },
+		"parent_id":      func(e *Event) interface{} { return e.ParentID },
+		"payload":        func(e *Event) interface{} { return e.Payload },
 	}
+
+	// Check for direct field match
+	if extractor, exists := fieldExtractors[field]; exists {
+		return extractor(event)
+	}
+
+	// Handle special field prefixes
+	return fe.extractSpecialFieldValue(event, field)
+}
+
+// extractSpecialFieldValue handles metadata and payload field extraction
+func (fe *FilterEngine) extractSpecialFieldValue(event *Event, field string) interface{} {
+	// Check metadata fields
+	if strings.HasPrefix(field, "metadata.") {
+		metadataKey := strings.TrimPrefix(field, "metadata.")
+		return event.Metadata[metadataKey]
+	}
+
+	// Check payload fields
+	if strings.HasPrefix(field, "payload.") && event.Payload != nil {
+		if payloadMap, ok := event.Payload.(map[string]interface{}); ok {
+			payloadKey := strings.TrimPrefix(field, "payload.")
+			return payloadMap[payloadKey]
+		}
+	}
+
+	return nil
 }
 
 // compareValues compares two values with optional case sensitivity

@@ -516,7 +516,11 @@ func (m *Monitor) alertingRoutine() {
 // processAlert processes a single alert
 func (m *Monitor) processAlert(alert *Alert) {
 	// Log the alert
-	alertJSON, _ := json.Marshal(alert)
+	alertJSON, err := json.Marshal(alert)
+	if err != nil {
+		log.Printf("Rate limit alert (failed to marshal): %+v", alert)
+		return
+	}
 	log.Printf("Rate limit alert: %s", alertJSON)
 
 	// Here you could add integrations with:

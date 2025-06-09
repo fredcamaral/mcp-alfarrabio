@@ -128,13 +128,13 @@ func (dd *DependencyDetector) GenerateDependencyGraph(tasks []types.Task) types.
 
 	// Create nodes
 	nodes := make([]types.DependencyNode, 0, len(tasks))
-	for _, task := range tasks {
+	for i := range tasks {
 		nodes = append(nodes, types.DependencyNode{
-			TaskID:     task.ID,
-			Title:      task.Title,
-			Type:       task.Type,
-			Priority:   task.Priority,
-			Complexity: task.Complexity.Level,
+			TaskID:     tasks[i].ID,
+			Title:      tasks[i].Title,
+			Type:       tasks[i].Type,
+			Priority:   tasks[i].Priority,
+			Complexity: tasks[i].Complexity.Level,
 		})
 	}
 
@@ -156,13 +156,24 @@ func (dd *DependencyDetector) GenerateDependencyGraph(tasks []types.Task) types.
 func (dd *DependencyDetector) detectDependencies(tasks []types.Task) []types.DependencyEdge {
 	edges := make([]types.DependencyEdge, 0)
 
-	// Check explicit dependencies first
-	for _, task := range tasks {
-		for _, depID := range task.Dependencies {
+	edges = append(edges, dd.detectExplicitDependencies(tasks)...)
+	edges = append(edges, dd.detectImplicitDependencies(tasks)...)
+	edges = append(edges, dd.detectConflictingTasks(tasks)...)
+	edges = append(edges, dd.detectRelatedTasks(tasks, edges)...)
+
+	return dd.removeCycles(edges)
+}
+
+// detectExplicitDependencies finds explicitly declared dependencies
+func (dd *DependencyDetector) detectExplicitDependencies(tasks []types.Task) []types.DependencyEdge {
+	edges := make([]types.DependencyEdge, 0)
+
+	for i := range tasks {
+		for _, depID := range tasks[i].Dependencies {
 			if dd.taskExists(tasks, depID) {
 				edges = append(edges, types.DependencyEdge{
 					FromTaskID:  depID,
-					ToTaskID:    task.ID,
+					ToTaskID:    tasks[i].ID,
 					Type:        types.DependencyTypeBlocking,
 					Strength:    1.0,
 					Description: "Explicit dependency",
@@ -171,53 +182,44 @@ func (dd *DependencyDetector) detectDependencies(tasks []types.Task) []types.Dep
 		}
 	}
 
-	// Detect implicit dependencies using patterns
-	for i, fromTask := range tasks {
-		for j, toTask := range tasks {
-			if i == j {
-				continue // Skip self-dependencies
-			}
+	return edges
+}
 
-			// Check if there's already an explicit dependency
-			if dd.hasExplicitDependency(fromTask, toTask) {
+// detectImplicitDependencies finds implicit dependencies using patterns
+func (dd *DependencyDetector) detectImplicitDependencies(tasks []types.Task) []types.DependencyEdge {
+	edges := make([]types.DependencyEdge, 0)
+
+	for i := range tasks {
+		for j := range tasks {
+			if i == j || dd.hasExplicitDependency(&tasks[i], &tasks[j]) {
 				continue
 			}
 
-			// Apply dependency patterns
 			for _, pattern := range dd.config.DependencyPatterns {
-				if dd.matchesPattern(fromTask, toTask, pattern) {
-					edge := types.DependencyEdge{
-						FromTaskID:  fromTask.ID,
-						ToTaskID:    toTask.ID,
-						Type:        pattern.Type,
-						Strength:    pattern.Strength,
-						Description: pattern.Description,
-					}
-
-					// Adjust strength based on content similarity
-					similarity := dd.calculateContentSimilarity(fromTask, toTask)
-					edge.Strength *= (0.5 + 0.5*similarity) // Boost strength for similar tasks
-
-					// Only add if strength meets threshold
-					if edge.Strength >= dd.config.MinSimilarityThreshold {
-						edges = append(edges, edge)
-					}
+				if edge := dd.tryCreatePatternEdge(&tasks[i], &tasks[j], &pattern); edge != nil {
+					edges = append(edges, *edge)
 				}
 			}
 		}
 	}
 
-	// Detect conflicting tasks
-	for i, task1 := range tasks {
-		for j, task2 := range tasks {
+	return edges
+}
+
+// detectConflictingTasks finds tasks that may conflict
+func (dd *DependencyDetector) detectConflictingTasks(tasks []types.Task) []types.DependencyEdge {
+	edges := make([]types.DependencyEdge, 0)
+
+	for i := range tasks {
+		for j := range tasks {
 			if i >= j {
 				continue // Avoid duplicates and self-comparison
 			}
 
-			if dd.areTasksConflicting(task1, task2) {
+			if dd.areTasksConflicting(&tasks[i], &tasks[j]) {
 				edges = append(edges, types.DependencyEdge{
-					FromTaskID:  task1.ID,
-					ToTaskID:    task2.ID,
+					FromTaskID:  tasks[i].ID,
+					ToTaskID:    tasks[j].ID,
 					Type:        types.DependencyTypeConflicting,
 					Strength:    0.8,
 					Description: "Tasks may conflict with each other",
@@ -226,18 +228,24 @@ func (dd *DependencyDetector) detectDependencies(tasks []types.Task) []types.Dep
 		}
 	}
 
-	// Detect related tasks
-	for i, task1 := range tasks {
-		for j, task2 := range tasks {
+	return edges
+}
+
+// detectRelatedTasks finds tasks with high content similarity
+func (dd *DependencyDetector) detectRelatedTasks(tasks []types.Task, existingEdges []types.DependencyEdge) []types.DependencyEdge {
+	edges := make([]types.DependencyEdge, 0)
+
+	for i := range tasks {
+		for j := range tasks {
 			if i >= j {
 				continue
 			}
 
-			similarity := dd.calculateContentSimilarity(task1, task2)
-			if similarity > 0.6 && !dd.hasAnyDependency(edges, task1.ID, task2.ID) {
+			similarity := dd.calculateContentSimilarity(&tasks[i], &tasks[j])
+			if similarity > 0.6 && !dd.hasAnyDependency(existingEdges, tasks[i].ID, tasks[j].ID) {
 				edges = append(edges, types.DependencyEdge{
-					FromTaskID:  task1.ID,
-					ToTaskID:    task2.ID,
+					FromTaskID:  tasks[i].ID,
+					ToTaskID:    tasks[j].ID,
 					Type:        types.DependencyTypeRelated,
 					Strength:    similarity,
 					Description: "Tasks are related in content or scope",
@@ -246,11 +254,37 @@ func (dd *DependencyDetector) detectDependencies(tasks []types.Task) []types.Dep
 		}
 	}
 
-	return dd.removeCycles(edges)
+	return edges
+}
+
+// tryCreatePatternEdge attempts to create an edge based on a dependency pattern
+func (dd *DependencyDetector) tryCreatePatternEdge(fromTask, toTask *types.Task, pattern *DependencyPattern) *types.DependencyEdge {
+	if !dd.matchesPattern(fromTask, toTask, pattern) {
+		return nil
+	}
+
+	edge := types.DependencyEdge{
+		FromTaskID:  fromTask.ID,
+		ToTaskID:    toTask.ID,
+		Type:        pattern.Type,
+		Strength:    pattern.Strength,
+		Description: pattern.Description,
+	}
+
+	// Adjust strength based on content similarity
+	similarity := dd.calculateContentSimilarity(fromTask, toTask)
+	edge.Strength *= (0.5 + 0.5*similarity) // Boost strength for similar tasks
+
+	// Only return if strength meets threshold
+	if edge.Strength >= dd.config.MinSimilarityThreshold {
+		return &edge
+	}
+
+	return nil
 }
 
 // matchesPattern checks if two tasks match a dependency pattern
-func (dd *DependencyDetector) matchesPattern(fromTask, toTask types.Task, pattern DependencyPattern) bool {
+func (dd *DependencyDetector) matchesPattern(fromTask, toTask *types.Task, pattern *DependencyPattern) bool {
 	fromContent := strings.ToLower(fromTask.Title + " " + fromTask.Description)
 	toContent := strings.ToLower(toTask.Title + " " + toTask.Description)
 
@@ -280,7 +314,7 @@ func (dd *DependencyDetector) matchesPattern(fromTask, toTask types.Task, patter
 }
 
 // calculateContentSimilarity calculates similarity between two tasks
-func (dd *DependencyDetector) calculateContentSimilarity(task1, task2 types.Task) float64 {
+func (dd *DependencyDetector) calculateContentSimilarity(task1, task2 *types.Task) float64 {
 	// Simple keyword-based similarity
 	content1 := strings.ToLower(task1.Title + " " + task1.Description)
 	content2 := strings.ToLower(task2.Title + " " + task2.Description)
@@ -342,7 +376,7 @@ func (dd *DependencyDetector) calculateContentSimilarity(task1, task2 types.Task
 }
 
 // areTasksConflicting determines if two tasks are conflicting
-func (dd *DependencyDetector) areTasksConflicting(task1, task2 types.Task) bool {
+func (dd *DependencyDetector) areTasksConflicting(task1, task2 *types.Task) bool {
 	// Tasks with same file modifications might conflict
 	if len(task1.Metadata.ExtendedData) > 0 && len(task2.Metadata.ExtendedData) > 0 {
 		files1, ok1 := task1.Metadata.ExtendedData["files"].([]string)
@@ -381,7 +415,7 @@ func (dd *DependencyDetector) areTasksConflicting(task1, task2 types.Task) bool 
 }
 
 // hasExplicitDependency checks if there's an explicit dependency between tasks
-func (dd *DependencyDetector) hasExplicitDependency(fromTask, toTask types.Task) bool {
+func (dd *DependencyDetector) hasExplicitDependency(fromTask, toTask *types.Task) bool {
 	for _, depID := range toTask.Dependencies {
 		if depID == fromTask.ID {
 			return true
@@ -408,8 +442,8 @@ func (dd *DependencyDetector) hasAnyDependency(edges []types.DependencyEdge, tas
 
 // taskExists checks if a task with the given ID exists
 func (dd *DependencyDetector) taskExists(tasks []types.Task, taskID string) bool {
-	for _, task := range tasks {
-		if task.ID == taskID {
+	for i := range tasks {
+		if tasks[i].ID == taskID {
 			return true
 		}
 	}
@@ -508,21 +542,21 @@ func (dd *DependencyDetector) removeCycles(edges []types.DependencyEdge) []types
 func (dd *DependencyDetector) DetectTaskDependencies(task *types.Task, existingTasks []types.Task) []string {
 	dependencies := []string{}
 
-	for _, existingTask := range existingTasks {
+	for i := range existingTasks {
 		// Apply dependency patterns
 		for _, pattern := range dd.config.DependencyPatterns {
 			if pattern.Type == types.DependencyTypeBlocking &&
-				dd.matchesPattern(existingTask, *task, pattern) {
+				dd.matchesPattern(&existingTasks[i], task, &pattern) {
 				// Check if dependency already exists
 				found := false
 				for _, dep := range dependencies {
-					if dep == existingTask.ID {
+					if dep == existingTasks[i].ID {
 						found = true
 						break
 					}
 				}
 				if !found {
-					dependencies = append(dependencies, existingTask.ID)
+					dependencies = append(dependencies, existingTasks[i].ID)
 				}
 			}
 		}
@@ -532,11 +566,11 @@ func (dd *DependencyDetector) DetectTaskDependencies(task *types.Task, existingT
 }
 
 // GetDependencyStrength calculates the strength of dependency between two tasks
-func (dd *DependencyDetector) GetDependencyStrength(fromTask, toTask types.Task) float64 {
+func (dd *DependencyDetector) GetDependencyStrength(fromTask, toTask *types.Task) float64 {
 	maxStrength := 0.0
 
 	for _, pattern := range dd.config.DependencyPatterns {
-		if dd.matchesPattern(fromTask, toTask, pattern) {
+		if dd.matchesPattern(fromTask, toTask, &pattern) {
 			similarity := dd.calculateContentSimilarity(fromTask, toTask)
 			strength := pattern.Strength * (0.5 + 0.5*similarity)
 			if strength > maxStrength {
@@ -549,11 +583,11 @@ func (dd *DependencyDetector) GetDependencyStrength(fromTask, toTask types.Task)
 }
 
 // GetDependencyReasons returns reasons why tasks are dependent
-func (dd *DependencyDetector) GetDependencyReasons(fromTask, toTask types.Task) []string {
+func (dd *DependencyDetector) GetDependencyReasons(fromTask, toTask *types.Task) []string {
 	reasons := []string{}
 
 	for _, pattern := range dd.config.DependencyPatterns {
-		if dd.matchesPattern(fromTask, toTask, pattern) {
+		if dd.matchesPattern(fromTask, toTask, &pattern) {
 			reasons = append(reasons, pattern.Description)
 		}
 	}

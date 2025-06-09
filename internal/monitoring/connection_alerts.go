@@ -256,7 +256,9 @@ func (ca *ConnectionAlerting) addDefaultRules() {
 	}
 
 	for _, rule := range defaultRules {
-		ca.AddRule(rule)
+		if err := ca.AddRule(rule); err != nil {
+			log.Printf("Warning: failed to add default alert rule %s: %v", rule.Name, err)
+		}
 	}
 }
 
@@ -510,9 +512,10 @@ func (ca *ConnectionAlerting) escalateAlert(alert *Alert) {
 		activeAlert.EscalatedAt = &now
 
 		// Increase severity if possible
-		if activeAlert.Severity == SeverityWarning {
+		switch activeAlert.Severity {
+		case SeverityWarning:
 			activeAlert.Severity = SeverityError
-		} else if activeAlert.Severity == SeverityError {
+		case SeverityError:
 			activeAlert.Severity = SeverityCritical
 		}
 
@@ -545,15 +548,17 @@ func (ca *ConnectionAlerting) AcknowledgeAlert(alertID, acknowledgedBy string) e
 	defer ca.mu.Unlock()
 
 	for _, alert := range ca.activeAlerts {
-		if alert.ID == alertID {
-			now := time.Now()
-			alert.Status = StatusAcknowledged
-			alert.AcknowledgedAt = &now
-			alert.AcknowledgedBy = acknowledgedBy
-
-			log.Printf("Acknowledged alert: %s by %s", alertID, acknowledgedBy)
-			return nil
+		if alert.ID != alertID {
+			continue
 		}
+
+		now := time.Now()
+		alert.Status = StatusAcknowledged
+		alert.AcknowledgedAt = &now
+		alert.AcknowledgedBy = acknowledgedBy
+
+		log.Printf("Acknowledged alert: %s by %s", alertID, acknowledgedBy)
+		return nil
 	}
 
 	return fmt.Errorf("alert %s not found", alertID)

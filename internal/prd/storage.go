@@ -84,7 +84,7 @@ func (s *InMemoryStorage) Get(ctx context.Context, id string) (*types.PRDDocumen
 }
 
 // List retrieves PRD documents based on filters
-func (s *InMemoryStorage) List(ctx context.Context, filters StorageFilters) ([]*types.PRDDocument, error) {
+func (s *InMemoryStorage) List(ctx context.Context, filters *StorageFilters) ([]*types.PRDDocument, error) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 
@@ -155,7 +155,7 @@ func (s *InMemoryStorage) Delete(ctx context.Context, id string) error {
 }
 
 // matchesFilters checks if a document matches the given filters
-func (s *InMemoryStorage) matchesFilters(doc *types.PRDDocument, filters StorageFilters) bool {
+func (s *InMemoryStorage) matchesFilters(doc *types.PRDDocument, filters *StorageFilters) bool {
 	// Status filter
 	if filters.Status != "" && doc.Status != filters.Status {
 		return false

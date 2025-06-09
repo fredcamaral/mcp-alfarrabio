@@ -1178,7 +1178,10 @@ func estimateSize(value interface{}) int64 {
 		return int64(len(v))
 	case map[string]interface{}:
 		// Rough estimation
-		data, _ := json.Marshal(v)
+		data, err := json.Marshal(v)
+		if err != nil {
+			return 64 // Fallback estimate if marshaling fails
+		}
 		return int64(len(data))
 	default:
 		return 64 // Default estimate

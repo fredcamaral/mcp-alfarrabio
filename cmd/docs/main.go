@@ -77,7 +77,7 @@ func generateDocumentation(generator *docs.OpenAPIGenerator, outputDir, format s
 	log.Printf("Generating OpenAPI documentation to: %s", outputDir)
 
 	// Create output directory
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -136,7 +136,7 @@ func generateJSONSpec(generator *docs.OpenAPIGenerator, outputDir string, verbos
 	}
 
 	jsonPath := filepath.Join(outputDir, "openapi.json")
-	if err := os.WriteFile(jsonPath, jsonSpec, 0644); err != nil {
+	if err := os.WriteFile(jsonPath, jsonSpec, 0o600); err != nil {
 		return fmt.Errorf("failed to write JSON specification: %w", err)
 	}
 
@@ -156,7 +156,7 @@ func generateYAMLSpec(generator *docs.OpenAPIGenerator, outputDir string, verbos
 	}
 
 	yamlPath := filepath.Join(outputDir, "openapi.yaml")
-	if err := os.WriteFile(yamlPath, yamlSpec, 0644); err != nil {
+	if err := os.WriteFile(yamlPath, yamlSpec, 0o600); err != nil {
 		return fmt.Errorf("failed to write YAML specification: %w", err)
 	}
 
@@ -180,7 +180,7 @@ func generateAPIExamples(generator *docs.OpenAPIGenerator, outputDir string, ver
 	}
 
 	examplesPath := filepath.Join(outputDir, "examples.json")
-	if err := os.WriteFile(examplesPath, jsonBytes, 0644); err != nil {
+	if err := os.WriteFile(examplesPath, jsonBytes, 0o600); err != nil {
 		return fmt.Errorf("failed to write examples: %w", err)
 	}
 
@@ -190,6 +190,8 @@ func generateAPIExamples(generator *docs.OpenAPIGenerator, outputDir string, ver
 
 // generateStaticHTML generates a static HTML version of the documentation
 func generateStaticHTML(generator *docs.OpenAPIGenerator, outputDir string, verbose bool) error {
+	// Explicitly ignore generator parameter as it's not used in static HTML generation
+	_ = generator
 	if verbose {
 		log.Println("Generating static HTML documentation...")
 	}
@@ -222,7 +224,7 @@ func generateStaticHTML(generator *docs.OpenAPIGenerator, outputDir string, verb
 </html>`
 
 	htmlPath := filepath.Join(outputDir, "index.html")
-	if err := os.WriteFile(htmlPath, []byte(htmlContent), 0644); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(htmlContent), 0o600); err != nil {
 		return fmt.Errorf("failed to write HTML documentation: %w", err)
 	}
 
@@ -293,7 +295,7 @@ For the latest documentation, run the generator again or visit the live API docu
 `
 
 	readmePath := filepath.Join(outputDir, "README.md")
-	if err := os.WriteFile(readmePath, []byte(readmeContent), 0644); err != nil {
+	if err := os.WriteFile(readmePath, []byte(readmeContent), 0o600); err != nil {
 		return fmt.Errorf("failed to write README: %w", err)
 	}
 

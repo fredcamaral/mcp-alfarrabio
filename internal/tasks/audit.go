@@ -146,7 +146,7 @@ func (al *AuditLogger) LogTaskCreated(taskID, userID string, timestamp time.Time
 		},
 	}
 
-	al.addEntry(entry)
+	al.addEntry(&entry)
 }
 
 // LogTaskUpdated logs task updates
@@ -171,7 +171,7 @@ func (al *AuditLogger) LogTaskUpdated(taskID, userID string, changes map[string]
 		},
 	}
 
-	al.addEntry(entry)
+	al.addEntry(&entry)
 }
 
 // LogTaskDeleted logs task deletion
@@ -195,7 +195,7 @@ func (al *AuditLogger) LogTaskDeleted(taskID, userID string, timestamp time.Time
 		},
 	}
 
-	al.addEntry(entry)
+	al.addEntry(&entry)
 }
 
 // LogTaskSearch logs search operations
@@ -220,7 +220,7 @@ func (al *AuditLogger) LogTaskSearch(userID, query string, resultCount int) {
 		},
 	}
 
-	al.addEntry(entry)
+	al.addEntry(&entry)
 }
 
 // LogBatchUpdate logs batch operations
@@ -244,11 +244,11 @@ func (al *AuditLogger) LogBatchUpdate(userID string, updateCount int, timestamp 
 		},
 	}
 
-	al.addEntry(entry)
+	al.addEntry(&entry)
 }
 
 // LogStatusTransition logs task status transitions
-func (al *AuditLogger) LogStatusTransition(taskID, userID string, fromStatus, toStatus string, success bool, reason string) {
+func (al *AuditLogger) LogStatusTransition(taskID, userID, fromStatus, toStatus string, success bool, reason string) {
 	if !al.config.Enabled {
 		return
 	}
@@ -274,7 +274,7 @@ func (al *AuditLogger) LogStatusTransition(taskID, userID string, fromStatus, to
 		entry.Error = reason
 	}
 
-	al.addEntry(entry)
+	al.addEntry(&entry)
 }
 
 // LogTaskAssignment logs task assignment changes
@@ -300,11 +300,11 @@ func (al *AuditLogger) LogTaskAssignment(taskID, userID, fromAssignee, toAssigne
 		},
 	}
 
-	al.addEntry(entry)
+	al.addEntry(&entry)
 }
 
 // LogError logs error events
-func (al *AuditLogger) LogError(userID, operation, error string, resource AuditResource) {
+func (al *AuditLogger) LogError(userID, operation, errorMsg string, resource AuditResource) {
 	if !al.config.Enabled {
 		return
 	}
@@ -316,13 +316,13 @@ func (al *AuditLogger) LogError(userID, operation, error string, resource AuditR
 		Action:    AuditAction(operation),
 		Resource:  resource,
 		Success:   false,
-		Error:     error,
+		Error:     errorMsg,
 		Details: map[string]interface{}{
 			"operation": operation,
 		},
 	}
 
-	al.addEntry(entry)
+	al.addEntry(&entry)
 }
 
 // GetAuditHistory returns audit history with filtering
@@ -330,9 +330,10 @@ func (al *AuditLogger) GetAuditHistory(userID string, timeRange AuditTimeRange, 
 	al.mutex.RLock()
 	defer al.mutex.RUnlock()
 
-	var results []AuditEntry
+	results := make([]AuditEntry, 0, limit)
 
-	for _, entry := range al.buffer {
+	for i := range al.buffer {
+		entry := &al.buffer[i]
 		// Filter by user (if specified)
 		if userID != "" && entry.UserID != userID {
 			continue
@@ -360,7 +361,7 @@ func (al *AuditLogger) GetAuditHistory(userID string, timeRange AuditTimeRange, 
 			}
 		}
 
-		results = append(results, entry)
+		results = append(results, *entry)
 
 		// Apply limit
 		if limit > 0 && len(results) >= limit {
@@ -386,7 +387,8 @@ func (al *AuditLogger) GetAuditSummary(timeRange AuditTimeRange) AuditSummary {
 	successCount := 0
 	userStats := make(map[string]*UserAuditStats)
 
-	for _, entry := range al.buffer {
+	for i := range al.buffer {
+		entry := &al.buffer[i]
 		// Filter by time range
 		if !timeRange.Start.IsZero() && entry.Timestamp.Before(timeRange.Start) {
 			continue
@@ -406,11 +408,9 @@ func (al *AuditLogger) GetAuditSummary(timeRange AuditTimeRange) AuditSummary {
 		// Track success rate
 		if entry.Success {
 			successCount++
-		} else {
+		} else if len(summary.RecentErrors) < 10 {
 			// Add to recent errors (limit to 10)
-			if len(summary.RecentErrors) < 10 {
-				summary.RecentErrors = append(summary.RecentErrors, entry)
-			}
+			summary.RecentErrors = append(summary.RecentErrors, *entry)
 		}
 
 		// Track user stats
@@ -437,7 +437,7 @@ func (al *AuditLogger) GetAuditSummary(timeRange AuditTimeRange) AuditSummary {
 	// Convert user stats and calculate success rates
 	for _, stats := range userStats {
 		if stats.ActionCount > 0 {
-			stats.SuccessRate = stats.SuccessRate / float64(stats.ActionCount)
+			stats.SuccessRate /= float64(stats.ActionCount)
 		}
 		summary.TopUsers = append(summary.TopUsers, *stats)
 	}
@@ -456,8 +456,9 @@ func (al *AuditLogger) FlushBuffer() error {
 
 	// In a real implementation, this would write to persistent storage
 	// For now, we'll just log to console
-	for _, entry := range al.buffer {
-		if jsonBytes, err := json.Marshal(entry); err == nil {
+	for i := range al.buffer {
+		entry := &al.buffer[i]
+		if jsonBytes, err := json.Marshal(*entry); err == nil {
 			log.Printf("[AUDIT] %s", string(jsonBytes))
 		}
 	}
@@ -500,7 +501,7 @@ func (al *AuditLogger) UpdateConfig(config AuditConfig) {
 
 // Private methods
 
-func (al *AuditLogger) addEntry(entry AuditEntry) {
+func (al *AuditLogger) addEntry(entry *AuditEntry) {
 	al.mutex.Lock()
 	defer al.mutex.Unlock()
 
@@ -518,7 +519,7 @@ func (al *AuditLogger) addEntry(entry AuditEntry) {
 		// Log everything
 	}
 
-	al.buffer = append(al.buffer, entry)
+	al.buffer = append(al.buffer, *entry)
 
 	// Check buffer size and flush if necessary
 	if len(al.buffer) >= al.config.BufferSize {

@@ -592,7 +592,7 @@ func (mc *MetricsCollector) updateTimeWindowStats(event *Event) {
 	now := time.Now()
 
 	for _, windowSize := range mc.config.TimeWindowSizes {
-		windowKey := fmt.Sprintf("%v", windowSize)
+		windowKey := windowSize.String()
 		stats, exists := mc.timeWindows[windowKey]
 
 		if !exists || now.Sub(stats.StartTime) >= windowSize {
@@ -628,7 +628,7 @@ func (mc *MetricsCollector) initializeTimeWindows() {
 	now := time.Now()
 
 	for _, windowSize := range mc.config.TimeWindowSizes {
-		windowKey := fmt.Sprintf("%v", windowSize)
+		windowKey := windowSize.String()
 		mc.timeWindows[windowKey] = &TimeWindowStats{
 			Window:     windowKey,
 			StartTime:  now.Truncate(windowSize),

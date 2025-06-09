@@ -9,6 +9,9 @@ import (
 	"time"
 
 	"lerian-mcp-memory/pkg/types"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // Suggester provides contextual task suggestions
@@ -91,11 +94,7 @@ const (
 )
 
 // SuggestTasks generates contextual task suggestions based on project state
-func (s *Suggester) SuggestTasks(ctx context.Context, projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) ([]TaskSuggestion, error) {
-	// Create context with timeout
-	ctx, cancel := context.WithTimeout(ctx, s.config.SuggestionTimeout)
-	defer cancel()
-
+func (s *Suggester) SuggestTasks(ctx context.Context, projectState *types.ProjectState, existingTasks []types.Task, genContext *types.TaskGenerationContext) ([]TaskSuggestion, error) {
 	suggestions := []TaskSuggestion{}
 
 	// Analyze current project phase and suggest next steps
@@ -133,7 +132,7 @@ func (s *Suggester) SuggestTasks(ctx context.Context, projectState types.Project
 }
 
 // suggestPhaseTransitionTasks suggests tasks for moving to the next project phase
-func (s *Suggester) suggestPhaseTransitionTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestPhaseTransitionTasks(projectState *types.ProjectState, existingTasks []types.Task, genContext *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	switch projectState.Phase {
@@ -155,7 +154,7 @@ func (s *Suggester) suggestPhaseTransitionTasks(projectState types.ProjectState,
 }
 
 // suggestDiscoveryToRequirementsTasks suggests tasks for transitioning from discovery to requirements
-func (s *Suggester) suggestDiscoveryToRequirementsTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestDiscoveryToRequirementsTasks(_ *types.ProjectState, existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Check if user research is complete
@@ -230,7 +229,7 @@ func (s *Suggester) suggestDiscoveryToRequirementsTasks(projectState types.Proje
 }
 
 // suggestRequirementsToDesignTasks suggests tasks for transitioning to design phase
-func (s *Suggester) suggestRequirementsToDesignTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestRequirementsToDesignTasks(_ *types.ProjectState, existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Suggest PRD creation if not exists
@@ -306,7 +305,7 @@ func (s *Suggester) suggestRequirementsToDesignTasks(projectState types.ProjectS
 }
 
 // suggestDesignToDevelopmentTasks suggests tasks for transitioning to development
-func (s *Suggester) suggestDesignToDevelopmentTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestDesignToDevelopmentTasks(_ *types.ProjectState, existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Suggest technical architecture if not done
@@ -383,7 +382,7 @@ func (s *Suggester) suggestDesignToDevelopmentTasks(projectState types.ProjectSt
 }
 
 // suggestDevelopmentToTestingTasks suggests tasks for transitioning to testing
-func (s *Suggester) suggestDevelopmentToTestingTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestDevelopmentToTestingTasks(_ *types.ProjectState, existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Suggest test strategy if not defined
@@ -425,7 +424,7 @@ func (s *Suggester) suggestDevelopmentToTestingTasks(projectState types.ProjectS
 }
 
 // suggestTestingToDeploymentTasks suggests tasks for transitioning to deployment
-func (s *Suggester) suggestTestingToDeploymentTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestTestingToDeploymentTasks(_ *types.ProjectState, existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Suggest deployment strategy
@@ -467,7 +466,7 @@ func (s *Suggester) suggestTestingToDeploymentTasks(projectState types.ProjectSt
 }
 
 // suggestDeploymentToMaintenanceTasks suggests tasks for transitioning to maintenance
-func (s *Suggester) suggestDeploymentToMaintenanceTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestDeploymentToMaintenanceTasks(_ *types.ProjectState, existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Suggest monitoring and observability
@@ -509,89 +508,18 @@ func (s *Suggester) suggestDeploymentToMaintenanceTasks(projectState types.Proje
 }
 
 // suggestBottleneckResolutionTasks suggests tasks to resolve project bottlenecks
-func (s *Suggester) suggestBottleneckResolutionTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
-	suggestions := []TaskSuggestion{}
-
-	// Analyze bottlenecks from project state
-	for _, bottleneck := range projectState.CurrentBottlenecks {
-		bottleneckLower := strings.ToLower(bottleneck)
-
-		if strings.Contains(bottleneckLower, "testing") {
-			suggestions = append(suggestions, TaskSuggestion{
-				Task: types.Task{
-					ID:          s.generateTaskID("testing_bottleneck"),
-					Title:       "Resolve Testing Bottleneck",
-					Description: "Address testing bottleneck: " + bottleneck,
-					Type:        types.TaskTypeLegacyTesting,
-					Priority:    types.TaskPriorityLegacyHigh,
-					EstimatedEffort: types.EffortEstimate{
-						Hours:            8.0,
-						Days:             1.0,
-						EstimationMethod: "contextual_suggestion",
-					},
-					AcceptanceCriteria: []string{
-						"Bottleneck cause identified",
-						"Resolution plan implemented",
-						"Testing process improved",
-						"Future prevention measures in place",
-					},
-					Tags: []string{"bottleneck", "testing", "process-improvement"},
-				},
-				Confidence: 0.8,
-				Priority:   SuggestionPriorityHigh,
-				Category:   SuggestionCategoryBottleneckResolution,
-				Reasoning: []string{
-					"Testing bottleneck identified in project state",
-					"Immediate resolution needed for progress",
-				},
-				EstimatedValue: 0.9,
-			})
-		}
-
-		if strings.Contains(bottleneckLower, "review") {
-			suggestions = append(suggestions, TaskSuggestion{
-				Task: types.Task{
-					ID:          s.generateTaskID("review_bottleneck"),
-					Title:       "Streamline Code Review Process",
-					Description: "Address review bottleneck: " + bottleneck,
-					Type:        types.TaskTypeLegacyReview,
-					Priority:    types.TaskPriorityLegacyMedium,
-					EstimatedEffort: types.EffortEstimate{
-						Hours:            4.0,
-						Days:             0.5,
-						EstimationMethod: "contextual_suggestion",
-					},
-					AcceptanceCriteria: []string{
-						"Review process analyzed",
-						"Process improvements implemented",
-						"Review turnaround time reduced",
-						"Team guidelines updated",
-					},
-					Tags: []string{"bottleneck", "review", "process"},
-				},
-				Confidence: 0.75,
-				Priority:   SuggestionPriorityMedium,
-				Category:   SuggestionCategoryBottleneckResolution,
-				Reasoning: []string{
-					"Code review bottleneck affecting development velocity",
-					"Process improvement needed",
-				},
-				EstimatedValue: 0.7,
-			})
-		}
-	}
-
-	return suggestions
+func (s *Suggester) suggestBottleneckResolutionTasks(projectState *types.ProjectState, existingTasks []types.Task, genContext *types.TaskGenerationContext) []TaskSuggestion {
+	return s.suggestChallengeResolutionTasks(projectState.CurrentBottlenecks, "bottleneck", SuggestionCategoryBottleneckResolution, existingTasks, genContext)
 }
 
 // suggestQualityImprovementTasks suggests tasks to improve overall quality
-func (s *Suggester) suggestQualityImprovementTasks(existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestQualityImprovementTasks(existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Count task types to identify gaps
 	typeCount := make(map[types.TaskType]int)
-	for _, task := range existingTasks {
-		typeCount[task.Type]++
+	for i := range existingTasks {
+		typeCount[existingTasks[i].Type]++
 	}
 
 	totalTasks := len(existingTasks)
@@ -672,19 +600,96 @@ func (s *Suggester) suggestQualityImprovementTasks(existingTasks []types.Task, g
 }
 
 // suggestRiskMitigationTasks suggests tasks to mitigate project risks
-func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
-	suggestions := []TaskSuggestion{}
+func (s *Suggester) suggestRiskMitigationTasks(projectState *types.ProjectState, existingTasks []types.Task, genContext *types.TaskGenerationContext) []TaskSuggestion {
+	return s.suggestChallengeResolutionTasks(projectState.TechnicalChallenges, "risk", SuggestionCategoryRiskMitigation, existingTasks, genContext)
+}
 
-	// Analyze technical challenges and suggest mitigation
-	for _, challenge := range projectState.TechnicalChallenges {
+// suggestChallengeResolutionTasks suggests tasks to resolve various challenges
+func (s *Suggester) suggestChallengeResolutionTasks(challenges []string, challengeType string, category SuggestionCategory, _ []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
+	suggestions := []TaskSuggestion{}
+	titleCaser := cases.Title(language.English)
+
+	for _, challenge := range challenges {
 		challengeLower := strings.ToLower(challenge)
+
+		if strings.Contains(challengeLower, "testing") {
+			title := "Resolve Testing " + titleCaser.String(challengeType)
+			if challengeType == "risk" {
+				title = "Address Testing Risk"
+			}
+			suggestions = append(suggestions, TaskSuggestion{
+				Task: types.Task{
+					ID:          s.generateTaskID("testing_" + challengeType),
+					Title:       title,
+					Description: fmt.Sprintf("Address testing %s: %s", challengeType, challenge),
+					Type:        types.TaskTypeLegacyTesting,
+					Priority:    types.TaskPriorityLegacyHigh,
+					EstimatedEffort: types.EffortEstimate{
+						Hours:            8.0,
+						Days:             1.0,
+						EstimationMethod: "contextual_suggestion",
+					},
+					AcceptanceCriteria: []string{
+						fmt.Sprintf("%s cause identified", titleCaser.String(challengeType)),
+						"Resolution plan implemented",
+						"Testing process improved",
+						"Future prevention measures in place",
+					},
+					Tags: []string{challengeType, "testing", "process-improvement"},
+				},
+				Confidence: 0.8,
+				Priority:   SuggestionPriorityHigh,
+				Category:   category,
+				Reasoning: []string{
+					fmt.Sprintf("Testing %s identified in project state", challengeType),
+					"Immediate resolution needed for progress",
+				},
+				EstimatedValue: 0.9,
+			})
+		}
+
+		if strings.Contains(challengeLower, "review") {
+			title := "Streamline Code Review Process"
+			if challengeType == "risk" {
+				title = "Address Review Risk"
+			}
+			suggestions = append(suggestions, TaskSuggestion{
+				Task: types.Task{
+					ID:          s.generateTaskID("review_" + challengeType),
+					Title:       title,
+					Description: fmt.Sprintf("Address review %s: %s", challengeType, challenge),
+					Type:        types.TaskTypeLegacyReview,
+					Priority:    types.TaskPriorityLegacyMedium,
+					EstimatedEffort: types.EffortEstimate{
+						Hours:            4.0,
+						Days:             0.5,
+						EstimationMethod: "contextual_suggestion",
+					},
+					AcceptanceCriteria: []string{
+						"Review process analyzed",
+						"Process improvements implemented",
+						"Review turnaround time reduced",
+						"Team guidelines updated",
+					},
+					Tags: []string{challengeType, "review", "process"},
+				},
+				Confidence: 0.75,
+				Priority:   SuggestionPriorityMedium,
+				Category:   category,
+				Reasoning: []string{
+					fmt.Sprintf("Code review %s affecting development velocity", challengeType),
+					"Process improvement needed",
+				},
+				EstimatedValue: 0.7,
+			})
+		}
 
 		if strings.Contains(challengeLower, "performance") {
 			suggestions = append(suggestions, TaskSuggestion{
 				Task: types.Task{
-					ID:          s.generateTaskID("performance_risk"),
-					Title:       "Address Performance Risk",
-					Description: "Mitigate performance challenge: " + challenge,
+					ID:          s.generateTaskID("performance_" + challengeType),
+					Title:       "Address Performance " + titleCaser.String(challengeType),
+					Description: fmt.Sprintf("Mitigate performance %s: %s", challengeType, challenge),
 					Type:        types.TaskTypeLegacyAnalysis,
 					Priority:    types.TaskPriorityLegacyHigh,
 					EstimatedEffort: types.EffortEstimate{
@@ -698,13 +703,13 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 						"Performance benchmarks established",
 						"Monitoring implemented",
 					},
-					Tags: []string{"performance", "risk", "optimization"},
+					Tags: []string{"performance", challengeType, "optimization"},
 				},
 				Confidence: 0.8,
 				Priority:   SuggestionPriorityHigh,
-				Category:   SuggestionCategoryRiskMitigation,
+				Category:   category,
 				Reasoning: []string{
-					"Performance challenge identified as technical risk",
+					fmt.Sprintf("Performance %s identified as technical risk", challengeType),
 					"Early mitigation reduces project risk",
 				},
 				EstimatedValue: 0.8,
@@ -714,9 +719,9 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 		if strings.Contains(challengeLower, "security") {
 			suggestions = append(suggestions, TaskSuggestion{
 				Task: types.Task{
-					ID:          s.generateTaskID("security_risk"),
-					Title:       "Address Security Risk",
-					Description: "Mitigate security challenge: " + challenge,
+					ID:          s.generateTaskID("security_" + challengeType),
+					Title:       "Address Security " + titleCaser.String(challengeType),
+					Description: fmt.Sprintf("Mitigate security %s: %s", challengeType, challenge),
 					Type:        types.TaskTypeLegacyAnalysis,
 					Priority:    types.TaskPriorityLegacyCritical,
 					EstimatedEffort: types.EffortEstimate{
@@ -730,13 +735,13 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 						"Security testing performed",
 						"Security documentation updated",
 					},
-					Tags: []string{"security", "risk", "compliance"},
+					Tags: []string{"security", challengeType, "compliance"},
 				},
 				Confidence: 0.9,
 				Priority:   SuggestionPriorityImmediate,
-				Category:   SuggestionCategoryRiskMitigation,
+				Category:   category,
 				Reasoning: []string{
-					"Security challenge poses significant risk",
+					fmt.Sprintf("Security %s poses significant risk", challengeType),
 					"Critical for system safety and compliance",
 				},
 				EstimatedValue: 0.95,
@@ -748,19 +753,20 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 }
 
 // suggestDependencySetupTasks suggests tasks to setup dependencies
-func (s *Suggester) suggestDependencySetupTasks(existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestDependencySetupTasks(existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Analyze dependencies across tasks
 	dependencyMap := make(map[string]int)
-	for _, task := range existingTasks {
-		for _, dep := range task.Dependencies {
+	for i := range existingTasks {
+		for _, dep := range existingTasks[i].Dependencies {
 			dependencyMap[dep]++
 		}
 	}
 
 	// Find tasks that are heavily depended upon but might need prerequisites
-	for _, task := range existingTasks {
+	for i := range existingTasks {
+		task := &existingTasks[i]
 		if dependencyMap[task.ID] > 2 { // Task is a dependency for multiple other tasks
 			if task.Type == types.TaskTypeLegacyImplementation && !s.hasRelatedTask(existingTasks, task.ID, types.TaskTypeLegacyDesign) {
 				suggestions = append(suggestions, TaskSuggestion{
@@ -803,7 +809,7 @@ func (s *Suggester) suggestDependencySetupTasks(existingTasks []types.Task, genC
 }
 
 // suggestArchitecturalTasks suggests architectural improvement tasks
-func (s *Suggester) suggestArchitecturalTasks(projectState types.ProjectState, existingTasks []types.Task, genContext types.TaskGenerationContext) []TaskSuggestion {
+func (s *Suggester) suggestArchitecturalTasks(_ *types.ProjectState, existingTasks []types.Task, _ *types.TaskGenerationContext) []TaskSuggestion {
 	suggestions := []TaskSuggestion{}
 
 	// Check if architecture documentation exists
@@ -846,8 +852,8 @@ func (s *Suggester) suggestArchitecturalTasks(projectState types.ProjectState, e
 
 // hasTaskType checks if any existing task has the specified type
 func (s *Suggester) hasTaskType(tasks []types.Task, taskType types.TaskType) bool {
-	for _, task := range tasks {
-		if task.Type == taskType {
+	for i := range tasks {
+		if tasks[i].Type == taskType {
 			return true
 		}
 	}
@@ -857,8 +863,8 @@ func (s *Suggester) hasTaskType(tasks []types.Task, taskType types.TaskType) boo
 // hasKeyword checks if any task title or description contains the keyword
 func (s *Suggester) hasKeyword(tasks []types.Task, keyword string) bool {
 	keywordLower := strings.ToLower(keyword)
-	for _, task := range tasks {
-		content := strings.ToLower(task.Title + " " + task.Description)
+	for i := range tasks {
+		content := strings.ToLower(tasks[i].Title + " " + tasks[i].Description)
 		if strings.Contains(content, keywordLower) {
 			return true
 		}
@@ -868,19 +874,19 @@ func (s *Suggester) hasKeyword(tasks []types.Task, keyword string) bool {
 
 // hasRelatedTask checks if there's a task of given type related to the specified task ID
 func (s *Suggester) hasRelatedTask(tasks []types.Task, taskID string, taskType types.TaskType) bool {
-	for _, task := range tasks {
-		if task.Type == taskType {
+	for i := range tasks {
+		if tasks[i].Type == taskType {
 			// Check if task references the given task ID
-			for _, dep := range task.Dependencies {
+			for _, dep := range tasks[i].Dependencies {
 				if dep == taskID {
 					return true
 				}
 			}
 			// Check if given task depends on this task
-			for _, otherTask := range tasks {
-				if otherTask.ID == taskID {
-					for _, dep := range otherTask.Dependencies {
-						if dep == task.ID {
+			for j := range tasks {
+				if tasks[j].ID == taskID {
+					for _, dep := range tasks[j].Dependencies {
+						if dep == tasks[i].ID {
 							return true
 						}
 					}
@@ -900,9 +906,9 @@ func (s *Suggester) generateTaskID(prefix string) string {
 func (s *Suggester) filterAndRankSuggestions(suggestions []TaskSuggestion) []TaskSuggestion {
 	// Filter by confidence threshold
 	filtered := []TaskSuggestion{}
-	for _, suggestion := range suggestions {
-		if suggestion.Confidence >= s.config.MinConfidenceScore {
-			filtered = append(filtered, suggestion)
+	for i := range suggestions {
+		if suggestions[i].Confidence >= s.config.MinConfidenceScore {
+			filtered = append(filtered, suggestions[i])
 		}
 	}
 

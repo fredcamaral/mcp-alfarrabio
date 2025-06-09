@@ -281,7 +281,7 @@ func (p *ConnectionPool) UpdateConnectionActivity(clientID string) {
 }
 
 // UpdateConnectionMetrics updates the connection metrics
-func (p *ConnectionPool) UpdateConnectionMetrics(clientID string, bytesSent, bytesReceived int64, messagesSent, messagesReceived int64) {
+func (p *ConnectionPool) UpdateConnectionMetrics(clientID string, bytesSent, bytesReceived, messagesSent, messagesReceived int64) {
 	p.mu.RLock()
 	client, exists := p.connections[clientID]
 	p.mu.RUnlock()

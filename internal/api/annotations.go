@@ -133,7 +133,7 @@ func (r *EndpointRegistry) GetByTag(tag string) []*APIAnnotation {
 	return results
 }
 
-// Global endpoint registry
+// DefaultRegistry is the global endpoint registry
 var DefaultRegistry = NewEndpointRegistry()
 
 // RegisterEndpoint is a convenience function to register an endpoint
@@ -177,25 +177,25 @@ func HeaderParam(name, paramType, description string, required bool) ParameterSp
 }
 
 // JSONRequest creates a JSON request body specification
-func JSONRequest(description string, schema SchemaSpec, required bool) *RequestBodySpec {
+func JSONRequest(description string, schema *SchemaSpec, required bool) *RequestBodySpec {
 	return &RequestBodySpec{
 		Description: description,
 		Required:    required,
 		Content: map[string]MediaTypeSpec{
 			"application/json": {
-				Schema: schema,
+				Schema: *schema,
 			},
 		},
 	}
 }
 
 // JSONResponse creates a JSON response specification
-func JSONResponse(description string, schema SchemaSpec) ResponseSpec {
+func JSONResponse(description string, schema *SchemaSpec) ResponseSpec {
 	return ResponseSpec{
 		Description: description,
 		Content: map[string]MediaTypeSpec{
 			"application/json": {
-				Schema: schema,
+				Schema: *schema,
 			},
 		},
 	}
@@ -419,11 +419,6 @@ var (
 	}
 )
 
-// Helper function to create float64 pointer
-func float64Ptr(f float64) *float64 {
-	return &f
-}
-
 // InitializeMCPEndpoints registers all MCP Memory Server endpoints
 func InitializeMCPEndpoints() {
 	// Main MCP JSON-RPC endpoint
@@ -433,11 +428,11 @@ func InitializeMCPEndpoints() {
 		Summary:     "Execute MCP JSON-RPC Request",
 		Description: "Main endpoint for Model Context Protocol JSON-RPC requests. Supports all 41 memory tools including search, store, analyze, and manage operations.",
 		Tags:        []string{"MCP Protocol"},
-		RequestBody: JSONRequest("JSON-RPC 2.0 request with MCP method and parameters", MCPRequestSchema, true),
+		RequestBody: JSONRequest("JSON-RPC 2.0 request with MCP method and parameters", &MCPRequestSchema, true),
 		Responses: map[string]ResponseSpec{
-			"200": JSONResponse("Successful MCP response", MCPResponseSchema),
-			"400": JSONResponse("Bad Request - Invalid request parameters", ErrorSchema),
-			"500": JSONResponse("Internal Server Error", ErrorSchema),
+			"200": JSONResponse("Successful MCP response", &MCPResponseSchema),
+			"400": JSONResponse("Bad Request - Invalid request parameters", &ErrorSchema),
+			"500": JSONResponse("Internal Server Error", &ErrorSchema),
 		},
 	})
 
@@ -453,7 +448,7 @@ func InitializeMCPEndpoints() {
 		},
 		Responses: map[string]ResponseSpec{
 			"101": {Description: "Switching Protocols - WebSocket connection established"},
-			"400": JSONResponse("Bad Request", ErrorSchema),
+			"400": JSONResponse("Bad Request", &ErrorSchema),
 		},
 	})
 
@@ -487,7 +482,7 @@ func InitializeMCPEndpoints() {
 		Description: "Check the health status of the MCP Memory Server and all dependencies",
 		Tags:        []string{"Health"},
 		Responses: map[string]ResponseSpec{
-			"200": JSONResponse("Service is healthy", SchemaSpec{
+			"200": JSONResponse("Service is healthy", &SchemaSpec{
 				Type: "object",
 				Properties: map[string]SchemaSpec{
 					"status":    {Type: "string", Enum: []interface{}{"healthy", "degraded", "unhealthy"}},
@@ -496,7 +491,7 @@ func InitializeMCPEndpoints() {
 					"uptime":    {Type: "string"},
 				},
 			}),
-			"503": JSONResponse("Service is unhealthy", ErrorSchema),
+			"503": JSONResponse("Service is unhealthy", &ErrorSchema),
 		},
 	})
 

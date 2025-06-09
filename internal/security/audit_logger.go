@@ -178,9 +178,9 @@ func DefaultAuditLoggerConfig() AuditLoggerConfig {
 }
 
 // NewAuditLogger creates a new audit logger
-func NewAuditLogger(config AuditLoggerConfig) *AuditLogger {
+func NewAuditLogger(config *AuditLoggerConfig) *AuditLogger {
 	logger := &AuditLogger{
-		config: config,
+		config: *config,
 		buffer: make([]AuditEvent, 0, config.BufferSize),
 	}
 
@@ -207,7 +207,7 @@ func (al *AuditLogger) LogSecurityEvent(ctx context.Context, eventType EventType
 	// Extract context information
 	al.enrichEventFromContext(ctx, &event)
 
-	al.logEvent(event)
+	al.logEvent(&event)
 }
 
 // LogHTTPRequest logs an HTTP request for audit purposes
@@ -237,11 +237,11 @@ func (al *AuditLogger) LogHTTPRequest(r *http.Request, result EventResult, durat
 		}
 	}
 
-	al.logEvent(event)
+	al.logEvent(&event)
 }
 
 // LogAuthenticationEvent logs authentication-related events
-func (al *AuditLogger) LogAuthenticationEvent(actor Actor, action string, result EventResult, errorMsg string) {
+func (al *AuditLogger) LogAuthenticationEvent(actor *Actor, action string, result EventResult, errorMsg string) {
 	if !al.shouldLogEvent(EventTypeAuthentication) {
 		return
 	}
@@ -253,7 +253,7 @@ func (al *AuditLogger) LogAuthenticationEvent(actor Actor, action string, result
 		Action:    action,
 		Result:    result,
 		Severity:  al.determineSeverity(result),
-		Actor:     actor,
+		Actor:     *actor,
 		Metadata:  make(map[string]interface{}),
 	}
 
@@ -263,7 +263,7 @@ func (al *AuditLogger) LogAuthenticationEvent(actor Actor, action string, result
 		}
 	}
 
-	al.logEvent(event)
+	al.logEvent(&event)
 }
 
 // LogThreatDetection logs detected security threats
@@ -286,13 +286,13 @@ func (al *AuditLogger) LogThreatDetection(r *http.Request, threats []ThreatInfo)
 		Metadata:  make(map[string]interface{}),
 	}
 
-	al.logEvent(event)
+	al.logEvent(&event)
 }
 
 // logEvent adds an event to the log
-func (al *AuditLogger) logEvent(event AuditEvent) {
+func (al *AuditLogger) logEvent(event *AuditEvent) {
 	// Sanitize sensitive data
-	al.sanitizeEvent(&event)
+	al.sanitizeEvent(event)
 
 	if al.config.AsyncLogging {
 		al.asyncLogEvent(event)
@@ -302,12 +302,12 @@ func (al *AuditLogger) logEvent(event AuditEvent) {
 }
 
 // syncLogEvent logs an event synchronously
-func (al *AuditLogger) syncLogEvent(event AuditEvent) {
+func (al *AuditLogger) syncLogEvent(event *AuditEvent) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
 
 	// Add to buffer
-	al.buffer = append(al.buffer, event)
+	al.buffer = append(al.buffer, *event)
 
 	// Flush if buffer is full
 	if len(al.buffer) >= al.config.BufferSize {
@@ -316,7 +316,7 @@ func (al *AuditLogger) syncLogEvent(event AuditEvent) {
 }
 
 // asyncLogEvent logs an event asynchronously
-func (al *AuditLogger) asyncLogEvent(event AuditEvent) {
+func (al *AuditLogger) asyncLogEvent(event *AuditEvent) {
 	// In a real implementation, this would use a channel-based queue
 	// For now, we'll use the synchronous method
 	al.syncLogEvent(event)
@@ -329,8 +329,8 @@ func (al *AuditLogger) flushBuffer() {
 	}
 
 	// Output events
-	for _, event := range al.buffer {
-		al.outputEvent(event)
+	for i := range al.buffer {
+		al.outputEvent(&al.buffer[i])
 	}
 
 	// Clear buffer
@@ -338,7 +338,7 @@ func (al *AuditLogger) flushBuffer() {
 }
 
 // outputEvent outputs a single event
-func (al *AuditLogger) outputEvent(event AuditEvent) {
+func (al *AuditLogger) outputEvent(event *AuditEvent) {
 	switch al.config.OutputFormat {
 	case "json":
 		al.outputJSON(event)
@@ -350,7 +350,7 @@ func (al *AuditLogger) outputEvent(event AuditEvent) {
 }
 
 // outputJSON outputs an event as JSON
-func (al *AuditLogger) outputJSON(event AuditEvent) {
+func (al *AuditLogger) outputJSON(event *AuditEvent) {
 	data, err := json.Marshal(event)
 	if err != nil {
 		fmt.Printf("Error marshaling audit event: %v\n", err)
@@ -362,7 +362,7 @@ func (al *AuditLogger) outputJSON(event AuditEvent) {
 }
 
 // outputText outputs an event as text
-func (al *AuditLogger) outputText(event AuditEvent) {
+func (al *AuditLogger) outputText(event *AuditEvent) {
 	fmt.Printf("AUDIT: [%s] %s %s %s by %s (%s) - %s\n",
 		event.Timestamp.Format(time.RFC3339),
 		event.Severity,
@@ -517,7 +517,7 @@ func (al *AuditLogger) sanitizeEvent(event *AuditEvent) {
 
 // sanitizeHeaders removes sensitive information from headers
 func (al *AuditLogger) sanitizeHeaders(headers map[string]string) {
-	for key, _ := range headers {
+	for key := range headers {
 		if al.isSensitiveField(key) {
 			headers[key] = "[REDACTED]"
 		}
@@ -526,7 +526,7 @@ func (al *AuditLogger) sanitizeHeaders(headers map[string]string) {
 
 // sanitizeQueryParams removes sensitive information from query parameters
 func (al *AuditLogger) sanitizeQueryParams(params map[string]string) {
-	for key, _ := range params {
+	for key := range params {
 		if al.isSensitiveField(key) {
 			params[key] = "[REDACTED]"
 		}
@@ -584,33 +584,36 @@ func (al *AuditLogger) determineThreatSeverity(threats []ThreatInfo) EventSeveri
 
 // convertThreats converts interface threats to ThreatInfo
 func (al *AuditLogger) convertThreats(threats []interface{}) []ThreatInfo {
-	var result []ThreatInfo
+	result := make([]ThreatInfo, 0, len(threats))
 
 	for _, threat := range threats {
-		if threatMap, ok := threat.(map[string]interface{}); ok {
-			info := ThreatInfo{}
-
-			if t, ok := threatMap["type"].(string); ok {
-				info.Type = t
-			}
-			if d, ok := threatMap["description"].(string); ok {
-				info.Description = d
-			}
-			if s, ok := threatMap["severity"].(string); ok {
-				info.Severity = s
-			}
-			if p, ok := threatMap["pattern"].(string); ok {
-				info.Pattern = p
-			}
-			if f, ok := threatMap["field"].(string); ok {
-				info.Field = f
-			}
-			if v, ok := threatMap["value"].(string); ok {
-				info.Value = v
-			}
-
-			result = append(result, info)
+		threatMap, ok := threat.(map[string]interface{})
+		if !ok {
+			continue
 		}
+
+		info := ThreatInfo{}
+
+		if t, ok := threatMap["type"].(string); ok {
+			info.Type = t
+		}
+		if d, ok := threatMap["description"].(string); ok {
+			info.Description = d
+		}
+		if s, ok := threatMap["severity"].(string); ok {
+			info.Severity = s
+		}
+		if p, ok := threatMap["pattern"].(string); ok {
+			info.Pattern = p
+		}
+		if f, ok := threatMap["field"].(string); ok {
+			info.Field = f
+		}
+		if v, ok := threatMap["value"].(string); ok {
+			info.Value = v
+		}
+
+		result = append(result, info)
 	}
 
 	return result

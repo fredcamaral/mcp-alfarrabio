@@ -257,7 +257,7 @@ func NewTaskEvent(eventType EventType, action, taskID string, taskData interface
 }
 
 // NewSystemEvent creates a system event
-func NewSystemEvent(action string, severity string, message string, details interface{}) *Event {
+func NewSystemEvent(action, severity, message string, details interface{}) *Event {
 	event := NewEvent(EventTypeSystemAlert, action, map[string]interface{}{
 		"severity": severity,
 		"message":  message,
@@ -335,147 +335,99 @@ func (e *Event) IsExpired() bool {
 
 // Matches checks if the event matches the given filter
 func (e *Event) Matches(filter *EventFilter) bool {
-	// Check event types
-	if len(filter.Types) > 0 {
-		matched := false
-		for _, t := range filter.Types {
-			if e.Type == t {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
+	return e.matchesStringFilters(filter) &&
+		e.matchesTagFilters(filter) &&
+		e.matchesTimeFilters(filter) &&
+		e.matchesMetadataFilters(filter) &&
+		e.matchesCustomFilter(filter)
+}
+
+// matchesStringFilters checks all string-based filters
+func (e *Event) matchesStringFilters(filter *EventFilter) bool {
+	stringChecks := []struct {
+		filterSlice []string
+		eventValue  string
+		required    bool
+	}{
+		{eventTypesToStrings(filter.Types), string(e.Type), true},
+		{filter.Actions, e.Action, true},
+		{filter.Sources, e.Source, true},
+		{filter.Repositories, e.Repository, e.Repository != ""},
+		{filter.SessionIDs, e.SessionID, e.SessionID != ""},
+		{filter.UserIDs, e.UserID, e.UserID != ""},
+		{filter.ClientIDs, e.ClientID, e.ClientID != ""},
 	}
 
-	// Check actions
-	if len(filter.Actions) > 0 {
-		matched := false
-		for _, action := range filter.Actions {
-			if e.Action == action {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-
-	// Check sources
-	if len(filter.Sources) > 0 {
-		matched := false
-		for _, source := range filter.Sources {
-			if e.Source == source {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-
-	// Check repositories
-	if len(filter.Repositories) > 0 && e.Repository != "" {
-		matched := false
-		for _, repo := range filter.Repositories {
-			if e.Repository == repo {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-
-	// Check session IDs
-	if len(filter.SessionIDs) > 0 && e.SessionID != "" {
-		matched := false
-		for _, sessionID := range filter.SessionIDs {
-			if e.SessionID == sessionID {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-
-	// Check user IDs
-	if len(filter.UserIDs) > 0 && e.UserID != "" {
-		matched := false
-		for _, userID := range filter.UserIDs {
-			if e.UserID == userID {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-
-	// Check client IDs
-	if len(filter.ClientIDs) > 0 && e.ClientID != "" {
-		matched := false
-		for _, clientID := range filter.ClientIDs {
-			if e.ClientID == clientID {
-				matched = true
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-
-	// Check tags
-	if len(filter.Tags) > 0 && len(e.Tags) > 0 {
-		matched := false
-		for _, filterTag := range filter.Tags {
-			for _, eventTag := range e.Tags {
-				if filterTag == eventTag {
-					matched = true
-					break
-				}
-			}
-			if matched {
-				break
-			}
-		}
-		if !matched {
-			return false
-		}
-	}
-
-	// Check time range
-	if filter.After != nil && e.Timestamp.Before(*filter.After) {
-		return false
-	}
-
-	if filter.Before != nil && e.Timestamp.After(*filter.Before) {
-		return false
-	}
-
-	// Check metadata filters
-	if len(filter.Metadata) > 0 {
-		for key, expectedValue := range filter.Metadata {
-			if actualValue, exists := e.Metadata[key]; !exists || actualValue != expectedValue {
+	for _, check := range stringChecks {
+		if len(check.filterSlice) > 0 && check.required {
+			if !containsString(check.filterSlice, check.eventValue) {
 				return false
 			}
 		}
 	}
+	return true
+}
 
-	// Check custom filter
+// matchesTagFilters checks if event tags match filter tags
+func (e *Event) matchesTagFilters(filter *EventFilter) bool {
+	if len(filter.Tags) == 0 || len(e.Tags) == 0 {
+		return true
+	}
+
+	for _, filterTag := range filter.Tags {
+		if containsString(e.Tags, filterTag) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesTimeFilters checks time range filters
+func (e *Event) matchesTimeFilters(filter *EventFilter) bool {
+	if filter.After != nil && e.Timestamp.Before(*filter.After) {
+		return false
+	}
+	if filter.Before != nil && e.Timestamp.After(*filter.Before) {
+		return false
+	}
+	return true
+}
+
+// matchesMetadataFilters checks metadata filters
+func (e *Event) matchesMetadataFilters(filter *EventFilter) bool {
+	for key, expectedValue := range filter.Metadata {
+		if actualValue, exists := e.Metadata[key]; !exists || actualValue != expectedValue {
+			return false
+		}
+	}
+	return true
+}
+
+// matchesCustomFilter checks custom filter function
+func (e *Event) matchesCustomFilter(filter *EventFilter) bool {
 	if filter.CustomFilter != nil {
 		return filter.CustomFilter(e)
 	}
-
 	return true
+}
+
+// containsString checks if a slice contains a specific string value
+func containsString(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}
+
+// eventTypesToStrings converts EventType slice to string slice
+func eventTypesToStrings(eventTypes []EventType) []string {
+	result := make([]string, len(eventTypes))
+	for i, eventType := range eventTypes {
+		result[i] = string(eventType)
+	}
+	return result
 }
 
 // ToJSON converts the event to JSON

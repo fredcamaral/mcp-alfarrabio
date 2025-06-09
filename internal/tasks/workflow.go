@@ -125,7 +125,7 @@ func (wm *WorkflowManager) ValidateTransition(fromStatus, toStatus types.TaskSta
 			// Check workflow rules
 			ruleKey := fmt.Sprintf("%s_to_%s", fromStatus, toStatus)
 			if rule, hasRule := wm.rules[ruleKey]; hasRule {
-				return wm.validateRule(rule, userID)
+				return wm.validateRule(&rule, userID)
 			}
 			return nil // Transition allowed
 		}
@@ -179,9 +179,9 @@ func (wm *WorkflowManager) RemoveTransition(from, to types.TaskStatus) {
 }
 
 // AddRule adds a workflow rule
-func (wm *WorkflowManager) AddRule(rule WorkflowRule) {
+func (wm *WorkflowManager) AddRule(rule *WorkflowRule) {
 	ruleKey := fmt.Sprintf("%s_to_%s", rule.FromStatus, rule.ToStatus)
-	wm.rules[ruleKey] = rule
+	wm.rules[ruleKey] = *rule
 }
 
 // ProcessTransition processes a workflow transition with all checks and actions
@@ -201,7 +201,7 @@ func (wm *WorkflowManager) ProcessTransition(fromStatus, toStatus types.TaskStat
 	// Check and execute workflow rules
 	ruleKey := fmt.Sprintf("%s_to_%s", fromStatus, toStatus)
 	if rule, hasRule := wm.rules[ruleKey]; hasRule {
-		if err := wm.executeRule(rule, userID, task, result); err != nil {
+		if err := wm.executeRule(&rule, task, result); err != nil {
 			result.Reason = fmt.Sprintf("rule execution failed: %v", err)
 			return result, nil
 		}
@@ -263,7 +263,7 @@ func (wm *WorkflowManager) setupDefaultTransitions() {
 
 func (wm *WorkflowManager) setupDefaultRules() {
 	// Rule: Starting work requires assignment
-	wm.AddRule(WorkflowRule{
+	wm.AddRule(&WorkflowRule{
 		Name:       "start_work_requires_assignment",
 		FromStatus: types.TaskStatusLegacyTodo,
 		ToStatus:   types.TaskStatusLegacyInProgress,
@@ -285,7 +285,7 @@ func (wm *WorkflowManager) setupDefaultRules() {
 	})
 
 	// Rule: Completing work requires acceptance criteria validation
-	wm.AddRule(WorkflowRule{
+	wm.AddRule(&WorkflowRule{
 		Name:       "complete_requires_acceptance_criteria",
 		FromStatus: types.TaskStatusLegacyInProgress,
 		ToStatus:   types.TaskStatusLegacyCompleted,
@@ -314,7 +314,7 @@ func (wm *WorkflowManager) setupDefaultRules() {
 	})
 }
 
-func (wm *WorkflowManager) validateRule(rule WorkflowRule, userID string) error {
+func (wm *WorkflowManager) validateRule(rule *WorkflowRule, userID string) error {
 	// Check required roles
 	if len(rule.RequiredRole) > 0 {
 		hasRole := false
@@ -332,7 +332,7 @@ func (wm *WorkflowManager) validateRule(rule WorkflowRule, userID string) error 
 	return nil
 }
 
-func (wm *WorkflowManager) executeRule(rule WorkflowRule, userID string, task *types.Task, result *TransitionResult) error {
+func (wm *WorkflowManager) executeRule(rule *WorkflowRule, task *types.Task, result *TransitionResult) error {
 	// Validate conditions
 	for _, condition := range rule.Conditions {
 		if err := wm.validateCondition(condition, task, result); err != nil {
@@ -342,9 +342,7 @@ func (wm *WorkflowManager) executeRule(rule WorkflowRule, userID string, task *t
 
 	// Execute actions
 	for _, action := range rule.Actions {
-		if err := wm.executeAction(action, task); err != nil {
-			return fmt.Errorf("failed to execute action %s: %w", action.Type, err)
-		}
+		wm.executeAction(action, task)
 		result.ActionsRun = append(result.ActionsRun, action.Type)
 	}
 
@@ -371,7 +369,7 @@ func (wm *WorkflowManager) validateCondition(condition WorkflowCondition, task *
 	return nil
 }
 
-func (wm *WorkflowManager) executeAction(action WorkflowAction, task *types.Task) error {
+func (wm *WorkflowManager) executeAction(action WorkflowAction, task *types.Task) {
 	now := time.Now()
 
 	switch action.Type {
@@ -396,16 +394,15 @@ func (wm *WorkflowManager) executeAction(action WorkflowAction, task *types.Task
 			// Add tag if not already present
 			for _, existingTag := range task.Tags {
 				if existingTag == tag {
-					return nil // Tag already exists
+					return // Tag already exists
 				}
 			}
 			task.Tags = append(task.Tags, tag)
 		}
 	}
-	return nil
 }
 
-func (wm *WorkflowManager) executeAutomaticActions(fromStatus, toStatus types.TaskStatus, task *types.Task, result *TransitionResult) {
+func (wm *WorkflowManager) executeAutomaticActions(_, toStatus types.TaskStatus, task *types.Task, result *TransitionResult) {
 	// Add automatic timestamps
 	now := time.Now()
 
@@ -448,12 +445,12 @@ func (wm *WorkflowManager) getFieldValue(task *types.Task, field string) string 
 func (wm *WorkflowManager) userHasRole(userID, role string) bool {
 	// Simplified role check - in a real system this would check against a role system
 	switch role {
-	case "admin":
-		return userID == "admin"
+	case UserRoleAdmin:
+		return userID == UserRoleAdmin
 	case "developer":
 		return userID != ""
 	case "manager":
-		return userID == "admin" || userID == "manager"
+		return userID == UserRoleAdmin || userID == "manager"
 	default:
 		return false
 	}

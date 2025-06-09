@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -148,9 +149,7 @@ func (mc *MetricsCollector) CollectMetrics(ctx context.Context) (*DatabaseMetric
 	}
 
 	// Collect connection metrics
-	if err := mc.collectConnectionMetrics(ctx, metrics); err != nil {
-		return nil, fmt.Errorf("failed to collect connection metrics: %w", err)
-	}
+	mc.collectConnectionMetrics(ctx, metrics)
 
 	// Collect query statistics
 	if err := mc.collectQueryStatistics(ctx, metrics); err != nil {
@@ -158,9 +157,7 @@ func (mc *MetricsCollector) CollectMetrics(ctx context.Context) (*DatabaseMetric
 	}
 
 	// Collect cache and buffer metrics
-	if err := mc.collectCacheMetrics(ctx, metrics); err != nil {
-		return nil, fmt.Errorf("failed to collect cache metrics: %w", err)
-	}
+	mc.collectCacheMetrics(ctx, metrics)
 
 	// Collect transaction metrics
 	if err := mc.collectTransactionMetrics(ctx, metrics); err != nil {
@@ -182,15 +179,14 @@ func (mc *MetricsCollector) CollectMetrics(ctx context.Context) (*DatabaseMetric
 }
 
 // collectConnectionMetrics collects database connection pool metrics
-func (mc *MetricsCollector) collectConnectionMetrics(ctx context.Context, metrics *DatabaseMetrics) error {
+func (mc *MetricsCollector) collectConnectionMetrics(ctx context.Context, metrics *DatabaseMetrics) {
+	_ = ctx // unused parameter, kept for potential future context-aware collection
 	// Get connection pool stats from Go database/sql
 	stats := mc.db.Stats()
 	metrics.ActiveConnections = int64(stats.InUse)
 	metrics.IdleConnections = int64(stats.Idle)
 	metrics.MaxConnections = int64(stats.MaxOpenConnections)
 	metrics.ConnectionWaits = stats.WaitCount
-
-	return nil
 }
 
 // collectQueryStatistics collects query performance statistics
@@ -229,7 +225,9 @@ func (mc *MetricsCollector) collectQueryStatistics(ctx context.Context, metrics 
 
 	slowThresholdMs := float64(mc.config.SlowQueryThreshold.Milliseconds())
 	row = mc.db.QueryRowContext(ctx, slowQuery, slowThresholdMs)
-	row.Scan(&metrics.SlowQueries)
+	if err := row.Scan(&metrics.SlowQueries); err != nil {
+		log.Printf("Error scanning slow queries metric: %v", err)
+	}
 
 	return nil
 }
@@ -265,7 +263,7 @@ func (mc *MetricsCollector) collectBasicQueryMetrics(ctx context.Context, metric
 }
 
 // collectCacheMetrics collects cache hit ratio and buffer statistics
-func (mc *MetricsCollector) collectCacheMetrics(ctx context.Context, metrics *DatabaseMetrics) error {
+func (mc *MetricsCollector) collectCacheMetrics(ctx context.Context, metrics *DatabaseMetrics) {
 	// Buffer cache hit ratio
 	query := `
 		SELECT 
@@ -274,7 +272,9 @@ func (mc *MetricsCollector) collectCacheMetrics(ctx context.Context, metrics *Da
 		WHERE datname = current_database()`
 
 	row := mc.db.QueryRowContext(ctx, query)
-	row.Scan(&metrics.BufferHitRatio)
+	if err := row.Scan(&metrics.BufferHitRatio); err != nil {
+		log.Printf("Error scanning buffer hit ratio: %v", err)
+	}
 
 	// Index usage statistics
 	indexQuery := `
@@ -284,14 +284,14 @@ func (mc *MetricsCollector) collectCacheMetrics(ctx context.Context, metrics *Da
 		FROM pg_stat_user_tables`
 
 	row = mc.db.QueryRowContext(ctx, indexQuery)
-	row.Scan(&metrics.TotalIndexScans, &metrics.TotalSeqScans)
+	if err := row.Scan(&metrics.TotalIndexScans, &metrics.TotalSeqScans); err != nil {
+		log.Printf("Error scanning index scan metrics: %v", err)
+	}
 
 	// Calculate index hit ratio
 	if metrics.TotalIndexScans+metrics.TotalSeqScans > 0 {
 		metrics.IndexHitRatio = float64(metrics.TotalIndexScans) / float64(metrics.TotalIndexScans+metrics.TotalSeqScans) * 100
 	}
-
-	return nil
 }
 
 // collectTransactionMetrics collects transaction statistics
@@ -319,7 +319,10 @@ func (mc *MetricsCollector) collectStorageMetrics(ctx context.Context, metrics *
 	// Database size
 	sizeQuery := `SELECT pg_database_size(current_database())`
 	row := mc.db.QueryRowContext(ctx, sizeQuery)
-	row.Scan(&metrics.DatabaseSize)
+	if err := row.Scan(&metrics.DatabaseSize); err != nil {
+		log.Printf("Error scanning database size: %v", err)
+		return fmt.Errorf("failed to collect database size metrics: %w", err)
+	}
 
 	// Total table and index sizes
 	tablesQuery := `
@@ -333,7 +336,10 @@ func (mc *MetricsCollector) collectStorageMetrics(ctx context.Context, metrics *
 
 	row = mc.db.QueryRowContext(ctx, tablesQuery)
 	var totalSize int64
-	row.Scan(&totalSize, &metrics.TableSize, &metrics.IndexSize)
+	if err := row.Scan(&totalSize, &metrics.TableSize, &metrics.IndexSize); err != nil {
+		log.Printf("Error scanning table sizes: %v", err)
+		return fmt.Errorf("failed to collect table size metrics: %w", err)
+	}
 
 	// Vacuum and analyze statistics
 	vacuumQuery := `
@@ -346,7 +352,10 @@ func (mc *MetricsCollector) collectStorageMetrics(ctx context.Context, metrics *
 
 	row = mc.db.QueryRowContext(ctx, vacuumQuery)
 	var manualVacuums, autoVacuums, manualAnalyzes, autoAnalyzes int64
-	row.Scan(&manualVacuums, &autoVacuums, &manualAnalyzes, &autoAnalyzes)
+	if err := row.Scan(&manualVacuums, &autoVacuums, &manualAnalyzes, &autoAnalyzes); err != nil {
+		log.Printf("Error scanning vacuum statistics: %v", err)
+		return fmt.Errorf("failed to collect vacuum metrics: %w", err)
+	}
 
 	metrics.VacuumOperations = manualVacuums + autoVacuums
 	metrics.AnalyzeOperations = manualAnalyzes + autoAnalyzes
@@ -364,7 +373,10 @@ func (mc *MetricsCollector) collectLockMetrics(ctx context.Context, metrics *Dat
 		WHERE granted = true`
 
 	row := mc.db.QueryRowContext(ctx, lockQuery)
-	row.Scan(&metrics.LocksHeld)
+	if err := row.Scan(&metrics.LocksHeld); err != nil {
+		log.Printf("Error scanning lock count: %v", err)
+		return fmt.Errorf("failed to collect lock metrics: %w", err)
+	}
 
 	// Lock waits from pg_stat_database
 	waitQuery := `
@@ -375,7 +387,10 @@ func (mc *MetricsCollector) collectLockMetrics(ctx context.Context, metrics *Dat
 
 	row = mc.db.QueryRowContext(ctx, waitQuery)
 	var ioWaitTime float64
-	row.Scan(&ioWaitTime)
+	if err := row.Scan(&ioWaitTime); err != nil {
+		log.Printf("Error scanning IO wait time: %v", err)
+		return fmt.Errorf("failed to collect wait time metrics: %w", err)
+	}
 	metrics.AvgLockWaitTime = time.Duration(ioWaitTime) * time.Millisecond
 
 	return nil
@@ -408,7 +423,7 @@ func (mc *MetricsCollector) GetTableMetrics(ctx context.Context) ([]TableMetrics
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var tables []TableMetrics
 	for rows.Next() {
@@ -438,10 +453,16 @@ func (mc *MetricsCollector) GetTableMetrics(ctx context.Context) ([]TableMetrics
 
 		var tableOid int64
 		oidQuery := `SELECT c.oid FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE c.relname = $1 AND n.nspname = $2`
-		mc.db.QueryRowContext(ctx, oidQuery, table.TableName, table.SchemaName).Scan(&tableOid)
+		if err := mc.db.QueryRowContext(ctx, oidQuery, table.TableName, table.SchemaName).Scan(&tableOid); err != nil {
+			log.Printf("Error getting table OID for %s.%s: %v", table.SchemaName, table.TableName, err)
+			continue
+		}
 
-		mc.db.QueryRowContext(ctx, sizeQuery, tableOid, tableOid, table.TableName, table.SchemaName).Scan(
-			&table.TableSize, &table.IndexSize, &table.RowCount)
+		if err := mc.db.QueryRowContext(ctx, sizeQuery, tableOid, tableOid, table.TableName, table.SchemaName).Scan(
+			&table.TableSize, &table.IndexSize, &table.RowCount); err != nil {
+			log.Printf("Error scanning table metrics for %s.%s: %v", table.SchemaName, table.TableName, err)
+			continue
+		}
 
 		// Set nullable timestamps
 		if lastVacuum.Valid {
@@ -489,7 +510,7 @@ func (mc *MetricsCollector) GetIndexMetrics(ctx context.Context) ([]IndexMetrics
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var indexes []IndexMetrics
 	for rows.Next() {
@@ -605,7 +626,7 @@ func (mcv2 *MetricsCollectorV2) GetPerformanceMetricsV2() []*PerformanceMetricV2
 
 // GetPerformanceReport returns a comprehensive performance report
 func (mcv2 *MetricsCollectorV2) GetPerformanceReport() map[string]interface{} {
-	baseMetrics := mcv2.MetricsCollector.GetCurrentMetrics()
+	baseMetrics := mcv2.GetCurrentMetrics()
 
 	return map[string]interface{}{
 		"base_metrics":     baseMetrics,

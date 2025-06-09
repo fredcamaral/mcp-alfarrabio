@@ -105,7 +105,7 @@ const (
 	AlertTypeRecoveryComplete HealthAlertType = "recovery_complete"
 )
 
-// AlertSeverity represents alert severity levels
+// HealthAlertSeverity represents alert severity levels
 type HealthAlertSeverity string
 
 const (

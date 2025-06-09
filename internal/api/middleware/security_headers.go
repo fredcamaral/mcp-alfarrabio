@@ -80,20 +80,22 @@ func DevelopmentSecurityHeadersConfig() SecurityHeadersConfig {
 }
 
 // NewSecurityHeadersMiddleware creates a new security headers middleware
-func NewSecurityHeadersMiddleware(config SecurityHeadersConfig) *SecurityHeadersMiddleware {
+func NewSecurityHeadersMiddleware(config *SecurityHeadersConfig) *SecurityHeadersMiddleware {
 	return &SecurityHeadersMiddleware{
-		config: config,
+		config: *config,
 	}
 }
 
 // NewDefaultSecurityHeadersMiddleware creates middleware with production defaults
 func NewDefaultSecurityHeadersMiddleware() *SecurityHeadersMiddleware {
-	return NewSecurityHeadersMiddleware(DefaultSecurityHeadersConfig())
+	defaultConfig := DefaultSecurityHeadersConfig()
+	return NewSecurityHeadersMiddleware(&defaultConfig)
 }
 
 // NewDevelopmentSecurityHeadersMiddleware creates middleware for development
 func NewDevelopmentSecurityHeadersMiddleware() *SecurityHeadersMiddleware {
-	return NewSecurityHeadersMiddleware(DevelopmentSecurityHeadersConfig())
+	devConfig := DevelopmentSecurityHeadersConfig()
+	return NewSecurityHeadersMiddleware(&devConfig)
 }
 
 // Handler returns the security headers middleware handler
@@ -285,7 +287,7 @@ func (s *SecurityHeadersMiddleware) ValidateConfig() error {
 	// Validate CSP policy format (basic check)
 	if s.config.ContentSecurityPolicy != "" {
 		if !strings.Contains(s.config.ContentSecurityPolicy, "default-src") {
-			return fmt.Errorf("Content Security Policy must include default-src directive")
+			return fmt.Errorf("content Security Policy must include default-src directive")
 		}
 	}
 
@@ -315,13 +317,13 @@ func (s *SecurityHeadersMiddleware) ValidateConfig() error {
 }
 
 // UpdateConfig updates the security headers configuration
-func (s *SecurityHeadersMiddleware) UpdateConfig(config SecurityHeadersConfig) error {
+func (s *SecurityHeadersMiddleware) UpdateConfig(config *SecurityHeadersConfig) error {
 	// Create temporary middleware to validate config
-	temp := &SecurityHeadersMiddleware{config: config}
+	temp := &SecurityHeadersMiddleware{config: *config}
 	if err := temp.ValidateConfig(); err != nil {
 		return err
 	}
 
-	s.config = config
+	s.config = *config
 	return nil
 }

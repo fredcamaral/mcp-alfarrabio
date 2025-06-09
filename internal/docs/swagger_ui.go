@@ -38,7 +38,7 @@ type SwaggerUIConfig struct {
 	ServerURL                string
 	TryItOutEnabled          bool
 	DeepLinking              bool
-	DisplayOperationId       bool
+	DisplayOperationID       bool
 	DefaultModelsExpandDepth int
 	DefaultModelExpandDepth  int
 	DocExpansion             string
@@ -81,10 +81,10 @@ func (h *SwaggerUIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // serveSwaggerUI serves the main Swagger UI HTML page
 func (h *SwaggerUIHandler) serveSwaggerUI(w http.ResponseWriter, r *http.Request) {
-	config := h.getSwaggerUIConfig(r)
+	cfg := h.getSwaggerUIConfig(r)
 
 	var buf bytes.Buffer
-	if err := h.template.Execute(&buf, config); err != nil {
+	if err := h.template.Execute(&buf, cfg); err != nil {
 		http.Error(w, fmt.Sprintf("Template execution error: %v", err), http.StatusInternalServerError)
 		return
 	}
@@ -94,11 +94,12 @@ func (h *SwaggerUIHandler) serveSwaggerUI(w http.ResponseWriter, r *http.Request
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("Expires", "0")
 
-	w.Write(buf.Bytes())
+	_, _ = w.Write(buf.Bytes())
 }
 
 // serveOpenAPIJSON serves the OpenAPI specification in JSON format
 func (h *SwaggerUIHandler) serveOpenAPIJSON(w http.ResponseWriter, r *http.Request) {
+	_ = r // unused parameter, kept for standard http.HandlerFunc signature
 	spec, err := h.generator.GenerateJSON()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to generate OpenAPI spec: %v", err), http.StatusInternalServerError)
@@ -111,11 +112,12 @@ func (h *SwaggerUIHandler) serveOpenAPIJSON(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	w.Write(spec)
+	_, _ = w.Write(spec)
 }
 
 // serveOpenAPIYAML serves the OpenAPI specification in YAML format
 func (h *SwaggerUIHandler) serveOpenAPIYAML(w http.ResponseWriter, r *http.Request) {
+	_ = r // unused parameter, kept for standard http.HandlerFunc signature
 	spec, err := h.generator.GenerateYAML()
 	if err != nil {
 		http.Error(w, fmt.Sprintf("Failed to generate OpenAPI spec: %v", err), http.StatusInternalServerError)
@@ -128,7 +130,7 @@ func (h *SwaggerUIHandler) serveOpenAPIYAML(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Access-Control-Allow-Methods", "GET, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
-	w.Write(spec)
+	_, _ = w.Write(spec)
 }
 
 // serveStaticFile serves static Swagger UI assets
@@ -148,7 +150,7 @@ func (h *SwaggerUIHandler) serveStaticFile(w http.ResponseWriter, r *http.Reques
 	w.Header().Set("Content-Type", contentType)
 	w.Header().Set("Cache-Control", "public, max-age=86400") // Cache for 24 hours
 
-	w.Write(content)
+	_, _ = w.Write(content)
 }
 
 // getSwaggerUIConfig returns configuration for Swagger UI
@@ -168,7 +170,7 @@ func (h *SwaggerUIHandler) getSwaggerUIConfig(r *http.Request) *SwaggerUIConfig 
 		ServerURL:                baseURL,
 		TryItOutEnabled:          true,
 		DeepLinking:              true,
-		DisplayOperationId:       true,
+		DisplayOperationID:       true,
 		DefaultModelsExpandDepth: 1,
 		DefaultModelExpandDepth:  1,
 		DocExpansion:             "list",
@@ -293,7 +295,7 @@ func (h *HealthCheckHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK) // Still return 200 but mark as degraded
 	}
 
-	fmt.Fprintf(w, `{
+	_, _ = fmt.Fprintf(w, `{
   "status": "%s",
   "timestamp": "%s",
   "version": "%s",
@@ -582,7 +584,7 @@ const swaggerUITemplate = `<!DOCTYPE html>
                 ],
                 layout: "StandaloneLayout",
                 tryItOutEnabled: {{.TryItOutEnabled}},
-                displayOperationId: {{.DisplayOperationId}},
+                displayOperationId: {{.DisplayOperationID}},
                 defaultModelsExpandDepth: {{.DefaultModelsExpandDepth}},
                 defaultModelExpandDepth: {{.DefaultModelExpandDepth}},
                 docExpansion: "{{.DocExpansion}}",

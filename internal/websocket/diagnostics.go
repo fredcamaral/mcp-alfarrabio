@@ -566,7 +566,6 @@ func (dm *DiagnosticsManager) logError(connectionID, message string, err error) 
 // logEvent logs a diagnostic event
 func (dm *DiagnosticsManager) logEvent(connectionID string, eventType EventType, category EventCategory,
 	description string, data map[string]interface{}, severity EventSeverity) {
-
 	event := &DiagnosticEvent{
 		Timestamp:   time.Now(),
 		Type:        eventType,

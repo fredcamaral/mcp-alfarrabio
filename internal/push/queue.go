@@ -12,22 +12,20 @@ import (
 
 // NotificationQueue manages queuing, batching, and retry logic for notifications
 type NotificationQueue struct {
-	dispatcher     *Dispatcher
-	registry       *Registry
-	batchSize      int
-	batchTimeout   time.Duration
-	maxQueueSize   int
-	retryQueue     *RetryQueue
-	pendingBatch   []*Notification
-	queuedNotifs   chan *Notification
-	processedCount int64
-	droppedCount   int64
-	ctx            context.Context
-	cancel         context.CancelFunc
-	wg             sync.WaitGroup
-	running        bool
-	mu             sync.RWMutex
-	metrics        *QueueMetrics
+	dispatcher   *Dispatcher
+	registry     *Registry
+	batchSize    int
+	batchTimeout time.Duration
+	maxQueueSize int
+	retryQueue   *RetryQueue
+	pendingBatch []*Notification
+	queuedNotifs chan *Notification
+	ctx          context.Context
+	cancel       context.CancelFunc
+	wg           sync.WaitGroup
+	running      bool
+	mu           sync.RWMutex
+	metrics      *QueueMetrics
 }
 
 // RetryQueue manages notifications that need to be retried
@@ -390,59 +388,64 @@ func (nq *NotificationQueue) processRetryQueue() {
 
 		// Attempt retry
 		if err := nq.dispatcher.DispatchToEndpoint(item.Notification, item.EndpointID); err != nil {
-			// Retry failed, update retry item
-			item.Attempts++
-			item.LastError = err.Error()
-
-			if item.Attempts >= item.Notification.MaxAttempts {
-				// Max attempts reached, remove from retry queue
-				log.Printf("Max retry attempts reached for notification %s to endpoint %s",
-					item.Notification.ID, item.EndpointID)
-				nq.retryQueue.RemoveItem(item)
-			} else {
-				// Schedule next retry with exponential backoff
-				backoffDelay := time.Duration(int64(item.Notification.RetryDelay) * (1 << (item.Attempts - 1)))
-				if backoffDelay > 5*time.Minute {
-					backoffDelay = 5 * time.Minute
-				}
-				item.RetryAt = now.Add(backoffDelay)
-
-				log.Printf("Rescheduled retry for notification %s to endpoint %s (attempt %d, delay: %v)",
-					item.Notification.ID, item.EndpointID, item.Attempts, backoffDelay)
-			}
-		} else {
-			// Retry successful, remove from retry queue
-			log.Printf("Retry successful for notification %s to endpoint %s",
-				item.Notification.ID, item.EndpointID)
-			nq.retryQueue.RemoveItem(item)
-
-			nq.updateMetrics(func(m *QueueMetrics) {
-				m.TotalRetried++
-			})
+			nq.handleRetryFailure(item, err, now)
+			continue
 		}
+
+		// Retry successful, remove from retry queue
+		log.Printf("Retry successful for notification %s to endpoint %s",
+			item.Notification.ID, item.EndpointID)
+		nq.retryQueue.RemoveItem(item)
+		nq.updateMetrics(func(m *QueueMetrics) {
+			m.TotalRetried++
+		})
 	}
 }
 
 // addToRetryQueue adds a notification to the retry queue
-func (nq *NotificationQueue) addToRetryQueue(notification *Notification, error string, endpointID string) {
+func (nq *NotificationQueue) addToRetryQueue(notification *Notification, errorMsg, endpointID string) {
 	if endpointID == "" {
 		// If no specific endpoint, add retry for all active endpoints
 		endpoints := nq.registry.GetActive()
 		for _, endpoint := range endpoints {
-			nq.addRetryItem(notification, error, endpoint.ID)
+			nq.addRetryItem(notification, errorMsg, endpoint.ID)
 		}
 	} else {
-		nq.addRetryItem(notification, error, endpointID)
+		nq.addRetryItem(notification, errorMsg, endpointID)
 	}
 }
 
+// handleRetryFailure handles the failure of a retry attempt
+func (nq *NotificationQueue) handleRetryFailure(item *RetryItem, err error, now time.Time) {
+	item.Attempts++
+	item.LastError = err.Error()
+
+	if item.Attempts >= item.Notification.MaxAttempts {
+		// Max attempts reached, remove from retry queue
+		log.Printf("Max retry attempts reached for notification %s to endpoint %s",
+			item.Notification.ID, item.EndpointID)
+		nq.retryQueue.RemoveItem(item)
+		return
+	}
+
+	// Schedule next retry with exponential backoff
+	backoffDelay := time.Duration(int64(item.Notification.RetryDelay) * (1 << (item.Attempts - 1)))
+	if backoffDelay > 5*time.Minute {
+		backoffDelay = 5 * time.Minute
+	}
+	item.RetryAt = now.Add(backoffDelay)
+
+	log.Printf("Rescheduled retry for notification %s to endpoint %s (attempt %d, delay: %v)",
+		item.Notification.ID, item.EndpointID, item.Attempts, backoffDelay)
+}
+
 // addRetryItem adds a single retry item to the retry queue
-func (nq *NotificationQueue) addRetryItem(notification *Notification, error string, endpointID string) {
+func (nq *NotificationQueue) addRetryItem(notification *Notification, errorMsg, endpointID string) {
 	item := &RetryItem{
 		Notification: notification,
 		RetryAt:      time.Now().Add(notification.RetryDelay),
 		Attempts:     1,
-		LastError:    error,
+		LastError:    errorMsg,
 		EndpointID:   endpointID,
 	}
 

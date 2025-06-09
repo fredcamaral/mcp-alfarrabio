@@ -201,17 +201,13 @@ func (h *TaskCRUDHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 // ListTasks handles task listing with filtering and pagination
 func (h *TaskCRUDHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters
-	filters, err := h.parseFilters(r)
-	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid filters", err.Error())
-		return
-	}
+	filters := h.parseFilters(r)
 
 	// Get user ID from context
 	userID := h.getUserID(r)
 
 	// List tasks
-	taskList, err := h.service.ListTasks(r.Context(), filters, userID)
+	taskList, err := h.service.ListTasks(r.Context(), &filters, userID)
 	if err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "Failed to list tasks", err.Error())
 		return
@@ -234,7 +230,7 @@ func (h *TaskCRUDHandler) GetTaskMetrics(w http.ResponseWriter, r *http.Request)
 
 	// Get all tasks for the user (could be optimized with dedicated metrics query)
 	filters := tasks.TaskFilters{Limit: 1000} // Large limit for metrics
-	taskList, err := h.service.ListTasks(r.Context(), filters, userID)
+	taskList, err := h.service.ListTasks(r.Context(), &filters, userID)
 	if err != nil {
 		response.WriteError(w, http.StatusInternalServerError, "Failed to get tasks for metrics", err.Error())
 		return
@@ -361,7 +357,7 @@ func (h *TaskCRUDHandler) applyUpdates(existing *types.Task, req *UpdateTaskRequ
 	return updated
 }
 
-func (h *TaskCRUDHandler) parseFilters(r *http.Request) (tasks.TaskFilters, error) {
+func (h *TaskCRUDHandler) parseFilters(r *http.Request) tasks.TaskFilters {
 	filters := tasks.TaskFilters{}
 
 	// Parse status filter
@@ -418,7 +414,7 @@ func (h *TaskCRUDHandler) parseFilters(r *http.Request) (tasks.TaskFilters, erro
 		}
 	}
 
-	return filters, nil
+	return filters
 }
 
 func (h *TaskCRUDHandler) calculateMetrics(taskList []types.Task) TaskMetrics {
@@ -432,7 +428,8 @@ func (h *TaskCRUDHandler) calculateMetrics(taskList []types.Task) TaskMetrics {
 	totalQualityScore := 0.0
 	totalEstimatedHours := 0.0
 
-	for _, task := range taskList {
+	for i := range taskList {
+		task := &taskList[i]
 		// Count by status
 		metrics.StatusCounts[string(task.Status)]++
 
@@ -467,7 +464,7 @@ func (h *TaskCRUDHandler) getUserID(r *http.Request) string {
 	if userID := r.Header.Get("X-User-ID"); userID != "" {
 		return userID
 	}
-	return "default_user"
+	return DefaultUserID
 }
 
 func isNotFoundError(err error) bool {

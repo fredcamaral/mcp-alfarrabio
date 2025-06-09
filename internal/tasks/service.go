@@ -10,6 +10,11 @@ import (
 	"lerian-mcp-memory/pkg/types"
 )
 
+// User role constants
+const (
+	UserRoleAdmin = "admin"
+)
+
 // Service provides task management business logic
 type Service struct {
 	repository TaskRepository
@@ -25,8 +30,8 @@ type TaskRepository interface {
 	GetByID(ctx context.Context, id string) (*types.Task, error)
 	Update(ctx context.Context, task *types.Task) error
 	Delete(ctx context.Context, id string) error
-	List(ctx context.Context, filters TaskFilters) ([]types.Task, error)
-	Search(ctx context.Context, query SearchQuery) (*SearchResults, error)
+	List(ctx context.Context, filters *TaskFilters) ([]types.Task, error)
+	Search(ctx context.Context, query *SearchQuery) (*SearchResults, error)
 	BatchUpdate(ctx context.Context, updates []BatchUpdate) error
 	GetByIDs(ctx context.Context, ids []string) ([]types.Task, error)
 }
@@ -101,7 +106,7 @@ func (s *Service) CreateTask(ctx context.Context, task *types.Task, userID strin
 }
 
 // GetTask retrieves a task by ID
-func (s *Service) GetTask(ctx context.Context, id string, userID string) (*types.Task, error) {
+func (s *Service) GetTask(ctx context.Context, id, userID string) (*types.Task, error) {
 	task, err := s.repository.GetByID(ctx, id)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get task: %w", err)
@@ -160,7 +165,7 @@ func (s *Service) UpdateTask(ctx context.Context, task *types.Task, userID strin
 }
 
 // DeleteTask deletes a task
-func (s *Service) DeleteTask(ctx context.Context, id string, userID string) error {
+func (s *Service) DeleteTask(ctx context.Context, id, userID string) error {
 	// Get existing task
 	existing, err := s.repository.GetByID(ctx, id)
 	if err != nil {
@@ -186,34 +191,34 @@ func (s *Service) DeleteTask(ctx context.Context, id string, userID string) erro
 }
 
 // ListTasks lists tasks with filtering and pagination
-func (s *Service) ListTasks(ctx context.Context, filters TaskFilters, userID string) ([]types.Task, error) {
+func (s *Service) ListTasks(ctx context.Context, filters *TaskFilters, userID string) ([]types.Task, error) {
 	// Apply user-specific filters
-	filters = s.applyUserFilters(filters, userID)
+	modifiedFilters := s.applyUserFilters(filters, userID)
 
 	// Validate and sanitize filters
-	if err := s.filter.ValidateFilters(filters); err != nil {
+	if err := s.filter.ValidateFilters(&modifiedFilters); err != nil {
 		return nil, fmt.Errorf("invalid filters: %w", err)
 	}
 
 	// Apply pagination limits
-	if filters.Limit == 0 {
-		filters.Limit = s.config.DefaultPageSize
+	if modifiedFilters.Limit == 0 {
+		modifiedFilters.Limit = s.config.DefaultPageSize
 	}
-	if filters.Limit > s.config.MaxPageSize {
-		filters.Limit = s.config.MaxPageSize
+	if modifiedFilters.Limit > s.config.MaxPageSize {
+		modifiedFilters.Limit = s.config.MaxPageSize
 	}
 
 	// Get tasks
-	tasks, err := s.repository.List(ctx, filters)
+	tasks, err := s.repository.List(ctx, &modifiedFilters)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list tasks: %w", err)
 	}
 
 	// Filter tasks user can access
 	accessibleTasks := make([]types.Task, 0, len(tasks))
-	for _, task := range tasks {
-		if s.canAccessTask(&task, userID) {
-			accessibleTasks = append(accessibleTasks, task)
+	for i := range tasks {
+		if s.canAccessTask(&tasks[i], userID) {
+			accessibleTasks = append(accessibleTasks, tasks[i])
 		}
 	}
 
@@ -221,14 +226,14 @@ func (s *Service) ListTasks(ctx context.Context, filters TaskFilters, userID str
 }
 
 // SearchTasks performs full-text search on tasks
-func (s *Service) SearchTasks(ctx context.Context, query SearchQuery, userID string) (*SearchResults, error) {
+func (s *Service) SearchTasks(ctx context.Context, query *SearchQuery, userID string) (*SearchResults, error) {
 	// Validate search query
 	if err := s.validateSearchQuery(query); err != nil {
 		return nil, fmt.Errorf("invalid search query: %w", err)
 	}
 
 	// Apply user-specific filters
-	query.Filters = s.applyUserFilters(query.Filters, userID)
+	query.Filters = s.applyUserFilters(&query.Filters, userID)
 
 	// Perform search
 	results, err := s.repository.Search(ctx, query)
@@ -238,9 +243,9 @@ func (s *Service) SearchTasks(ctx context.Context, query SearchQuery, userID str
 
 	// Filter results by access permissions
 	filteredTasks := make([]types.Task, 0, len(results.Tasks))
-	for _, task := range results.Tasks {
-		if s.canAccessTask(&task, userID) {
-			filteredTasks = append(filteredTasks, task)
+	for i := range results.Tasks {
+		if s.canAccessTask(&results.Tasks[i], userID) {
+			filteredTasks = append(filteredTasks, results.Tasks[i])
 		}
 	}
 
@@ -353,7 +358,7 @@ func (s *Service) validateTask(task *types.Task) error {
 	return nil
 }
 
-func (s *Service) validateSearchQuery(query SearchQuery) error {
+func (s *Service) validateSearchQuery(query *SearchQuery) error {
 	if query.Query == "" {
 		return errors.New("search query cannot be empty")
 	}
@@ -368,30 +373,30 @@ func (s *Service) validateSearchQuery(query SearchQuery) error {
 
 func (s *Service) canAccessTask(task *types.Task, userID string) bool {
 	// Basic permission check - in a real system this would be more sophisticated
-	return task.Assignee == userID || task.Assignee == "" || userID == "admin"
+	return task.Assignee == userID || task.Assignee == "" || userID == UserRoleAdmin
 }
 
 func (s *Service) canModifyTask(task *types.Task, userID string) bool {
 	// Basic permission check - in a real system this would be more sophisticated
-	return task.Assignee == userID || userID == "admin"
+	return task.Assignee == userID || userID == UserRoleAdmin
 }
 
-func (s *Service) applyUserFilters(filters TaskFilters, userID string) TaskFilters {
+func (s *Service) applyUserFilters(filters *TaskFilters, userID string) TaskFilters {
 	// In a real system, this would apply user-specific access controls
-	if userID != "admin" {
+	if userID != UserRoleAdmin {
 		// Non-admin users can only see their assigned tasks or unassigned tasks
 		if filters.Assignee == "" {
 			filters.Assignee = userID
 		}
 	}
-	return filters
+	return *filters
 }
 
 func (s *Service) generateTaskID() string {
 	return fmt.Sprintf("task_%d", time.Now().UnixNano())
 }
 
-func (s *Service) updateStatusTimestamp(task *types.Task, oldStatus types.TaskStatus) {
+func (s *Service) updateStatusTimestamp(task *types.Task, _ types.TaskStatus) {
 	now := time.Now()
 	switch task.Status {
 	case types.TaskStatusLegacyInProgress:
@@ -401,20 +406,20 @@ func (s *Service) updateStatusTimestamp(task *types.Task, oldStatus types.TaskSt
 	}
 }
 
-func (s *Service) getChanges(old, new *types.Task) map[string]interface{} {
+func (s *Service) getChanges(old, updated *types.Task) map[string]interface{} {
 	changes := make(map[string]interface{})
 
-	if old.Title != new.Title {
-		changes["title"] = map[string]string{"old": old.Title, "new": new.Title}
+	if old.Title != updated.Title {
+		changes["title"] = map[string]string{"old": old.Title, "new": updated.Title}
 	}
-	if old.Status != new.Status {
-		changes["status"] = map[string]string{"old": string(old.Status), "new": string(new.Status)}
+	if old.Status != updated.Status {
+		changes["status"] = map[string]string{"old": string(old.Status), "new": string(updated.Status)}
 	}
-	if old.Priority != new.Priority {
-		changes["priority"] = map[string]string{"old": string(old.Priority), "new": string(new.Priority)}
+	if old.Priority != updated.Priority {
+		changes["priority"] = map[string]string{"old": string(old.Priority), "new": string(updated.Priority)}
 	}
-	if old.Assignee != new.Assignee {
-		changes["assignee"] = map[string]string{"old": old.Assignee, "new": new.Assignee}
+	if old.Assignee != updated.Assignee {
+		changes["assignee"] = map[string]string{"old": old.Assignee, "new": updated.Assignee}
 	}
 
 	return changes

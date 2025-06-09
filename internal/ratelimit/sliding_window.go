@@ -184,34 +184,9 @@ func (sw *SlidingWindow) checkWindow(window *Window, key string, now time.Time, 
 		// Add current request
 		window.requests = append(window.requests, now)
 		currentCount++
-
-		// Calculate next reset time
-		if len(window.requests) > 0 {
-			oldestInWindow := window.requests[0]
-			for _, reqTime := range window.requests {
-				if reqTime.After(windowStart) {
-					oldestInWindow = reqTime
-					break
-				}
-			}
-			resetTime = oldestInWindow.Add(window.window)
-		} else {
-			resetTime = now.Add(window.window)
-		}
+		resetTime = sw.calculateResetTimeForAllowed(window, windowStart, now)
 	} else {
-		// Find when the oldest request in window will expire
-		oldestInWindow := now
-		for _, reqTime := range window.requests {
-			if reqTime.After(windowStart) {
-				oldestInWindow = reqTime
-				break
-			}
-		}
-		resetTime = oldestInWindow.Add(window.window)
-		retryAfter = time.Until(resetTime)
-		if retryAfter < 0 {
-			retryAfter = 0
-		}
+		resetTime, retryAfter = sw.calculateResetTimeForDenied(window, windowStart, now)
 	}
 
 	remaining := window.limit - currentCount
@@ -233,6 +208,41 @@ func (sw *SlidingWindow) checkWindow(window *Window, key string, now time.Time, 
 		IsFirstRequest: len(window.requests) == 1,
 		Metadata:       make(map[string]interface{}),
 	}, nil
+}
+
+// calculateResetTimeForAllowed calculates reset time when request is allowed
+func (sw *SlidingWindow) calculateResetTimeForAllowed(window *Window, windowStart, now time.Time) time.Time {
+	if len(window.requests) == 0 {
+		return now.Add(window.window)
+	}
+
+	oldestInWindow := window.requests[0]
+	for _, reqTime := range window.requests {
+		if reqTime.After(windowStart) {
+			oldestInWindow = reqTime
+			break
+		}
+	}
+	return oldestInWindow.Add(window.window)
+}
+
+// calculateResetTimeForDenied calculates reset time and retry after when request is denied
+func (sw *SlidingWindow) calculateResetTimeForDenied(window *Window, windowStart, now time.Time) (time.Time, time.Duration) {
+	oldestInWindow := now
+	for _, reqTime := range window.requests {
+		if reqTime.After(windowStart) {
+			oldestInWindow = reqTime
+			break
+		}
+	}
+
+	resetTime := oldestInWindow.Add(window.window)
+	retryAfter := time.Until(resetTime)
+	if retryAfter < 0 {
+		retryAfter = 0
+	}
+
+	return resetTime, retryAfter
 }
 
 // Reset resets the sliding window for a given key

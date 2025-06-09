@@ -11,19 +11,36 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lerian-mcp-memory-cli/internal/adapters/primary/commands"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
 
+// IntelligenceDependencies holds intelligence service dependencies
+type IntelligenceDependencies struct {
+	PatternDetector   services.PatternDetector
+	SuggestionService services.SuggestionService
+	TemplateService   services.TemplateService
+	AnalyticsService  services.AnalyticsService
+	CrossRepoAnalyzer services.CrossRepoAnalyzer
+}
+
 // CLI represents the command-line interface
 type CLI struct {
-	RootCmd      *cobra.Command // Exported for version setting
-	taskService  *services.TaskService
-	configMgr    ports.ConfigManager
-	logger       *slog.Logger
-	outputFormat string
-	verbose      bool
+	RootCmd            *cobra.Command // Exported for version setting
+	taskService        *services.TaskService
+	configMgr          ports.ConfigManager
+	logger             *slog.Logger
+	outputFormat       string
+	verbose            bool
+	documentChain      services.DocumentChainService
+	aiService          ports.AIService
+	repositoryDetector ports.RepositoryDetector
+	batchSyncService   *services.BatchSyncService
+
+	// Intelligence services (optional)
+	intelligence *IntelligenceDependencies
 }
 
 // NewCLI creates a new CLI instance
@@ -31,11 +48,43 @@ func NewCLI(
 	taskService *services.TaskService,
 	configMgr ports.ConfigManager,
 	logger *slog.Logger,
+	documentChain services.DocumentChainService,
+	aiService ports.AIService,
+	repositoryDetector ports.RepositoryDetector,
+	batchSyncService *services.BatchSyncService,
+) *CLI {
+	return NewCLIWithIntelligence(
+		taskService,
+		configMgr,
+		logger,
+		documentChain,
+		aiService,
+		repositoryDetector,
+		batchSyncService,
+		IntelligenceDependencies{}, // Empty intelligence dependencies
+	)
+}
+
+// NewCLIWithIntelligence creates a new CLI instance with intelligence services
+func NewCLIWithIntelligence(
+	taskService *services.TaskService,
+	configMgr ports.ConfigManager,
+	logger *slog.Logger,
+	documentChain services.DocumentChainService,
+	aiService ports.AIService,
+	repositoryDetector ports.RepositoryDetector,
+	batchSyncService *services.BatchSyncService,
+	intelligence IntelligenceDependencies,
 ) *CLI {
 	cli := &CLI{
-		taskService: taskService,
-		configMgr:   configMgr,
-		logger:      logger,
+		taskService:        taskService,
+		configMgr:          configMgr,
+		logger:             logger,
+		documentChain:      documentChain,
+		aiService:          aiService,
+		repositoryDetector: repositoryDetector,
+		batchSyncService:   batchSyncService,
+		intelligence:       &intelligence,
 	}
 
 	cli.setupRootCommand()
@@ -88,7 +137,7 @@ and can be integrated with the Lerian MCP Memory Server for AI-powered features.
 
 // setupCommands adds all subcommands to root
 func (c *CLI) setupCommands() {
-	c.RootCmd.AddCommand(
+	commands := []*cobra.Command{
 		c.createAddCommand(),
 		c.createListCommand(),
 		c.createStartCommand(),
@@ -103,8 +152,17 @@ func (c *CLI) setupCommands() {
 		c.createPRDCommand(),
 		c.createTRDCommand(),
 		c.createTaskGenCommand(),
+		c.createWorkflowCommand(),
 		c.createREPLCommand(),
-	)
+		c.createSyncCommand(),
+	}
+
+	// Add intelligence-based commands if available
+	if c.intelligence != nil && c.intelligence.AnalyticsService != nil {
+		commands = append(commands, c.createAnalyticsCommand())
+	}
+
+	c.RootCmd.AddCommand(commands...)
 }
 
 // Execute runs the CLI
@@ -173,4 +231,19 @@ func parsePriority(p string) (entities.Priority, error) {
 // getContext returns a context for command execution
 func (c *CLI) getContext() context.Context {
 	return context.Background()
+}
+
+// createAnalyticsCommand creates the analytics command when intelligence services are available
+func (c *CLI) createAnalyticsCommand() *cobra.Command {
+	// Create dependencies for analytics command
+	config, _ := c.configMgr.Load() // Use loaded config or create minimal config
+	deps := commands.CommandDeps{
+		TaskService:      c.taskService,
+		Logger:           c.logger,
+		Config:           config,
+		AnalyticsService: c.intelligence.AnalyticsService,
+		// Add other dependencies as needed
+	}
+
+	return commands.NewAnalyticsCommand(deps)
 }

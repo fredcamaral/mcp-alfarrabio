@@ -239,7 +239,11 @@ func (tt *TodoTracker) extractFilesFromContext(toolContext map[string]interface{
 // updateWorkContext updates the session's work context with tool information
 func (tt *TodoTracker) updateWorkContext(session *TodoSession, toolName string, toolContext map[string]interface{}) {
 	// Add tool usage information to work context
-	contextJSON, _ := json.Marshal(toolContext)
+	contextJSON, err := json.Marshal(toolContext)
+	if err != nil {
+		// Fallback to string representation if JSON marshal fails
+		contextJSON = []byte(fmt.Sprintf("%v", toolContext))
+	}
 	addition := fmt.Sprintf("[%s] %s: %s\n", time.Now().Format("15:04"), toolName, string(contextJSON))
 	session.WorkContext += addition
 }
