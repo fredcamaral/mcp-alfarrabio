@@ -1,0 +1,259 @@
+# Rate Limiting Configuration for Lerian MCP Memory Server
+# This file configures comprehensive rate limiting with Redis backend
+
+# Redis connection settings
+redis_addr: "localhost:6379"
+redis_password: ""
+redis_db: 0
+
+# Connection pool settings for production
+max_retries: 3
+min_retry_backoff: 8ms
+max_retry_backoff: 512ms
+dial_timeout: 5s
+read_timeout: 3s
+write_timeout: 3s
+pool_size: 20
+min_idle_conns: 10
+max_idle_conns: 20
+conn_max_lifetime: 2h
+
+# Global rate limiting defaults
+default_limit: 100
+default_window: 1m
+default_burst: 10
+key_prefix: "rl:"
+cleanup_interval: 5m
+
+# Monitoring and alerting
+enable_metrics: true
+enable_alerting: true
+alert_threshold: 0.8  # Alert when 80% of limit reached
+
+# Fallback settings when Redis is unavailable
+enable_fallback: true
+fallback_limit: 10
+fallback_window: 1m
+
+# Global bypass settings
+bypass_ips:
+  - "127.0.0.1"
+  - "::1"
+  - "localhost"
+internal_bypass: true
+
+# Endpoint-specific rate limits
+endpoint_limits:
+  # Authentication endpoints - strictest limits
+  "/api/v1/auth/login":
+    limit: 10
+    window: 1m
+    burst: 2
+    algorithm: "sliding_window"
+    scope: "per_ip"
+    per_ip_limit: 5
+    response_code: 429
+    response_body: '{"error":"Too many authentication attempts","retry_after":60,"message":"Please wait before trying again"}'
+    include_headers: true
+
+  "/api/v1/auth/register":
+    limit: 5
+    window: 1m
+    burst: 1
+    algorithm: "sliding_window"
+    scope: "per_ip"
+    per_ip_limit: 3
+    response_code: 429
+    response_body: '{"error":"Too many registration attempts","retry_after":60,"message":"Account registration is rate limited"}'
+    include_headers: true
+
+  "/api/v1/auth/forgot-password":
+    limit: 3
+    window: 5m
+    burst: 1
+    algorithm: "fixed_window"
+    scope: "per_ip"
+    response_code: 429
+    response_body: '{"error":"Password reset rate limited","retry_after":300,"message":"Please wait 5 minutes between password reset requests"}'
+
+  # Memory operations - moderate limits per user
+  "/api/v1/memory/store":
+    limit: 100
+    window: 1m
+    burst: 20
+    algorithm: "sliding_window"
+    scope: "per_user"
+    include_headers: true
+    skip_successful_requests: false
+
+  "/api/v1/memory/search":
+    limit: 200
+    window: 1m
+    burst: 50
+    algorithm: "token_bucket"
+    scope: "per_user"
+    include_headers: true
+
+  "/api/v1/memory/get":
+    limit: 300
+    window: 1m
+    burst: 100
+    algorithm: "sliding_window"
+    scope: "per_user"
+    include_headers: true
+
+  "/api/v1/memory/delete":
+    limit: 50
+    window: 1m
+    burst: 10
+    algorithm: "sliding_window"
+    scope: "per_user"
+    include_headers: true
+
+  # Task operations
+  "/api/v1/tasks/*":
+    limit: 50
+    window: 1m
+    burst: 10
+    algorithm: "sliding_window"
+    scope: "per_user"
+    include_headers: true
+
+  # Bulk operations - stricter limits
+  "/api/v1/memory/bulk/export":
+    limit: 5
+    window: 5m
+    burst: 1
+    algorithm: "fixed_window"
+    scope: "per_user"
+    response_code: 429
+    response_body: '{"error":"Bulk export rate limited","retry_after":300,"message":"Bulk operations are limited to 5 per 5 minutes"}'
+
+  "/api/v1/memory/bulk/import":
+    limit: 3
+    window: 10m
+    burst: 1
+    algorithm: "fixed_window"
+    scope: "per_user"
+    response_code: 429
+    response_body: '{"error":"Bulk import rate limited","retry_after":600,"message":"Bulk imports are limited to 3 per 10 minutes"}'
+
+  # Analytics endpoints
+  "/api/v1/analytics/*":
+    limit: 30
+    window: 1m
+    burst: 5
+    algorithm: "sliding_window"
+    scope: "per_user"
+    include_headers: true
+
+  # WebSocket connections - higher limits
+  "/api/v1/ws":
+    limit: 1000
+    window: 1h
+    burst: 100
+    algorithm: "token_bucket"
+    scope: "per_ip"
+    skip_successful_requests: true
+    include_headers: false
+
+  # Server-Sent Events
+  "/api/v1/sse":
+    limit: 500
+    window: 1h
+    burst: 50
+    algorithm: "token_bucket"
+    scope: "per_ip"
+    include_headers: false
+
+  # Health and monitoring endpoints - very relaxed
+  "/health":
+    limit: 1000
+    window: 1m
+    burst: 200
+    algorithm: "fixed_window"
+    scope: "global"
+    skip_paths:
+      - "/health"
+      - "/health/ready"
+      - "/health/live"
+    include_headers: false
+
+  "/metrics":
+    limit: 100
+    window: 1m
+    burst: 20
+    algorithm: "fixed_window"
+    scope: "per_ip"
+    include_headers: false
+
+  # CLI registration endpoints
+  "/api/v1/cli/register":
+    limit: 20
+    window: 1m
+    burst: 5
+    algorithm: "sliding_window"
+    scope: "per_ip"
+    per_ip_limit: 10
+    include_headers: true
+
+  "/api/v1/cli/heartbeat":
+    limit: 200
+    window: 1m
+    burst: 50
+    algorithm: "token_bucket"
+    scope: "per_client"
+    include_headers: false
+
+  # Admin endpoints - very strict
+  "/api/v1/admin/*":
+    limit: 10
+    window: 1m
+    burst: 2
+    algorithm: "sliding_window"
+    scope: "per_user"
+    include_headers: true
+    response_code: 429
+    response_body: '{"error":"Admin operation rate limited","retry_after":60,"message":"Administrative operations are strictly rate limited"}'
+
+  # Public API endpoints - moderate limits
+  "/api/v1/public/*":
+    limit: 150
+    window: 1m
+    burst: 30
+    algorithm: "sliding_window"
+    scope: "per_ip"
+    include_headers: true
+
+  # File upload endpoints
+  "/api/v1/upload":
+    limit: 10
+    window: 5m
+    burst: 2
+    algorithm: "fixed_window"
+    scope: "per_user"
+    response_code: 429
+    response_body: '{"error":"Upload rate limited","retry_after":300,"message":"File uploads are limited to 10 per 5 minutes"}'
+
+  # Search endpoints with higher limits
+  "/api/v1/search/*":
+    limit: 100
+    window: 1m
+    burst: 25
+    algorithm: "token_bucket"
+    scope: "per_user"
+    include_headers: true
+
+  # Default API catch-all - moderate limits
+  "/api/v1/*":
+    limit: 60
+    window: 1m
+    burst: 15
+    algorithm: "sliding_window"
+    scope: "per_ip"
+    include_headers: true
+
+# Environment-specific overrides can be applied:
+# - Development: Much higher limits for testing
+# - Staging: Production-like limits for realistic testing  
+# - Production: Strict limits for security and stability
