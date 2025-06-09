@@ -4,6 +4,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -117,7 +118,7 @@ func (s *TaskService) ListTasks(ctx context.Context, filters *ports.TaskFilters)
 	if filters == nil {
 		filters = &ports.TaskFilters{}
 	}
-	
+
 	// Use current repository if not specified
 	if filters.Repository == "" {
 		repoInfo, err := s.repository.DetectCurrent(ctx)
@@ -206,9 +207,9 @@ func (s *TaskService) UpdateTaskStatus(ctx context.Context, taskID string, newSt
 // UpdateTask updates task content and properties
 func (s *TaskService) UpdateTask(ctx context.Context, taskID string, updates *TaskUpdates) error {
 	if updates == nil {
-		return fmt.Errorf("updates cannot be nil")
+		return errors.New("updates cannot be nil")
 	}
-	
+
 	task, err := s.storage.GetTask(ctx, taskID)
 	if err != nil {
 		return fmt.Errorf("task not found: %w", err)
@@ -303,7 +304,7 @@ func (s *TaskService) SearchTasks(ctx context.Context, query string, filters *po
 	if filters == nil {
 		filters = &ports.TaskFilters{}
 	}
-	
+
 	// Use current repository if not specified
 	if filters.Repository == "" {
 		repoInfo, err := s.repository.DetectCurrent(ctx)
@@ -409,11 +410,11 @@ func (s *TaskService) validateStatusTransition(current, newStatus entities.Statu
 	switch current {
 	case entities.StatusCompleted:
 		if newStatus != entities.StatusPending {
-			return fmt.Errorf("completed tasks can only be reopened to pending")
+			return errors.New("completed tasks can only be reopened to pending")
 		}
 	case entities.StatusCancelled:
 		if newStatus != entities.StatusPending {
-			return fmt.Errorf("cancelled tasks can only be reopened to pending")
+			return errors.New("cancelled tasks can only be reopened to pending")
 		}
 	}
 
@@ -445,7 +446,7 @@ func (s *TaskService) matchesAdvancedFilters(task *entities.Task, filters *ports
 	if filters == nil {
 		return true
 	}
-	
+
 	// Search filter
 	if filters.Search != "" {
 		if !s.taskMatchesSearch(task, filters.Search) {

@@ -5,7 +5,9 @@ package storage
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -358,12 +360,12 @@ func (fs *FileStorage) ListRepositories(ctx context.Context) ([]string, error) {
 		if !entry.IsDir() {
 			continue
 		}
-		
+
 		repoName := fs.extractRepositoryName(entry.Name())
 		if repoName == "" {
 			continue
 		}
-		
+
 		if !repoMap[repoName] {
 			repositories = append(repositories, repoName)
 			repoMap[repoName] = true
@@ -381,13 +383,13 @@ func (fs *FileStorage) extractRepositoryName(dirName string) string {
 	if _, err := os.Stat(tasksFile); err != nil {
 		return ""
 	}
-	
+
 	// Load tasks to get actual repository name
 	tasks, err := fs.loadTasksFromDirectoryName(dirName)
 	if err != nil || len(tasks) == 0 {
 		return ""
 	}
-	
+
 	return tasks[0].Repository
 }
 
@@ -525,7 +527,7 @@ func (fs *FileStorage) Restore(ctx context.Context, backupPath string) error {
 
 	repositories, ok := backup["repositories"].(map[string]interface{})
 	if !ok {
-		return fmt.Errorf("invalid backup format: missing repositories")
+		return errors.New("invalid backup format: missing repositories")
 	}
 
 	for repoName, repoData := range repositories {
@@ -559,7 +561,7 @@ func (fs *FileStorage) Restore(ctx context.Context, backupPath string) error {
 func (fs *FileStorage) getRepositoryPath(repository string) string {
 	// Create a safe directory name from repository
 	hash := sha256.Sum256([]byte(repository))
-	safeName := fmt.Sprintf("%x", hash[:8]) // Use first 8 bytes of hash
+	safeName := hex.EncodeToString(hash[:8]) // Use first 8 bytes of hash
 	return filepath.Join(fs.basePath, safeName)
 }
 
@@ -722,7 +724,7 @@ func (fs *FileStorage) removeTaskFromRepository(repository, taskID string) error
 	}
 
 	if !found {
-		return fmt.Errorf("task not found in repository")
+		return errors.New("task not found in repository")
 	}
 
 	repoPath := fs.getRepositoryPath(repository)
@@ -809,52 +811,52 @@ func (fs *FileStorage) copyFile(src, dst string) error {
 // validatePath ensures the path is safe and within expected bounds
 func (fs *FileStorage) validatePath(path string) error {
 	cleanPath := filepath.Clean(path)
-	
+
 	// Check for path traversal attempts
 	if strings.Contains(cleanPath, "..") {
-		return fmt.Errorf("path traversal not allowed")
+		return errors.New("path traversal not allowed")
 	}
-	
+
 	// Ensure path is within base directory
 	absPath, err := filepath.Abs(cleanPath)
 	if err != nil {
 		return fmt.Errorf("invalid path: %w", err)
 	}
-	
+
 	absBasePath, err := filepath.Abs(fs.basePath)
 	if err != nil {
 		return fmt.Errorf("invalid base path: %w", err)
 	}
-	
+
 	if !strings.HasPrefix(absPath, absBasePath) {
-		return fmt.Errorf("path outside allowed directory")
+		return errors.New("path outside allowed directory")
 	}
-	
+
 	return nil
 }
 
 // validateExternalPath performs basic security checks for external paths (like backups)
 func (fs *FileStorage) validateExternalPath(path string) error {
 	cleanPath := filepath.Clean(path)
-	
+
 	// Check for path traversal attempts using relative paths
 	if strings.Contains(cleanPath, "..") {
-		return fmt.Errorf("path traversal not allowed")
+		return errors.New("path traversal not allowed")
 	}
-	
+
 	// Additional validation: ensure it's not trying to access sensitive system files
 	absPath, err := filepath.Abs(cleanPath)
 	if err != nil {
 		return fmt.Errorf("invalid path: %w", err)
 	}
-	
+
 	// Block access to sensitive system directories
 	prohibitedPaths := []string{"/etc", "/proc", "/sys", "/dev", "/boot"}
 	for _, prohibited := range prohibitedPaths {
 		if strings.HasPrefix(absPath, prohibited) {
-			return fmt.Errorf("access to system directories not allowed")
+			return errors.New("access to system directories not allowed")
 		}
 	}
-	
+
 	return nil
 }

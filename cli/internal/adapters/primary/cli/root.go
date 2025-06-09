@@ -100,6 +100,10 @@ func (c *CLI) setupCommands() {
 		c.createConfigCommand(),
 		c.createStatsCommand(),
 		c.createSearchCommand(),
+		c.createPRDCommand(),
+		c.createTRDCommand(),
+		c.createTaskGenCommand(),
+		c.createREPLCommand(),
 	)
 }
 
@@ -170,3 +174,4 @@ func parsePriority(p string) (entities.Priority, error) {
 func (c *CLI) getContext() context.Context {
 	return context.Background()
 }
+

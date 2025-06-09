@@ -400,7 +400,7 @@ func (c *HTTPMCPClient) extractTodosArray(data interface{}) ([]interface{}, erro
 		return todos, nil
 	}
 
-	return nil, fmt.Errorf("invalid todos format in MCP response")
+	return nil, errors.New("invalid todos format in MCP response")
 }
 
 // convertSingleTask converts a single task data map to Task entity
@@ -471,7 +471,7 @@ func (c *HTTPMCPClient) setTagsField(task *entities.Task, taskData map[string]in
 	if !exists {
 		return
 	}
-	
+
 	switch tags := tagsValue.(type) {
 	case []interface{}:
 		for _, tag := range tags {

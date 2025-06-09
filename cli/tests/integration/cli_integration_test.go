@@ -1,3 +1,4 @@
+//go:build integration
 // +build integration
 
 package integration
@@ -14,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
 	"lerian-mcp-memory-cli/internal/adapters/secondary/mcp"

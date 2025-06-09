@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 
@@ -19,6 +20,7 @@ type OutputFormatter interface {
 	FormatTaskList(tasks []*entities.Task) error
 	FormatStats(stats *ports.RepositoryStats) error
 	FormatError(err error) error
+	FormatDocument(doc interface{}) error
 }
 
 // TableFormatter formats output as ASCII tables
@@ -93,12 +95,12 @@ func (f *TableFormatter) FormatStats(stats *ports.RepositoryStats) error {
 	table.Header("Metric", "Value")
 
 	_ = table.Append([]string{"Repository", stats.Repository})
-	_ = table.Append([]string{"Total Tasks", fmt.Sprintf("%d", stats.TotalTasks)})
-	_ = table.Append([]string{"Pending", fmt.Sprintf("%d", stats.PendingTasks)})
-	_ = table.Append([]string{"In Progress", fmt.Sprintf("%d", stats.InProgressTasks)})
-	_ = table.Append([]string{"Completed", fmt.Sprintf("%d", stats.CompletedTasks)})
-	_ = table.Append([]string{"Cancelled", fmt.Sprintf("%d", stats.CancelledTasks)})
-	_ = table.Append([]string{"Total Tags", fmt.Sprintf("%d", stats.TotalTags)})
+	_ = table.Append([]string{"Total Tasks", strconv.Itoa(stats.TotalTasks)})
+	_ = table.Append([]string{"Pending", strconv.Itoa(stats.PendingTasks)})
+	_ = table.Append([]string{"In Progress", strconv.Itoa(stats.InProgressTasks)})
+	_ = table.Append([]string{"Completed", strconv.Itoa(stats.CompletedTasks)})
+	_ = table.Append([]string{"Cancelled", strconv.Itoa(stats.CancelledTasks)})
+	_ = table.Append([]string{"Total Tags", strconv.Itoa(stats.TotalTags)})
 
 	if stats.LastActivity != "" {
 		_ = table.Append([]string{"Last Activity", stats.LastActivity})
@@ -110,6 +112,13 @@ func (f *TableFormatter) FormatStats(stats *ports.RepositoryStats) error {
 // FormatError formats an error message
 func (f *TableFormatter) FormatError(err error) error {
 	_, _ = fmt.Fprintf(f.writer, "Error: %s\n", err.Error())
+	return nil
+}
+
+// FormatDocument formats a document as a table
+func (f *TableFormatter) FormatDocument(doc interface{}) error {
+	// For table format, just output basic info
+	_, _ = fmt.Fprintf(f.writer, "Document: %+v\n", doc)
 	return nil
 }
 
@@ -209,6 +218,25 @@ func (f *JSONFormatter) FormatError(err error) error {
 	return nil
 }
 
+// FormatDocument formats a document as JSON
+func (f *JSONFormatter) FormatDocument(doc interface{}) error {
+	var data []byte
+	var err error
+
+	if f.pretty {
+		data, err = json.MarshalIndent(doc, "", "  ")
+	} else {
+		data, err = json.Marshal(doc)
+	}
+
+	if err != nil {
+		return fmt.Errorf("failed to marshal document: %w", err)
+	}
+
+	_, _ = fmt.Fprintln(f.writer, string(data))
+	return nil
+}
+
 // PlainFormatter formats output as plain text
 type PlainFormatter struct {
 	writer io.Writer
@@ -280,6 +308,13 @@ func (f *PlainFormatter) FormatStats(stats *ports.RepositoryStats) error {
 // FormatError formats an error as plain text
 func (f *PlainFormatter) FormatError(err error) error {
 	_, _ = fmt.Fprintf(f.writer, "Error: %s\n", err.Error())
+	return nil
+}
+
+// FormatDocument formats a document as plain text
+func (f *PlainFormatter) FormatDocument(doc interface{}) error {
+	// For plain format, output readable representation
+	_, _ = fmt.Fprintf(f.writer, "%+v\n", doc)
 	return nil
 }
 

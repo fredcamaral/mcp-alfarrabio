@@ -4,6 +4,7 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -121,7 +122,7 @@ func (g *GitDetector) findGitRoot(startPath string) (string, error) {
 		path = parent
 	}
 
-	return "", fmt.Errorf("not a git repository")
+	return "", errors.New("not a git repository")
 }
 
 func (g *GitDetector) getDirectoryName(path string) string {
