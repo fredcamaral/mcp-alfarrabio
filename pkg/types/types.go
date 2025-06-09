@@ -86,23 +86,7 @@ const (
 	OutcomeAbandoned Outcome = "abandoned"
 )
 
-// TaskStatus represents the status of a task-oriented chunk
-type TaskStatus string
-
-const (
-	// TaskStatusTodo indicates a task that needs to be started
-	TaskStatusTodo TaskStatus = "todo"
-	// TaskStatusInProgress indicates a task currently being worked on
-	TaskStatusInProgress TaskStatus = "in_progress"
-	// TaskStatusCompleted indicates a finished task
-	TaskStatusCompleted TaskStatus = "completed"
-	// TaskStatusBlocked indicates a task that cannot proceed due to dependencies
-	TaskStatusBlocked TaskStatus = "blocked"
-	// TaskStatusCancelled indicates a task that was cancelled
-	TaskStatusCancelled TaskStatus = "cancelled"
-	// TaskStatusOnHold indicates a task that is temporarily paused
-	TaskStatusOnHold TaskStatus = "on_hold"
-)
+// Note: TaskStatus is now defined in task_types.go to avoid duplication
 
 // Valid returns true if the outcome is valid
 func (o Outcome) Valid() bool {
@@ -116,7 +100,7 @@ func (o Outcome) Valid() bool {
 // Valid returns true if the task status is valid
 func (ts TaskStatus) Valid() bool {
 	switch ts {
-	case TaskStatusTodo, TaskStatusInProgress, TaskStatusCompleted, TaskStatusBlocked, TaskStatusCancelled, TaskStatusOnHold:
+	case TaskStatusTodo, TaskStatusInProgress, TaskStatusCompleted, TaskStatusBlocked, TaskStatusCancelled:
 		return true
 	}
 	return false
