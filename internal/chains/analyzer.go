@@ -1,3 +1,5 @@
+// Package chains provides memory chain analysis and connection detection.
+// It analyzes relationships between memory chunks and identifies conversation flows.
 package chains
 
 import (

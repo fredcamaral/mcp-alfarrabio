@@ -354,7 +354,7 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 		}
 	}
 	if len(matchedKeywords) > 0 {
-		reasons = append(reasons, fmt.Sprintf("Keywords match: %s", strings.Join(matchedKeywords, ", ")))
+		reasons = append(reasons, "Keywords match: "+strings.Join(matchedKeywords, ", "))
 	}
 
 	// Project type match
@@ -373,7 +373,7 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 		}
 	}
 	if len(matchedTech) > 0 {
-		reasons = append(reasons, fmt.Sprintf("Tech stack matches: %s", strings.Join(matchedTech, ", ")))
+		reasons = append(reasons, "Tech stack matches: "+strings.Join(matchedTech, ", "))
 	}
 
 	// High success rate

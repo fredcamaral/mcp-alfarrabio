@@ -1,3 +1,5 @@
+// Package storage provides vector database and storage abstractions.
+// It includes Qdrant integration, circuit breakers, retry logic, and storage interfaces.
 package storage
 
 import (

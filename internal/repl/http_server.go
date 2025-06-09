@@ -1,3 +1,4 @@
+// Package repl provides an interactive Read-Eval-Print Loop for PRD/TRD document processing.
 package repl
 
 import (

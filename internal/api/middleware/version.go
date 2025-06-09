@@ -51,7 +51,7 @@ func (vc *VersionChecker) Handler() func(http.Handler) http.Handler {
 
 			// Extract client version from headers
 			clientVersion := vc.extractClientVersion(r)
-			
+
 			// If no version provided, allow for backward compatibility
 			if clientVersion == "" {
 				next.ServeHTTP(w, r)
@@ -60,8 +60,8 @@ func (vc *VersionChecker) Handler() func(http.Handler) http.Handler {
 
 			// Validate version compatibility
 			if !vc.isVersionSupported(clientVersion) {
-				response.WriteVersionMismatch(w, 
-					"Client version not supported", 
+				response.WriteVersionMismatch(w,
+					"Client version not supported",
 					"Supported versions: "+vc.getSupportedVersionsList())
 				return
 			}
@@ -80,7 +80,7 @@ func (vc *VersionChecker) extractClientVersion(r *http.Request) string {
 	// Try different header names for client version
 	headerNames := []string{
 		"X-Client-Version",
-		"X-CLI-Version", 
+		"X-CLI-Version",
 		"User-Agent",
 	}
 
@@ -147,8 +147,8 @@ func (vc *VersionChecker) parseVersion(version string) (Version, error) {
 
 // isVersionInRange checks if version is within supported range
 func (vc *VersionChecker) isVersionInRange(version Version) bool {
-	return vc.compareVersions(version, vc.minVersion) >= 0 && 
-		   vc.compareVersions(version, vc.maxVersion) <= 0
+	return vc.compareVersions(version, vc.minVersion) >= 0 &&
+		vc.compareVersions(version, vc.maxVersion) <= 0
 }
 
 // compareVersions compares two versions (-1: v1 < v2, 0: v1 == v2, 1: v1 > v2)
@@ -159,21 +159,21 @@ func (vc *VersionChecker) compareVersions(v1, v2 Version) int {
 		}
 		return 1
 	}
-	
+
 	if v1.Minor != v2.Minor {
 		if v1.Minor < v2.Minor {
 			return -1
 		}
 		return 1
 	}
-	
+
 	if v1.Patch != v2.Patch {
 		if v1.Patch < v2.Patch {
 			return -1
 		}
 		return 1
 	}
-	
+
 	return 0
 }
 

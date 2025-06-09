@@ -1,8 +1,10 @@
+// Package documents provides data structures and processing for PRD/TRD document management.
 package documents
 
 import (
 	"embed"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -321,7 +323,7 @@ func (rm *RuleManager) UpdateRule(id string, updates map[string]interface{}) err
 // SaveCustomRule saves a custom rule to the rules directory
 func (rm *RuleManager) SaveCustomRule(rule *Rule) error {
 	if rm.rulesDir == "" {
-		return fmt.Errorf("custom rules directory not configured")
+		return errors.New("custom rules directory not configured")
 	}
 
 	// Ensure directory exists
@@ -330,7 +332,7 @@ func (rm *RuleManager) SaveCustomRule(rule *Rule) error {
 	}
 
 	// Generate filename
-	filename := fmt.Sprintf("%s.yaml", strings.ReplaceAll(rule.Name, " ", "-"))
+	filename := strings.ReplaceAll(rule.Name, " ", "-") + ".yaml"
 	filepath := filepath.Join(rm.rulesDir, filename)
 
 	// Prepare rule data with metadata
@@ -373,7 +375,7 @@ func (rm *RuleManager) DeleteCustomRule(id string) error {
 
 	// Only delete custom rules, not embedded ones
 	if rm.rulesDir != "" {
-		filename := fmt.Sprintf("%s.yaml", strings.ReplaceAll(rule.Name, " ", "-"))
+		filename := strings.ReplaceAll(rule.Name, " ", "-") + ".yaml"
 		filepath := filepath.Join(rm.rulesDir, filename)
 
 		if _, err := os.Stat(filepath); err == nil {

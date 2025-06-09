@@ -1,3 +1,5 @@
+// Package decay provides memory decay and summarization functionality.
+// It manages memory aging, automatic cleanup, and intelligent summarization of old memories.
 package decay
 
 import (

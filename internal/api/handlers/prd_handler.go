@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -35,21 +36,21 @@ type PRDStorage interface {
 
 // PRDFilters represents filters for PRD listing
 type PRDFilters struct {
-	Status    types.PRDStatus `json:"status,omitempty"`
-	Priority  types.PRDPriority  `json:"priority,omitempty"`
+	Status      types.PRDStatus   `json:"status,omitempty"`
+	Priority    types.PRDPriority `json:"priority,omitempty"`
 	ProjectType types.ProjectType `json:"project_type,omitempty"`
-	Tags      []string        `json:"tags,omitempty"`
-	Limit     int             `json:"limit,omitempty"`
-	Offset    int             `json:"offset,omitempty"`
+	Tags        []string          `json:"tags,omitempty"`
+	Limit       int               `json:"limit,omitempty"`
+	Offset      int               `json:"offset,omitempty"`
 }
 
 // PRDHandlerConfig represents configuration for PRD handler
 type PRDHandlerConfig struct {
-	MaxFileSize      int64         `json:"max_file_size"`
-	AllowedFormats   []string      `json:"allowed_formats"`
+	MaxFileSize       int64         `json:"max_file_size"`
+	AllowedFormats    []string      `json:"allowed_formats"`
 	ProcessingTimeout time.Duration `json:"processing_timeout"`
-	EnableAnalysis   bool          `json:"enable_analysis"`
-	AutoProcess      bool          `json:"auto_process"`
+	EnableAnalysis    bool          `json:"enable_analysis"`
+	AutoProcess       bool          `json:"auto_process"`
 }
 
 // DefaultPRDHandlerConfig returns default configuration
@@ -171,8 +172,8 @@ func (h *PRDHandler) ListPRDs(w http.ResponseWriter, r *http.Request) {
 
 	// Create response with metadata
 	resp := map[string]interface{}{
-		"prds":  docs,
-		"count": len(docs),
+		"prds":    docs,
+		"count":   len(docs),
 		"filters": filters,
 	}
 
@@ -253,7 +254,11 @@ func (h *PRDHandler) parseMultipartRequest(r *http.Request, req *types.PRDImport
 	if err != nil {
 		return fmt.Errorf("failed to get file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			log.Printf("Failed to close file: %v", err)
+		}
+	}()
 
 	// Check file size
 	if header.Size > h.config.MaxFileSize {
@@ -364,7 +369,7 @@ func (h *PRDHandler) processPRD(ctx context.Context, req *types.PRDImportRequest
 	if req.Options.AutoAnalyze && h.config.EnableAnalysis {
 		if err := h.analyzer.AnalyzeDocument(doc); err != nil {
 			// Don't fail on analysis errors, just log them
-			doc.Processing.Warnings = append(doc.Processing.Warnings, 
+			doc.Processing.Warnings = append(doc.Processing.Warnings,
 				fmt.Sprintf("Analysis failed: %v", err))
 		} else {
 			now := time.Now()
@@ -455,7 +460,7 @@ func (h *PRDHandler) parseListFilters(r *http.Request) PRDFilters {
 
 func (h *PRDHandler) detectFormatFromFilename(filename string) string {
 	ext := strings.ToLower(filename[strings.LastIndex(filename, ".")+1:])
-	
+
 	switch ext {
 	case "md":
 		return "markdown"

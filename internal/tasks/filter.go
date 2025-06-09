@@ -2,6 +2,7 @@
 package tasks
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -160,13 +161,13 @@ func (fm *FilterManager) ValidateFilters(filters TaskFilters) error {
 
 	// Validate quality score range
 	if filters.MinQualityScore < 0 || filters.MinQualityScore > 1 {
-		return fmt.Errorf("min_quality_score must be between 0 and 1")
+		return errors.New("min_quality_score must be between 0 and 1")
 	}
 	if filters.MaxQualityScore < 0 || filters.MaxQualityScore > 1 {
-		return fmt.Errorf("max_quality_score must be between 0 and 1")
+		return errors.New("max_quality_score must be between 0 and 1")
 	}
 	if filters.MinQualityScore > filters.MaxQualityScore {
-		return fmt.Errorf("min_quality_score cannot be greater than max_quality_score")
+		return errors.New("min_quality_score cannot be greater than max_quality_score")
 	}
 
 	// Validate sort fields
@@ -178,10 +179,10 @@ func (fm *FilterManager) ValidateFilters(filters TaskFilters) error {
 
 	// Validate pagination
 	if filters.Offset < 0 {
-		return fmt.Errorf("offset cannot be negative")
+		return errors.New("offset cannot be negative")
 	}
 	if filters.Limit < 0 {
-		return fmt.Errorf("limit cannot be negative")
+		return errors.New("limit cannot be negative")
 	}
 
 	return nil
@@ -401,17 +402,17 @@ func (fm *FilterManager) countActiveFilters(filters TaskFilters) int {
 func (fm *FilterManager) validateDateRanges(filters TaskFilters) error {
 	if filters.CreatedAfter != nil && filters.CreatedBefore != nil {
 		if filters.CreatedAfter.After(*filters.CreatedBefore) {
-			return fmt.Errorf("created_after cannot be after created_before")
+			return errors.New("created_after cannot be after created_before")
 		}
 	}
 	if filters.UpdatedAfter != nil && filters.UpdatedBefore != nil {
 		if filters.UpdatedAfter.After(*filters.UpdatedBefore) {
-			return fmt.Errorf("updated_after cannot be after updated_before")
+			return errors.New("updated_after cannot be after updated_before")
 		}
 	}
 	if filters.DueAfter != nil && filters.DueBefore != nil {
 		if filters.DueAfter.After(*filters.DueBefore) {
-			return fmt.Errorf("due_after cannot be after due_before")
+			return errors.New("due_after cannot be after due_before")
 		}
 	}
 	return nil

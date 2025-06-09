@@ -1,0 +1,464 @@
+// Package push provides the main push notification service
+package push
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"sync"
+	"time"
+)
+
+// NotificationService provides the main push notification service interface
+type NotificationService struct {
+	registry      *Registry
+	dispatcher    *Dispatcher
+	healthChecker *HealthChecker
+	queue         *NotificationQueue
+	config        *ServiceConfig
+	ctx           context.Context
+	cancel        context.CancelFunc
+	running       bool
+	mu            sync.RWMutex
+	metrics       *ServiceMetrics
+}
+
+// ServiceConfig configures the notification service
+type ServiceConfig struct {
+	Registry      *RegistryConfig      `json:"registry"`
+	Dispatcher    *DispatcherConfig    `json:"dispatcher"`
+	HealthChecker *HealthCheckConfig   `json:"health_checker"`
+	Queue         *QueueConfig         `json:"queue"`
+	AutoStart     bool                 `json:"auto_start"`
+	MetricsPort   int                  `json:"metrics_port"`
+}
+
+// RegistryConfig is an alias for convenience
+type RegistryConfig struct {
+	MaxInactiveAge time.Duration `json:"max_inactive_age"`
+}
+
+// ServiceMetrics tracks overall service performance
+type ServiceMetrics struct {
+	StartTime         time.Time `json:"start_time"`
+	Uptime            time.Duration `json:"uptime"`
+	TotalNotifications int64    `json:"total_notifications"`
+	SuccessfulDeliveries int64  `json:"successful_deliveries"`
+	FailedDeliveries    int64   `json:"failed_deliveries"`
+	ActiveEndpoints     int      `json:"active_endpoints"`
+	HealthyEndpoints    int      `json:"healthy_endpoints"`
+	mu                  sync.RWMutex
+}
+
+// DefaultServiceConfig returns default service configuration
+func DefaultServiceConfig() *ServiceConfig {
+	return &ServiceConfig{
+		Registry: &RegistryConfig{
+			MaxInactiveAge: 10 * time.Minute,
+		},
+		Dispatcher:    DefaultDispatcherConfig(),
+		HealthChecker: DefaultHealthCheckConfig(),
+		Queue:         DefaultQueueConfig(),
+		AutoStart:     true,
+		MetricsPort:   0, // Disabled by default
+	}
+}
+
+// NewNotificationService creates a new push notification service
+func NewNotificationService(config *ServiceConfig) *NotificationService {
+	if config == nil {
+		config = DefaultServiceConfig()
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Create registry
+	registry := NewRegistry()
+
+	// Create dispatcher
+	dispatcher := NewDispatcher(registry, config.Dispatcher)
+
+	// Create health checker
+	healthChecker := NewHealthChecker(registry, config.HealthChecker)
+
+	// Create queue
+	queue := NewNotificationQueue(dispatcher, registry, config.Queue)
+
+	service := &NotificationService{
+		registry:      registry,
+		dispatcher:    dispatcher,
+		healthChecker: healthChecker,
+		queue:         queue,
+		config:        config,
+		ctx:           ctx,
+		cancel:        cancel,
+		running:       false,
+		metrics:       &ServiceMetrics{},
+	}
+
+	return service
+}
+
+// Start starts all components of the notification service
+func (ns *NotificationService) Start() error {
+	ns.mu.Lock()
+	defer ns.mu.Unlock()
+
+	if ns.running {
+		return fmt.Errorf("notification service already running")
+	}
+
+	log.Println("Starting push notification service...")
+
+	// Start dispatcher
+	if err := ns.dispatcher.Start(); err != nil {
+		return fmt.Errorf("failed to start dispatcher: %w", err)
+	}
+
+	// Start health checker
+	if err := ns.healthChecker.Start(); err != nil {
+		if err := ns.dispatcher.Stop(); err != nil {
+			log.Printf("Failed to stop dispatcher during cleanup: %v", err)
+		}
+		return fmt.Errorf("failed to start health checker: %w", err)
+	}
+
+	// Start queue
+	if err := ns.queue.Start(); err != nil {
+		if err := ns.dispatcher.Stop(); err != nil {
+			log.Printf("Failed to stop dispatcher during cleanup: %v", err)
+		}
+		if err := ns.healthChecker.Stop(); err != nil {
+			log.Printf("Failed to stop health checker during cleanup: %v", err)
+		}
+		return fmt.Errorf("failed to start queue: %w", err)
+	}
+
+	// Initialize metrics
+	ns.metrics.StartTime = time.Now()
+	ns.running = true
+
+	log.Println("Push notification service started successfully")
+	return nil
+}
+
+// Stop stops all components of the notification service
+func (ns *NotificationService) Stop() error {
+	ns.mu.Lock()
+	if !ns.running {
+		ns.mu.Unlock()
+		return fmt.Errorf("notification service not running")
+	}
+	ns.running = false
+	ns.mu.Unlock()
+
+	log.Println("Stopping push notification service...")
+
+	// Stop components in reverse order
+	var errors []error
+
+	if err := ns.queue.Stop(); err != nil {
+		errors = append(errors, fmt.Errorf("queue stop error: %w", err))
+	}
+
+	if err := ns.healthChecker.Stop(); err != nil {
+		errors = append(errors, fmt.Errorf("health checker stop error: %w", err))
+	}
+
+	if err := ns.dispatcher.Stop(); err != nil {
+		errors = append(errors, fmt.Errorf("dispatcher stop error: %w", err))
+	}
+
+	// Stop registry cleanup
+	ns.registry.Stop()
+
+	// Cancel context
+	ns.cancel()
+
+	if len(errors) > 0 {
+		log.Printf("Errors during shutdown: %v", errors)
+		return fmt.Errorf("shutdown errors: %v", errors)
+	}
+
+	log.Println("Push notification service stopped successfully")
+	return nil
+}
+
+// IsRunning returns whether the service is running
+func (ns *NotificationService) IsRunning() bool {
+	ns.mu.RLock()
+	defer ns.mu.RUnlock()
+	return ns.running
+}
+
+// RegisterEndpoint registers a new CLI endpoint for push notifications
+func (ns *NotificationService) RegisterEndpoint(endpoint *CLIEndpoint) error {
+	if !ns.IsRunning() {
+		return fmt.Errorf("notification service not running")
+	}
+
+	return ns.registry.Register(endpoint)
+}
+
+// DeregisterEndpoint removes a CLI endpoint from push notifications
+func (ns *NotificationService) DeregisterEndpoint(endpointID string) error {
+	if !ns.IsRunning() {
+		return fmt.Errorf("notification service not running")
+	}
+
+	return ns.registry.Deregister(endpointID)
+}
+
+// SendNotification sends a push notification to all active endpoints
+func (ns *NotificationService) SendNotification(notification *Notification) error {
+	if !ns.IsRunning() {
+		return fmt.Errorf("notification service not running")
+	}
+
+	// Update metrics
+	ns.updateMetrics(func(m *ServiceMetrics) {
+		m.TotalNotifications++
+	})
+
+	// Queue the notification for processing
+	return ns.queue.Enqueue(notification)
+}
+
+// SendNotificationToEndpoint sends a push notification to a specific endpoint
+func (ns *NotificationService) SendNotificationToEndpoint(notification *Notification, endpointID string) error {
+	if !ns.IsRunning() {
+		return fmt.Errorf("notification service not running")
+	}
+
+	// Set target endpoint
+	notification.TargetID = endpointID
+
+	// Update metrics
+	ns.updateMetrics(func(m *ServiceMetrics) {
+		m.TotalNotifications++
+	})
+
+	// Send directly through dispatcher
+	return ns.dispatcher.DispatchToEndpoint(notification, endpointID)
+}
+
+// SendBatchNotifications sends multiple notifications efficiently
+func (ns *NotificationService) SendBatchNotifications(notifications []*Notification) []error {
+	if !ns.IsRunning() {
+		errors := make([]error, len(notifications))
+		serviceErr := fmt.Errorf("notification service not running")
+		for i := range errors {
+			errors[i] = serviceErr
+		}
+		return errors
+	}
+
+	// Update metrics
+	ns.updateMetrics(func(m *ServiceMetrics) {
+		m.TotalNotifications += int64(len(notifications))
+	})
+
+	// Queue all notifications
+	return ns.queue.EnqueueBatch(notifications)
+}
+
+// GetEndpoints returns all registered endpoints
+func (ns *NotificationService) GetEndpoints() []*CLIEndpoint {
+	return ns.registry.GetAll()
+}
+
+// GetActiveEndpoints returns all active and healthy endpoints
+func (ns *NotificationService) GetActiveEndpoints() []*CLIEndpoint {
+	return ns.registry.GetActive()
+}
+
+// GetEndpoint returns a specific endpoint by ID
+func (ns *NotificationService) GetEndpoint(endpointID string) (*CLIEndpoint, bool) {
+	return ns.registry.Get(endpointID)
+}
+
+// CheckEndpointHealth performs an immediate health check for an endpoint
+func (ns *NotificationService) CheckEndpointHealth(endpointID string) (*HealthCheckResult, error) {
+	if !ns.IsRunning() {
+		return nil, fmt.Errorf("notification service not running")
+	}
+
+	return ns.healthChecker.CheckEndpoint(endpointID)
+}
+
+// GetServiceStatus returns comprehensive service status
+func (ns *NotificationService) GetServiceStatus() map[string]interface{} {
+	metrics := ns.GetMetrics()
+	registryMetrics := ns.registry.GetMetrics()
+	dispatcherAnalytics := ns.dispatcher.GetAnalytics()
+	healthMetrics := ns.healthChecker.GetMetrics()
+	queueMetrics := ns.queue.GetMetrics()
+
+	return map[string]interface{}{
+		"running":    ns.IsRunning(),
+		"uptime":     metrics.Uptime.String(),
+		"start_time": metrics.StartTime,
+		"components": map[string]interface{}{
+			"registry": map[string]interface{}{
+				"total_endpoints":   registryMetrics.TotalEndpoints,
+				"active_endpoints":  registryMetrics.ActiveEndpoints,
+				"registration_count": registryMetrics.RegistrationCount,
+			},
+			"dispatcher": map[string]interface{}{
+				"running":              ns.dispatcher.IsRunning(),
+				"total_deliveries":     dispatcherAnalytics.TotalDeliveries,
+				"successful_deliveries": dispatcherAnalytics.SuccessfulDeliveries,
+				"error_rate":           dispatcherAnalytics.ErrorRate,
+				"average_latency":      dispatcherAnalytics.AverageLatency.String(),
+			},
+			"health_checker": map[string]interface{}{
+				"running":           ns.healthChecker.IsRunning(),
+				"total_checks":      healthMetrics.TotalChecks,
+				"healthy_endpoints": healthMetrics.HealthyEndpoints,
+				"error_rate":        healthMetrics.ErrorRate,
+			},
+			"queue": map[string]interface{}{
+				"running":             ns.queue.IsRunning(),
+				"current_queue_size":  queueMetrics.CurrentQueueSize,
+				"total_processed":     queueMetrics.TotalProcessed,
+				"retry_queue_size":    queueMetrics.RetryQueueSize,
+			},
+		},
+		"metrics": metrics,
+	}
+}
+
+// GetMetrics returns service metrics
+func (ns *NotificationService) GetMetrics() *ServiceMetrics {
+	ns.metrics.mu.RLock()
+	defer ns.metrics.mu.RUnlock()
+
+	// Calculate current uptime
+	uptime := time.Duration(0)
+	if !ns.metrics.StartTime.IsZero() {
+		uptime = time.Since(ns.metrics.StartTime)
+	}
+
+	// Get current endpoint counts
+	registryMetrics := ns.registry.GetMetrics()
+	healthMetrics := ns.healthChecker.GetMetrics()
+
+	// Return a copy with updated values
+	return &ServiceMetrics{
+		StartTime:            ns.metrics.StartTime,
+		Uptime:              uptime,
+		TotalNotifications:   ns.metrics.TotalNotifications,
+		SuccessfulDeliveries: ns.metrics.SuccessfulDeliveries,
+		FailedDeliveries:     ns.metrics.FailedDeliveries,
+		ActiveEndpoints:      registryMetrics.ActiveEndpoints,
+		HealthyEndpoints:     healthMetrics.HealthyEndpoints,
+	}
+}
+
+// updateMetrics safely updates service metrics
+func (ns *NotificationService) updateMetrics(updateFunc func(*ServiceMetrics)) {
+	ns.metrics.mu.Lock()
+	defer ns.metrics.mu.Unlock()
+	updateFunc(ns.metrics)
+}
+
+// CreateMemoryUpdateNotification creates a notification for memory updates
+func (ns *NotificationService) CreateMemoryUpdateNotification(chunkID, repository, sessionID string, content interface{}) *Notification {
+	return CreateNotification("memory_update", map[string]interface{}{
+		"chunk_id":    chunkID,
+		"repository":  repository,
+		"session_id":  sessionID,
+		"content":     content,
+		"timestamp":   time.Now(),
+	})
+}
+
+// CreateTaskUpdateNotification creates a notification for task updates
+func (ns *NotificationService) CreateTaskUpdateNotification(taskID, status string, metadata map[string]interface{}) *Notification {
+	payload := map[string]interface{}{
+		"task_id":   taskID,
+		"status":    status,
+		"timestamp": time.Now(),
+	}
+	
+	// Add metadata if provided
+	if metadata != nil {
+		for key, value := range metadata {
+			payload[key] = value
+		}
+	}
+
+	return CreateNotification("task_update", payload)
+}
+
+// CreateSystemAlertNotification creates a notification for system alerts
+func (ns *NotificationService) CreateSystemAlertNotification(alertType, message string, severity string) *Notification {
+	notification := CreateNotification("system_alert", map[string]interface{}{
+		"alert_type": alertType,
+		"message":    message,
+		"severity":   severity,
+		"timestamp":  time.Now(),
+	})
+
+	// Set priority based on severity
+	switch severity {
+	case "critical":
+		notification.Priority = PriorityCritical
+	case "high":
+		notification.Priority = PriorityHigh
+	case "low":
+		notification.Priority = PriorityLow
+	default:
+		notification.Priority = PriorityNormal
+	}
+
+	return notification
+}
+
+// BroadcastMemoryUpdate broadcasts a memory update to all active endpoints
+func (ns *NotificationService) BroadcastMemoryUpdate(chunkID, repository, sessionID string, content interface{}) error {
+	notification := ns.CreateMemoryUpdateNotification(chunkID, repository, sessionID, content)
+	return ns.SendNotification(notification)
+}
+
+// BroadcastTaskUpdate broadcasts a task update to all active endpoints
+func (ns *NotificationService) BroadcastTaskUpdate(taskID, status string, metadata map[string]interface{}) error {
+	notification := ns.CreateTaskUpdateNotification(taskID, status, metadata)
+	return ns.SendNotification(notification)
+}
+
+// BroadcastSystemAlert broadcasts a system alert to all active endpoints
+func (ns *NotificationService) BroadcastSystemAlert(alertType, message, severity string) error {
+	notification := ns.CreateSystemAlertNotification(alertType, message, severity)
+	return ns.SendNotification(notification)
+}
+
+// FlushQueue processes all pending notifications immediately
+func (ns *NotificationService) FlushQueue() {
+	if ns.IsRunning() {
+		ns.queue.Flush()
+	}
+}
+
+// ForceHealthCheck triggers an immediate health check cycle
+func (ns *NotificationService) ForceHealthCheck() {
+	if ns.IsRunning() {
+		ns.healthChecker.ForceHealthCheck()
+	}
+}
+
+// GetDeliveryResults returns delivery results for a specific notification
+func (ns *NotificationService) GetDeliveryResults(notificationID string) ([]*DeliveryResult, bool) {
+	return ns.dispatcher.GetDeliveryResults(notificationID)
+}
+
+// GetComponentHealth returns health status of all service components
+func (ns *NotificationService) GetComponentHealth() map[string]interface{} {
+	return map[string]interface{}{
+		"service":        ns.IsRunning(),
+		"dispatcher":     ns.dispatcher.IsRunning(),
+		"health_checker": ns.healthChecker.IsRunning(),
+		"queue":          ns.queue.IsRunning(),
+		"registry":       true, // Registry doesn't have a running state
+	}
+}

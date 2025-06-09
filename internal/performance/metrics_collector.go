@@ -1,3 +1,5 @@
+// Package performance provides performance optimization and monitoring utilities.
+// It includes caching, metrics collection, query optimization, and resource management.
 package performance
 
 import (

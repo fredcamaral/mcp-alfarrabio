@@ -1,3 +1,5 @@
+// Package intelligence provides AI-powered memory analysis and pattern recognition.
+// It includes learning engines, pattern matching, conflict detection, and cross-repository insights.
 package intelligence
 
 import (

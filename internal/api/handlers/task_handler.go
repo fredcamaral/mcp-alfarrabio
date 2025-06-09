@@ -16,21 +16,21 @@ import (
 
 // TaskHandler handles task generation and suggestion requests
 type TaskHandler struct {
-	generator        *tasks.Generator
-	suggester        *tasks.Suggester
-	aiService        tasks.AIService
-	prdStorage       PRDStorage
-	config           TaskHandlerConfig
+	generator  *tasks.Generator
+	suggester  *tasks.Suggester
+	aiService  tasks.AIService
+	prdStorage PRDStorage
+	config     TaskHandlerConfig
 }
 
 // TaskHandlerConfig represents configuration for task handler
 type TaskHandlerConfig struct {
-	MaxTasksPerRequest    int           `json:"max_tasks_per_request"`
-	DefaultQualityThreshold float64     `json:"default_quality_threshold"`
-	RequestTimeout        time.Duration `json:"request_timeout"`
-	EnableSuggestions     bool          `json:"enable_suggestions"`
-	EnableTemplates       bool          `json:"enable_templates"`
-	DefaultAIModel        string        `json:"default_ai_model"`
+	MaxTasksPerRequest      int           `json:"max_tasks_per_request"`
+	DefaultQualityThreshold float64       `json:"default_quality_threshold"`
+	RequestTimeout          time.Duration `json:"request_timeout"`
+	EnableSuggestions       bool          `json:"enable_suggestions"`
+	EnableTemplates         bool          `json:"enable_templates"`
+	DefaultAIModel          string        `json:"default_ai_model"`
 }
 
 // DefaultTaskHandlerConfig returns default configuration
@@ -118,10 +118,10 @@ func (h *TaskHandler) SuggestTasks(w http.ResponseWriter, r *http.Request) {
 		TaskSuggestionResponse: *taskResponse,
 		ContextualSuggestions:  suggestions,
 		RequestMetadata: RequestMetadata{
-			RequestID:     r.Header.Get("X-Request-ID"),
-			ProcessedAt:   time.Now(),
+			RequestID:      r.Header.Get("X-Request-ID"),
+			ProcessedAt:    time.Now(),
 			ProcessingTime: taskResponse.GenerationMetadata.GenerationTime,
-			Configuration: h.getConfigSummary(),
+			Configuration:  h.getConfigSummary(),
 		},
 	}
 
@@ -155,7 +155,7 @@ func (h *TaskHandler) GenerateFromPRD(w http.ResponseWriter, r *http.Request) {
 
 	// Create task suggestion request from PRD
 	taskReq := h.createTaskRequestFromPRD(prdDoc, &req)
-	
+
 	// Set project state if provided
 	if req.ProjectState != nil {
 		taskReq.ProjectState = *req.ProjectState
@@ -171,12 +171,12 @@ func (h *TaskHandler) GenerateFromPRD(w http.ResponseWriter, r *http.Request) {
 	// Create PRD-specific response
 	prdResponse := PRDTaskGenerationResponse{
 		TaskSuggestionResponse: *taskResponse,
-		PRDID:                 req.PRDID,
+		PRDID:                  req.PRDID,
 		PRDMetadata: PRDMetadata{
-			Title:       prdDoc.Name,
-			Status:      string(prdDoc.Status),
-			WordCount:   prdDoc.Content.WordCount,
-			Sections:    len(prdDoc.Content.Sections),
+			Title:        prdDoc.Name,
+			Status:       string(prdDoc.Status),
+			WordCount:    prdDoc.Content.WordCount,
+			Sections:     len(prdDoc.Content.Sections),
 			QualityScore: prdDoc.Analysis.QualityScore,
 		},
 		TaskBreakdown: h.analyzeTaskBreakdown(taskResponse.Tasks),
@@ -213,10 +213,10 @@ func (h *TaskHandler) GetTaskSuggestions(w http.ResponseWriter, r *http.Request)
 
 	// Create response
 	suggestionResponse := ContextualSuggestionResponse{
-		Suggestions:     suggestions,
-		TotalSuggestions: len(suggestions),
-		ProjectPhase:    req.ProjectState.Phase,
-		SuggestionCategories: h.categorizeSuggestions(suggestions),
+		Suggestions:              suggestions,
+		TotalSuggestions:         len(suggestions),
+		ProjectPhase:             req.ProjectState.Phase,
+		SuggestionCategories:     h.categorizeSuggestions(suggestions),
 		NextPhaseRecommendations: h.getNextPhaseRecommendations(req.ProjectState),
 		RequestMetadata: RequestMetadata{
 			RequestID:      r.Header.Get("X-Request-ID"),
@@ -342,14 +342,14 @@ func (h *TaskHandler) createTaskRequestFromPRD(prdDoc *types.PRDDocument, req *P
 		},
 		Options: types.TaskGenerationOptions{
 			MaxTasks:                  req.MaxTasks,
-			MinQualityScore:          req.MinQualityScore,
-			IncludeEstimation:        true,
-			IncludeDependencies:      true,
+			MinQualityScore:           req.MinQualityScore,
+			IncludeEstimation:         true,
+			IncludeDependencies:       true,
 			IncludeAcceptanceCriteria: true,
-			TaskTypes:                req.TaskTypes,
-			AIModel:                  req.AIModel,
-			UseTemplates:             h.config.EnableTemplates,
-			GenerationStyle:          req.GenerationStyle,
+			TaskTypes:                 req.TaskTypes,
+			AIModel:                   req.AIModel,
+			UseTemplates:              h.config.EnableTemplates,
+			GenerationStyle:           req.GenerationStyle,
 		},
 		ExistingTasks: req.ExistingTasks,
 	}
@@ -358,9 +358,9 @@ func (h *TaskHandler) createTaskRequestFromPRD(prdDoc *types.PRDDocument, req *P
 // analyzeTaskBreakdown analyzes the breakdown of generated tasks
 func (h *TaskHandler) analyzeTaskBreakdown(tasks []types.Task) TaskBreakdown {
 	breakdown := TaskBreakdown{
-		TotalTasks: len(tasks),
-		ByType:     make(map[string]int),
-		ByPriority: make(map[string]int),
+		TotalTasks:   len(tasks),
+		ByType:       make(map[string]int),
+		ByPriority:   make(map[string]int),
 		ByComplexity: make(map[string]int),
 	}
 
@@ -511,10 +511,10 @@ func (h *TaskHandler) generateScoringInsights(score *types.QualityScore) []strin
 // getConfigSummary returns a summary of handler configuration
 func (h *TaskHandler) getConfigSummary() map[string]interface{} {
 	return map[string]interface{}{
-		"max_tasks_per_request":      h.config.MaxTasksPerRequest,
-		"default_quality_threshold":  h.config.DefaultQualityThreshold,
-		"suggestions_enabled":        h.config.EnableSuggestions,
-		"templates_enabled":          h.config.EnableTemplates,
+		"max_tasks_per_request":     h.config.MaxTasksPerRequest,
+		"default_quality_threshold": h.config.DefaultQualityThreshold,
+		"suggestions_enabled":       h.config.EnableSuggestions,
+		"templates_enabled":         h.config.EnableTemplates,
 		"default_ai_model":          h.config.DefaultAIModel,
 	}
 }
@@ -530,18 +530,18 @@ type TaskSuggestionEnhancedResponse struct {
 
 // PRDTaskGenerationRequest represents request for PRD-specific task generation
 type PRDTaskGenerationRequest struct {
-	PRDID           string                     `json:"prd_id"`
-	MaxTasks        int                        `json:"max_tasks"`
-	MinQualityScore float64                    `json:"min_quality_score"`
-	TaskTypes       []types.TaskType           `json:"task_types,omitempty"`
-	GenerationStyle types.GenerationStyle      `json:"generation_style"`
-	AIModel         string                     `json:"ai_model,omitempty"`
-	Timeline        string                     `json:"timeline,omitempty"`
-	Budget          string                     `json:"budget,omitempty"`
-	Constraints     []string                   `json:"constraints,omitempty"`
-	Repository      string                     `json:"repository,omitempty"`
-	ExistingTasks   []types.Task               `json:"existing_tasks,omitempty"`
-	ProjectState    *types.ProjectState        `json:"project_state,omitempty"`
+	PRDID           string                `json:"prd_id"`
+	MaxTasks        int                   `json:"max_tasks"`
+	MinQualityScore float64               `json:"min_quality_score"`
+	TaskTypes       []types.TaskType      `json:"task_types,omitempty"`
+	GenerationStyle types.GenerationStyle `json:"generation_style"`
+	AIModel         string                `json:"ai_model,omitempty"`
+	Timeline        string                `json:"timeline,omitempty"`
+	Budget          string                `json:"budget,omitempty"`
+	Constraints     []string              `json:"constraints,omitempty"`
+	Repository      string                `json:"repository,omitempty"`
+	ExistingTasks   []types.Task          `json:"existing_tasks,omitempty"`
+	ProjectState    *types.ProjectState   `json:"project_state,omitempty"`
 }
 
 // PRDTaskGenerationResponse represents PRD-specific task generation response
@@ -564,19 +564,19 @@ type PRDMetadata struct {
 
 // TaskBreakdown represents analysis of task breakdown
 type TaskBreakdown struct {
-	TotalTasks           int                `json:"total_tasks"`
-	TotalEstimatedHours  float64            `json:"total_estimated_hours"`
-	AverageTaskSize      float64            `json:"average_task_size"`
-	ByType               map[string]int     `json:"by_type"`
-	ByPriority           map[string]int     `json:"by_priority"`
-	ByComplexity         map[string]int     `json:"by_complexity"`
+	TotalTasks          int            `json:"total_tasks"`
+	TotalEstimatedHours float64        `json:"total_estimated_hours"`
+	AverageTaskSize     float64        `json:"average_task_size"`
+	ByType              map[string]int `json:"by_type"`
+	ByPriority          map[string]int `json:"by_priority"`
+	ByComplexity        map[string]int `json:"by_complexity"`
 }
 
 // ContextualSuggestionRequest represents request for contextual suggestions
 type ContextualSuggestionRequest struct {
-	ProjectState  types.ProjectState            `json:"project_state"`
-	ExistingTasks []types.Task                  `json:"existing_tasks"`
-	Context       types.TaskGenerationContext   `json:"context"`
+	ProjectState  types.ProjectState          `json:"project_state"`
+	ExistingTasks []types.Task                `json:"existing_tasks"`
+	Context       types.TaskGenerationContext `json:"context"`
 }
 
 // ContextualSuggestionResponse represents contextual suggestion response
@@ -591,25 +591,25 @@ type ContextualSuggestionResponse struct {
 
 // TaskValidationResponse represents task validation response
 type TaskValidationResponse struct {
-	TaskID           string                       `json:"task_id"`
-	ValidationResult types.TaskValidationResult   `json:"validation_result"`
-	ValidatedAt      time.Time                    `json:"validated_at"`
-	Recommendations  []string                     `json:"recommendations"`
+	TaskID           string                     `json:"task_id"`
+	ValidationResult types.TaskValidationResult `json:"validation_result"`
+	ValidatedAt      time.Time                  `json:"validated_at"`
+	Recommendations  []string                   `json:"recommendations"`
 }
 
 // TaskScoringRequest represents task scoring request
 type TaskScoringRequest struct {
-	Task    types.Task                    `json:"task"`
-	Context types.TaskGenerationContext   `json:"context"`
+	Task    types.Task                  `json:"task"`
+	Context types.TaskGenerationContext `json:"context"`
 }
 
 // TaskScoringResponse represents task scoring response
 type TaskScoringResponse struct {
-	TaskID       string               `json:"task_id"`
-	QualityScore types.QualityScore   `json:"quality_score"`
-	QualityLevel string               `json:"quality_level"`
-	ScoredAt     time.Time            `json:"scored_at"`
-	Insights     []string             `json:"insights"`
+	TaskID       string             `json:"task_id"`
+	QualityScore types.QualityScore `json:"quality_score"`
+	QualityLevel string             `json:"quality_level"`
+	ScoredAt     time.Time          `json:"scored_at"`
+	Insights     []string           `json:"insights"`
 }
 
 // RequestMetadata represents metadata about the request processing

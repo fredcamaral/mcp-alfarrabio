@@ -1,3 +1,5 @@
+// Package deployment provides deployment utilities and system management features.
+// It includes graceful shutdown, health monitoring, and service lifecycle management.
 package deployment
 
 import (

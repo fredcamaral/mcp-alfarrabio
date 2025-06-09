@@ -15,7 +15,9 @@ func TestVersionChecker_Handler(t *testing.T) {
 	// Test handler with supported version
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	})
 
 	req := httptest.NewRequest("GET", "/api/v1/test", nil)
@@ -35,7 +37,9 @@ func TestVersionChecker_UnsupportedVersion(t *testing.T) {
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	})
 
 	req := httptest.NewRequest("GET", "/api/v1/test", nil)
@@ -53,7 +57,9 @@ func TestVersionChecker_PublicEndpoint(t *testing.T) {
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	})
 
 	req := httptest.NewRequest("GET", "/health", nil)
@@ -70,7 +76,9 @@ func TestVersionChecker_NoVersion(t *testing.T) {
 
 	nextHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		if _, err := w.Write([]byte("OK")); err != nil {
+			t.Errorf("Failed to write response: %v", err)
+		}
 	})
 
 	req := httptest.NewRequest("GET", "/api/v1/test", nil)

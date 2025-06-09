@@ -506,17 +506,20 @@ func (mc *MetricsCollector) copyHTTPMetrics() *HTTPMetrics {
 	mc.httpMetrics.mu.RLock()
 	defer mc.httpMetrics.mu.RUnlock()
 
-	metrics := &HTTPMetrics{
-		TotalRequests:       mc.httpMetrics.TotalRequests,
-		RequestsPerSecond:   mc.httpMetrics.RequestsPerSecond,
-		AverageResponseTime: mc.httpMetrics.AverageResponseTime,
-		P95ResponseTime:     mc.httpMetrics.P95ResponseTime,
-		P99ResponseTime:     mc.httpMetrics.P99ResponseTime,
-		ErrorRate:           mc.httpMetrics.ErrorRate,
-		ThroughputMBPS:      mc.httpMetrics.ThroughputMBPS,
-		ActiveConnections:   mc.httpMetrics.ActiveConnections,
-		StatusCodes:         make(map[int]int64),
-	}
+	// Create new instance with zero values (fresh mutex)
+	metrics := NewHTTPMetrics()
+	
+	// Copy data fields explicitly (not the mutex)
+	metrics.TotalRequests = mc.httpMetrics.TotalRequests
+	metrics.RequestsPerSecond = mc.httpMetrics.RequestsPerSecond
+	metrics.AverageResponseTime = mc.httpMetrics.AverageResponseTime
+	metrics.P95ResponseTime = mc.httpMetrics.P95ResponseTime
+	metrics.P99ResponseTime = mc.httpMetrics.P99ResponseTime
+	metrics.ErrorRate = mc.httpMetrics.ErrorRate
+	metrics.ThroughputMBPS = mc.httpMetrics.ThroughputMBPS
+	metrics.ActiveConnections = mc.httpMetrics.ActiveConnections
+	
+	// Copy status codes map
 	for k, v := range mc.httpMetrics.StatusCodes {
 		metrics.StatusCodes[k] = v
 	}
@@ -536,21 +539,22 @@ func (mc *MetricsCollector) copyEndpointMetric(original *EndpointMetrics) *Endpo
 	original.mu.RLock()
 	defer original.mu.RUnlock()
 
-	metrics := &EndpointMetrics{
-		Endpoint:            original.Endpoint,
-		Method:              original.Method,
-		TotalRequests:       original.TotalRequests,
-		SuccessRequests:     original.SuccessRequests,
-		ErrorRequests:       original.ErrorRequests,
-		AverageResponseTime: original.AverageResponseTime,
-		MinResponseTime:     original.MinResponseTime,
-		MaxResponseTime:     original.MaxResponseTime,
-		ErrorRate:           original.ErrorRate,
-		RequestSize:         original.RequestSize,
-		ResponseSize:        original.ResponseSize,
-		LastActivity:        original.LastActivity,
-		StatusCodes:         make(map[int]int64),
-	}
+	// Create new instance with zero values (fresh mutex)
+	metrics := NewEndpointMetrics(original.Endpoint, original.Method)
+	
+	// Copy data fields explicitly (not the mutex)
+	metrics.TotalRequests = original.TotalRequests
+	metrics.SuccessRequests = original.SuccessRequests
+	metrics.ErrorRequests = original.ErrorRequests
+	metrics.AverageResponseTime = original.AverageResponseTime
+	metrics.MinResponseTime = original.MinResponseTime
+	metrics.MaxResponseTime = original.MaxResponseTime
+	metrics.ErrorRate = original.ErrorRate
+	metrics.RequestSize = original.RequestSize
+	metrics.ResponseSize = original.ResponseSize
+	metrics.LastActivity = original.LastActivity
+	
+	// Copy status codes map
 	for k, v := range original.StatusCodes {
 		metrics.StatusCodes[k] = v
 	}
@@ -562,17 +566,21 @@ func (mc *MetricsCollector) copySystemMetrics() *SystemMetrics {
 	mc.systemMetrics.mu.RLock()
 	defer mc.systemMetrics.mu.RUnlock()
 
-	return &SystemMetrics{
-		Uptime:              mc.systemMetrics.Uptime,
-		MemoryUsage:         mc.systemMetrics.MemoryUsage,
-		CPUUsage:            mc.systemMetrics.CPUUsage,
-		GoroutineCount:      mc.systemMetrics.GoroutineCount,
-		HeapSize:            mc.systemMetrics.HeapSize,
-		GCPauses:            mc.systemMetrics.GCPauses,
-		ConnectionsActive:   mc.systemMetrics.ConnectionsActive,
-		ConnectionsIdle:     mc.systemMetrics.ConnectionsIdle,
-		DatabaseConnections: mc.systemMetrics.DatabaseConnections,
-	}
+	// Create new instance with zero values (fresh mutex)
+	metrics := NewSystemMetrics()
+	
+	// Copy data fields explicitly (not the mutex)
+	metrics.Uptime = mc.systemMetrics.Uptime
+	metrics.MemoryUsage = mc.systemMetrics.MemoryUsage
+	metrics.CPUUsage = mc.systemMetrics.CPUUsage
+	metrics.GoroutineCount = mc.systemMetrics.GoroutineCount
+	metrics.HeapSize = mc.systemMetrics.HeapSize
+	metrics.GCPauses = mc.systemMetrics.GCPauses
+	metrics.ConnectionsActive = mc.systemMetrics.ConnectionsActive
+	metrics.ConnectionsIdle = mc.systemMetrics.ConnectionsIdle
+	metrics.DatabaseConnections = mc.systemMetrics.DatabaseConnections
+	
+	return metrics
 }
 
 func (mc *MetricsCollector) exportPrometheusFormat(metrics *MetricsSummary) ([]byte, error) {

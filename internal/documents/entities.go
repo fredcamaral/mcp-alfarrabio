@@ -1,7 +1,9 @@
+// Package documents provides data structures and processing for PRD/TRD document management.
 package documents
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -193,10 +195,10 @@ func (p *PRDEntity) Validate() error {
 		p.ID = uuid.New().String()
 	}
 	if p.Title == "" {
-		return fmt.Errorf("PRD title is required")
+		return errors.New("PRD title is required")
 	}
 	if p.Content == "" {
-		return fmt.Errorf("PRD content is required")
+		return errors.New("PRD content is required")
 	}
 	if p.GeneratedAt.IsZero() {
 		p.GeneratedAt = time.Now()
@@ -219,13 +221,13 @@ func (t *TRDEntity) Validate() error {
 		t.ID = uuid.New().String()
 	}
 	if t.PRDID == "" {
-		return fmt.Errorf("TRD must reference a PRD")
+		return errors.New("TRD must reference a PRD")
 	}
 	if t.Title == "" {
-		return fmt.Errorf("TRD title is required")
+		return errors.New("TRD title is required")
 	}
 	if t.Content == "" {
-		return fmt.Errorf("TRD content is required")
+		return errors.New("TRD content is required")
 	}
 	if t.GeneratedAt.IsZero() {
 		t.GeneratedAt = time.Now()
@@ -248,13 +250,13 @@ func (m *MainTask) Validate() error {
 		m.ID = uuid.New().String()
 	}
 	if m.TaskID == "" {
-		return fmt.Errorf("main task ID (e.g., MT-001) is required")
+		return errors.New("main task ID (e.g., MT-001) is required")
 	}
 	if m.Name == "" {
-		return fmt.Errorf("main task name is required")
+		return errors.New("main task name is required")
 	}
 	if m.Description == "" {
-		return fmt.Errorf("main task description is required")
+		return errors.New("main task description is required")
 	}
 	if m.CreatedAt.IsZero() {
 		m.CreatedAt = time.Now()
@@ -274,19 +276,19 @@ func (s *SubTask) Validate() error {
 		s.ID = uuid.New().String()
 	}
 	if s.MainTaskID == "" {
-		return fmt.Errorf("sub-task must reference a main task")
+		return errors.New("sub-task must reference a main task")
 	}
 	if s.SubTaskID == "" {
-		return fmt.Errorf("sub-task ID (e.g., ST-MT-001-001) is required")
+		return errors.New("sub-task ID (e.g., ST-MT-001-001) is required")
 	}
 	if s.Name == "" {
-		return fmt.Errorf("sub-task name is required")
+		return errors.New("sub-task name is required")
 	}
 	if s.Description == "" {
-		return fmt.Errorf("sub-task description is required")
+		return errors.New("sub-task description is required")
 	}
 	if s.EstimatedHours <= 0 {
-		return fmt.Errorf("sub-task estimated hours must be greater than 0")
+		return errors.New("sub-task estimated hours must be greater than 0")
 	}
 	if s.CreatedAt.IsZero() {
 		s.CreatedAt = time.Now()
@@ -306,13 +308,13 @@ func (r *Rule) Validate() error {
 		r.ID = uuid.New().String()
 	}
 	if r.Name == "" {
-		return fmt.Errorf("rule name is required")
+		return errors.New("rule name is required")
 	}
 	if r.Content == "" {
-		return fmt.Errorf("rule content is required")
+		return errors.New("rule content is required")
 	}
 	if r.Type == "" {
-		return fmt.Errorf("rule type is required")
+		return errors.New("rule type is required")
 	}
 	if r.Version == "" {
 		r.Version = "1.0.0"

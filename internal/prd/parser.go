@@ -19,11 +19,11 @@ type Parser struct {
 
 // ParserConfig represents parser configuration
 type ParserConfig struct {
-	MaxFileSize        int64  `json:"max_file_size"`
-	MaxSections        int    `json:"max_sections"`
-	MaxDepth           int    `json:"max_depth"`
-	EnableAIProcessing bool   `json:"enable_ai_processing"`
-	StrictMode         bool   `json:"strict_mode"`
+	MaxFileSize        int64 `json:"max_file_size"`
+	MaxSections        int   `json:"max_sections"`
+	MaxDepth           int   `json:"max_depth"`
+	EnableAIProcessing bool  `json:"enable_ai_processing"`
+	StrictMode         bool  `json:"strict_mode"`
 }
 
 // DefaultParserConfig returns default parser configuration
@@ -59,8 +59,8 @@ func (p *Parser) ParseDocument(content, format, encoding string) (*types.PRDDocu
 
 	// Create document structure
 	doc := &types.PRDDocument{
-		ID:      generateDocumentID(),
-		Status:  types.PRDStatusImported,
+		ID:     generateDocumentID(),
+		Status: types.PRDStatusImported,
 		Content: types.PRDContent{
 			Raw:       content,
 			Format:    format,
@@ -115,13 +115,13 @@ func (p *Parser) ParseDocument(content, format, encoding string) (*types.PRDDocu
 func (p *Parser) parseMarkdown(doc *types.PRDDocument) error {
 	content := doc.Content.Raw
 	sections := []types.PRDSection{}
-	
+
 	// Regex patterns for markdown
 	headingRegex := regexp.MustCompile(`^(#{1,6})\s+(.+)$`)
 	codeBlockRegex := regexp.MustCompile("```")
 	tableRegex := regexp.MustCompile(`\|.*\|`)
 	imageRegex := regexp.MustCompile(`!\[.*\]\(.*\)`)
-	
+
 	lines := strings.Split(content, "\n")
 	currentSection := types.PRDSection{}
 	sectionContent := []string{}
@@ -133,23 +133,23 @@ func (p *Parser) parseMarkdown(doc *types.PRDDocument) error {
 
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		// Check for code blocks
 		if codeBlockRegex.MatchString(line) {
 			inCodeBlock = !inCodeBlock
 			hasCode = true
 		}
-		
+
 		// Check for images
 		if imageRegex.MatchString(line) {
 			hasImages = true
 		}
-		
+
 		// Check for tables
 		if !inCodeBlock && tableRegex.MatchString(line) {
 			hasTables = true
 		}
-		
+
 		// Check for headings
 		if matches := headingRegex.FindStringSubmatch(line); matches != nil {
 			// Save previous section if exists
@@ -157,12 +157,12 @@ func (p *Parser) parseMarkdown(doc *types.PRDDocument) error {
 				currentSection.Content = strings.Join(sectionContent, "\n")
 				sections = append(sections, currentSection)
 			}
-			
+
 			// Start new section
 			sectionID++
 			level := len(matches[1])
 			title := matches[2]
-			
+
 			currentSection = types.PRDSection{
 				ID:    fmt.Sprintf("section_%d", sectionID),
 				Title: title,
@@ -176,13 +176,13 @@ func (p *Parser) parseMarkdown(doc *types.PRDDocument) error {
 			sectionContent = append(sectionContent, line)
 		}
 	}
-	
+
 	// Save last section
 	if currentSection.Title != "" {
 		currentSection.Content = strings.Join(sectionContent, "\n")
 		sections = append(sections, currentSection)
 	}
-	
+
 	// Update document content
 	doc.Content.Sections = sections
 	doc.Content.Structure = types.PRDStructure{
@@ -195,7 +195,7 @@ func (p *Parser) parseMarkdown(doc *types.PRDDocument) error {
 		HasCode:        hasCode,
 		HasDiagrams:    p.detectDiagrams(content),
 	}
-	
+
 	return nil
 }
 
@@ -203,24 +203,24 @@ func (p *Parser) parseMarkdown(doc *types.PRDDocument) error {
 func (p *Parser) parseText(doc *types.PRDDocument) error {
 	content := doc.Content.Raw
 	lines := strings.Split(content, "\n")
-	
+
 	// Simple text parsing - look for numbered sections, blank lines, etc.
 	sections := []types.PRDSection{}
 	currentSection := types.PRDSection{}
 	sectionContent := []string{}
 	sectionID := 0
-	
+
 	// Regex for numbered sections
 	numberedRegex := regexp.MustCompile(`^(\d+\.?\d*\.?)\s+(.+)$`)
-	
+
 	for i, line := range lines {
 		line = strings.TrimSpace(line)
-		
+
 		// Skip empty lines at the beginning
 		if line == "" && currentSection.Title == "" {
 			continue
 		}
-		
+
 		// Check for numbered sections
 		if matches := numberedRegex.FindStringSubmatch(line); matches != nil {
 			// Save previous section if exists
@@ -228,11 +228,11 @@ func (p *Parser) parseText(doc *types.PRDDocument) error {
 				currentSection.Content = strings.Join(sectionContent, "\n")
 				sections = append(sections, currentSection)
 			}
-			
+
 			// Start new section
 			sectionID++
 			title := matches[2]
-			
+
 			currentSection = types.PRDSection{
 				ID:    fmt.Sprintf("section_%d", sectionID),
 				Title: title,
@@ -246,13 +246,13 @@ func (p *Parser) parseText(doc *types.PRDDocument) error {
 			sectionContent = append(sectionContent, line)
 		}
 	}
-	
+
 	// Save last section
 	if currentSection.Title != "" {
 		currentSection.Content = strings.Join(sectionContent, "\n")
 		sections = append(sections, currentSection)
 	}
-	
+
 	// If no sections found, create a single section with all content
 	if len(sections) == 0 {
 		sections = []types.PRDSection{
@@ -266,7 +266,7 @@ func (p *Parser) parseText(doc *types.PRDDocument) error {
 			},
 		}
 	}
-	
+
 	// Update document content
 	doc.Content.Sections = sections
 	doc.Content.Structure = types.PRDStructure{
@@ -279,14 +279,14 @@ func (p *Parser) parseText(doc *types.PRDDocument) error {
 		HasCode:        false,
 		HasDiagrams:    false,
 	}
-	
+
 	return nil
 }
 
 // detectSectionType detects the type of a section based on its title
 func (p *Parser) detectSectionType(title string) types.SectionType {
 	titleLower := strings.ToLower(title)
-	
+
 	// Define keywords for each section type
 	keywords := map[types.SectionType][]string{
 		types.SectionTypeOverview:      {"overview", "introduction", "summary", "about"},
@@ -306,7 +306,7 @@ func (p *Parser) detectSectionType(title string) types.SectionType {
 		types.SectionTypeRisks:         {"risks", "challenges", "issues", "concerns"},
 		types.SectionTypeSuccess:       {"success", "metrics", "kpi", "measurement"},
 	}
-	
+
 	// Check for specific compound matches first
 	if strings.Contains(titleLower, "functional") && strings.Contains(titleLower, "requirement") {
 		return types.SectionTypeFunctional
@@ -323,7 +323,7 @@ func (p *Parser) detectSectionType(title string) types.SectionType {
 	if strings.Contains(titleLower, "acceptance") && strings.Contains(titleLower, "criteria") {
 		return types.SectionTypeAcceptance
 	}
-	
+
 	// Check for single keyword matches
 	for sectionType, keywordList := range keywords {
 		for _, keyword := range keywordList {
@@ -332,7 +332,7 @@ func (p *Parser) detectSectionType(title string) types.SectionType {
 			}
 		}
 	}
-	
+
 	return types.SectionTypeOther
 }
 
@@ -364,14 +364,14 @@ func (p *Parser) detectTOC(content string) bool {
 		"toc",
 		"index",
 	}
-	
+
 	contentLower := strings.ToLower(content)
 	for _, pattern := range tocPatterns {
 		if strings.Contains(contentLower, pattern) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -385,14 +385,14 @@ func (p *Parser) detectDiagrams(content string) bool {
 		"sequence",
 		"architecture",
 	}
-	
+
 	contentLower := strings.ToLower(content)
 	for _, pattern := range diagramPatterns {
 		if strings.Contains(contentLower, pattern) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -401,15 +401,15 @@ func countWords(content string) int {
 	if content == "" {
 		return 0
 	}
-	
+
 	scanner := bufio.NewScanner(strings.NewReader(content))
 	scanner.Split(bufio.ScanWords)
-	
+
 	count := 0
 	for scanner.Scan() {
 		count++
 	}
-	
+
 	return count
 }
 
@@ -427,11 +427,11 @@ func (p *Parser) addProcessingStep(doc *types.PRDDocument, name string, status t
 		EndTime:   endTime,
 		Duration:  endTime.Sub(startTime),
 	}
-	
+
 	if errorMsg != "" {
 		step.Error = errorMsg
 	}
-	
+
 	doc.Processing.ProcessingSteps = append(doc.Processing.ProcessingSteps, step)
 }
 
@@ -441,19 +441,19 @@ func (p *Parser) ValidateContent(content, format, encoding string) error {
 	if strings.TrimSpace(content) == "" {
 		return fmt.Errorf("content is empty")
 	}
-	
+
 	// Check file size
 	if int64(len(content)) > p.config.MaxFileSize {
 		return fmt.Errorf("content size %d exceeds maximum allowed size %d", len(content), p.config.MaxFileSize)
 	}
-	
+
 	// Check encoding
 	if encoding == "utf-8" || encoding == "" {
 		if !utf8.ValidString(content) {
 			return fmt.Errorf("content is not valid UTF-8")
 		}
 	}
-	
+
 	// Format-specific validation
 	switch strings.ToLower(format) {
 	case "markdown", "md":
@@ -461,7 +461,7 @@ func (p *Parser) ValidateContent(content, format, encoding string) error {
 	case "text", "txt", "plain":
 		return p.validateText(content)
 	}
-	
+
 	return nil
 }
 
@@ -473,7 +473,7 @@ func (p *Parser) validateMarkdown(content string) error {
 			return fmt.Errorf("content does not appear to be valid markdown")
 		}
 	}
-	
+
 	return nil
 }
 
@@ -488,6 +488,6 @@ func (p *Parser) validateText(content string) error {
 			}
 		}
 	}
-	
+
 	return nil
 }

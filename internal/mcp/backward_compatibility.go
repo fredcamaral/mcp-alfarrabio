@@ -1,3 +1,5 @@
+// Package mcp provides Model Context Protocol server implementation and memory management.
+// It includes MCP tool handlers, memory operations, and protocol compatibility layers.
 package mcp
 
 import (

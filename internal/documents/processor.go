@@ -1,3 +1,4 @@
+// Package documents provides data structures and processing for PRD/TRD document management.
 package documents
 
 import (
@@ -5,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -14,6 +16,13 @@ import (
 	"github.com/yuin/goldmark/ast"
 	"github.com/yuin/goldmark/text"
 	"gopkg.in/yaml.v3"
+)
+
+// Compiled regexes for performance
+var (
+	bulletPointRegex = regexp.MustCompile(`^[-*•]\s+`)
+	numberedListRegex = regexp.MustCompile(`^\d+\.\s+`)
+	headerRegex = regexp.MustCompile(`^#+\s*`)
 )
 
 // Processor handles document parsing and processing
@@ -298,11 +307,11 @@ func extractListItems(content string) []string {
 	for _, line := range lines {
 		line = strings.TrimSpace(line)
 		// Check for bullet points or numbered lists
-		if matched, _ := regexp.MatchString(`^[-*•]\s+`, line); matched {
-			item := regexp.MustCompile(`^[-*•]\s+`).ReplaceAllString(line, "")
+		if bulletPointRegex.MatchString(line) {
+			item := bulletPointRegex.ReplaceAllString(line, "")
 			items = append(items, strings.TrimSpace(item))
-		} else if matched, _ := regexp.MatchString(`^\d+\.\s+`, line); matched {
-			item := regexp.MustCompile(`^\d+\.\s+`).ReplaceAllString(line, "")
+		} else if numberedListRegex.MatchString(line) {
+			item := numberedListRegex.ReplaceAllString(line, "")
 			items = append(items, strings.TrimSpace(item))
 		}
 	}
@@ -317,7 +326,7 @@ func extractFirstLine(content string) string {
 		line = strings.TrimSpace(line)
 		if line != "" {
 			// Remove markdown headers
-			line = regexp.MustCompile(`^#+\s*`).ReplaceAllString(line, "")
+			line = headerRegex.ReplaceAllString(line, "")
 			return strings.TrimSpace(line)
 		}
 	}
@@ -422,9 +431,9 @@ func (p *Processor) ProcessMarkdownToSections(content []byte) ([]Section, error)
 
 		default:
 			if currentSection != nil {
-				// Collect content for current section
-				if n.Type() == ast.TypeBlock {
-					contentBuffer.WriteString(string(n.Text(reader.Source())))
+				// Collect content for current section - collect text nodes
+				if textNode, ok := n.(*ast.Text); ok {
+					contentBuffer.Write(textNode.Segment.Value(reader.Source()))
 					contentBuffer.WriteString("\n")
 				}
 			}
@@ -459,19 +468,33 @@ func (p *Processor) ExportPRD(prd *PRDEntity, format string, writer io.Writer) e
 // exportPRDMarkdown exports PRD as markdown
 func (p *Processor) exportPRDMarkdown(prd *PRDEntity, writer io.Writer) error {
 	// Write title
-	fmt.Fprintf(writer, "# %s\n\n", prd.Title)
+	if _, err := fmt.Fprintf(writer, "# %s\n\n", prd.Title); err != nil {
+		return fmt.Errorf("failed to write title: %w", err)
+	}
 
 	// Write metadata
-	fmt.Fprintf(writer, "**Generated:** %s\n", prd.GeneratedAt.Format("2006-01-02"))
-	fmt.Fprintf(writer, "**Status:** %s\n", prd.Status)
-	fmt.Fprintf(writer, "**Complexity:** %d/100\n", prd.ComplexityScore)
-	fmt.Fprintf(writer, "**Estimated Duration:** %s\n\n", prd.EstimatedDuration)
+	if _, err := fmt.Fprintf(writer, "**Generated:** %s\n", prd.GeneratedAt.Format("2006-01-02")); err != nil {
+		return fmt.Errorf("failed to write generated date: %w", err)
+	}
+	if _, err := fmt.Fprintf(writer, "**Status:** %s\n", prd.Status); err != nil {
+		return fmt.Errorf("failed to write status: %w", err)
+	}
+	if _, err := fmt.Fprintf(writer, "**Complexity:** %d/100\n", prd.ComplexityScore); err != nil {
+		return fmt.Errorf("failed to write complexity: %w", err)
+	}
+	if _, err := fmt.Fprintf(writer, "**Estimated Duration:** %s\n\n", prd.EstimatedDuration); err != nil {
+		return fmt.Errorf("failed to write duration: %w", err)
+	}
 
 	// Write sections
 	for _, section := range prd.Sections {
 		prefix := strings.Repeat("#", section.Level)
-		fmt.Fprintf(writer, "%s %s\n\n", prefix, section.Title)
-		fmt.Fprintf(writer, "%s\n\n", section.Content)
+		if _, err := fmt.Fprintf(writer, "%s %s\n\n", prefix, section.Title); err != nil {
+			return fmt.Errorf("failed to write section title: %w", err)
+		}
+		if _, err := fmt.Fprintf(writer, "%s\n\n", section.Content); err != nil {
+			return fmt.Errorf("failed to write section content: %w", err)
+		}
 	}
 
 	return nil
@@ -487,6 +510,10 @@ func (p *Processor) exportPRDJSON(prd *PRDEntity, writer io.Writer) error {
 // exportPRDYAML exports PRD as YAML
 func (p *Processor) exportPRDYAML(prd *PRDEntity, writer io.Writer) error {
 	encoder := yaml.NewEncoder(writer)
-	defer encoder.Close()
+	defer func() {
+		if err := encoder.Close(); err != nil {
+			log.Printf("Failed to close YAML encoder: %v", err)
+		}
+	}()
 	return encoder.Encode(prd)
 }

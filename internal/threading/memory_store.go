@@ -1,3 +1,5 @@
+// Package threading provides memory threading and conversation flow management.
+// It organizes memories into logical threads and tracks conversation relationships.
 package threading
 
 import (

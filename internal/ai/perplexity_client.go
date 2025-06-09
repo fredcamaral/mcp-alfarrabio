@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -81,7 +82,7 @@ type perplexityError struct {
 // NewPerplexityClient creates a new Perplexity API client
 func NewPerplexityClient(cfg config.PerplexityClientConfig) (*PerplexityClient, error) {
 	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("Perplexity API key is required")
+		return nil, fmt.Errorf("perplexity API key is required")
 	}
 
 	perplexityConfig := PerplexityConfig{
@@ -142,7 +143,7 @@ func (p *PerplexityClient) ProcessRequest(ctx context.Context, req *Request) (*R
 	// Make API call
 	perplexityResp, err := p.makeAPICall(ctx, perplexityReq)
 	if err != nil {
-		return nil, fmt.Errorf("Perplexity API call failed: %w", err)
+		return nil, fmt.Errorf("perplexity API call failed: %w", err)
 	}
 
 	// Convert response
@@ -196,7 +197,11 @@ func (p *PerplexityClient) makeAPICall(ctx context.Context, req *perplexityReque
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
@@ -206,7 +211,7 @@ func (p *PerplexityClient) makeAPICall(ctx context.Context, req *perplexityReque
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Perplexity API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("perplexity API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
@@ -217,7 +222,7 @@ func (p *PerplexityClient) makeAPICall(ctx context.Context, req *perplexityReque
 
 	// Check for API errors
 	if perplexityResp.Error != nil {
-		return nil, fmt.Errorf("Perplexity API error: %s", perplexityResp.Error.Message)
+		return nil, fmt.Errorf("perplexity API error: %s", perplexityResp.Error.Message)
 	}
 
 	return &perplexityResp, nil

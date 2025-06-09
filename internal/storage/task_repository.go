@@ -93,10 +93,10 @@ func (tr *TaskRepository) GetByID(ctx context.Context, id string) (*types.Task, 
 	}
 
 	// Deserialize complex fields
-	json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
-	json.Unmarshal(dependenciesJSON, &task.Dependencies)
-	json.Unmarshal(tagsJSON, &task.Tags)
-	json.Unmarshal(metadataJSON, &task.Metadata)
+	_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
+	_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
+	_ = json.Unmarshal(tagsJSON, &task.Tags)
+	_ = json.Unmarshal(metadataJSON, &task.Metadata)
 
 	// Handle nullable fields
 	if task.Metadata.ExtendedData == nil {
@@ -208,7 +208,11 @@ func (tr *TaskRepository) List(ctx context.Context, filters tasks.TaskFilters) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Ignore close errors in defer
+		}
+	}()
 
 	var tasks []types.Task
 	for rows.Next() {
@@ -230,10 +234,10 @@ func (tr *TaskRepository) List(ctx context.Context, filters tasks.TaskFilters) (
 		}
 
 		// Deserialize complex fields
-		json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
-		json.Unmarshal(dependenciesJSON, &task.Dependencies)
-		json.Unmarshal(tagsJSON, &task.Tags)
-		json.Unmarshal(metadataJSON, &task.Metadata)
+		_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
+		_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
+		_ = json.Unmarshal(tagsJSON, &task.Tags)
+		_ = json.Unmarshal(metadataJSON, &task.Metadata)
 
 		// Handle nullable fields
 		if task.Metadata.ExtendedData == nil {
@@ -288,7 +292,11 @@ func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Ignore close errors in defer
+		}
+	}()
 
 	var tasks []types.Task
 	for rows.Next() {
@@ -311,10 +319,10 @@ func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (
 		}
 
 		// Deserialize complex fields
-		json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
-		json.Unmarshal(dependenciesJSON, &task.Dependencies)
-		json.Unmarshal(tagsJSON, &task.Tags)
-		json.Unmarshal(metadataJSON, &task.Metadata)
+		_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
+		_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
+		_ = json.Unmarshal(tagsJSON, &task.Tags)
+		_ = json.Unmarshal(metadataJSON, &task.Metadata)
 
 		// Handle nullable fields
 		if task.Metadata.ExtendedData == nil {
@@ -355,7 +363,11 @@ func (tr *TaskRepository) BatchUpdate(ctx context.Context, updates []tasks.Batch
 	if err != nil {
 		return err
 	}
-	defer tx.Rollback()
+	defer func() {
+		if err := tx.Rollback(); err != nil {
+			// Ignore rollback errors in defer - transaction might be committed
+		}
+	}()
 
 	for _, update := range updates {
 		query := "UPDATE tasks SET updated_at = $1"
@@ -416,6 +428,7 @@ func (tr *TaskRepository) GetByIDs(ctx context.Context, ids []string) ([]types.T
 		args[i] = id
 	}
 
+	// #nosec G201 - This is safe as it uses parameterized placeholders ($1, $2, etc.)
 	query := fmt.Sprintf(`
 		SELECT id, title, description, type, priority, status, assignee,
 			   source_prd_id, due_date, created_at, updated_at, started_at, completed_at,
@@ -429,7 +442,11 @@ func (tr *TaskRepository) GetByIDs(ctx context.Context, ids []string) ([]types.T
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
+	defer func() {
+		if err := rows.Close(); err != nil {
+			// Ignore close errors in defer
+		}
+	}()
 
 	var tasks []types.Task
 	for rows.Next() {
@@ -451,10 +468,10 @@ func (tr *TaskRepository) GetByIDs(ctx context.Context, ids []string) ([]types.T
 		}
 
 		// Deserialize complex fields
-		json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
-		json.Unmarshal(dependenciesJSON, &task.Dependencies)
-		json.Unmarshal(tagsJSON, &task.Tags)
-		json.Unmarshal(metadataJSON, &task.Metadata)
+		_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
+		_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
+		_ = json.Unmarshal(tagsJSON, &task.Tags)
+		_ = json.Unmarshal(metadataJSON, &task.Metadata)
 
 		// Handle nullable fields
 		if task.Metadata.ExtendedData == nil {

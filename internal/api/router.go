@@ -249,7 +249,9 @@ func (r *Router) handleNotFound(w http.ResponseWriter, req *http.Request) {
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
 
-	writeJSON(w, errorResp)
+	if err := writeJSON(w, errorResp); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 // handleMethodNotAllowed handles 405 errors
@@ -266,7 +268,9 @@ func (r *Router) handleMethodNotAllowed(w http.ResponseWriter, req *http.Request
 		"timestamp": time.Now().UTC().Format(time.RFC3339),
 	}
 
-	writeJSON(w, errorResp)
+	if err := writeJSON(w, errorResp); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
 }
 
 // writeJSON writes JSON response

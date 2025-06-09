@@ -1,13 +1,17 @@
+// Package repl provides an interactive Read-Eval-Print Loop for PRD/TRD document processing.
 package repl
 
 import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -136,7 +140,7 @@ func (r *REPL) Start(ctx context.Context, httpPort int) error {
 				r.logger.Error("HTTP server error", "error", err)
 			}
 		}()
-		r.printInfo(fmt.Sprintf("HTTP server started on port %d for push notifications", httpPort))
+		r.printInfo("HTTP server started on port " + strconv.Itoa(httpPort) + " for push notifications")
 	}
 
 	// Print welcome message
@@ -172,7 +176,7 @@ func (r *REPL) Start(ctx context.Context, httpPort int) error {
 				if err == io.EOF {
 					return r.shutdown()
 				}
-				r.printError(fmt.Sprintf("Error: %v", err))
+				r.printError("Error: " + err.Error())
 			}
 		}
 	}
@@ -233,7 +237,7 @@ func (r *REPL) processCommand(ctx context.Context, input string) error {
 func (r *REPL) handleSpecialCommand(ctx context.Context, input string) error {
 	parts := strings.Fields(input)
 	if len(parts) == 0 {
-		return fmt.Errorf("empty command")
+		return errors.New("empty command")
 	}
 
 	command := parts[0]
@@ -249,7 +253,7 @@ func (r *REPL) handleSpecialCommand(ctx context.Context, input string) error {
 
 	case ":mode":
 		if len(args) == 0 {
-			r.printInfo(fmt.Sprintf("Current mode: %s", r.session.Mode))
+			r.printInfo("Current mode: " + string(r.session.Mode))
 			return nil
 		}
 		return r.setMode(Mode(args[0]))
@@ -268,13 +272,13 @@ func (r *REPL) handleSpecialCommand(ctx context.Context, input string) error {
 
 	case ":save":
 		if len(args) == 0 {
-			return fmt.Errorf("filename required")
+			return errors.New("filename required")
 		}
 		return r.saveSession(args[0])
 
 	case ":load":
 		if len(args) == 0 {
-			return fmt.Errorf("filename required")
+			return errors.New("filename required")
 		}
 		return r.loadSession(args[0])
 
@@ -310,25 +314,25 @@ func (r *REPL) handleInteractiveCommand(ctx context.Context, input string) (stri
 	switch command {
 	case "create":
 		if len(args) == 0 {
-			return "", fmt.Errorf("specify what to create: prd, trd, tasks")
+			return "", errors.New("specify what to create: prd, trd, tasks")
 		}
 		return r.handleCreateCommand(ctx, args[0], args[1:])
 
 	case "import":
 		if len(args) < 2 {
-			return "", fmt.Errorf("usage: import <type> <file>")
+			return "", errors.New("usage: import <type> <file>")
 		}
 		return r.handleImportCommand(ctx, args[0], args[1])
 
 	case "generate":
 		if len(args) == 0 {
-			return "", fmt.Errorf("specify what to generate")
+			return "", errors.New("specify what to generate")
 		}
 		return r.handleGenerateCommand(ctx, args[0], args[1:])
 
 	case "analyze":
 		if len(args) == 0 {
-			return "", fmt.Errorf("specify what to analyze")
+			return "", errors.New("specify what to analyze")
 		}
 		return r.handleAnalyzeCommand(ctx, args[0], args[1:])
 
@@ -337,7 +341,7 @@ func (r *REPL) handleInteractiveCommand(ctx context.Context, input string) (stri
 
 	case "show":
 		if len(args) == 0 {
-			return "", fmt.Errorf("specify what to show")
+			return "", errors.New("specify what to show")
 		}
 		return r.handleShowCommand(args[0], args[1:])
 
@@ -410,7 +414,7 @@ func (r *REPL) createPRDInteractive(ctx context.Context) (string, error) {
 		},
 	})
 
-	return fmt.Sprintf("PRD created successfully: %s", finalResp.Document.GetTitle()), nil
+	return "PRD created successfully: " + finalResp.Document.GetTitle(), nil
 }
 
 // askQuestion prompts the user with a question
@@ -419,20 +423,28 @@ func (r *REPL) askQuestion(question ai.InteractiveQuestion) (ai.InteractiveAnswe
 
 	if question.Type == "choice" && len(question.Options) > 0 {
 		for i, option := range question.Options {
-			fmt.Fprintf(r.output, "  %d. %s\n", i+1, option)
+			if _, err := fmt.Fprintf(r.output, "  %d. %s\n", i+1, option); err != nil {
+				r.logger.Error("Failed to print option", "error", err)
+			}
 		}
-		fmt.Fprintf(r.output, "Enter choice (1-%d): ", len(question.Options))
+		if _, err := fmt.Fprintf(r.output, "Enter choice (1-%d): ", len(question.Options)); err != nil {
+			r.logger.Error("Failed to print choice prompt", "error", err)
+		}
 	} else {
 		if question.Default != "" {
-			fmt.Fprintf(r.output, "[%s]: ", question.Default)
+			if _, err := fmt.Fprintf(r.output, "[%s]: ", question.Default); err != nil {
+				r.logger.Error("Failed to print default prompt", "error", err)
+			}
 		} else {
-			fmt.Fprint(r.output, "> ")
+			if _, err := fmt.Fprint(r.output, "> "); err != nil {
+				r.logger.Error("Failed to print prompt", "error", err)
+			}
 		}
 	}
 
 	scanner := bufio.NewScanner(r.input)
 	if !scanner.Scan() {
-		return ai.InteractiveAnswer{}, fmt.Errorf("input cancelled")
+		return ai.InteractiveAnswer{}, errors.New("input cancelled")
 	}
 
 	answer := strings.TrimSpace(scanner.Text())
@@ -461,7 +473,7 @@ func (r *REPL) askQuestion(question ai.InteractiveQuestion) (ai.InteractiveAnswe
 // handleWorkflowCommand handles commands in workflow mode
 func (r *REPL) handleWorkflowCommand(ctx context.Context, input string) (string, error) {
 	if r.session.ActiveWorkflow == nil {
-		return "", fmt.Errorf("no active workflow")
+		return "", errors.New("no active workflow")
 	}
 
 	// Handle workflow-specific commands
@@ -481,19 +493,19 @@ func (r *REPL) handleWorkflowCommand(ctx context.Context, input string) (string,
 // handleDebugCommand handles commands in debug mode
 func (r *REPL) handleDebugCommand(ctx context.Context, input string) (string, error) {
 	// In debug mode, show detailed information about command processing
-	r.printInfo(fmt.Sprintf("Debug: Processing command: %s", input))
+	r.printInfo("Debug: Processing command: " + input)
 
 	// Show context state
 	r.printInfo("Debug: Current context:")
 	for k, v := range r.session.Context {
-		r.printInfo(fmt.Sprintf("  %s: %v", k, v))
+		r.printInfo("  " + k + ": " + fmt.Sprintf("%v", v))
 	}
 
 	// Process command normally but with verbose output
 	output, err := r.handleInteractiveCommand(ctx, input)
 
 	if err != nil {
-		r.printInfo(fmt.Sprintf("Debug: Error occurred: %v", err))
+		r.printInfo("Debug: Error occurred: " + err.Error())
 	}
 
 	return output, err
@@ -502,7 +514,7 @@ func (r *REPL) handleDebugCommand(ctx context.Context, input string) (string, er
 // handleAIInteraction handles natural language AI interaction
 func (r *REPL) handleAIInteraction(ctx context.Context, input string) (string, error) {
 	// This would integrate with the AI service for natural language understanding
-	return fmt.Sprintf("AI: I understand you want to: %s", input), nil
+	return "AI: I understand you want to: " + input, nil
 }
 
 // Helper methods
@@ -515,7 +527,9 @@ func (r *REPL) printWelcome() {
 ║  AI-Powered Document Generation and Task Management           ║
 ╚═══════════════════════════════════════════════════════════════╝
 `
-	r.infoColor.Fprintln(r.output, banner)
+	if _, err := r.infoColor.Fprintln(r.output, banner); err != nil {
+		r.logger.Error("Failed to print banner", "error", err)
+	}
 	r.printInfo("Type :help for available commands")
 }
 
@@ -550,35 +564,51 @@ REPL Commands:
 
 In interactive mode, you can also use natural language to interact with AI.
 `
-	fmt.Fprint(r.output, help)
+	if _, err := fmt.Fprint(r.output, help); err != nil {
+		r.logger.Error("Failed to print help", "error", err)
+	}
 }
 
 func (r *REPL) showPrompt() {
-	prompt := fmt.Sprintf("[%s]> ", r.session.Mode)
-	r.promptColor.Fprint(r.output, prompt)
+	prompt := "[" + string(r.session.Mode) + "]> "
+	if _, err := r.promptColor.Fprint(r.output, prompt); err != nil {
+		r.logger.Error("Failed to print prompt", "error", err)
+	}
 }
 
 func (r *REPL) printOutput(output string) {
 	if r.colorOutput {
-		r.outputColor.Fprintln(r.output, output)
+		if _, err := r.outputColor.Fprintln(r.output, output); err != nil {
+			r.logger.Error("Failed to print colored output", "error", err)
+		}
 	} else {
-		fmt.Fprintln(r.output, output)
+		if _, err := fmt.Fprintln(r.output, output); err != nil {
+			r.logger.Error("Failed to print output", "error", err)
+		}
 	}
 }
 
 func (r *REPL) printError(message string) {
 	if r.colorOutput {
-		r.errorColor.Fprintln(r.output, message)
+		if _, err := r.errorColor.Fprintln(r.output, message); err != nil {
+			r.logger.Error("Failed to print colored error", "error", err)
+		}
 	} else {
-		fmt.Fprintln(r.output, message)
+		if _, err := fmt.Fprintln(r.output, message); err != nil {
+			r.logger.Error("Failed to print error message", "error", err)
+		}
 	}
 }
 
 func (r *REPL) printInfo(message string) {
 	if r.colorOutput {
-		r.infoColor.Fprintln(r.output, message)
+		if _, err := r.infoColor.Fprintln(r.output, message); err != nil {
+			r.logger.Error("Failed to print colored info", "error", err)
+		}
 	} else {
-		fmt.Fprintln(r.output, message)
+		if _, err := fmt.Fprintln(r.output, message); err != nil {
+			r.logger.Error("Failed to print info message", "error", err)
+		}
 	}
 }
 
@@ -588,17 +618,21 @@ func (r *REPL) printContext() {
 
 	r.printInfo("Current Context:")
 	for k, v := range r.session.Context {
-		fmt.Fprintf(r.output, "  %s: %v\n", k, v)
+		if _, err := fmt.Fprintf(r.output, "  %s: %v\n", k, v); err != nil {
+			r.logger.Error("Failed to print context item", "error", err)
+		}
 	}
 }
 
 func (r *REPL) printHistory() {
 	r.printInfo("Command History:")
 	for i, cmd := range r.session.History {
-		fmt.Fprintf(r.output, "%3d | %s | %s\n",
+		if _, err := fmt.Fprintf(r.output, "%3d | %s | %s\n",
 			i+1,
 			cmd.Timestamp.Format("15:04:05"),
-			cmd.Input)
+			cmd.Input); err != nil {
+			r.logger.Error("Failed to print history item", "error", err)
+		}
 	}
 }
 
@@ -640,7 +674,7 @@ Active Workflow:
 	}
 
 	if r.session.HTTPServer != nil {
-		status += fmt.Sprintf("\nHTTP Server: Running on port %d\n", r.session.HTTPServer.port)
+		status += "\nHTTP Server: Running on port " + strconv.Itoa(r.session.HTTPServer.port) + "\n"
 	}
 
 	r.printInfo(status)
@@ -648,7 +682,9 @@ Active Workflow:
 
 func (r *REPL) clearScreen() {
 	// ANSI escape code to clear screen
-	fmt.Fprint(r.output, "\033[2J\033[H")
+	if _, err := fmt.Fprint(r.output, "\033[2J\033[H"); err != nil {
+		r.logger.Error("Failed to clear screen", "error", err)
+	}
 }
 
 func (r *REPL) setMode(mode Mode) error {
@@ -659,7 +695,7 @@ func (r *REPL) setMode(mode Mode) error {
 			r.session.Mode = mode
 			r.session.UpdatedAt = time.Now()
 			r.session.mu.Unlock()
-			r.printInfo(fmt.Sprintf("Mode changed to: %s", mode))
+			r.printInfo("Mode changed to: " + string(mode))
 			return nil
 		}
 	}
@@ -689,7 +725,7 @@ func (r *REPL) sendNotification(notification Notification) {
 
 func (r *REPL) handleNotification(notification Notification) {
 	// Display notification
-	r.printInfo(fmt.Sprintf("\n[Notification] %s: %s", notification.Type, notification.Message))
+	r.printInfo("\n[Notification] " + notification.Type + ": " + notification.Message)
 
 	// Re-show prompt
 	r.showPrompt()
@@ -708,12 +744,18 @@ func (r *REPL) saveSession(filename string) error {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
-	r.printInfo(fmt.Sprintf("Session saved to: %s", filename))
+	r.printInfo("Session saved to: " + filename)
 	return nil
 }
 
 func (r *REPL) loadSession(filename string) error {
-	data, err := os.ReadFile(filename)
+	// Basic path validation to prevent directory traversal
+	cleanPath := filepath.Clean(filename)
+	if strings.Contains(cleanPath, "..") {
+		return errors.New("invalid file path: directory traversal detected")
+	}
+	
+	data, err := os.ReadFile(cleanPath) // #nosec G304 - path validated above
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
 	}
@@ -733,7 +775,7 @@ func (r *REPL) loadSession(filename string) error {
 	r.session.Repository = session.Repository
 	r.session.UpdatedAt = time.Now()
 
-	r.printInfo(fmt.Sprintf("Session loaded from: %s", filename))
+	r.printInfo("Session loaded from: " + filename)
 	return nil
 }
 
@@ -755,32 +797,32 @@ func (r *REPL) shutdown() error {
 // Workflow methods would be implemented here...
 func (r *REPL) handleWorkflowSubcommand(ctx context.Context, args []string) error {
 	// Implementation for workflow subcommands
-	return fmt.Errorf("workflow commands not yet implemented")
+	return errors.New("workflow commands not yet implemented")
 }
 
 func (r *REPL) showWorkflowStatus() error {
 	// Implementation for showing workflow status
-	return fmt.Errorf("workflow status not yet implemented")
+	return errors.New("workflow status not yet implemented")
 }
 
 func (r *REPL) nextWorkflowStep(ctx context.Context) (string, error) {
 	// Implementation for next workflow step
-	return "", fmt.Errorf("workflow steps not yet implemented")
+	return "", errors.New("workflow steps not yet implemented")
 }
 
 func (r *REPL) skipWorkflowStep(ctx context.Context) (string, error) {
 	// Implementation for skipping workflow step
-	return "", fmt.Errorf("workflow skip not yet implemented")
+	return "", errors.New("workflow skip not yet implemented")
 }
 
 func (r *REPL) abortWorkflow() (string, error) {
 	// Implementation for aborting workflow
-	return "", fmt.Errorf("workflow abort not yet implemented")
+	return "", errors.New("workflow abort not yet implemented")
 }
 
 func (r *REPL) processWorkflowInput(ctx context.Context, input string) (string, error) {
 	// Implementation for processing workflow input
-	return "", fmt.Errorf("workflow input processing not yet implemented")
+	return "", errors.New("workflow input processing not yet implemented")
 }
 
 // Additional helper methods would be implemented here...

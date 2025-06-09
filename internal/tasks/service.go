@@ -3,6 +3,7 @@ package tasks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -341,26 +342,26 @@ func (s *Service) BatchUpdateTasks(ctx context.Context, updates []BatchUpdate, u
 
 func (s *Service) validateTask(task *types.Task) error {
 	if task.Title == "" {
-		return fmt.Errorf("task title is required")
+		return errors.New("task title is required")
 	}
 	if task.Type == "" {
-		return fmt.Errorf("task type is required")
+		return errors.New("task type is required")
 	}
 	if task.Priority == "" {
-		return fmt.Errorf("task priority is required")
+		return errors.New("task priority is required")
 	}
 	return nil
 }
 
 func (s *Service) validateSearchQuery(query SearchQuery) error {
 	if query.Query == "" {
-		return fmt.Errorf("search query cannot be empty")
+		return errors.New("search query cannot be empty")
 	}
 	if len(query.Query) < 2 {
-		return fmt.Errorf("search query too short (minimum 2 characters)")
+		return errors.New("search query too short (minimum 2 characters)")
 	}
 	if len(query.Query) > 1000 {
-		return fmt.Errorf("search query too long (maximum 1000 characters)")
+		return errors.New("search query too long (maximum 1000 characters)")
 	}
 	return nil
 }

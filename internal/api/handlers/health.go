@@ -19,14 +19,14 @@ type HealthHandler struct {
 
 // HealthStatus represents the health check response structure
 type HealthStatus struct {
-	Status      string            `json:"status"`
-	Server      string            `json:"server"`
-	Version     string            `json:"version"`
-	Environment string            `json:"environment"`
-	Uptime      string            `json:"uptime"`
-	Timestamp   string            `json:"timestamp"`
-	Checks      map[string]Check  `json:"checks"`
-	System      SystemInfo        `json:"system"`
+	Status      string           `json:"status"`
+	Server      string           `json:"server"`
+	Version     string           `json:"version"`
+	Environment string           `json:"environment"`
+	Uptime      string           `json:"uptime"`
+	Timestamp   string           `json:"timestamp"`
+	Checks      map[string]Check `json:"checks"`
+	System      SystemInfo       `json:"system"`
 }
 
 // Check represents an individual health check result
@@ -121,11 +121,11 @@ func (h *HealthHandler) performHealthChecks(ctx context.Context) map[string]Chec
 // checkQdrant performs Qdrant database health check
 func (h *HealthHandler) checkQdrant(ctx context.Context) Check {
 	start := time.Now()
-	
+
 	// TODO: Implement actual Qdrant health check when storage layer is available
 	// For now, simulate a basic check
 	latency := time.Since(start)
-	
+
 	// For testing purposes, always return healthy if health check is enabled
 	// In production, this would actually ping Qdrant
 	if h.config.Qdrant.HealthCheck {
@@ -135,7 +135,7 @@ func (h *HealthHandler) checkQdrant(ctx context.Context) Check {
 			Latency: latency.Round(time.Millisecond).String(),
 		}
 	}
-	
+
 	return Check{
 		Status:  "healthy",
 		Message: "Qdrant health check disabled",
@@ -146,9 +146,9 @@ func (h *HealthHandler) checkQdrant(ctx context.Context) Check {
 func (h *HealthHandler) checkMemory() Check {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	memoryMB := m.Alloc / 1024 / 1024
-	
+
 	// Consider unhealthy if using more than 500MB (adjust based on requirements)
 	if memoryMB > 500 {
 		return Check{
@@ -156,7 +156,7 @@ func (h *HealthHandler) checkMemory() Check {
 			Message: "High memory usage",
 		}
 	}
-	
+
 	return Check{
 		Status:  "healthy",
 		Message: "Memory usage normal",
@@ -174,7 +174,7 @@ func (h *HealthHandler) checkConfiguration() Check {
 			Message: "Configuration validation warning: " + err.Error(),
 		}
 	}
-	
+
 	return Check{
 		Status:  "healthy",
 		Message: "Configuration valid",
@@ -185,7 +185,7 @@ func (h *HealthHandler) checkConfiguration() Check {
 func (h *HealthHandler) getSystemInfo() SystemInfo {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	return SystemInfo{
 		GoVersion:    runtime.Version(),
 		NumGoroutine: runtime.NumGoroutine(),
@@ -197,7 +197,7 @@ func (h *HealthHandler) getSystemInfo() SystemInfo {
 func (h *HealthHandler) determineOverallStatus(checks map[string]Check) string {
 	hasUnhealthy := false
 	hasWarning := false
-	
+
 	for _, check := range checks {
 		switch check.Status {
 		case "unhealthy":
@@ -206,7 +206,7 @@ func (h *HealthHandler) determineOverallStatus(checks map[string]Check) string {
 			hasWarning = true
 		}
 	}
-	
+
 	if hasUnhealthy {
 		return "unhealthy"
 	}

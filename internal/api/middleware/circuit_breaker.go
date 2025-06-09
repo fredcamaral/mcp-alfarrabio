@@ -353,19 +353,22 @@ func (cb *CircuitBreaker) GetMetrics() *BreakerMetrics {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
 
-	// Return a copy to avoid race conditions
-	return &BreakerMetrics{
-		TotalRequests:       cb.metrics.TotalRequests,
-		SuccessfulRequests:  cb.metrics.SuccessfulRequests,
-		FailedRequests:      cb.metrics.FailedRequests,
-		RejectedRequests:    cb.metrics.RejectedRequests,
-		Timeouts:            cb.metrics.Timeouts,
-		StateChanges:        cb.metrics.StateChanges,
-		LastStateChange:     cb.metrics.LastStateChange,
-		Uptime:              cb.metrics.Uptime,
-		Downtime:            cb.metrics.Downtime,
-		AverageResponseTime: cb.metrics.AverageResponseTime,
-	}
+	// Create new instance with zero values (fresh mutex)
+	metrics := NewBreakerMetrics()
+	
+	// Copy data fields explicitly (not the mutex)
+	metrics.TotalRequests = cb.metrics.TotalRequests
+	metrics.SuccessfulRequests = cb.metrics.SuccessfulRequests
+	metrics.FailedRequests = cb.metrics.FailedRequests
+	metrics.RejectedRequests = cb.metrics.RejectedRequests
+	metrics.Timeouts = cb.metrics.Timeouts
+	metrics.StateChanges = cb.metrics.StateChanges
+	metrics.LastStateChange = cb.metrics.LastStateChange
+	metrics.Uptime = cb.metrics.Uptime
+	metrics.Downtime = cb.metrics.Downtime
+	metrics.AverageResponseTime = cb.metrics.AverageResponseTime
+	
+	return metrics
 }
 
 // Reset manually resets the circuit breaker to closed state

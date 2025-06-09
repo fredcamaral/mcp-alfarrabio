@@ -109,7 +109,7 @@ func (lm *LoggingMiddleware) logResponse(r *http.Request, statusCode int, durati
 
 	// Determine log level based on status code
 	statusIcon := lm.getStatusIcon(statusCode)
-	
+
 	lm.logger.Printf("[%s] <-- %s %d %s | %v | %s %s",
 		requestID,
 		statusIcon,
@@ -122,13 +122,13 @@ func (lm *LoggingMiddleware) logResponse(r *http.Request, statusCode int, durati
 
 	// Log slow requests
 	if duration > 1*time.Second {
-		lm.logger.Printf("[%s] SLOW REQUEST: %v for %s %s", 
+		lm.logger.Printf("[%s] SLOW REQUEST: %v for %s %s",
 			requestID, duration, r.Method, r.URL.Path)
 	}
 
 	// Log errors
 	if statusCode >= 400 {
-		lm.logger.Printf("[%s] ERROR: %d %s for %s %s", 
+		lm.logger.Printf("[%s] ERROR: %d %s for %s %s",
 			requestID, statusCode, http.StatusText(statusCode), r.Method, r.URL.Path)
 	}
 }

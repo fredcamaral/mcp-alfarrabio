@@ -11,6 +11,23 @@ import (
 	"github.com/gorilla/websocket"
 )
 
+// ConnectionMetadata tracks metadata for each connection
+type ConnectionMetadata struct {
+	RemoteAddr       string    `json:"remote_addr"`
+	UserAgent        string    `json:"user_agent"`
+	Origin           string    `json:"origin"`
+	ConnectedAt      time.Time `json:"connected_at"`
+	LastActivity     time.Time `json:"last_activity"`
+	Repository       string    `json:"repository"`
+	SessionID        string    `json:"session_id"`
+	CLIVersion       string    `json:"cli_version"`
+	RequestID        string    `json:"request_id"`
+	BytesSent        int64     `json:"bytes_sent"`
+	BytesReceived    int64     `json:"bytes_received"`
+	MessagesSent     int64     `json:"messages_sent"`
+	MessagesReceived int64     `json:"messages_received"`
+}
+
 // MemoryEvent represents a memory change event
 type MemoryEvent struct {
 	Type       string      `json:"type"`
@@ -33,6 +50,7 @@ type Client struct {
 	Hub        *Hub
 	Repository string // Filter events by repository
 	SessionID  string // Filter events by session
+	Metadata   *ConnectionMetadata // Connection metadata for enhanced features
 }
 
 // Hub manages WebSocket connections and broadcasts

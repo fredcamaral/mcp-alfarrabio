@@ -521,7 +521,7 @@ func (s *Suggester) suggestBottleneckResolutionTasks(projectState types.ProjectS
 				Task: types.Task{
 					ID:          s.generateTaskID("testing_bottleneck"),
 					Title:       "Resolve Testing Bottleneck",
-					Description: fmt.Sprintf("Address testing bottleneck: %s", bottleneck),
+					Description: "Address testing bottleneck: " + bottleneck,
 					Type:        types.TaskTypeTesting,
 					Priority:    types.TaskPriorityHigh,
 					EstimatedEffort: types.EffortEstimate{
@@ -553,7 +553,7 @@ func (s *Suggester) suggestBottleneckResolutionTasks(projectState types.ProjectS
 				Task: types.Task{
 					ID:          s.generateTaskID("review_bottleneck"),
 					Title:       "Streamline Code Review Process",
-					Description: fmt.Sprintf("Address review bottleneck: %s", bottleneck),
+					Description: "Address review bottleneck: " + bottleneck,
 					Type:        types.TaskTypeReview,
 					Priority:    types.TaskPriorityMedium,
 					EstimatedEffort: types.EffortEstimate{
@@ -684,7 +684,7 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 				Task: types.Task{
 					ID:          s.generateTaskID("performance_risk"),
 					Title:       "Address Performance Risk",
-					Description: fmt.Sprintf("Mitigate performance challenge: %s", challenge),
+					Description: "Mitigate performance challenge: " + challenge,
 					Type:        types.TaskTypeAnalysis,
 					Priority:    types.TaskPriorityHigh,
 					EstimatedEffort: types.EffortEstimate{
@@ -716,7 +716,7 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 				Task: types.Task{
 					ID:          s.generateTaskID("security_risk"),
 					Title:       "Address Security Risk",
-					Description: fmt.Sprintf("Mitigate security challenge: %s", challenge),
+					Description: "Mitigate security challenge: " + challenge,
 					Type:        types.TaskTypeAnalysis,
 					Priority:    types.TaskPriorityCritical,
 					EstimatedEffort: types.EffortEstimate{
@@ -766,8 +766,8 @@ func (s *Suggester) suggestDependencySetupTasks(existingTasks []types.Task, genC
 				suggestions = append(suggestions, TaskSuggestion{
 					Task: types.Task{
 						ID:          s.generateTaskID("design_prerequisite"),
-						Title:       fmt.Sprintf("Design for %s", task.Title),
-						Description: fmt.Sprintf("Create design and specifications before implementing %s", task.Title),
+						Title:       "Design for " + task.Title,
+						Description: "Create design and specifications before implementing " + task.Title,
 						Type:        types.TaskTypeDesign,
 						Priority:    types.TaskPriorityHigh,
 						EstimatedEffort: types.EffortEstimate{

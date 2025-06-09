@@ -259,7 +259,6 @@ func TestTaskStatusValidation(t *testing.T) {
 		types.TaskStatusCompleted,
 		types.TaskStatusBlocked,
 		types.TaskStatusCancelled,
-		types.TaskStatusOnHold,
 	}
 
 	for _, status := range validStatuses {

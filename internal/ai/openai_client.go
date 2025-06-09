@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -196,7 +197,11 @@ func (o *OpenAIGPTClient) makeAPICall(ctx context.Context, req *openaiGPTRequest
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)

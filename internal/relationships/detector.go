@@ -1,3 +1,5 @@
+// Package relationships provides memory relationship detection and management.
+// It identifies connections between memories and maintains relationship graphs.
 package relationships
 
 import (

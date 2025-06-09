@@ -1,3 +1,5 @@
+// Package embeddings provides text embedding services with reliability features.
+// It includes OpenAI integration, circuit breakers, and retry mechanisms for robust embedding generation.
 package embeddings
 
 import (

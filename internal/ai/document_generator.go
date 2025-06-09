@@ -246,7 +246,7 @@ func (g *DocumentGenerator) buildPrompt(req *DocumentGenerationRequest, ruleCont
 	// Add context
 	contextStr := ""
 	for k, v := range req.Context {
-		contextStr += fmt.Sprintf("%s: %s\n", k, v)
+		contextStr += k + ": " + v + "\n"
 	}
 	prompt = strings.ReplaceAll(prompt, "{{CONTEXT}}", contextStr)
 

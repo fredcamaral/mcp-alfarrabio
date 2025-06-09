@@ -22,7 +22,7 @@ type Storage interface {
 // StorageFilters represents filters for PRD listing
 type StorageFilters struct {
 	Status      types.PRDStatus   `json:"status,omitempty"`
-	Priority    types.PRDPriority    `json:"priority,omitempty"`
+	Priority    types.PRDPriority `json:"priority,omitempty"`
 	ProjectType types.ProjectType `json:"project_type,omitempty"`
 	Tags        []string          `json:"tags,omitempty"`
 	Limit       int               `json:"limit,omitempty"`

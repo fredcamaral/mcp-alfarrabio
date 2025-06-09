@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"time"
 
@@ -78,7 +79,7 @@ type claudeError struct {
 // NewClaudeClient creates a new Claude API client
 func NewClaudeClient(cfg config.ClaudeClientConfig) (*ClaudeClient, error) {
 	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("Claude API key is required")
+		return nil, fmt.Errorf("claude API key is required")
 	}
 
 	claudeConfig := ClaudeConfig{
@@ -139,7 +140,7 @@ func (c *ClaudeClient) ProcessRequest(ctx context.Context, req *Request) (*Respo
 	// Make API call
 	claudeResp, err := c.makeAPICall(ctx, claudeReq)
 	if err != nil {
-		return nil, fmt.Errorf("Claude API call failed: %w", err)
+		return nil, fmt.Errorf("claude API call failed: %w", err)
 	}
 
 	// Convert response
@@ -193,7 +194,11 @@ func (c *ClaudeClient) makeAPICall(ctx context.Context, req *claudeRequest) (*cl
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			log.Printf("Failed to close response body: %v", err)
+		}
+	}()
 
 	// Read response body
 	body, err := io.ReadAll(resp.Body)
@@ -203,7 +208,7 @@ func (c *ClaudeClient) makeAPICall(ctx context.Context, req *claudeRequest) (*cl
 
 	// Check status code
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("Claude API returned status %d: %s", resp.StatusCode, string(body))
+		return nil, fmt.Errorf("claude API returned status %d: %s", resp.StatusCode, string(body))
 	}
 
 	// Parse response
@@ -214,7 +219,7 @@ func (c *ClaudeClient) makeAPICall(ctx context.Context, req *claudeRequest) (*cl
 
 	// Check for API errors
 	if claudeResp.Error != nil {
-		return nil, fmt.Errorf("Claude API error: %s", claudeResp.Error.Message)
+		return nil, fmt.Errorf("claude API error: %s", claudeResp.Error.Message)
 	}
 
 	return &claudeResp, nil

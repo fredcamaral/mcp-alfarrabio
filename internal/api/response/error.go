@@ -13,19 +13,19 @@ type ErrorCode string
 
 const (
 	// Client error codes (4xx)
-	ErrorCodeBadRequest          ErrorCode = "BAD_REQUEST"
-	ErrorCodeUnauthorized        ErrorCode = "UNAUTHORIZED"
-	ErrorCodeForbidden           ErrorCode = "FORBIDDEN"
-	ErrorCodeNotFound            ErrorCode = "NOT_FOUND"
-	ErrorCodeMethodNotAllowed    ErrorCode = "METHOD_NOT_ALLOWED"
-	ErrorCodeValidationFailed    ErrorCode = "VALIDATION_FAILED"
-	ErrorCodeVersionMismatch     ErrorCode = "VERSION_MISMATCH"
-	ErrorCodeRateLimited         ErrorCode = "RATE_LIMITED"
+	ErrorCodeBadRequest       ErrorCode = "BAD_REQUEST"
+	ErrorCodeUnauthorized     ErrorCode = "UNAUTHORIZED"
+	ErrorCodeForbidden        ErrorCode = "FORBIDDEN"
+	ErrorCodeNotFound         ErrorCode = "NOT_FOUND"
+	ErrorCodeMethodNotAllowed ErrorCode = "METHOD_NOT_ALLOWED"
+	ErrorCodeValidationFailed ErrorCode = "VALIDATION_FAILED"
+	ErrorCodeVersionMismatch  ErrorCode = "VERSION_MISMATCH"
+	ErrorCodeRateLimited      ErrorCode = "RATE_LIMITED"
 
 	// Server error codes (5xx)
-	ErrorCodeInternalError       ErrorCode = "INTERNAL_ERROR"
-	ErrorCodeServiceUnavailable  ErrorCode = "SERVICE_UNAVAILABLE"
-	ErrorCodeTimeout             ErrorCode = "TIMEOUT"
+	ErrorCodeInternalError      ErrorCode = "INTERNAL_ERROR"
+	ErrorCodeServiceUnavailable ErrorCode = "SERVICE_UNAVAILABLE"
+	ErrorCodeTimeout            ErrorCode = "TIMEOUT"
 )
 
 // ErrorResponse represents a standardized error response

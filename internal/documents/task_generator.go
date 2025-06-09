@@ -1,6 +1,8 @@
+// Package documents provides data structures and processing for PRD/TRD document management.
 package documents
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -28,7 +30,7 @@ func NewTaskGenerator(logger logging.Logger) *TaskGenerator {
 // GenerateMainTasks generates main tasks from PRD and TRD
 func (g *TaskGenerator) GenerateMainTasks(prd *PRDEntity, trd *TRDEntity) ([]*MainTask, error) {
 	if prd == nil || trd == nil {
-		return nil, fmt.Errorf("PRD and TRD are required for main task generation")
+		return nil, errors.New("PRD and TRD are required for main task generation")
 	}
 
 	// Analyze complexity
@@ -76,7 +78,7 @@ func (g *TaskGenerator) GenerateMainTasks(prd *PRDEntity, trd *TRDEntity) ([]*Ma
 // GenerateSubTasks generates sub-tasks for a main task
 func (g *TaskGenerator) GenerateSubTasks(mainTask *MainTask, prd *PRDEntity, trd *TRDEntity) ([]*SubTask, error) {
 	if mainTask == nil {
-		return nil, fmt.Errorf("main task is required for sub-task generation")
+		return nil, errors.New("main task is required for sub-task generation")
 	}
 
 	// Analyze main task complexity
@@ -1083,11 +1085,17 @@ func EstimateProjectTimeline(mainTasks []*MainTask) string {
 		// Parse duration estimate
 		if strings.Contains(task.DurationEstimate, "week") {
 			var weeks float64
-			fmt.Sscanf(task.DurationEstimate, "%f", &weeks)
+			if _, err := fmt.Sscanf(task.DurationEstimate, "%f", &weeks); err != nil {
+				// Unable to parse duration, skip this task
+				continue
+			}
 			totalWeeks += weeks
 		} else if strings.Contains(task.DurationEstimate, "day") {
 			var days int
-			fmt.Sscanf(task.DurationEstimate, "%d", &days)
+			if _, err := fmt.Sscanf(task.DurationEstimate, "%d", &days); err != nil {
+				// Unable to parse duration, skip this task
+				continue
+			}
 			totalWeeks += float64(days) / 5.0
 		}
 	}

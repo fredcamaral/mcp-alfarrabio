@@ -1,3 +1,5 @@
+// Package security provides encryption, access control, and security utilities.
+// It includes data encryption, authentication, and authorization mechanisms.
 package security
 
 import (

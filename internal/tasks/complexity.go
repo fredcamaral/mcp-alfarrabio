@@ -3,7 +3,7 @@ package tasks
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"math"
 	"strings"
 
@@ -75,7 +75,7 @@ func NewComplexityAnalyzerWithConfig(config ComplexityConfig) *ComplexityAnalyze
 // AnalyzeComplexity analyzes the complexity of a task
 func (ca *ComplexityAnalyzer) AnalyzeComplexity(ctx context.Context, task *types.Task, projectContext types.TaskGenerationContext) (types.TaskComplexity, error) {
 	if task == nil {
-		return types.TaskComplexity{}, fmt.Errorf("task cannot be nil")
+		return types.TaskComplexity{}, errors.New("task cannot be nil")
 	}
 
 	// Calculate complexity factors

@@ -27,11 +27,11 @@ func NewCORSMiddleware(config CORSConfig) *CORSMiddleware {
 	if len(config.AllowedMethods) == 0 {
 		config.AllowedMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"}
 	}
-	
+
 	if len(config.AllowedHeaders) == 0 {
 		config.AllowedHeaders = []string{
 			"Accept",
-			"Content-Type", 
+			"Content-Type",
 			"Content-Length",
 			"Accept-Encoding",
 			"X-CSRF-Token",
@@ -45,7 +45,7 @@ func NewCORSMiddleware(config CORSConfig) *CORSMiddleware {
 	if len(config.ExposedHeaders) == 0 {
 		config.ExposedHeaders = []string{
 			"X-Request-ID",
-			"X-Server-Version", 
+			"X-Server-Version",
 			"X-Compatible-Versions",
 		}
 	}
@@ -62,7 +62,7 @@ func NewDefaultCORSMiddleware() *CORSMiddleware {
 	return NewCORSMiddleware(CORSConfig{
 		AllowedOrigins: []string{
 			"http://localhost:2001",
-			"http://localhost:3000", 
+			"http://localhost:3000",
 			"http://localhost:8080",
 			"http://127.0.0.1:2001",
 			"http://127.0.0.1:3000",
@@ -85,7 +85,7 @@ func (c *CORSMiddleware) Handler() func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			origin := r.Header.Get("Origin")
-			
+
 			// Set CORS headers if origin is allowed or if no origin (same-origin requests)
 			if origin == "" || c.isOriginAllowed(origin) {
 				c.setCORSHeaders(w, origin)
@@ -125,13 +125,13 @@ func (c *CORSMiddleware) matchesWildcard(pattern, origin string) bool {
 	if !strings.Contains(pattern, "*") {
 		return false
 	}
-	
+
 	// Simple wildcard matching for subdomains
 	if strings.HasPrefix(pattern, "*.") {
 		domain := pattern[2:] // Remove "*."
 		return strings.HasSuffix(origin, domain)
 	}
-	
+
 	return false
 }
 
@@ -158,7 +158,7 @@ func (c *CORSMiddleware) setCORSHeaders(w http.ResponseWriter, origin string) {
 // handlePreflight handles CORS preflight OPTIONS requests
 func (c *CORSMiddleware) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	origin := r.Header.Get("Origin")
-	
+
 	// Check if origin is allowed
 	if origin == "" || !c.isOriginAllowed(origin) {
 		w.WriteHeader(http.StatusForbidden)
@@ -194,7 +194,7 @@ func (c *CORSMiddleware) handlePreflight(w http.ResponseWriter, r *http.Request)
 func (c *CORSMiddleware) areHeadersAllowed(requestedHeaders string) bool {
 	headers := strings.Split(requestedHeaders, ",")
 	allowedMap := make(map[string]bool)
-	
+
 	for _, header := range c.config.AllowedHeaders {
 		allowedMap[strings.ToLower(strings.TrimSpace(header))] = true
 	}

@@ -4,6 +4,7 @@ package tasks
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -283,12 +284,12 @@ func (g *Generator) parseAIResponse(content string) ([]types.Task, error) {
 	// Find JSON content in the response
 	jsonStart := strings.Index(content, "[")
 	if jsonStart == -1 {
-		return nil, fmt.Errorf("no JSON array found in response")
+		return nil, errors.New("no JSON array found in response")
 	}
 
 	jsonEnd := strings.LastIndex(content, "]")
 	if jsonEnd == -1 || jsonEnd <= jsonStart {
-		return nil, fmt.Errorf("invalid JSON array in response")
+		return nil, errors.New("invalid JSON array in response")
 	}
 
 	jsonContent := content[jsonStart : jsonEnd+1]
@@ -311,7 +312,7 @@ func (g *Generator) parseAIResponse(content string) ([]types.Task, error) {
 	}
 
 	if len(tasks) == 0 {
-		return nil, fmt.Errorf("no valid tasks could be parsed from response")
+		return nil, errors.New("no valid tasks could be parsed from response")
 	}
 
 	return tasks, nil
@@ -334,13 +335,13 @@ func (g *Generator) convertRawTask(raw map[string]interface{}, index int) (types
 	if title, ok := raw["title"].(string); ok {
 		task.Title = title
 	} else {
-		return task, fmt.Errorf("missing or invalid title")
+		return task, errors.New("missing or invalid title")
 	}
 
 	if desc, ok := raw["description"].(string); ok {
 		task.Description = desc
 	} else {
-		return task, fmt.Errorf("missing or invalid description")
+		return task, errors.New("missing or invalid description")
 	}
 
 	// Extract task type
@@ -561,11 +562,11 @@ func (g *Generator) generateNextSteps(tasks []types.Task, projectState *types.Pr
 // validateRequest validates the task suggestion request
 func (g *Generator) validateRequest(req *types.TaskSuggestionRequest) error {
 	if req.PRDID == "" && req.PRDContent == "" {
-		return fmt.Errorf("either PRD ID or PRD content must be provided")
+		return errors.New("either PRD ID or PRD content must be provided")
 	}
 
 	if req.Options.MaxTasks <= 0 {
-		return fmt.Errorf("max tasks must be positive")
+		return errors.New("max tasks must be positive")
 	}
 
 	if req.Options.MaxTasks > g.config.MaxTasksPerRequest {
@@ -573,7 +574,7 @@ func (g *Generator) validateRequest(req *types.TaskSuggestionRequest) error {
 	}
 
 	if req.Options.MinQualityScore < 0 || req.Options.MinQualityScore > 1 {
-		return fmt.Errorf("min quality score must be between 0 and 1")
+		return errors.New("min quality score must be between 0 and 1")
 	}
 
 	return nil

@@ -233,17 +233,18 @@ func (t *Throttler) GetMetrics() *ThrottleMetrics {
 	t.metrics.mu.RLock()
 	defer t.metrics.mu.RUnlock()
 
-	// Create a copy to avoid race conditions
-	metrics := &ThrottleMetrics{
-		TotalRequests:     t.metrics.TotalRequests,
-		QueuedRequests:    t.metrics.QueuedRequests,
-		DroppedRequests:   t.metrics.DroppedRequests,
-		ProcessedRequests: t.metrics.ProcessedRequests,
-		AverageQueueTime:  t.metrics.AverageQueueTime,
-		WorkerUtilization: t.metrics.WorkerUtilization,
-		QueueLengths:      make(map[Priority]int),
-	}
-
+	// Create new instance with zero values (fresh mutex)
+	metrics := NewThrottleMetrics()
+	
+	// Copy data fields explicitly (not the mutex)
+	metrics.TotalRequests = t.metrics.TotalRequests
+	metrics.QueuedRequests = t.metrics.QueuedRequests
+	metrics.DroppedRequests = t.metrics.DroppedRequests
+	metrics.ProcessedRequests = t.metrics.ProcessedRequests
+	metrics.AverageQueueTime = t.metrics.AverageQueueTime
+	metrics.WorkerUtilization = t.metrics.WorkerUtilization
+	
+	// Copy queue lengths
 	for priority, queue := range t.queues {
 		metrics.QueueLengths[priority] = len(queue.requests)
 	}

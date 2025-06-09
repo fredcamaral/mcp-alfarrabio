@@ -1,3 +1,5 @@
+// Package bulk provides functionality for bulk operations and memory aliasing.
+// It includes alias management for flexible memory referencing and bulk data processing.
 package bulk
 
 import (
