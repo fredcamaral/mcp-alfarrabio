@@ -33,11 +33,11 @@ type OpenAIGPTClient struct {
 
 // openaiGPTRequest represents the structure for OpenAI GPT API requests
 type openaiGPTRequest struct {
-	Model       string            `json:"model"`
+	Model       string             `json:"model"`
 	Messages    []openaiGPTMessage `json:"messages"`
-	MaxTokens   int               `json:"max_tokens,omitempty"`
-	Temperature float64           `json:"temperature,omitempty"`
-	Stream      bool              `json:"stream"`
+	MaxTokens   int                `json:"max_tokens,omitempty"`
+	Temperature float64            `json:"temperature,omitempty"`
+	Stream      bool               `json:"stream"`
 }
 
 // openaiGPTMessage represents a message in OpenAI GPT format
@@ -113,7 +113,7 @@ func NewOpenAIClient(cfg config.OpenAIClientConfig) (*OpenAIGPTClient, error) {
 	}
 
 	rateLimits := RateLimits{
-		RequestsPerMinute: 500,  // OpenAI rate limits for GPT-4o
+		RequestsPerMinute: 500, // OpenAI rate limits for GPT-4o
 		TokensPerMinute:   200000,
 		ResetTime:         time.Minute,
 	}
@@ -240,9 +240,9 @@ func (o *OpenAIGPTClient) convertFromOpenAIResponse(openaiResp *openaiGPTRespons
 	}
 
 	return &Response{
-		ID:       openaiResp.ID,
-		Model:    ModelOpenAI,
-		Content:  content,
+		ID:      openaiResp.ID,
+		Model:   ModelOpenAI,
+		Content: content,
 		TokensUsed: TokenUsage{
 			Input:  openaiResp.Usage.PromptTokens,
 			Output: openaiResp.Usage.CompletionTokens,
@@ -269,10 +269,10 @@ func (o *OpenAIGPTClient) GetModel() Model {
 func (o *OpenAIGPTClient) IsHealthy(ctx context.Context) error {
 	// Simple health check - try a minimal request
 	healthReq := &openaiGPTRequest{
-		Model:    o.config.Model,
-		Messages: []openaiGPTMessage{{Role: "user", Content: "Hello"}},
+		Model:     o.config.Model,
+		Messages:  []openaiGPTMessage{{Role: "user", Content: "Hello"}},
 		MaxTokens: 10,
-		Stream:   false,
+		Stream:    false,
 	}
 
 	// Use a shorter timeout for health checks

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"lerian-mcp-memory/internal/config"
+	"lerian-mcp-memory/internal/logging"
 )
 
 // Model represents an AI model identifier
@@ -83,36 +84,38 @@ type ResponseMetadata struct {
 type Client interface {
 	// ProcessRequest sends a request to the AI model
 	ProcessRequest(ctx context.Context, req *Request) (*Response, error)
-	
+
 	// GetModel returns the model identifier
 	GetModel() Model
-	
+
 	// IsHealthy checks if the client is operational
 	IsHealthy(ctx context.Context) error
-	
+
 	// GetLimits returns rate limiting information
 	GetLimits() RateLimits
 }
 
 // RateLimits represents rate limiting configuration
 type RateLimits struct {
-	RequestsPerMinute int           `json:"requests_per_minute"`
-	TokensPerMinute   int           `json:"tokens_per_minute"`
-	ResetTime         time.Duration `json:"reset_time"`
+	RequestsPerMinute  int           `json:"requests_per_minute"`
+	TokensPerMinute    int           `json:"tokens_per_minute"`
+	ConcurrentRequests int           `json:"concurrent_requests"`
+	ResetTime          time.Duration `json:"reset_time"`
 }
 
 // Service provides AI functionality with multi-model support
 type Service struct {
-	clients    map[Model]Client
-	fallback   *FallbackRouter
-	cache      *Cache
-	metrics    *Metrics
-	config     *config.Config
+	clients      map[Model]Client
+	fallback     *FallbackRouter
+	cache        *Cache
+	metrics      *Metrics
+	config       *config.Config
 	primaryModel Model
+	logger       logging.Logger
 }
 
 // NewService creates a new AI service with configured clients
-func NewService(cfg *config.Config) (*Service, error) {
+func NewService(cfg *config.Config, logger logging.Logger) (*Service, error) {
 	if cfg == nil {
 		return nil, fmt.Errorf("config cannot be nil")
 	}
@@ -121,6 +124,7 @@ func NewService(cfg *config.Config) (*Service, error) {
 		clients:      make(map[Model]Client),
 		config:       cfg,
 		primaryModel: ModelClaude, // Default primary model
+		logger:       logger,
 	}
 
 	// Initialize clients
@@ -146,6 +150,15 @@ func NewService(cfg *config.Config) (*Service, error) {
 
 // initializeClients sets up all configured AI model clients
 func (s *Service) initializeClients() error {
+	// Check if we're using a mock provider for testing
+	// This is determined by checking if any API keys are set
+	if s.config.OpenAI.APIKey == "" && s.config.AI.Claude.APIKey == "" && s.config.AI.Perplexity.APIKey == "" {
+		mockClient := NewMockClient("mock-test")
+		s.clients[Model("mock-model-1.0")] = mockClient
+		s.primaryModel = Model("mock-model-1.0")
+		return nil
+	}
+
 	// Initialize Claude client
 	if s.config.AI.Claude.Enabled {
 		claudeClient, err := NewClaudeClient(s.config.AI.Claude)

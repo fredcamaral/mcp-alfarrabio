@@ -253,7 +253,7 @@ func (tr *TaskRepository) List(ctx context.Context, filters tasks.TaskFilters) (
 }
 
 // Search performs full-text search on tasks
-func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (*tasks.SearchResults, error) {
+func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (interface{}, error) {
 	startTime := time.Now()
 
 	// Build search query with full-text search capabilities
@@ -334,16 +334,16 @@ func (tr *TaskRepository) Search(ctx context.Context, query tasks.SearchQuery) (
 		return nil, err
 	}
 
-	results := &tasks.SearchResults{
-		Tasks:        tasks,
-		TotalResults: len(tasks),
-		SearchTime:   time.Since(startTime),
-		Query:        query.Query,
+	results := map[string]interface{}{
+		"tasks":         tasks,
+		"total_results": len(tasks),
+		"search_time":   time.Since(startTime),
+		"query":         query.Query,
 	}
 
 	// Add highlights if requested
 	if query.Options.HighlightMatches {
-		results.Highlights = tr.generateHighlights(tasks, query.Query)
+		results["highlights"] = tr.generateHighlights(tasks, query.Query)
 	}
 
 	return results, nil

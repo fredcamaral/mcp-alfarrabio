@@ -76,7 +76,7 @@ func (fr *FallbackRouter) ProcessWithFallback(ctx context.Context, req *Request)
 
 		// Create context with timeout for this attempt
 		modelCtx, cancel := context.WithTimeout(ctx, fr.timeout)
-		
+
 		// Create request copy with current model
 		modelReq := *req
 		modelReq.Model = model

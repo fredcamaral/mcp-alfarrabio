@@ -18,23 +18,23 @@ type Suggester struct {
 
 // SuggesterConfig represents configuration for task suggestions
 type SuggesterConfig struct {
-	MaxSuggestions        int           `json:"max_suggestions"`
-	MinConfidenceScore    float64       `json:"min_confidence_score"`
-	EnablePhaseAnalysis   bool          `json:"enable_phase_analysis"`
-	EnableBottleneckDetection bool      `json:"enable_bottleneck_detection"`
-	EnablePatternMatching bool          `json:"enable_pattern_matching"`
-	SuggestionTimeout     time.Duration `json:"suggestion_timeout"`
+	MaxSuggestions            int           `json:"max_suggestions"`
+	MinConfidenceScore        float64       `json:"min_confidence_score"`
+	EnablePhaseAnalysis       bool          `json:"enable_phase_analysis"`
+	EnableBottleneckDetection bool          `json:"enable_bottleneck_detection"`
+	EnablePatternMatching     bool          `json:"enable_pattern_matching"`
+	SuggestionTimeout         time.Duration `json:"suggestion_timeout"`
 }
 
 // DefaultSuggesterConfig returns default suggester configuration
 func DefaultSuggesterConfig() SuggesterConfig {
 	return SuggesterConfig{
-		MaxSuggestions:        20,
-		MinConfidenceScore:    0.6,
-		EnablePhaseAnalysis:   true,
+		MaxSuggestions:            20,
+		MinConfidenceScore:        0.6,
+		EnablePhaseAnalysis:       true,
 		EnableBottleneckDetection: true,
-		EnablePatternMatching: true,
-		SuggestionTimeout:     30 * time.Second,
+		EnablePatternMatching:     true,
+		SuggestionTimeout:         30 * time.Second,
 	}
 }
 
@@ -54,14 +54,14 @@ func NewSuggesterWithConfig(config SuggesterConfig) *Suggester {
 
 // TaskSuggestion represents a suggested task with context
 type TaskSuggestion struct {
-	Task           types.Task       `json:"task"`
-	Confidence     float64          `json:"confidence"`
-	Reasoning      []string         `json:"reasoning"`
+	Task           types.Task         `json:"task"`
+	Confidence     float64            `json:"confidence"`
+	Reasoning      []string           `json:"reasoning"`
 	Priority       SuggestionPriority `json:"priority"`
 	Category       SuggestionCategory `json:"category"`
-	BasedOn        []string         `json:"based_on"`        // Task IDs this suggestion is based on
-	Prerequisites  []string         `json:"prerequisites"`   // Task IDs that should be completed first
-	EstimatedValue float64          `json:"estimated_value"` // Business/technical value estimate
+	BasedOn        []string           `json:"based_on"`        // Task IDs this suggestion is based on
+	Prerequisites  []string           `json:"prerequisites"`   // Task IDs that should be completed first
+	EstimatedValue float64            `json:"estimated_value"` // Business/technical value estimate
 }
 
 // SuggestionPriority represents the priority of a suggestion
@@ -79,15 +79,15 @@ const (
 type SuggestionCategory string
 
 const (
-	SuggestionCategoryPhaseProgression SuggestionCategory = "phase_progression"
+	SuggestionCategoryPhaseProgression     SuggestionCategory = "phase_progression"
 	SuggestionCategoryBottleneckResolution SuggestionCategory = "bottleneck_resolution"
-	SuggestionCategoryQualityImprovement SuggestionCategory = "quality_improvement"
-	SuggestionCategoryRiskMitigation    SuggestionCategory = "risk_mitigation"
-	SuggestionCategoryEfficiencyGain    SuggestionCategory = "efficiency_gain"
-	SuggestionCategoryDependencySetup   SuggestionCategory = "dependency_setup"
-	SuggestionCategoryKnowledgeGap      SuggestionCategory = "knowledge_gap"
-	SuggestionCategoryArchitectural     SuggestionCategory = "architectural"
-	SuggestionCategoryMaintenance       SuggestionCategory = "maintenance"
+	SuggestionCategoryQualityImprovement   SuggestionCategory = "quality_improvement"
+	SuggestionCategoryRiskMitigation       SuggestionCategory = "risk_mitigation"
+	SuggestionCategoryEfficiencyGain       SuggestionCategory = "efficiency_gain"
+	SuggestionCategoryDependencySetup      SuggestionCategory = "dependency_setup"
+	SuggestionCategoryKnowledgeGap         SuggestionCategory = "knowledge_gap"
+	SuggestionCategoryArchitectural        SuggestionCategory = "architectural"
+	SuggestionCategoryMaintenance          SuggestionCategory = "maintenance"
 )
 
 // SuggestTasks generates contextual task suggestions based on project state
@@ -515,7 +515,7 @@ func (s *Suggester) suggestBottleneckResolutionTasks(projectState types.ProjectS
 	// Analyze bottlenecks from project state
 	for _, bottleneck := range projectState.CurrentBottlenecks {
 		bottleneckLower := strings.ToLower(bottleneck)
-		
+
 		if strings.Contains(bottleneckLower, "testing") {
 			suggestions = append(suggestions, TaskSuggestion{
 				Task: types.Task{
@@ -547,7 +547,7 @@ func (s *Suggester) suggestBottleneckResolutionTasks(projectState types.ProjectS
 				EstimatedValue: 0.9,
 			})
 		}
-		
+
 		if strings.Contains(bottleneckLower, "review") {
 			suggestions = append(suggestions, TaskSuggestion{
 				Task: types.Task{
@@ -678,7 +678,7 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 	// Analyze technical challenges and suggest mitigation
 	for _, challenge := range projectState.TechnicalChallenges {
 		challengeLower := strings.ToLower(challenge)
-		
+
 		if strings.Contains(challengeLower, "performance") {
 			suggestions = append(suggestions, TaskSuggestion{
 				Task: types.Task{
@@ -710,7 +710,7 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 				EstimatedValue: 0.8,
 			})
 		}
-		
+
 		if strings.Contains(challengeLower, "security") {
 			suggestions = append(suggestions, TaskSuggestion{
 				Task: types.Task{
@@ -791,8 +791,8 @@ func (s *Suggester) suggestDependencySetupTasks(existingTasks []types.Task, genC
 						"Design phase missing for critical component",
 						"Proper design reduces implementation risk",
 					},
-					Prerequisites: []string{},
-					BasedOn:       []string{task.ID},
+					Prerequisites:  []string{},
+					BasedOn:        []string{task.ID},
 					EstimatedValue: 0.7,
 				})
 			}
@@ -916,19 +916,19 @@ func (s *Suggester) filterAndRankSuggestions(suggestions []TaskSuggestion) []Tas
 			SuggestionPriorityLow:       2,
 			SuggestionPriorityFuture:    1,
 		}
-		
+
 		iPriority := priorityOrder[filtered[i].Priority]
 		jPriority := priorityOrder[filtered[j].Priority]
-		
+
 		if iPriority != jPriority {
 			return iPriority > jPriority
 		}
-		
+
 		// Secondary sort by confidence
 		if filtered[i].Confidence != filtered[j].Confidence {
 			return filtered[i].Confidence > filtered[j].Confidence
 		}
-		
+
 		// Tertiary sort by estimated value
 		return filtered[i].EstimatedValue > filtered[j].EstimatedValue
 	})

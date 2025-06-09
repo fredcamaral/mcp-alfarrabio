@@ -33,11 +33,11 @@ type PerplexityClient struct {
 
 // perplexityRequest represents the structure for Perplexity API requests
 type perplexityRequest struct {
-	Model       string                `json:"model"`
-	Messages    []perplexityMessage   `json:"messages"`
-	MaxTokens   int                   `json:"max_tokens,omitempty"`
-	Temperature float64               `json:"temperature,omitempty"`
-	Stream      bool                  `json:"stream"`
+	Model       string              `json:"model"`
+	Messages    []perplexityMessage `json:"messages"`
+	MaxTokens   int                 `json:"max_tokens,omitempty"`
+	Temperature float64             `json:"temperature,omitempty"`
+	Stream      bool                `json:"stream"`
 }
 
 // perplexityMessage represents a message in Perplexity format
@@ -48,20 +48,20 @@ type perplexityMessage struct {
 
 // perplexityResponse represents the structure for Perplexity API responses
 type perplexityResponse struct {
-	ID      string              `json:"id"`
-	Object  string              `json:"object"`
-	Created int64               `json:"created"`
-	Model   string              `json:"model"`
-	Choices []perplexityChoice  `json:"choices"`
-	Usage   perplexityUsage     `json:"usage"`
-	Error   *perplexityError    `json:"error,omitempty"`
+	ID      string             `json:"id"`
+	Object  string             `json:"object"`
+	Created int64              `json:"created"`
+	Model   string             `json:"model"`
+	Choices []perplexityChoice `json:"choices"`
+	Usage   perplexityUsage    `json:"usage"`
+	Error   *perplexityError   `json:"error,omitempty"`
 }
 
 // perplexityChoice represents a choice in Perplexity response
 type perplexityChoice struct {
-	Index        int                   `json:"index"`
-	Message      perplexityMessage     `json:"message"`
-	FinishReason string                `json:"finish_reason"`
+	Index        int               `json:"index"`
+	Message      perplexityMessage `json:"message"`
+	FinishReason string            `json:"finish_reason"`
 }
 
 // perplexityUsage represents token usage in Perplexity response
@@ -113,7 +113,7 @@ func NewPerplexityClient(cfg config.PerplexityClientConfig) (*PerplexityClient, 
 	}
 
 	rateLimits := RateLimits{
-		RequestsPerMinute: 60,  // Perplexity rate limits
+		RequestsPerMinute: 60, // Perplexity rate limits
 		TokensPerMinute:   200000,
 		ResetTime:         time.Minute,
 	}
@@ -240,9 +240,9 @@ func (p *PerplexityClient) convertFromPerplexityResponse(perplexityResp *perplex
 	}
 
 	return &Response{
-		ID:       perplexityResp.ID,
-		Model:    ModelPerplexity,
-		Content:  content,
+		ID:      perplexityResp.ID,
+		Model:   ModelPerplexity,
+		Content: content,
 		TokensUsed: TokenUsage{
 			Input:  perplexityResp.Usage.PromptTokens,
 			Output: perplexityResp.Usage.CompletionTokens,
@@ -269,10 +269,10 @@ func (p *PerplexityClient) GetModel() Model {
 func (p *PerplexityClient) IsHealthy(ctx context.Context) error {
 	// Simple health check - try a minimal request
 	healthReq := &perplexityRequest{
-		Model:    p.config.Model,
-		Messages: []perplexityMessage{{Role: "user", Content: "Hello"}},
+		Model:     p.config.Model,
+		Messages:  []perplexityMessage{{Role: "user", Content: "Hello"}},
 		MaxTokens: 10,
-		Stream:   false,
+		Stream:    false,
 	}
 
 	// Use a shorter timeout for health checks

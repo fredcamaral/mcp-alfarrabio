@@ -16,35 +16,35 @@ type Validator struct {
 
 // ValidationConfig represents configuration for task validation
 type ValidationConfig struct {
-	MinTitleLength          int     `json:"min_title_length"`
-	MaxTitleLength          int     `json:"max_title_length"`
-	MinDescriptionLength    int     `json:"min_description_length"`
-	MaxDescriptionLength    int     `json:"max_description_length"`
-	MinAcceptanceCriteria   int     `json:"min_acceptance_criteria"`
-	MaxAcceptanceCriteria   int     `json:"max_acceptance_criteria"`
-	RequireEstimation       bool    `json:"require_estimation"`
-	RequireAcceptanceCriteria bool  `json:"require_acceptance_criteria"`
-	MinEstimatedHours       float64 `json:"min_estimated_hours"`
-	MaxEstimatedHours       float64 `json:"max_estimated_hours"`
-	ValidTaskTypes          []types.TaskType     `json:"valid_task_types"`
-	ValidPriorities         []types.TaskPriority `json:"valid_priorities"`
-	ForbiddenWords          []string             `json:"forbidden_words"`
-	RequiredFields          []string             `json:"required_fields"`
+	MinTitleLength            int                  `json:"min_title_length"`
+	MaxTitleLength            int                  `json:"max_title_length"`
+	MinDescriptionLength      int                  `json:"min_description_length"`
+	MaxDescriptionLength      int                  `json:"max_description_length"`
+	MinAcceptanceCriteria     int                  `json:"min_acceptance_criteria"`
+	MaxAcceptanceCriteria     int                  `json:"max_acceptance_criteria"`
+	RequireEstimation         bool                 `json:"require_estimation"`
+	RequireAcceptanceCriteria bool                 `json:"require_acceptance_criteria"`
+	MinEstimatedHours         float64              `json:"min_estimated_hours"`
+	MaxEstimatedHours         float64              `json:"max_estimated_hours"`
+	ValidTaskTypes            []types.TaskType     `json:"valid_task_types"`
+	ValidPriorities           []types.TaskPriority `json:"valid_priorities"`
+	ForbiddenWords            []string             `json:"forbidden_words"`
+	RequiredFields            []string             `json:"required_fields"`
 }
 
 // DefaultValidationConfig returns default validation configuration
 func DefaultValidationConfig() ValidationConfig {
 	return ValidationConfig{
-		MinTitleLength:        5,
-		MaxTitleLength:        100,
-		MinDescriptionLength:  10,
-		MaxDescriptionLength:  2000,
-		MinAcceptanceCriteria: 1,
-		MaxAcceptanceCriteria: 10,
-		RequireEstimation:     true,
+		MinTitleLength:            5,
+		MaxTitleLength:            100,
+		MinDescriptionLength:      10,
+		MaxDescriptionLength:      2000,
+		MinAcceptanceCriteria:     1,
+		MaxAcceptanceCriteria:     10,
+		RequireEstimation:         true,
 		RequireAcceptanceCriteria: true,
-		MinEstimatedHours:     0.5,
-		MaxEstimatedHours:     160.0, // 4 weeks
+		MinEstimatedHours:         0.5,
+		MaxEstimatedHours:         160.0, // 4 weeks
 		ValidTaskTypes: []types.TaskType{
 			types.TaskTypeImplementation,
 			types.TaskTypeDesign,
@@ -188,7 +188,7 @@ func (v *Validator) validateTitle(task *types.Task, result *types.TaskValidation
 
 	// Check length
 	if titleLength < v.config.MinTitleLength {
-		v.addError(result, "title", "length", 
+		v.addError(result, "title", "length",
 			fmt.Sprintf("Title too short (minimum %d characters)", v.config.MinTitleLength),
 			"high", "TITLE_TOO_SHORT")
 	}
@@ -244,7 +244,7 @@ func (v *Validator) validateDescription(task *types.Task, result *types.TaskVali
 	completenessKeywords := []string{"what", "why", "how", "when", "where", "who"}
 	hasCompleteness := 0
 	descLower := strings.ToLower(description)
-	
+
 	for _, keyword := range completenessKeywords {
 		if strings.Contains(descLower, keyword) {
 			hasCompleteness++
@@ -263,7 +263,7 @@ func (v *Validator) validateDescription(task *types.Task, result *types.TaskVali
 		"api", "database", "interface", "component", "service", "endpoint",
 		"method", "function", "class", "module", "library", "framework",
 	}
-	
+
 	hasTechnicalDetails := false
 	for _, keyword := range technicalKeywords {
 		if strings.Contains(descLower, keyword) {
@@ -458,7 +458,7 @@ func (v *Validator) validateTags(task *types.Task, result *types.TaskValidationR
 // checkForbiddenWords checks for forbidden words in task content
 func (v *Validator) checkForbiddenWords(task *types.Task, result *types.TaskValidationResult) {
 	content := strings.ToLower(task.Title + " " + task.Description)
-	
+
 	for _, word := range v.config.ForbiddenWords {
 		if strings.Contains(content, word) {
 			v.addWarning(result, "content", "forbidden_word",
@@ -493,7 +493,7 @@ func (v *Validator) validateTaskConsistency(task *types.Task, result *types.Task
 // validateTypeConsistency validates that task type matches content
 func (v *Validator) validateTypeConsistency(task *types.Task, result *types.TaskValidationResult) {
 	content := strings.ToLower(task.Title + " " + task.Description)
-	
+
 	typeKeywords := map[types.TaskType][]string{
 		types.TaskTypeImplementation: {"implement", "build", "create", "develop", "code"},
 		types.TaskTypeDesign:         {"design", "mockup", "wireframe", "prototype", "ui", "ux"},
@@ -515,7 +515,7 @@ func (v *Validator) validateTypeConsistency(task *types.Task, result *types.Task
 				break
 			}
 		}
-		
+
 		if !hasMatchingKeyword {
 			v.addWarning(result, "type", "consistency",
 				fmt.Sprintf("Task type '%s' doesn't match content keywords", task.Type),
@@ -528,7 +528,7 @@ func (v *Validator) validateTypeConsistency(task *types.Task, result *types.Task
 // validatePriorityConsistency validates priority consistency
 func (v *Validator) validatePriorityConsistency(task *types.Task, result *types.TaskValidationResult) {
 	content := strings.ToLower(task.Title + " " + task.Description)
-	
+
 	urgentKeywords := []string{"urgent", "critical", "asap", "immediately", "emergency", "blocker"}
 	hasUrgentKeywords := false
 	for _, keyword := range urgentKeywords {
@@ -549,7 +549,7 @@ func (v *Validator) validatePriorityConsistency(task *types.Task, result *types.
 // validateSingleCriteria validates a single acceptance criteria
 func (v *Validator) validateSingleCriteria(criteria string, index int, result *types.TaskValidationResult) {
 	criteria = strings.TrimSpace(criteria)
-	
+
 	if criteria == "" {
 		v.addWarning(result, "acceptance_criteria", "empty",
 			fmt.Sprintf("Empty acceptance criteria at index %d", index),
@@ -563,7 +563,7 @@ func (v *Validator) validateSingleCriteria(criteria string, index int, result *t
 		"should", "must", "can", "will", "is", "are", "has", "have",
 		"verify", "confirm", "ensure", "check", "validate",
 	}
-	
+
 	criteriaLower := strings.ToLower(criteria)
 	hasTestableLanguage := false
 	for _, keyword := range testableKeywords {

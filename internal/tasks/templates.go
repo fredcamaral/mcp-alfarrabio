@@ -18,10 +18,10 @@ type TemplateMatcher struct {
 
 // TemplateConfig represents configuration for template matching
 type TemplateConfig struct {
-	MinMatchScore       float64 `json:"min_match_score"`
-	EnableFuzzyMatching bool    `json:"enable_fuzzy_matching"`
-	MaxTemplates        int     `json:"max_templates"`
-	BoostPopularTemplates bool  `json:"boost_popular_templates"`
+	MinMatchScore         float64 `json:"min_match_score"`
+	EnableFuzzyMatching   bool    `json:"enable_fuzzy_matching"`
+	MaxTemplates          int     `json:"max_templates"`
+	BoostPopularTemplates bool    `json:"boost_popular_templates"`
 }
 
 // DefaultTemplateConfig returns default template configuration
@@ -29,7 +29,7 @@ func DefaultTemplateConfig() TemplateConfig {
 	return TemplateConfig{
 		MinMatchScore:         0.6,
 		EnableFuzzyMatching:   true,
-		MaxTemplates:         100,
+		MaxTemplates:          100,
 		BoostPopularTemplates: true,
 	}
 }
@@ -101,8 +101,8 @@ func (tm *TemplateMatcher) FindAllMatches(task *types.Task, context types.TaskGe
 // TemplateMatch represents a template match with score and reasons
 type TemplateMatch struct {
 	Template *types.TaskTemplate `json:"template"`
-	Score    float64            `json:"score"`
-	Reasons  []string           `json:"reasons"`
+	Score    float64             `json:"score"`
+	Reasons  []string            `json:"reasons"`
 }
 
 // ApplyTemplate applies a template to a task
@@ -203,10 +203,10 @@ func (tm *TemplateMatcher) calculateMatchScore(task *types.Task, template *types
 // calculateKeywordMatch calculates keyword matching score
 func (tm *TemplateMatcher) calculateKeywordMatch(task *types.Task, template *types.TaskTemplate) float64 {
 	taskContent := strings.ToLower(task.Title + " " + task.Description)
-	
+
 	matches := 0
 	total := len(template.Applicability.Keywords)
-	
+
 	if total == 0 {
 		return 0.0
 	}
@@ -281,16 +281,16 @@ func (tm *TemplateMatcher) calculateTechStackMatch(template *types.TaskTemplate,
 func (tm *TemplateMatcher) calculateFuzzyMatch(task *types.Task, template *types.TaskTemplate) float64 {
 	// Simple fuzzy matching based on common concepts
 	conceptMap := map[string][]string{
-		"api":          {"endpoint", "service", "rest", "graphql", "http"},
-		"database":     {"db", "sql", "nosql", "storage", "persistence"},
-		"frontend":     {"ui", "ux", "client", "web", "interface"},
-		"backend":      {"server", "service", "api", "business logic"},
-		"testing":      {"qa", "validation", "verification", "quality"},
-		"deployment":   {"release", "production", "deploy", "publish"},
-		"security":     {"auth", "authentication", "authorization", "encryption"},
-		"monitoring":   {"logging", "metrics", "observability", "tracking"},
-		"performance":  {"optimization", "speed", "efficiency", "scalability"},
-		"integration":  {"connector", "bridge", "sync", "interface"},
+		"api":         {"endpoint", "service", "rest", "graphql", "http"},
+		"database":    {"db", "sql", "nosql", "storage", "persistence"},
+		"frontend":    {"ui", "ux", "client", "web", "interface"},
+		"backend":     {"server", "service", "api", "business logic"},
+		"testing":     {"qa", "validation", "verification", "quality"},
+		"deployment":  {"release", "production", "deploy", "publish"},
+		"security":    {"auth", "authentication", "authorization", "encryption"},
+		"monitoring":  {"logging", "metrics", "observability", "tracking"},
+		"performance": {"optimization", "speed", "efficiency", "scalability"},
+		"integration": {"connector", "bridge", "sync", "interface"},
 	}
 
 	taskContent := strings.ToLower(task.Title + " " + task.Description)
@@ -557,15 +557,15 @@ func (tm *TemplateMatcher) updateTemplateUsage(templateID string) {
 // getBuiltinTemplates returns a set of built-in task templates
 func getBuiltinTemplates() []types.TaskTemplate {
 	now := time.Now()
-	
+
 	return []types.TaskTemplate{
 		{
-			ID:              "api_endpoint_template",
-			Name:            "API Endpoint Implementation",
-			Description:     "Template for implementing REST API endpoints",
-			Category:        "Implementation",
-			Type:            types.TaskTypeImplementation,
-			DefaultPriority: types.TaskPriorityMedium,
+			ID:                "api_endpoint_template",
+			Name:              "API Endpoint Implementation",
+			Description:       "Template for implementing REST API endpoints",
+			Category:          "Implementation",
+			Type:              types.TaskTypeImplementation,
+			DefaultPriority:   types.TaskPriorityMedium,
 			DefaultComplexity: types.ComplexityModerate,
 			EstimatedEffort: types.EffortEstimate{
 				Hours:            8.0,
@@ -600,12 +600,12 @@ func getBuiltinTemplates() []types.TaskTemplate {
 			SuccessRate: 0.85,
 		},
 		{
-			ID:              "frontend_component_template",
-			Name:            "Frontend Component Implementation",
-			Description:     "Template for implementing reusable frontend components",
-			Category:        "Implementation",
-			Type:            types.TaskTypeImplementation,
-			DefaultPriority: types.TaskPriorityMedium,
+			ID:                "frontend_component_template",
+			Name:              "Frontend Component Implementation",
+			Description:       "Template for implementing reusable frontend components",
+			Category:          "Implementation",
+			Type:              types.TaskTypeImplementation,
+			DefaultPriority:   types.TaskPriorityMedium,
 			DefaultComplexity: types.ComplexityModerate,
 			EstimatedEffort: types.EffortEstimate{
 				Hours:            6.0,
@@ -639,12 +639,12 @@ func getBuiltinTemplates() []types.TaskTemplate {
 			SuccessRate: 0.82,
 		},
 		{
-			ID:              "database_migration_template",
-			Name:            "Database Schema Migration",
-			Description:     "Template for database schema changes and migrations",
-			Category:        "Implementation",
-			Type:            types.TaskTypeImplementation,
-			DefaultPriority: types.TaskPriorityHigh,
+			ID:                "database_migration_template",
+			Name:              "Database Schema Migration",
+			Description:       "Template for database schema changes and migrations",
+			Category:          "Implementation",
+			Type:              types.TaskTypeImplementation,
+			DefaultPriority:   types.TaskPriorityHigh,
 			DefaultComplexity: types.ComplexityComplex,
 			EstimatedEffort: types.EffortEstimate{
 				Hours:            12.0,
@@ -679,12 +679,12 @@ func getBuiltinTemplates() []types.TaskTemplate {
 			SuccessRate: 0.78,
 		},
 		{
-			ID:              "testing_suite_template",
-			Name:            "Testing Suite Implementation",
-			Description:     "Template for comprehensive testing implementation",
-			Category:        "Testing",
-			Type:            types.TaskTypeTesting,
-			DefaultPriority: types.TaskPriorityMedium,
+			ID:                "testing_suite_template",
+			Name:              "Testing Suite Implementation",
+			Description:       "Template for comprehensive testing implementation",
+			Category:          "Testing",
+			Type:              types.TaskTypeTesting,
+			DefaultPriority:   types.TaskPriorityMedium,
 			DefaultComplexity: types.ComplexityModerate,
 			EstimatedEffort: types.EffortEstimate{
 				Hours:            10.0,
@@ -719,12 +719,12 @@ func getBuiltinTemplates() []types.TaskTemplate {
 			SuccessRate: 0.88,
 		},
 		{
-			ID:              "documentation_template",
-			Name:            "Technical Documentation",
-			Description:     "Template for creating comprehensive technical documentation",
-			Category:        "Documentation",
-			Type:            types.TaskTypeDocumentation,
-			DefaultPriority: types.TaskPriorityLow,
+			ID:                "documentation_template",
+			Name:              "Technical Documentation",
+			Description:       "Template for creating comprehensive technical documentation",
+			Category:          "Documentation",
+			Type:              types.TaskTypeDocumentation,
+			DefaultPriority:   types.TaskPriorityLow,
 			DefaultComplexity: types.ComplexitySimple,
 			EstimatedEffort: types.EffortEstimate{
 				Hours:            4.0,

@@ -15,20 +15,20 @@ type DependencyDetector struct {
 
 // DependencyConfig represents configuration for dependency detection
 type DependencyConfig struct {
-	MinSimilarityThreshold float64            `json:"min_similarity_threshold"`
+	MinSimilarityThreshold float64             `json:"min_similarity_threshold"`
 	DependencyPatterns     []DependencyPattern `json:"dependency_patterns"`
-	EnableSemanticAnalysis bool               `json:"enable_semantic_analysis"`
-	MaxDependencyDistance  int                `json:"max_dependency_distance"`
+	EnableSemanticAnalysis bool                `json:"enable_semantic_analysis"`
+	MaxDependencyDistance  int                 `json:"max_dependency_distance"`
 }
 
 // DependencyPattern represents a pattern for detecting dependencies
 type DependencyPattern struct {
-	Name        string   `json:"name"`
-	FromKeywords []string `json:"from_keywords"`
-	ToKeywords   []string `json:"to_keywords"`
-	Type        types.DependencyType `json:"type"`
-	Strength    float64  `json:"strength"`
-	Description string   `json:"description"`
+	Name         string               `json:"name"`
+	FromKeywords []string             `json:"from_keywords"`
+	ToKeywords   []string             `json:"to_keywords"`
+	Type         types.DependencyType `json:"type"`
+	Strength     float64              `json:"strength"`
+	Description  string               `json:"description"`
 }
 
 // DefaultDependencyConfig returns default dependency configuration
@@ -358,11 +358,11 @@ func (dd *DependencyDetector) areTasksConflicting(task1, task2 types.Task) bool 
 
 	// Conflicting keywords
 	conflictPatterns := [][]string{
-		{"refactor", "new feature"},        // Refactoring might conflict with new features
-		{"remove", "add"},                  // Removing and adding similar functionality
-		{"migrate", "upgrade"},             // Different approaches to updating
-		{"redesign", "enhance"},            // Different levels of changes
-		{"replace", "extend"},              // Different modification strategies
+		{"refactor", "new feature"}, // Refactoring might conflict with new features
+		{"remove", "add"},           // Removing and adding similar functionality
+		{"migrate", "upgrade"},      // Different approaches to updating
+		{"redesign", "enhance"},     // Different levels of changes
+		{"replace", "extend"},       // Different modification strategies
 	}
 
 	content1 := strings.ToLower(task1.Title + " " + task1.Description)

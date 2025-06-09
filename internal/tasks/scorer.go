@@ -15,14 +15,14 @@ type Scorer struct {
 
 // ScorerConfig represents configuration for task scoring
 type ScorerConfig struct {
-	ClarityWeight      float64            `json:"clarity_weight"`
-	CompletenessWeight float64            `json:"completeness_weight"`
+	ClarityWeight       float64           `json:"clarity_weight"`
+	CompletenessWeight  float64           `json:"completeness_weight"`
 	ActionabilityWeight float64           `json:"actionability_weight"`
-	SpecificityWeight  float64            `json:"specificity_weight"`
-	FeasibilityWeight  float64            `json:"feasibility_weight"`
-	TestabilityWeight  float64            `json:"testability_weight"`
-	QualityThresholds  QualityThresholds  `json:"quality_thresholds"`
-	ScoringCriteria    ScoringCriteria    `json:"scoring_criteria"`
+	SpecificityWeight   float64           `json:"specificity_weight"`
+	FeasibilityWeight   float64           `json:"feasibility_weight"`
+	TestabilityWeight   float64           `json:"testability_weight"`
+	QualityThresholds   QualityThresholds `json:"quality_thresholds"`
+	ScoringCriteria     ScoringCriteria   `json:"scoring_criteria"`
 }
 
 // QualityThresholds represents thresholds for quality scoring
@@ -127,12 +127,12 @@ func (s *Scorer) ScoreTask(task *types.Task, context types.TaskGenerationContext
 	testability := s.scoreTestabilityFactor(task)
 
 	// Calculate weighted overall score
-	overallScore := (clarity * s.config.ClarityWeight +
-		completeness * s.config.CompletenessWeight +
-		actionability * s.config.ActionabilityWeight +
-		specificity * s.config.SpecificityWeight +
-		feasibility * s.config.FeasibilityWeight +
-		testability * s.config.TestabilityWeight)
+	overallScore := (clarity*s.config.ClarityWeight +
+		completeness*s.config.CompletenessWeight +
+		actionability*s.config.ActionabilityWeight +
+		specificity*s.config.SpecificityWeight +
+		feasibility*s.config.FeasibilityWeight +
+		testability*s.config.TestabilityWeight)
 
 	// Identify issues and generate recommendations
 	issues := s.identifyQualityIssues(task, clarity, completeness, actionability, specificity, feasibility, testability)
@@ -584,7 +584,7 @@ func (s *Scorer) identifyQualityIssues(task *types.Task, clarity, completeness, 
 
 	// Check for specific content issues
 	content := strings.ToLower(task.Title + " " + task.Description)
-	
+
 	// Check for vague language
 	vaguenessCount := 0
 	for _, vague := range s.config.ScoringCriteria.VagueWords {

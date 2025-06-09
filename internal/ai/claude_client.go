@@ -48,13 +48,13 @@ type claudeMessage struct {
 
 // claudeResponse represents the structure for Claude API responses
 type claudeResponse struct {
-	ID      string         `json:"id"`
-	Type    string         `json:"type"`
-	Role    string         `json:"role"`
+	ID      string          `json:"id"`
+	Type    string          `json:"type"`
+	Role    string          `json:"role"`
 	Content []claudeContent `json:"content"`
-	Model   string         `json:"model"`
-	Usage   claudeUsage    `json:"usage"`
-	Error   *claudeError   `json:"error,omitempty"`
+	Model   string          `json:"model"`
+	Usage   claudeUsage     `json:"usage"`
+	Error   *claudeError    `json:"error,omitempty"`
 }
 
 // claudeContent represents content in Claude response
@@ -110,7 +110,7 @@ func NewClaudeClient(cfg config.ClaudeClientConfig) (*ClaudeClient, error) {
 	}
 
 	rateLimits := RateLimits{
-		RequestsPerMinute: 50,  // Claude rate limits
+		RequestsPerMinute: 50, // Claude rate limits
 		TokensPerMinute:   100000,
 		ResetTime:         time.Minute,
 	}
@@ -237,9 +237,9 @@ func (c *ClaudeClient) convertFromClaudeResponse(claudeResp *claudeResponse, sta
 	}
 
 	return &Response{
-		ID:       claudeResp.ID,
-		Model:    ModelClaude,
-		Content:  content,
+		ID:      claudeResp.ID,
+		Model:   ModelClaude,
+		Content: content,
 		TokensUsed: TokenUsage{
 			Input:  claudeResp.Usage.InputTokens,
 			Output: claudeResp.Usage.OutputTokens,
