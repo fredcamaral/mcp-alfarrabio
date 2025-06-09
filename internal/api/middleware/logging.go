@@ -65,13 +65,27 @@ func (lm *LoggingMiddleware) Handler() func(http.Handler) http.Handler {
 // responseWriter wraps http.ResponseWriter to capture status code
 type responseWriter struct {
 	http.ResponseWriter
-	statusCode int
+	statusCode    int
+	headerWritten bool
 }
 
 // WriteHeader captures the status code
 func (rw *responseWriter) WriteHeader(statusCode int) {
+	if rw.headerWritten {
+		return // Prevent multiple WriteHeader calls
+	}
 	rw.statusCode = statusCode
+	rw.headerWritten = true
 	rw.ResponseWriter.WriteHeader(statusCode)
+}
+
+// Write implements http.ResponseWriter
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	if !rw.headerWritten {
+		// If no status code was set, default to 200
+		rw.WriteHeader(http.StatusOK)
+	}
+	return rw.ResponseWriter.Write(b)
 }
 
 // logRequest logs incoming HTTP requests

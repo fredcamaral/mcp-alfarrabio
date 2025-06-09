@@ -25,11 +25,12 @@ YELLOW := \033[33m
 BLUE := \033[34m
 RESET := \033[0m
 
-.PHONY: help build clean test lint fmt vet dev docker-build docker-up docker-down \
+.PHONY: help build build-all clean test lint fmt vet dev docker-build docker-up docker-down \
 	setup-env deps tidy ensure-env test-coverage test-integration test-race benchmark ci \
 	dev-docker-up dev-docker-down dev-docker-logs dev-docker-rebuild dev-docker-shell \
 	dev-docker-restart dev-logs docker-logs docker-restart docker-rebuild docker-clean \
-	health-check prod-deploy security-scan
+	monitoring-up monitoring-down monitoring-logs health-check prod-deploy security-scan \
+	cli-build cli-install cli-test cli-clean cli-run
 
 # Default target - show help
 help: ## Show this help message
@@ -42,14 +43,24 @@ help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "  $(GREEN)%-20s$(RESET) %s\n", $$1, $$2}'
 	@echo ""
 	@echo "$(BLUE)Quick Start:$(RESET)"
-	@echo "  make setup-env              # Setup environment and run server"
-	@echo "  make build                  # Build the binary"
+	@echo "  make setup-env              # Setup environment"
+	@echo "  make build-all              # Build server and CLI"
 	@echo "  make test                   # Run tests"
-	@echo "  make docker-up              # Start with Docker"
+	@echo "  make docker-up              # Start production with Docker"
+	@echo "  make dev-docker-up          # Start development with hot reload"
+	@echo ""
+	@echo "$(BLUE)CLI Commands:$(RESET)"
+	@echo "  make cli-build              # Build the lmmc CLI"
+	@echo "  make cli-install            # Install CLI to PATH"
+	@echo ""
+	@echo "$(BLUE)Docker Profiles:$(RESET)"
+	@echo "  make docker-up              # Production profile"
+	@echo "  make dev-docker-up          # Development profile"
+	@echo "  make monitoring-up          # Monitoring profile (Prometheus/Grafana)"
 	@echo ""
 
 ## Environment Setup
-setup-env: ## Setup .env file and run development server
+setup-env: ## Setup .env file
 	@echo "$(GREEN)Setting up environment...$(RESET)"
 	@if [ ! -f .env ]; then \
 		echo "$(YELLOW)Copying .env.example to .env...$(RESET)"; \
@@ -58,14 +69,16 @@ setup-env: ## Setup .env file and run development server
 	else \
 		echo "$(GREEN)✓ .env file already exists$(RESET)"; \
 	fi
-	@$(MAKE) dev
 
 ## Core Development Commands
-build: ## Build the binary
+build: ## Build the server binary
 	@echo "$(GREEN)Building $(BINARY_NAME) $(VERSION)...$(RESET)"
 	@mkdir -p $(BUILD_DIR)
 	CGO_ENABLED=0 go build $(GOFLAGS) -ldflags="$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY_NAME) ./cmd/server
 	@echo "$(GREEN)✓ Build complete: $(BUILD_DIR)/$(BINARY_NAME)$(RESET)"
+
+build-all: build cli-build ## Build both server and CLI binaries
+	@echo "$(GREEN)✓ All binaries built successfully$(RESET)"
 
 dev: ensure-env ## Run in development mode (stdio)
 	@echo "$(GREEN)Starting development server (stdio mode)...$(RESET)"
@@ -157,10 +170,10 @@ docker-build: ensure-env ## Build Docker image
 	docker build --build-arg VERSION=$(VERSION) --build-arg BUILD_TIME=$(BUILD_TIME) --build-arg COMMIT_HASH=$(COMMIT_HASH) -t $(DOCKER_IMAGE):$(VERSION) .
 	docker tag $(DOCKER_IMAGE):$(VERSION) $(DOCKER_IMAGE):latest
 
-docker-up: ensure-env ## Start services with docker-compose
-	@echo "$(GREEN)Starting Lerian MCP Memory Server...$(RESET)"
-	docker-compose up -d
-	@echo "$(GREEN)✅ Services started!$(RESET)"
+docker-up: ensure-env ## Start production services with docker-compose
+	@echo "$(GREEN)Starting Lerian MCP Memory Server (Production)...$(RESET)"
+	docker compose --profile prod up -d
+	@echo "$(GREEN)✅ Production services started!$(RESET)"
 	@echo "  - MCP API: http://localhost:9080"
 	@echo "  - Health: http://localhost:8081/health"
 	@echo "  - Qdrant: http://localhost:6333"
@@ -169,30 +182,30 @@ docker-up: ensure-env ## Start services with docker-compose
 	@echo "  curl http://localhost:8081/health"
 	@echo "  curl -X POST http://localhost:9080/mcp -H 'Content-Type: application/json' -d '{\"jsonrpc\":\"2.0\",\"method\":\"tools/list\",\"id\":1}'"
 
-docker-down: ## Stop services with docker-compose
-	@echo "$(GREEN)Stopping services...$(RESET)"
-	docker-compose down
+docker-down: ## Stop all services
+	@echo "$(GREEN)Stopping all services...$(RESET)"
+	docker compose --profile prod --profile dev --profile monitoring down
 
-docker-logs: ensure-env ## View Docker logs
-	docker-compose logs -f
+docker-logs: ensure-env ## View production Docker logs
+	docker compose --profile prod logs -f
 
-docker-restart: ensure-env ## Restart Docker services
-	@echo "$(GREEN)Restarting services...$(RESET)"
-	docker-compose restart
+docker-restart: ensure-env ## Restart production Docker services
+	@echo "$(GREEN)Restarting production services...$(RESET)"
+	docker compose --profile prod restart
 
 docker-clean: ## Clean up Docker resources (does not require .env)
 	@echo "$(YELLOW)Cleaning up Docker resources...$(RESET)"
-	docker-compose down -v 2>/dev/null || true
+	docker compose --profile prod --profile dev --profile monitoring down -v 2>/dev/null || true
 	docker system prune -f
 
 docker-rebuild: ensure-env ## Rebuild Docker images
 	@echo "$(GREEN)Rebuilding Docker images...$(RESET)"
-	docker-compose build --no-cache
+	docker compose --profile dev build --no-cache
 
 ## Development Docker Commands
 dev-docker-up: ensure-env ## Start development services with hot reload
 	@echo "$(GREEN)Starting development environment with hot reload...$(RESET)"
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml up -d
+	docker compose --profile dev up -d
 	@echo "$(GREEN)✅ Development services started!$(RESET)"
 	@echo "  - MCP API: http://localhost:9080"
 	@echo "  - Health: http://localhost:8081/health"
@@ -203,28 +216,66 @@ dev-docker-up: ensure-env ## Start development services with hot reload
 
 dev-docker-down: ## Stop development services
 	@echo "$(GREEN)Stopping development services...$(RESET)"
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml down
+	docker compose --profile dev down
 
 dev-docker-logs: ## View development Docker logs
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml logs -f lerian-mcp-memory
+	docker compose --profile dev logs -f lerian-mcp-memory-dev
 
 dev-docker-rebuild: ## Rebuild development Docker image
 	@echo "$(GREEN)Rebuilding development Docker image...$(RESET)"
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml build --no-cache lerian-mcp-memory
+	docker compose --profile dev build --no-cache lerian-mcp-memory-dev
 
 dev-docker-shell: ## Open shell in development container
 	@echo "$(GREEN)Opening shell in development container...$(RESET)"
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml exec lerian-mcp-memory /bin/sh
+	docker compose --profile dev exec lerian-mcp-memory-dev /bin/sh
 
 dev-docker-restart: ## Restart development services
 	@echo "$(GREEN)Restarting development services...$(RESET)"
-	docker-compose -f docker-compose.yml -f docker-compose.dev.yml restart
+	docker compose --profile dev restart
 
 dev-logs: ## View development logs (alias for dev-docker-logs)
 	@$(MAKE) dev-docker-logs
 
+## Monitoring Commands
+monitoring-up: ensure-env ## Start monitoring services (Prometheus + Grafana)
+	@echo "$(GREEN)Starting monitoring services...$(RESET)"
+	docker compose --profile monitoring up -d
+	@echo "$(GREEN)✅ Monitoring services started!$(RESET)"
+	@echo "  - Prometheus: http://localhost:9090"
+	@echo "  - Grafana: http://localhost:3000 (admin/admin)"
+	@echo "  - PostgreSQL: localhost:5432"
+
+monitoring-down: ## Stop monitoring services
+	@echo "$(GREEN)Stopping monitoring services...$(RESET)"
+	docker compose --profile monitoring down
+
+monitoring-logs: ## View monitoring service logs
+	docker compose --profile monitoring logs -f
+
+## CLI Commands
+cli-build: ## Build the CLI binary (lmmc)
+	@echo "$(GREEN)Building CLI binary...$(RESET)"
+	@cd cli && $(MAKE) build
+	@echo "$(GREEN)✓ CLI built: cli/bin/lmmc$(RESET)"
+
+cli-install: ## Install CLI to GOPATH/bin
+	@echo "$(GREEN)Installing CLI...$(RESET)"
+	@cd cli && $(MAKE) install
+	@echo "$(GREEN)✓ CLI installed to $(GOPATH)/bin/lmmc$(RESET)"
+
+cli-test: ## Run CLI tests
+	@echo "$(GREEN)Running CLI tests...$(RESET)"
+	@cd cli && $(MAKE) test
+
+cli-clean: ## Clean CLI build artifacts
+	@echo "$(GREEN)Cleaning CLI build artifacts...$(RESET)"
+	@cd cli && $(MAKE) clean
+
+cli-run: cli-build ## Build and run the CLI
+	@cd cli && ./bin/lmmc
+
 ## Utility Commands
-clean: ## Clean build artifacts
+clean: cli-clean ## Clean all build artifacts
 	@echo "$(GREEN)Cleaning build artifacts...$(RESET)"
 	rm -rf $(BUILD_DIR)
 	rm -f coverage.out coverage.html

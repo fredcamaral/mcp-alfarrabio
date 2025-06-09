@@ -1,382 +1,206 @@
 # Lerian MCP Memory Server
 
-> **Smart memory for AI assistants** - A high-performance Go-based Model Context Protocol (MCP) server that remembers your conversations, learns from patterns, and provides intelligent context suggestions.
+> **Give your AI assistant a perfect memory** - Works with Claude, Cursor, VS Code, and any MCP-compatible client
 
-Perfect for **Claude Desktop**, **VS Code**, **Continue**, **Cursor**, and any MCP-compatible AI client.
-
-## 🚀 Quick Start (5 minutes)
-
-### Step 1: Start the Server
+## 🚀 Quick Start (2 minutes)
 
 ```bash
+# 1. Clone and start the server
 git clone https://github.com/LerianStudio/lerian-mcp-memory.git
 cd lerian-mcp-memory
-cp .env.example .env
-# Edit .env if you need to change OPENAI_API_KEY (defaults to your global env)
+make docker-up
 
-# Start everything (uses pre-built image from GitHub Container Registry)
-docker-compose up -d
+# 2. Add to your AI client config:
 ```
-
-> **Note**: The default `docker-compose.yml` uses the pre-built image from `ghcr.io/lerianstudio/lerian-mcp-memory:latest` and includes Watchtower for automatic updates. For development with hot reload, use `make dev-docker-up` instead.
-
-### Step 2: Choose Your Connection Method
-
-The MCP Memory Server supports **multiple transport protocols** for maximum compatibility:
-
-| Protocol | Use Case |
-|----------|----------|
-| **📡 stdio + proxy** | MCP clients (Claude Desktop, VS Code, Cursor) |
-| **🔌 WebSocket** | Real-time bidirectional communication |
-| **📤 SSE (Server-Sent Events)** | Event streaming + direct HTTP |
-| **🌐 Direct HTTP** | Simple request/response |
-
----
-
-## 🔌 MCP Protocol Options
-
-### Option 1: stdio + proxy (Recommended for Most Clients)
-
-**Best for:** Claude Desktop, Claude Code CLI, VS Code with Continue, Cursor
-
-The server includes a Node.js proxy that bridges stdio ↔ HTTP for MCP client compatibility.
 
 ```json
 {
   "mcpServers": {
     "memory": {
       "command": "docker",
-      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
-      "env": {
-        "MCP_SERVER_HOST": "localhost",
-        "MCP_SERVER_PORT": "9080",
-        "MCP_SERVER_PATH": "/mcp"
-      }
+      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"]
     }
   }
 }
 ```
 
-### Option 2: WebSocket (Real-time Bidirectional)
+**That's it!** Your AI assistant now has persistent memory.
 
-**Best for:** Custom applications, real-time use cases
+### Where to add the config:
+- **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows)
+- **VS Code/Continue**: Your Continue configuration file
+- **Cursor**: Settings → MCP Servers
+- **Claude Code CLI**: `.claude/mcp.json` in your project
 
-```javascript
-const ws = new WebSocket('ws://localhost:9080/ws');
-ws.send(JSON.stringify({
-  jsonrpc: "2.0",
-  method: "initialize",
-  params: { protocolVersion: "2024-11-05", capabilities: {} },
-  id: 1
-}));
-```
+## 🎯 What Can It Do?
 
-### Option 3: Server-Sent Events (Event Streaming)
+Your AI assistant can now:
+- **Remember conversations** across sessions
+- **Search past discussions** with smart similarity matching
+- **Learn your patterns** and coding preferences
+- **Suggest relevant context** from previous work
+- **Track decisions** and their rationale
 
-**Best for:** Web applications, Claude/Cursor with SSE support, real-time updates
+### Example Usage:
+- "Remember this solution for handling authentication"
+- "What did we discuss about the database schema?"
+- "Find similar problems we've solved before"
+- "Save this as our coding standard for error handling"
 
-#### For MCP Clients with SSE Support:
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "transport": "sse",
-      "url": "http://localhost:9080/sse",
-      "env": {
-        "MCP_SERVER_HOST": "localhost",
-        "MCP_SERVER_PORT": "9080"
-      }
-    }
-  }
-}
-```
-### Option 4: Direct HTTP (Simple REST-like)
-
-**Best for:** Testing, simple integrations
+## 🛠️ Essential Commands
 
 ```bash
-curl -X POST http://localhost:9080/mcp \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","method":"tools/list","id":1}'
+# Check server health
+curl http://localhost:8081/health
+
+# View logs
+make docker-logs
+
+# Restart server
+make docker-restart
+
+# Stop server
+make docker-down
+
+# Development mode (with hot reload)
+make dev-docker-up
 ```
 
----
+## 🔧 Configuration
 
-## 🛠️ Client-Specific Configurations
+### Basic Setup (Optional)
+The server works out-of-the-box, but you can customize it:
+
+```bash
+cp .env.example .env
+# Edit .env to set your OPENAI_API_KEY (defaults to global env variable)
+```
+
+### Key Settings in `.env`:
+- `OPENAI_API_KEY` - For AI-powered search (uses your global key by default)
+- `MCP_MEMORY_LOG_LEVEL` - Set to `debug` for troubleshooting
+- `MCP_HOST_PORT` - Change from default 9080 if needed
+
+## 💡 Memory Tools Available
+
+Your AI assistant gets these memory commands:
+
+| Tool | Purpose | Example Use |
+|------|---------|-------------|
+| `memory_create` | Store new information | Save code snippets, decisions, conversations |
+| `memory_read` | Search and retrieve | Find past solutions, recall discussions |
+| `memory_update` | Modify existing memories | Update outdated information |
+| `memory_intelligence` | Get AI insights | Find patterns, get suggestions |
+| `memory_tasks` | Track todos | Manage work across sessions |
 
 <details>
-<summary><b>🖥️ Claude Desktop</b></summary>
-
-Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (Mac) or `%APPDATA%\Claude\claude_desktop_config.json` (Windows):
-
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "command": "docker",
-      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
-      "env": {
-        "MCP_SERVER_HOST": "localhost",
-        "MCP_SERVER_PORT": "9080",
-        "MCP_SERVER_PATH": "/mcp"
-      }
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>💻 Claude Code CLI</b></summary>
-
-Add to `.claude/mcp.json` in your project root:
-
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "command": "docker",
-      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
-      "env": {
-        "MCP_SERVER_HOST": "localhost",
-        "MCP_SERVER_PORT": "9080",
-        "MCP_SERVER_PATH": "/mcp"
-      }
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>📝 VS Code with Continue</b></summary>
-
-Add to your Continue configuration:
-
-```json
-{
-  "models": [...],
-  "mcpServers": {
-    "memory": {
-      "command": "docker",
-      "args": ["exec", "-i", "lerian-mcp-memory-server", "node", "/app/mcp-proxy.js"],
-      "env": {
-        "MCP_SERVER_HOST": "localhost",
-        "MCP_SERVER_PORT": "9080",
-        "MCP_SERVER_PATH": "/mcp"
-      }
-    }
-  }
-}
-```
-</details>
-
-<details>
-<summary><b>🖱️ Cursor, Windsurf, Other MCP Clients</b></summary>
-
-Use the same configuration as Claude Desktop above. For clients that support SSE or WebSocket:
-
-**SSE Configuration:**
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "transport": "sse",
-      "url": "http://localhost:9080/sse"
-    }
-  }
-}
-```
-
-**WebSocket Configuration:**
-```json
-{
-  "mcpServers": {
-    "memory": {
-      "transport": "websocket",
-      "url": "ws://localhost:9080/ws"
-    }
-  }
-}
-```
-</details>
-
----
-
-## 🎯 What Does This Do?
-
-**Lerian MCP Memory** transforms your AI assistant into a smart companion that:
-
-- **📚 Remembers Everything**: Stores conversations and contexts across sessions
-- **🔍 Smart Search**: AI-powered similarity search through your history  
-- **🧠 Pattern Learning**: Recognizes your preferences and coding patterns
-- **💡 Proactive Suggestions**: Suggests relevant context automatically
-- **🔄 Cross-Project Intelligence**: Learns across all your repositories
-
-### 🛠️ Available Memory Tools
-
-Your AI assistant gets 9 powerful memory tools:
+<summary>📚 View All 9 Memory Tools</summary>
 
 - `memory_create` - Store conversations and decisions
 - `memory_read` - Search and retrieve context  
 - `memory_update` - Update existing memories
 - `memory_delete` - Remove outdated information
+- `memory_analyze` - Analyze patterns across projects
 - `memory_intelligence` - Get AI-powered insights
 - `memory_transfer` - Export/import contexts
 - `memory_tasks` - Track workflows and todos
-- `memory_analyze` - Analyze patterns across projects
-- `memory_system` - System health and status
+- `memory_system` - Check system health and status
+</details>
 
----
-
-## 🏗️ Architecture Overview
-
-```
-┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   MCP Clients   │    │   Go MCP Server  │    │    Storage      │
-│                 │    │                  │    │                 │
-│ Claude Desktop  │◄──►│ stdio + proxy    │    │    Qdrant       │
-│ Claude Code CLI │    │ WebSocket        │◄──►│   (Vectors)     │
-│ VS Code/Continue│    │ SSE              │    │                 │
-│ Cursor/Windsurf │    │ Direct HTTP      │    │   SQLite        │
-│ Custom Apps     │    │                  │    │   (Metadata)    │
-└─────────────────┘    └──────────────────┘    └─────────────────┘
-```
-
-**Available Endpoints:**
-- `http://localhost:9080/mcp` - Direct HTTP JSON-RPC
-- `http://localhost:9080/sse` - Server-Sent Events + HTTP
-- `ws://localhost:9080/ws` - WebSocket bidirectional
-- `http://localhost:8081/health` - Health check
-- `http://localhost:8082` - Metrics (optional)
-
----
-
-## 🔧 Troubleshooting
-
-### Quick Diagnostics
-
-```bash
-# Check if everything is running
-docker-compose ps
-
-# Test the server
-curl http://localhost:8081/health
-
-# Test MCP proxy
-echo '{"jsonrpc":"2.0","method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{}},"id":1}' | docker exec -i lerian-mcp-memory-server node /app/mcp-proxy.js
-
-# View logs
-docker logs lerian-mcp-memory-server
-```
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-**🔴 Connection refused**
+**"Connection refused" or "MCP server not responding"**
 ```bash
-docker-compose restart
+make docker-restart
 ```
 
-**🔴 OpenAI API errors**
-- Check your API key in `.env`
-- Verify account credits
+**"OpenAI API error"**
+1. Check your API key: `grep OPENAI_API_KEY .env`
+2. Ensure you have credits in your OpenAI account
+3. If needed, set key explicitly in `.env`
 
-**🔴 Disable automatic updates**
-- Set `WATCHTOWER_LABEL_ENABLE=false` in `.env`
-- Or stop Watchtower: `docker-compose stop watchtower`
-
----
-
-## 🎛️ Advanced Configuration
-
-### Environment Variables
-
+**"Node.js not found" error**
 ```bash
-# Required (defaults to your global OPENAI_API_KEY if set)
-OPENAI_API_KEY=${OPENAI_API_KEY:-your-key-here}
-
-# Common optional settings
-MCP_MEMORY_LOG_LEVEL=info          # debug, info, warn, error
-MCP_HOST_PORT=9080                 # MCP API port
-QDRANT_HOST_PORT=6333              # Qdrant port
-MCP_MEMORY_BACKUP_ENABLED=true     # Enable automatic backups
-MCP_MEMORY_BACKUP_INTERVAL_HOURS=24 # Backup frequency
+make docker-build && make docker-restart
 ```
 
-See `.env.example` for all available configuration options.
-
-The `.env` file is the single source of truth - all settings are automatically passed to containers.
-
-### Development Mode
-
+### Debug Commands
 ```bash
-# Start development environment with hot reload
-make dev-docker-up
+# Check what's running
+docker compose ps
 
-# View logs
-make dev-docker-logs
+# Test the MCP proxy directly
+echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | \
+  docker exec -i lerian-mcp-memory-server node /app/mcp-proxy.js
 
-# Rebuild after major changes
-make dev-docker-rebuild
-
-# Access container shell
-make dev-docker-shell
-
-# Stop development environment
-make dev-docker-down
+# View detailed logs
+docker compose logs -f lerian-mcp-memory-server
 ```
 
-### Production Deployment
+## 🏗️ Architecture
 
-For production use:
-- Set proper environment variables in `.env`
-- Use Docker Compose with volume mounts for data persistence
-- Configure proper backup intervals
-- Monitor health endpoint: `http://localhost:8081/health`
-- Use `docker-compose logs -f` for monitoring
+<details>
+<summary>View Technical Details</summary>
 
----
+### Stack
+- **Language**: Go 1.23+ 
+- **Vector DB**: Qdrant (similarity search)
+- **Metadata**: SQLite (relationships)
+- **Embeddings**: OpenAI text-embedding-ada-002
 
-## 📚 Key Features
+### Available Endpoints
+- `http://localhost:9080/mcp` - MCP JSON-RPC endpoint
+- `ws://localhost:9080/ws` - WebSocket connection
+- `http://localhost:9080/sse` - Server-sent events
+- `http://localhost:8081/health` - Health check
 
-### 🧠 Intelligence Engine
-- **Pattern Recognition**: Learns from your coding patterns and preferences
-- **Conflict Detection**: Identifies contradictory decisions or approaches
-- **Context Suggestions**: Proactively suggests relevant historical context
-- **Cross-Repository Learning**: Shares insights across different projects
+### Docker Profiles
+```bash
+make docker-up       # Production (pre-built image)
+make dev-docker-up   # Development (hot reload)
+make monitoring-up   # Prometheus + Grafana
+```
+</details>
 
-### 🔄 Multi-Protocol Support
-- **stdio + proxy**: Works with MCP clients
-- **WebSocket**: Real-time bidirectional communication
-- **Server-Sent Events**: Event streaming with HTTP fallback
-- **Direct HTTP**: Simple JSON-RPC over HTTP
+## 🛡️ Data & Security
 
-### 🏪 Storage & Performance
-- **Qdrant Vector Database**: High-performance similarity search
-- **SQLite Metadata**: Fast local storage for relationships and metadata
-- **Intelligent Chunking**: Optimizes content for vector embeddings
-- **Circuit Breakers**: Reliable external service integration
+- **Your data stays local** - All storage is in Docker volumes on your machine
+- **Automatic backups** - Configurable via `MCP_MEMORY_BACKUP_ENABLED`
+- **Encryption available** - Set `MCP_MEMORY_ENCRYPTION_ENABLED=true`
+- **No telemetry** - We don't collect any usage data
 
-### 🔒 Security & Reliability
-- **Access Control**: Configurable authentication and authorization
-- **Data Encryption**: Optional encryption for sensitive data
-- **Automatic Backups**: Scheduled data protection
-- **Health Monitoring**: Built-in health checks and metrics
-
----
+### Important Volumes
+```
+mcp_memory_qdrant_vector_db_NEVER_DELETE  # Your embeddings
+mcp_memory_app_data_NEVER_DELETE         # Your conversations
+```
 
 ## 🤝 Contributing
 
-We welcome contributions! See [Contributing Guide](CONTRIBUTING.md) for details.
+We love contributions! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Quick Dev Setup
+```bash
+make dev-docker-up    # Start dev environment
+make test            # Run tests
+make lint            # Check code quality
+```
+
+## 📦 Additional Tools
+
+### CLI Tool (lmmc)
+```bash
+make cli-build       # Build the CLI
+make cli-install     # Install to PATH
+lmmc --help         # Use the CLI
+```
 
 ## 📄 License
 
-Apache 2.0 License - see [LICENSE](LICENSE) file for details.
+Apache 2.0 - see [LICENSE](LICENSE)
 
 ---
 
-**🚀 Ready to give your AI assistant a perfect memory?** 
-
-Start with the [Quick Start](#-quick-start-5-minutes) above and choose your preferred [protocol option](#-mcp-protocol-options).
-
-**Questions?** [Open an issue](https://github.com/LerianStudio/lerian-mcp-memory/issues) or check the troubleshooting section above.
+**Need help?** [Open an issue](https://github.com/LerianStudio/lerian-mcp-memory/issues) or check our [detailed documentation](docs/)

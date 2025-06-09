@@ -1,11 +1,15 @@
-# Lerian MCP Memory Server 
-# Go-based MCP server providing persistent memory capabilities for AI assistants
-
-# This compose file depends on the .env file in the root directory
+# Lerian MCP Memory Server - Unified Docker Compose
+# Simplified configuration with multiple profiles for different environments
+#
+# Usage:
+#   Development:  docker-compose --profile dev up
+#   Production:   docker-compose --profile prod up
+#   Monitoring:   docker-compose --profile monitoring up
+#
 # Copy .env.example to .env and configure as needed
 
 services:
-  # Qdrant Vector Database - High-performance vector search engine
+  # Qdrant Vector Database - Core service for all profiles
   qdrant:
     image: qdrant/qdrant:latest
     container_name: lerian-mcp-memory-qdrant
@@ -21,9 +25,10 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
     networks:
-      - lerian_mcp_memory_network
+      - lerian_network
+    profiles: ["dev", "prod", "monitoring"]
 
-  # Lerian MCP Memory Server (Go Backend)
+  # Lerian MCP Memory Server - Production version
   lerian-mcp-memory:
     image: ghcr.io/lerianstudio/lerian-mcp-memory:latest
     container_name: lerian-mcp-memory-server
@@ -37,13 +42,14 @@ services:
     env_file:
       - .env
     environment:
-      # Override specific values that must be set for container networking
+      # Container networking overrides
       - MCP_MEMORY_QDRANT_HOST=qdrant
       - MCP_MEMORY_DATA_DIR=/app/data
       - MCP_MEMORY_CONFIG_DIR=/app/config
       - MCP_MEMORY_HTTP_PORT=9080
       - MCP_MEMORY_HEALTH_PORT=8081
       - MCP_MEMORY_METRICS_PORT=8082
+      - MCP_MEMORY_LOG_LEVEL=${MCP_MEMORY_LOG_LEVEL:-info}
     volumes:
       - mcp_data:/app/data
       - mcp_logs:/app/logs
@@ -54,35 +60,119 @@ services:
       timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
       retries: ${HEALTH_CHECK_RETRIES:-3}
       start_period: 40s
-    labels:
-      # Enable automatic updates via Watchtower
-      - "com.centurylinklabs.watchtower.enable=true"
     networks:
-      - lerian_mcp_memory_network
+      - lerian_network
+    profiles: ["prod"]
 
-  # Watchtower - Automatic container updates
-  watchtower:
-    image: containrrr/watchtower:latest
-    container_name: lerian-mcp-memory-watchtower
+  # Lerian MCP Memory Server - Development version with hot reload
+  lerian-mcp-memory-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+      args:
+        - VERSION=${VERSION:-dev}
+        - BUILD_TIME=${BUILD_TIME:-dev}
+        - COMMIT_HASH=${COMMIT_HASH:-dev}
+    image: lerian-mcp-memory:dev
+    container_name: lerian-mcp-memory-server
     restart: unless-stopped
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - qdrant
+    ports:
+      - "${MCP_HOST_PORT:-9080}:9080"
+      - "${MCP_HEALTH_PORT:-8081}:8081"
+      - "${MCP_METRICS_PORT:-9082}:8082"
     env_file:
       - .env
     environment:
-      # Override specific Watchtower settings
-      - WATCHTOWER_LOG_LEVEL=info
-      - WATCHTOWER_INCLUDE_STOPPED=false
-      - WATCHTOWER_INCLUDE_RESTARTING=true
-    labels:
-      # Don't auto-update watchtower itself
-      - "com.centurylinklabs.watchtower.enable=false"
+      # Development-specific overrides
+      - MCP_MEMORY_QDRANT_HOST=qdrant
+      - MCP_MEMORY_DATA_DIR=/app/data
+      - MCP_MEMORY_CONFIG_DIR=/app/config
+      - MCP_MEMORY_LOG_LEVEL=debug
+      - MCP_MEMORY_DEV_MODE=true
+      - CGO_ENABLED=0
+      - GOOS=linux
+    volumes:
+      # Mount source code for hot reload
+      - ./cmd:/app/cmd:ro
+      - ./internal:/app/internal:ro
+      - ./pkg:/app/pkg:ro
+      - ./configs:/app/configs:ro
+      - ./go.mod:/app/go.mod:ro
+      - ./go.sum:/app/go.sum:ro
+      # Persistent data volumes
+      - mcp_data:/app/data
+      - mcp_logs:/app/logs
+      - mcp_backups:/app/backups
+    command: ["air", "-c", ".air.toml"]
     networks:
-      - lerian_mcp_memory_network
+      - lerian_network
+    profiles: ["dev"]
+
+  # PostgreSQL Database - For advanced monitoring
+  postgres:
+    image: postgres:16-alpine
+    container_name: lerian-mcp-memory-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-lerian_mcp_memory}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    networks:
+      - lerian_network
+    profiles: ["monitoring"]
+
+  # Prometheus - Metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: lerian-mcp-memory-prometheus
+    restart: unless-stopped
+    ports:
+      - "${PROMETHEUS_PORT:-9090}:9090"
+    volumes:
+      - prometheus_data:/prometheus
+      - ./configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    networks:
+      - lerian_network
+    profiles: ["monitoring"]
+
+  # Grafana - Metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    container_name: lerian-mcp-memory-grafana
+    restart: unless-stopped
+    ports:
+      - "${GRAFANA_PORT:-3000}:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./configs/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+    depends_on:
+      - prometheus
+    networks:
+      - lerian_network
+    profiles: ["monitoring"]
 
 # Networks
 networks:
-  lerian_mcp_memory_network:
+  lerian_network:
     driver: bridge
 
 # Volumes - CRITICAL: These contain all your memory data. NEVER DELETE!
@@ -100,9 +190,22 @@ volumes:
   # Application logs - Safe to recreate but useful for debugging
   mcp_logs:
     driver: local
-    name: mcp_memory_logs_NEVER_DELETE
+    name: mcp_memory_logs
 
   # Backup storage - Contains automated backups of your data
   mcp_backups:
     driver: local
-    name: mcp_memory_backups_NEVER_DELETE
+    name: mcp_memory_backups
+
+  # Monitoring data (only for monitoring profile)
+  postgres_data:
+    driver: local
+    name: mcp_memory_postgres_data
+
+  prometheus_data:
+    driver: local
+    name: mcp_memory_prometheus_data
+
+  grafana_data:
+    driver: local
+    name: mcp_memory_grafana_data

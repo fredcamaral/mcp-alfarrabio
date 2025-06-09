@@ -13,6 +13,8 @@ RUN apk add --no-cache \
     curl \
     wget \
     tzdata \
+    nodejs \
+    npm \
     && update-ca-certificates
 
 # Create non-root user for build
@@ -127,3 +129,70 @@ HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
 # Can be overridden with: docker run ... /app/lerian-mcp-memory-server -mode=stdio
 ENTRYPOINT ["/app/lerian-mcp-memory-server"]
 CMD ["-mode=http", "-addr=:9080"]
+
+# Stage 3: Development environment with hot reload
+FROM golang:1.24-alpine AS dev
+
+# Install dependencies including Air for hot reload
+RUN apk add --no-cache \
+    git \
+    gcc \
+    musl-dev \
+    ca-certificates \
+    curl \
+    wget \
+    tzdata \
+    nodejs \
+    npm \
+    && update-ca-certificates
+
+# Install Air for hot reload
+RUN go install github.com/air-verse/air@latest
+
+# Create non-root user for development
+RUN addgroup -g 1001 -S mcpuser && \
+    adduser -u 1001 -S mcpuser -G mcpuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy go mod files first for better caching
+COPY go.mod go.sum ./
+
+# Copy the pkg directory to satisfy the replace directive
+COPY pkg ./pkg
+
+# Download dependencies
+RUN go mod download && go mod verify
+
+# Copy the rest of the source code
+COPY . .
+
+# Create required directories with proper ownership
+RUN mkdir -p /app/data /app/config /app/logs /app/backups /app/audit_logs && \
+    chown -R mcpuser:mcpuser /app
+
+# Copy Air configuration file
+COPY --chown=mcpuser:mcpuser .air.toml /app/
+
+# Switch to non-root user
+USER mcpuser
+
+# Expose ports
+EXPOSE 9080 8081 8082
+
+# Set environment variables for development
+ENV GO111MODULE=on \
+    CGO_ENABLED=0 \
+    GOOS=linux \
+    MCP_MEMORY_DATA_DIR=/app/data \
+    MCP_MEMORY_CONFIG_DIR=/app/config \
+    MCP_MEMORY_LOG_DIR=/app/logs \
+    MCP_MEMORY_BACKUP_DIR=/app/backups \
+    MCP_MEMORY_HTTP_PORT=9080 \
+    MCP_MEMORY_HEALTH_PORT=8081 \
+    MCP_MEMORY_METRICS_PORT=8082 \
+    MCP_MEMORY_LOG_LEVEL=debug \
+    CONFIG_PATH=/app/config/config.yaml
+
+# Air will handle running the server - command specified in docker-compose.yml
