@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"lerian-mcp-memory/internal/api"
 	"lerian-mcp-memory/internal/config"
 	"lerian-mcp-memory/internal/mcp"
 	mcpwebsocket "lerian-mcp-memory/internal/websocket"
@@ -115,10 +116,10 @@ func startHTTPServer(ctx context.Context, mcpServer *server.Server, addr string)
 	}
 
 	// Setup HTTP routes
-	mux := setupHTTPRoutes(ctx, mcpServer, wsHub)
+	handler := setupHTTPRoutes(ctx, mcpServer, wsHub)
 
 	// Create and start HTTP server
-	return startAndRunHTTPServer(ctx, mux, addr)
+	return startAndRunHTTPServer(ctx, handler, addr)
 }
 
 // initializeServerComponents initializes WebSocket hub and memory server
@@ -150,7 +151,36 @@ func initializeServerComponents(ctx context.Context) (*mcpwebsocket.Hub, *mcp.Me
 }
 
 // setupHTTPRoutes configures all HTTP routes and handlers
-func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwebsocket.Hub) *http.ServeMux {
+func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwebsocket.Hub) http.Handler {
+	// Load configuration for the API router
+	cfg, err := config.LoadConfig()
+	if err != nil {
+		log.Printf("Failed to load config for API router: %v", err)
+		// Fallback to legacy setup
+		return setupLegacyHTTPRoutes(ctx, mcpServer, wsHub)
+	}
+
+	// Create new API router with Chi and middleware
+	apiRouter := api.NewRouter(cfg)
+
+	// Create a new mux that combines the API router with legacy endpoints
+	mux := http.NewServeMux()
+
+	// Mount the new API routes
+	mux.Handle("/api/", apiRouter.Handler())
+	mux.Handle("/health", apiRouter.Handler())
+	mux.Handle("/", apiRouter.Handler())
+
+	// Keep legacy MCP endpoints for backward compatibility
+	setupMCPHandler(mux, mcpServer)
+	setupSSEHandler(mux, mcpServer)
+	setupWebSocketHandler(mux, ctx, wsHub)
+
+	return mux
+}
+
+// setupLegacyHTTPRoutes configures HTTP routes using the legacy approach
+func setupLegacyHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwebsocket.Hub) *http.ServeMux {
 	mux := http.NewServeMux()
 
 	// Setup MCP endpoint
@@ -371,10 +401,10 @@ func setupHealthHandler(mux *http.ServeMux) {
 }
 
 // startAndRunHTTPServer creates and runs the HTTP server
-func startAndRunHTTPServer(ctx context.Context, mux *http.ServeMux, addr string) error {
+func startAndRunHTTPServer(ctx context.Context, handler http.Handler, addr string) error {
 	httpServer := &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      30 * time.Second,

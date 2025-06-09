@@ -1,0 +1,302 @@
+# Rule: Generating a Product Requirements Document (PRD)
+
+## Goal
+
+To guide an AI assistant in creating a detailed Product Requirements Document (PRD) in Markdown format, based on an initial user prompt. The PRD should be clear, actionable, and suitable for a junior developer to understand and implement the feature.
+
+## Process
+
+1.  **Receive Initial Prompt:** The user provides a brief description or request for a new feature or functionality.
+2.  **Ask Clarifying Questions:** Before writing the PRD, the AI *must* ask clarifying questions to gather sufficient detail. The goal is to understand the "what" and "why" of the feature, not necessarily the "how" (which the developer will figure out).
+3.  **Generate PRD:** Based on the initial prompt and the user's answers to the clarifying questions, generate a PRD using the structure outlined below.
+4.  **Save PRD:** Save the generated document as `prd-[feature-name].md` inside the `/docs/` directory.
+
+## Clarifying Questions (Examples)
+
+The AI should adapt its questions based on the prompt, but here are some common areas to explore:
+
+*   **Problem/Goal:** "What problem does this feature solve for the user?" or "What is the main goal we want to achieve with this feature?"
+*   **Target User:** "Who is the primary user of this feature?"
+*   **Core Functionality:** "Can you describe the key actions a user should be able to perform with this feature?"
+*   **User Stories:** "Could you provide a few user stories? (e.g., As a [type of user], I want to [perform an action] so that [benefit].)"
+*   **Acceptance Criteria:** "How will we know when this feature is successfully implemented? What are the key success criteria?"
+*   **Scope/Boundaries:** "Are there any specific things this feature *should not* do (non-goals)?"
+*   **Data Requirements:** "What kind of data does this feature need to display or manipulate?"
+*   **Data Relationships:** "How does this feature's data relate to existing entities in the system?"
+*   **API Requirements:** "What API endpoints will this feature need? Should it follow REST conventions?"
+*   **User Flow:** "Can you walk me through the step-by-step user journey for this feature?"
+*   **User Personas:** "Who are the different types of users for this feature? What are their characteristics and goals?"
+*   **System Integration:** "How should this feature integrate with existing system components?"
+*   **Development Phases:** "How would you prioritize the development? What's the minimum viable version?"
+*   **Dependencies:** "What needs to be built first before this feature can work? What's the logical order?"
+*   **Technical Risks:** "What technical challenges do you foresee? What could go wrong during development?"
+*   **Design/UI:** "Are there any existing design mockups or UI guidelines to follow?" or "Can you describe the desired look and feel?"
+*   **Edge Cases:** "Are there any potential edge cases or error conditions we should consider?"
+
+## PRD Structure
+
+The generated PRD should include the following sections (strictly using this numbering system):
+
+0. **Index**: ///REVIEW
+1.  **Introduction/Overview:** Briefly describe the feature and the problem it solves. State the goal.
+2.  **Goals:** List the specific, measurable objectives for this feature.
+3.  **User Stories:** Detail the user narratives describing feature usage and benefits.
+4.  **User Experience:** Describe user personas, key user flows, and UI/UX considerations. Include target user characteristics, user journey mapping, and interaction patterns.
+5.  **Functional Requirements:** List the specific functionalities the feature must have. Use clear, concise language (e.g., "The system must allow users to upload a profile picture."). Number these requirements.
+6.  **Non-Goals (Out of Scope):** Clearly state what this feature will *not* include to manage scope.
+7.  **Design Considerations:** Link to mockups, describe UI/UX requirements, or mention relevant components/styles if applicable.
+8.  **Technical Considerations:** Mention any known technical constraints, dependencies, or suggestions (e.g., "Should integrate with the existing Auth module").
+9.  **Success Metrics:** How will the success of this feature be measured? (e.g., "Increase user engagement by 10%", "Reduce support tickets related to X").
+10. **Data Modeling:** Define the core data entities, their relationships, and key attributes needed for the feature. Include entity descriptions, primary relationships, and data validation rules. Use simple entity-relationship descriptions suitable for junior developers (e.g., "User has many Workflows", "Workflow belongs to User").
+11. **API Modeling:** Outline the key API endpoints needed for the feature, including HTTP methods, request/response structures, and basic validation rules. Focus on the business logic and data flow rather than implementation details. Include examples of request/response payloads in JSON format.
+12. **Sequence Diagrams:** Provide three types of interaction flows using mermaid syntax:
+    - **User Interaction Flow:** Step-by-step user journey through the feature UI/UX
+    - **System Internal Flow:** How different system components interact to fulfill the user's request
+    - **Full API Workflow:** Complete request-response cycle including authentication, validation, processing, and response
+13. **Development Roadmap:** Break down the development process into logical phases focusing on scope and deliverables. Define MVP requirements and future enhancements without specific timelines. Focus on what needs to be built in each phase for proper task breakdown.
+14. **Logical Dependency Chain:** Define the logical order of development, identifying which features need to be built first (foundation), how to get quickly to a usable/visible frontend, and proper pacing/scoping of each feature to be atomic yet buildable.
+15. **Risks and Mitigations:** Identify potential risks and mitigation strategies, including technical challenges, MVP scope definition, and resource constraints.
+16. **Architecture Patterns & Principles:** Define the mandatory architectural patterns, principles, and standards that must be followed during implementation, including Hexagonal Architecture requirements, repository patterns, and lib-commons integration.
+17. **Open Questions:** List any remaining questions or areas needing further clarification.
+
+## Detailed Section Guidelines
+
+### Data Modeling Guidelines
+- **Entity Definitions:** List each core entity with a brief description
+- **Relationships:** Use simple language (e.g., "User has many Orders", "Order belongs to User")
+- **Key Attributes:** Include essential fields for each entity with data types
+- **Validation Rules:** Basic constraints (required fields, format requirements, etc.)
+- **Example Format:**
+  ```
+  **User Entity:**
+  - id: UUID (required, unique)
+  - email: String (required, unique, valid email format)
+  - name: String (required, max 255 characters)
+  
+  **Relationships:**
+  - User has many Workflows
+  - Workflow belongs to User
+  ```
+
+### API Modeling Guidelines
+- **Endpoint Structure:** Use RESTful conventions where applicable
+- **HTTP Methods:** GET, POST, PUT, DELETE with clear purposes
+- **Request/Response Examples:** Include realistic JSON examples
+- **Error Responses:** Common error scenarios and status codes
+- **Authentication:** Specify if endpoints require authentication
+- **Example Format:**
+  ```
+  **POST /api/v1/workflows**
+  Purpose: Create a new workflow
+  Authentication: Required
+  
+  Request Body:
+  {
+    "name": "Payment Processing",
+    "description": "Handle payment workflows"
+  }
+  
+  Response (201):
+  {
+    "id": "uuid-here",
+    "name": "Payment Processing",
+    "status": "active"
+  }
+  ```
+
+### Sequence Diagrams Guidelines
+- **User Interaction Flow:** Focus on user actions and UI responses
+- **System Internal Flow:** Show component interactions (services, databases, etc.)
+- **Full API Workflow:** Include authentication, validation, processing, and response
+- **Format:** Use simple text-based sequence descriptions or mermaid syntax
+- **Example:**
+  ```
+  User Interaction Flow:
+  1. User clicks "Create Workflow" button
+  2. System displays workflow creation form
+  3. User fills form and clicks "Save"
+  4. System validates input and shows success message
+  5. User is redirected to workflow list
+  ```
+
+### User Experience Guidelines
+- **User Personas:** Define primary and secondary user types with characteristics
+- **User Journey Mapping:** Step-by-step user experience from start to finish
+- **Interaction Patterns:** Common UI patterns and behaviors expected
+- **Accessibility:** Consider accessibility requirements and inclusive design
+- **Example Format:**
+  ```
+  **Primary Persona: Application Developer**
+  - Experience: 2-5 years in software development
+  - Goals: Integrate workflow automation into existing applications
+  - Pain Points: Complex setup processes, poor documentation
+  - Preferred Interaction: API-first, clear error messages
+  ```
+
+### Development Roadmap Guidelines
+- **Phase-based Approach:** Break development into logical phases (MVP, Enhancement, Advanced); max of 5 phases properly labeled
+- **Scope Definition:** Clearly define what's included in each phase
+- **Value Delivery:** Each phase should deliver usable value and be atomic
+- **No Timelines:** Focus on scope and dependencies, not time estimates
+- **Example Format:**
+  ```
+  **Phase 1 - MVP:**
+  - Core workflow creation and execution
+  - Basic authentication
+  - Essential API endpoints
+  
+  **Phase 2 - Enhancement:**
+  - Advanced workflow features
+  - Improved UI/UX
+  - Additional integrations
+  ```
+
+### Logical Dependency Chain Guidelines
+- **Foundation First:** Identify core infrastructure and foundational components
+- **Quick Wins:** Define path to earliest usable/visible functionality
+- **Atomic Features:** Each feature should be complete and testable independently
+- **Build-Upon Strategy:** Features should enable and enhance subsequent features
+- **Example Format:**
+  ```
+  **Foundation Layer:**
+  1. Database schema and basic models
+  2. Authentication system
+  3. Core API framework
+  
+  **Usable Frontend Path:**
+  4. Basic workflow creation UI
+  5. Workflow execution trigger
+  6. Status monitoring dashboard
+  ```
+
+### Risks and Mitigations Guidelines
+- **Technical Risks:** Technology challenges, integration complexity, performance concerns
+- **Product Risks:** User adoption, feature complexity, scope creep
+- **Resource Risks:** Team capacity, skill gaps, external dependencies
+- **Mitigation Strategies:** Specific actions to address each identified risk
+- **Example Format:**
+  ```
+  **Risk: Complex authentication integration**
+  - Impact: High - Could delay MVP delivery
+  - Probability: Medium
+  - Mitigation: Start with simple auth, plan phased approach
+  - Contingency: Use existing auth service as fallback
+  ```
+
+### Architecture Patterns & Principles Guidelines
+
+#### Hexagonal Architecture (Mandatory)
+**ALL transactional plugins MUST follow Hexagonal Architecture principles.**
+
+**Core Components:**
+```
+src/
+├── domain/           # Business logic (pure, no external dependencies)
+│   ├── entities/     # Core business entities
+│   ├── services/     # Domain services
+│   └── ports/        # Interfaces for external dependencies
+├── adapters/         # External integrations
+│   ├── primary/      # Controllers, handlers (inbound)
+│   ├── secondary/    # Database, APIs, external services (outbound)
+│   └── config/       # Configuration adapters
+└── infrastructure/   # Cross-cutting concerns
+    ├── database/     # Database setup and migrations
+    ├── observability/# Logging, metrics, tracing
+    └── security/     # Authentication, authorization
+```
+
+**Validation Checklist:**
+- [ ] **Domain Isolation**: Domain layer has no external dependencies
+- [ ] **Port Interfaces**: All external dependencies defined as interfaces
+- [ ] **Adapter Implementation**: Clear separation of inbound/outbound adapters
+- [ ] **Dependency Injection**: Proper DI container configuration
+- [ ] **Testing Strategy**: Easy to unit test domain logic in isolation
+
+#### Repository Patterns
+
+**REQUIRED**: Use established boilerplate repositories for new plugins.
+
+**Standard Repositories:**
+- `@plugin-boilerplate-go`: For Go-based transactional plugins
+
+**Boilerplate Requirements:**
+- [ ] **Hexagonal Structure**: Pre-configured directory structure
+- [ ] **lib-commons Integration**: Shared utilities and patterns
+- [ ] **Observability Setup**: OpenTelemetry, logging, metrics
+- [ ] **Security Baseline**: Authentication, authorization, validation
+- [ ] **Testing Framework**: Unit, integration, and e2e test setup
+
+#### lib-commons Integration
+
+**MANDATORY**: Use lib-commons for all shared functionality (https://github.com/LerianStudio/lib-commons or https://github.com/LerianStudio/lib-commons-js).
+
+**Required lib-commons Components:**
+- [ ] **Error Handling**: Standardized error types and handling
+- [ ] **Validation**: Common validation patterns and utilities
+- [ ] **Database Utilities**: Connection pooling, migration tools
+- [ ] **Observability**: Logging, metrics, tracing utilities
+- [ ] **Security**: JWT validation, RBAC utilities
+- [ ] **Configuration**: Environment and config management
+
+**Integration Checklist:**
+- [ ] **Version Compatibility**: Use latest stable lib-commons version
+- [ ] **API Compliance**: Follow lib-commons interface contracts
+- [ ] **Error Propagation**: Use lib-commons error types consistently
+- [ ] **Testing Integration**: Use lib-commons test utilities
+
+### Architectural Principles
+
+#### SOLID Principles Enforcement
+- [ ] **Single Responsibility**: Each class/function has one reason to change
+- [ ] **Open/Closed**: Open for extension, closed for modification
+- [ ] **Liskov Substitution**: Subtypes must be substitutable for base types
+- [ ] **Interface Segregation**: No client depends on unused interfaces
+- [ ] **Dependency Inversion**: Depend on abstractions, not concretions
+
+#### YAGNI, DRY, KISS Compliance
+- [ ] **YAGNI**: You Aren't Gonna Need It - no premature abstractions
+- [ ] **DRY**: Don't Repeat Yourself - extract common patterns to lib-commons
+- [ ] **KISS**: Keep It Simple, Stupid - prefer simple, clear solutions
+
+#### Domain-Driven Design (DDD)
+- [ ] **Bounded Contexts**: Clear domain boundaries and contexts
+- [ ] **Ubiquitous Language**: Consistent terminology across team and code
+- [ ] **Domain Models**: Rich domain models with business logic
+- [ ] **Repository Pattern**: Data access abstraction
+- [ ] **Domain Events**: Event-driven communication between contexts
+
+## Target Audience
+
+Assume the primary reader of the PRD is a **junior developer**. Therefore, requirements should be explicit, unambiguous, and avoid jargon where possible. Provide enough detail for them to understand the feature's purpose and core logic.
+
+## Output
+
+*   **Format:** Markdown (`.md`)
+*   **Location:** `/docs/`
+*   **Filename:** `prd-[feature-name].md`
+
+## Final Instructions
+
+1. **Do NOT start implementing the PRD** - Focus on gathering requirements first
+2. **Ask comprehensive clarifying questions** - Include questions about data modeling, API design, and user flows
+3. **Create detailed sections** - Ensure Data Modeling, API Modeling, and Sequence Diagrams are well-defined
+4. **Keep it junior-developer friendly** - Use clear language and provide concrete examples
+5. **Validate completeness** - Ensure all sections provide enough detail for technical implementation
+6. **After completing the PRD** - Inform the user that the next step is to create a TRD using `@create-trd.mdc`
+
+## Quality Checklist
+
+Before finalizing the PRD, ensure:
+- [ ] All functional requirements are numbered and clearly stated
+- [ ] User personas and experience are well-defined
+- [ ] Data entities and relationships are well-defined
+- [ ] API endpoints have clear request/response examples
+- [ ] User interaction flows are step-by-step and detailed
+- [ ] Development roadmap has clear phases with scope definition
+- [ ] Logical dependency chain shows foundation-first approach
+- [ ] Risks are identified with specific mitigation strategies
+- [ ] Success metrics are measurable and specific
+- [ ] Non-goals clearly define scope boundaries
+- [ ] Architecture patterns specify Hexagonal Architecture compliance
+- [ ] lib-commons integration requirements are documented
+- [ ] SOLID, DRY, KISS, YAGNI principles are addressed

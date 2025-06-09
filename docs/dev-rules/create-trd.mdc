@@ -1,0 +1,321 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Rule: Generating a Technical Requirements Document (TRD)
+
+## Goal
+
+To guide an AI assistant in creating a detailed Technical Requirements Document (TRD) in Markdown format, based on an existing Product Requirements Document (PRD). The TRD should translate business requirements into technical specifications suitable for implementation by developers.
+
+## Process
+
+1. **Read Existing PRD:** The AI must first read the PRD document (typically `prd-[feature-name].md` in `/docs/pre-development/`)
+2. **Analyze PRD Content:** Extract key requirements, data models, API specifications, and architectural patterns
+3. **Ask Technical Questions:** Gather additional technical details not covered in the PRD
+4. **Generate TRD:** Create a comprehensive technical specification using the structure below
+5. **Save TRD:** Save the document as `trd-[feature-name].md` in the `/docs/pre-development/` directory
+
+## Clarifying Questions (Technical Deep Dive)
+
+The AI should ask targeted technical questions based on the PRD analysis and only ask the user for further information when the PRD is not clear about something:
+
+### Infrastructure & Deployment
+- **Environment:** "What environments will this run in (development, staging, production)?"
+- **Deployment:** "How will this be deployed (Docker, Kubernetes, bare metal)?"
+- **Scaling:** "What are the expected load patterns and scaling requirements?"
+- **Configuration:** "How should configuration be managed (env vars, config files, secrets)?"
+
+### Technology Stack
+- **Language/Framework:** "What programming language and frameworks should be used?"
+- **Database:** "What database technology is preferred (PostgreSQL, MongoDB, etc.)?"
+- **Caching:** "Will caching be needed? What technology (Redis, Memcached)?"
+- **Message Queue:** "Are async operations needed? What messaging system?"
+
+### Integration & Dependencies
+- **External Services:** "What external services/APIs will this integrate with?"
+- **Internal Services:** "Which existing microservices will this interact with?"
+- **Libraries:** "Are there specific libraries or SDKs to use?"
+- **Version Constraints:** "Any specific version requirements for dependencies?"
+
+### Performance & Reliability
+- **Response Time:** "What are the performance SLAs (e.g., <200ms p95)?"
+- **Availability:** "What's the required uptime (99.9%, 99.99%)?"
+- **Data Volume:** "What data volumes are expected (requests/sec, data size)?"
+- **Concurrency:** "How many concurrent users/operations?"
+
+### Security & Compliance
+- **Authentication:** "What authentication method (JWT, OAuth, API keys)?"
+- **Authorization:** "What authorization model (RBAC, ABAC)?"
+- **Data Protection:** "Any encryption requirements (at rest, in transit)?"
+- **Compliance:** "Any regulatory requirements (GDPR, HIPAA, SOC2)?"
+
+### Development & Testing
+- **Testing Strategy:** "What testing levels are required (unit, integration, e2e)?"
+- **Code Coverage:** "What's the minimum code coverage requirement?"
+- **Development Tools:** "Any specific development tools or practices?"
+- **CI/CD:** "What CI/CD pipeline requirements?"
+
+## TRD Structure
+
+The generated TRD should include the following sections (strictly using this numbering system):
+
+0. **Index**
+1. **Executive Summary:** Technical overview linking to PRD objectives
+2. **System Architecture:** High-level architecture diagram and component overview
+3. **Technology Stack:** Complete list of technologies, languages, frameworks, and tools
+4. **Data Architecture:** Detailed database schema, data flow, and storage strategy
+5. **API Specifications:** Complete API documentation with OpenAPI/Swagger specs
+6. **Component Design:** Detailed design of each system component
+7. **Integration Architecture:** How components integrate with each other and external systems
+8. **Security Architecture:** Authentication, authorization, encryption, and security measures
+9. **Performance Requirements:** Specific metrics, benchmarks, and optimization strategies
+10. **Infrastructure Requirements:** Servers, networking, storage, and deployment needs
+11. **Development Standards:** Coding standards, patterns, and best practices
+12. **Testing Strategy:** Comprehensive testing plan including unit, integration, and e2e tests
+13. **Deployment Architecture:** CI/CD pipeline, deployment strategy, and rollback procedures
+14. **Monitoring & Observability:** Logging, metrics, tracing, and alerting requirements
+15. **Technical Risks:** Technical challenges and mitigation strategies
+16. **Implementation Roadmap:** Technical tasks breakdown aligned with PRD phases
+17. **Technical Decisions:** Key technical decisions and their rationale
+
+## Detailed Section Guidelines
+
+### System Architecture Guidelines
+- **Architecture Diagram:** Use mermaid or ASCII art for system overview
+- **Component Breakdown:** List all major components and their responsibilities
+- **Communication Patterns:** Synchronous vs asynchronous, protocols used
+- **Data Flow:** How data moves through the system
+- **Example Format:**
+  ```mermaid
+  graph TB
+    Client[Web Client] --> LB[Load Balancer]
+    LB --> API[API Gateway]
+    API --> Auth[Auth Service]
+    API --> Core[Core Service]
+    Core --> DB[(PostgreSQL)]
+    Core --> Cache[(Redis)]
+    Core --> Queue[Message Queue]
+  ```
+
+### Data Architecture Guidelines
+- **Entity Relationship Diagram:** Visual representation of data model
+- **Database Schema:** Complete DDL with indexes and constraints
+- **Data Migration:** Strategy for schema changes
+- **Backup Strategy:** Backup frequency and retention
+- **Example Format:**
+  ```sql
+  CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    name VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  );
+  
+  CREATE INDEX idx_users_email ON users(email);
+  ```
+
+### API Specifications Guidelines
+- **OpenAPI Spec:** Complete OpenAPI 3.0 specification
+- **Authentication:** How each endpoint is secured
+- **Rate Limiting:** Limits per endpoint
+- **Versioning Strategy:** How API versions are managed
+- **Example Format:**
+  ```yaml
+  openapi: 3.0.0
+  paths:
+    /api/v1/users:
+      post:
+        summary: Create a new user
+        security:
+          - bearerAuth: []
+        requestBody:
+          required: true
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateUserRequest'
+        responses:
+          '201':
+            description: User created successfully
+  ```
+
+### Component Design Guidelines
+- **Class Diagrams:** Key classes and interfaces
+- **Sequence Diagrams:** Component interactions for main flows
+- **State Diagrams:** For stateful components
+- **Design Patterns:** Patterns used (Repository, Factory, etc.)
+- **Example Format:**
+  ```
+  UserService (Hexagonal Architecture)
+  ├── domain/
+  │   ├── entities/User.go
+  │   ├── services/UserService.go
+  │   └── ports/UserRepository.go
+  ├── adapters/
+  │   ├── primary/UserHTTPHandler.go
+  │   └── secondary/UserPostgresRepo.go
+  └── infrastructure/
+      └── UserDIContainer.go
+  ```
+
+### Security Architecture Guidelines
+- **Authentication Flow:** Complete auth flow diagram
+- **Authorization Matrix:** Roles and permissions
+- **Encryption:** What's encrypted and how
+- **Security Headers:** Required HTTP security headers
+- **Example Format:**
+  ```
+  Authentication Flow:
+  1. Client sends credentials to /auth/login
+  2. Server validates credentials against database
+  3. Server generates JWT with user claims
+  4. Client includes JWT in Authorization header
+  5. Server validates JWT on each request
+  ```
+
+### Performance Requirements Guidelines
+- **Metrics Table:** Specific performance targets
+- **Load Testing:** Expected load patterns
+- **Optimization Strategies:** Caching, indexing, etc.
+- **Capacity Planning:** Resource requirements at scale
+- **Example Format:**
+  ```
+  | Metric | Target | Measurement |
+  |--------|--------|-------------|
+  | API Response Time | <200ms p95 | Prometheus histogram |
+  | Throughput | 1000 req/s | Load test results |
+  | Database Query Time | <50ms p95 | Query profiler |
+  | Cache Hit Rate | >90% | Redis metrics |
+  ```
+
+### Testing Strategy Guidelines
+- **Test Pyramid:** Unit, integration, e2e test distribution
+- **Test Data:** How test data is managed
+- **Test Environments:** Environment strategy
+- **Coverage Requirements:** Minimum coverage per type
+- **Example Format:**
+  ```
+  Test Distribution:
+  - Unit Tests: 70% (minimum 80% coverage)
+  - Integration Tests: 20% (API and database)
+  - E2E Tests: 10% (critical user flows)
+  
+  Critical Test Scenarios:
+  1. User registration flow
+  2. Authentication and authorization
+  3. Core business logic
+  4. Error handling paths
+  ```
+
+### Deployment Architecture Guidelines
+- **Deployment Diagram:** Infrastructure layout
+- **Container Strategy:** Docker/Kubernetes specs
+- **Blue-Green Deployment:** Zero-downtime strategy
+- **Rollback Plan:** How to revert deployments
+- **Example Format:**
+  ```yaml
+  # Kubernetes Deployment
+  apiVersion: apps/v1
+  kind: Deployment
+  metadata:
+    name: api-service
+  spec:
+    replicas: 3
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxSurge: 1
+        maxUnavailable: 0
+  ```
+
+### Monitoring & Observability Guidelines
+- **Metrics:** What to measure (RED metrics, USE metrics)
+- **Logging:** Log levels, structured logging format
+- **Tracing:** Distributed tracing implementation
+- **Alerting:** Alert rules and escalation
+- **Example Format:**
+  ```
+  Metrics to Track:
+  - Request rate by endpoint
+  - Error rate by status code
+  - Request duration percentiles
+  - Database connection pool usage
+  - Cache hit/miss rates
+  
+  Alert Rules:
+  - Error rate > 1% for 5 minutes
+  - Response time p95 > 500ms for 10 minutes
+  - CPU usage > 80% for 15 minutes
+  ```
+
+## Technical Standards
+
+### Code Quality Standards
+- **Linting:** Required linters and rules
+- **Formatting:** Code formatting standards
+- **Documentation:** Code documentation requirements
+- **Review Process:** Code review checklist
+
+### Git Workflow
+- **Branching Strategy:** GitFlow, GitHub Flow, etc.
+- **Commit Messages:** Conventional commits format
+- **PR Requirements:** What must be included in PRs
+
+### Dependency Management
+- **Version Pinning:** How dependencies are versioned
+- **Update Strategy:** When and how to update
+- **Security Scanning:** Dependency vulnerability scanning
+
+## Implementation Roadmap Alignment
+
+The TRD must align with the PRD's development phases:
+
+1. **Map PRD Phases to Technical Tasks:** Each PRD phase becomes a technical milestone
+2. **Define Technical Dependencies:** What must be built first technically
+3. **Identify Technical Quick Wins:** Early deliverables that provide value
+4. **Ensure Atomic Deployments:** Each phase results in a deployable system
+
+## Output
+
+- **Format:** Markdown (`.md`)
+- **Location:** `/docs/pre-development/`
+- **Filename:** `trd-[feature-name].md` and other files like `trd-openapi-[feature-name].yaml` (and any other accessory file when necessary)
+- **Diagrams:** Use mermaid for inline diagrams
+- **Code Examples:** Use appropriate syntax highlighting
+
+## Final Instructions
+
+1. **Read PRD First** - Always read the corresponding PRD before starting
+2. **Ask Technical Questions** - Don't assume technical decisions
+3. **Be Specific** - Provide exact versions, configurations, and commands
+4. **Include Examples** - Every section should have concrete examples
+5. **Consider Operations** - Think about deployment, monitoring, and maintenance
+6. **Validate Completeness** - Ensure a developer can implement from this document alone
+
+## Quality Checklist
+
+Before finalizing the TRD, ensure:
+- [ ] All PRD requirements have corresponding technical specifications
+- [ ] Architecture diagrams clearly show component relationships
+- [ ] Database schema is complete with all constraints
+- [ ] API specifications include all endpoints from PRD
+- [ ] Security measures address all identified risks
+- [ ] Performance targets are specific and measurable
+- [ ] Testing strategy covers all critical paths
+- [ ] Deployment process is fully automated
+- [ ] Monitoring covers all key metrics
+- [ ] Technical decisions are justified
+- [ ] Implementation tasks map to PRD phases
+- [ ] Document is self-contained (no external references needed)
+
+## Relationship to PRD
+
+The TRD must:
+1. Reference the PRD by name and location
+2. Map each PRD requirement to technical specifications
+3. Ensure technical phases align with PRD phases
+4. Address all risks identified in the PRD
+5. Implement all architectural patterns specified in the PRD
