@@ -174,4 +174,3 @@ func parsePriority(p string) (entities.Priority, error) {
 func (c *CLI) getContext() context.Context {
 	return context.Background()
 }
-
