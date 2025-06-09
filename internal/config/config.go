@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/joho/godotenv"
 )
@@ -17,6 +18,7 @@ type Config struct {
 	Server   ServerConfig   `json:"server"`
 	Qdrant   QdrantConfig   `json:"qdrant"`
 	OpenAI   OpenAIConfig   `json:"openai"`
+	AI       AIConfig       `json:"ai"`
 	Storage  StorageConfig  `json:"storage"`
 	Chunking ChunkingConfig `json:"chunking"`
 	Search   SearchConfig   `json:"search"`
@@ -60,6 +62,55 @@ type OpenAIConfig struct {
 	Temperature    float64 `json:"temperature"`
 	RequestTimeout int     `json:"request_timeout_seconds"`
 	RateLimitRPM   int     `json:"rate_limit_rpm"`
+}
+
+// AIConfig represents multi-model AI service configuration
+type AIConfig struct {
+	Claude     ClaudeClientConfig     `json:"claude"`
+	Perplexity PerplexityClientConfig `json:"perplexity"`
+	OpenAI     OpenAIClientConfig     `json:"openai"`
+	Cache      CacheClientConfig      `json:"cache"`
+}
+
+// ClaudeClientConfig represents Claude API configuration
+type ClaudeClientConfig struct {
+	APIKey      string        `json:"-"` // Never serialize API key
+	BaseURL     string        `json:"base_url"`
+	Model       string        `json:"model"`
+	MaxTokens   int           `json:"max_tokens"`
+	Temperature float64       `json:"temperature"`
+	Timeout     time.Duration `json:"timeout"`
+	Enabled     bool          `json:"enabled"`
+}
+
+// PerplexityClientConfig represents Perplexity API configuration
+type PerplexityClientConfig struct {
+	APIKey      string        `json:"-"` // Never serialize API key
+	BaseURL     string        `json:"base_url"`
+	Model       string        `json:"model"`
+	MaxTokens   int           `json:"max_tokens"`
+	Temperature float64       `json:"temperature"`
+	Timeout     time.Duration `json:"timeout"`
+	Enabled     bool          `json:"enabled"`
+}
+
+// OpenAIClientConfig represents OpenAI GPT API configuration
+type OpenAIClientConfig struct {
+	APIKey      string        `json:"-"` // Never serialize API key
+	BaseURL     string        `json:"base_url"`
+	Model       string        `json:"model"`
+	MaxTokens   int           `json:"max_tokens"`
+	Temperature float64       `json:"temperature"`
+	Timeout     time.Duration `json:"timeout"`
+	Enabled     bool          `json:"enabled"`
+}
+
+// CacheClientConfig represents AI response caching configuration
+type CacheClientConfig struct {
+	Enabled         bool          `json:"enabled"`
+	TTL             time.Duration `json:"ttl"`
+	MaxSize         int           `json:"max_size"`
+	CleanupInterval time.Duration `json:"cleanup_interval"`
 }
 
 // StorageConfig represents storage configuration
@@ -140,6 +191,38 @@ func DefaultConfig() *Config {
 			Temperature:    0.0,
 			RequestTimeout: 60,
 			RateLimitRPM:   60,
+		},
+		AI: AIConfig{
+			Claude: ClaudeClientConfig{
+				BaseURL:     "https://api.anthropic.com/v1/messages",
+				Model:       "claude-3-5-sonnet-20241022",
+				MaxTokens:   4000,
+				Temperature: 0.7,
+				Timeout:     30 * time.Second,
+				Enabled:     false, // Disabled by default
+			},
+			Perplexity: PerplexityClientConfig{
+				BaseURL:     "https://api.perplexity.ai/chat/completions",
+				Model:       "llama-3.1-sonar-huge-128k-online",
+				MaxTokens:   4000,
+				Temperature: 0.7,
+				Timeout:     30 * time.Second,
+				Enabled:     false, // Disabled by default
+			},
+			OpenAI: OpenAIClientConfig{
+				BaseURL:     "https://api.openai.com/v1/chat/completions",
+				Model:       "gpt-4o",
+				MaxTokens:   4000,
+				Temperature: 0.7,
+				Timeout:     30 * time.Second,
+				Enabled:     false, // Disabled by default
+			},
+			Cache: CacheClientConfig{
+				Enabled:         true,
+				TTL:             30 * time.Minute,
+				MaxSize:         1000,
+				CleanupInterval: 5 * time.Minute,
+			},
 		},
 		Storage: StorageConfig{
 			Provider:       "qdrant",
