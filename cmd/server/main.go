@@ -161,7 +161,7 @@ func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwe
 	}
 
 	// Create new API router with Chi and middleware
-	apiRouter := api.NewRouter(cfg)
+	apiRouter := api.NewBasicRouter(cfg)
 
 	// Create a new mux that combines the API router with legacy endpoints
 	mux := http.NewServeMux()
