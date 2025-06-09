@@ -508,7 +508,7 @@ func (mc *MetricsCollector) copyHTTPMetrics() *HTTPMetrics {
 
 	// Create new instance with zero values (fresh mutex)
 	metrics := NewHTTPMetrics()
-	
+
 	// Copy data fields explicitly (not the mutex)
 	metrics.TotalRequests = mc.httpMetrics.TotalRequests
 	metrics.RequestsPerSecond = mc.httpMetrics.RequestsPerSecond
@@ -518,7 +518,7 @@ func (mc *MetricsCollector) copyHTTPMetrics() *HTTPMetrics {
 	metrics.ErrorRate = mc.httpMetrics.ErrorRate
 	metrics.ThroughputMBPS = mc.httpMetrics.ThroughputMBPS
 	metrics.ActiveConnections = mc.httpMetrics.ActiveConnections
-	
+
 	// Copy status codes map
 	for k, v := range mc.httpMetrics.StatusCodes {
 		metrics.StatusCodes[k] = v
@@ -541,7 +541,7 @@ func (mc *MetricsCollector) copyEndpointMetric(original *EndpointMetrics) *Endpo
 
 	// Create new instance with zero values (fresh mutex)
 	metrics := NewEndpointMetrics(original.Endpoint, original.Method)
-	
+
 	// Copy data fields explicitly (not the mutex)
 	metrics.TotalRequests = original.TotalRequests
 	metrics.SuccessRequests = original.SuccessRequests
@@ -553,7 +553,7 @@ func (mc *MetricsCollector) copyEndpointMetric(original *EndpointMetrics) *Endpo
 	metrics.RequestSize = original.RequestSize
 	metrics.ResponseSize = original.ResponseSize
 	metrics.LastActivity = original.LastActivity
-	
+
 	// Copy status codes map
 	for k, v := range original.StatusCodes {
 		metrics.StatusCodes[k] = v
@@ -568,7 +568,7 @@ func (mc *MetricsCollector) copySystemMetrics() *SystemMetrics {
 
 	// Create new instance with zero values (fresh mutex)
 	metrics := NewSystemMetrics()
-	
+
 	// Copy data fields explicitly (not the mutex)
 	metrics.Uptime = mc.systemMetrics.Uptime
 	metrics.MemoryUsage = mc.systemMetrics.MemoryUsage
@@ -579,7 +579,7 @@ func (mc *MetricsCollector) copySystemMetrics() *SystemMetrics {
 	metrics.ConnectionsActive = mc.systemMetrics.ConnectionsActive
 	metrics.ConnectionsIdle = mc.systemMetrics.ConnectionsIdle
 	metrics.DatabaseConnections = mc.systemMetrics.DatabaseConnections
-	
+
 	return metrics
 }
 

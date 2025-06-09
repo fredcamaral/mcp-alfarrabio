@@ -355,7 +355,7 @@ func (cb *CircuitBreaker) GetMetrics() *BreakerMetrics {
 
 	// Create new instance with zero values (fresh mutex)
 	metrics := NewBreakerMetrics()
-	
+
 	// Copy data fields explicitly (not the mutex)
 	metrics.TotalRequests = cb.metrics.TotalRequests
 	metrics.SuccessfulRequests = cb.metrics.SuccessfulRequests
@@ -367,7 +367,7 @@ func (cb *CircuitBreaker) GetMetrics() *BreakerMetrics {
 	metrics.Uptime = cb.metrics.Uptime
 	metrics.Downtime = cb.metrics.Downtime
 	metrics.AverageResponseTime = cb.metrics.AverageResponseTime
-	
+
 	return metrics
 }
 

@@ -3,100 +3,103 @@ package events
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
 	"time"
+
+	"lerian-mcp-memory/internal/push"
 )
 
 // EventDistributor distributes events to WebSocket connections and push notifications
 type EventDistributor struct {
-	eventBus        *EventBus
-	eventStore      *EventStore
+	eventBus         *EventBus
+	eventStore       *EventStore
 	metricsCollector *MetricsCollector
-	filterEngine    *FilterEngine
-	wsManager       WebSocketManager
-	pushManager     PushNotificationManager
-	config          *DistributorConfig
-	subscriptions   map[string]*DistributionSubscription
-	ctx             context.Context
-	cancel          context.CancelFunc
-	mu              sync.RWMutex
-	running         bool
-	wg              sync.WaitGroup
-	eventQueue      chan *DistributionEvent
+	filterEngine     *FilterEngine
+	wsManager        WebSocketManager
+	pushManager      PushNotificationManager
+	config           *DistributorConfig
+	subscriptions    map[string]*DistributionSubscription
+	ctx              context.Context
+	cancel           context.CancelFunc
+	mu               sync.RWMutex
+	running          bool
+	wg               sync.WaitGroup
+	eventQueue       chan *DistributionEvent
 }
 
 // DistributorConfig configures the event distributor
 type DistributorConfig struct {
-	QueueSize           int           `json:"queue_size"`
-	WorkerCount         int           `json:"worker_count"`
-	BatchSize           int           `json:"batch_size"`
-	FlushInterval       time.Duration `json:"flush_interval"`
-	EnableWebSocket     bool          `json:"enable_websocket"`
-	EnablePushNotification bool       `json:"enable_push_notification"`
-	EnableFiltering     bool          `json:"enable_filtering"`
-	EnablePersistence   bool          `json:"enable_persistence"`
-	EnableMetrics       bool          `json:"enable_metrics"`
-	RetryAttempts       int           `json:"retry_attempts"`
-	RetryDelay          time.Duration `json:"retry_delay"`
-	DeduplicationWindow time.Duration `json:"deduplication_window"`
+	QueueSize              int           `json:"queue_size"`
+	WorkerCount            int           `json:"worker_count"`
+	BatchSize              int           `json:"batch_size"`
+	FlushInterval          time.Duration `json:"flush_interval"`
+	EnableWebSocket        bool          `json:"enable_websocket"`
+	EnablePushNotification bool          `json:"enable_push_notification"`
+	EnableFiltering        bool          `json:"enable_filtering"`
+	EnablePersistence      bool          `json:"enable_persistence"`
+	EnableMetrics          bool          `json:"enable_metrics"`
+	RetryAttempts          int           `json:"retry_attempts"`
+	RetryDelay             time.Duration `json:"retry_delay"`
+	DeduplicationWindow    time.Duration `json:"deduplication_window"`
 }
 
 // DistributionSubscription represents a subscription for event distribution
 type DistributionSubscription struct {
-	ID              string                    `json:"id"`
-	SubscriberID    string                    `json:"subscriber_id"`
-	SubscriberType  SubscriberType            `json:"subscriber_type"`
-	Filter          *EventFilter              `json:"filter"`
-	DeliveryModes   []DeliveryMode            `json:"delivery_modes"`
-	Priority        SubscriptionPriority      `json:"priority"`
-	CreatedAt       time.Time                 `json:"created_at"`
-	LastActivity    time.Time                 `json:"last_activity"`
-	Statistics      *DistributionStats        `json:"statistics"`
-	Configuration   *SubscriptionConfiguration `json:"configuration"`
+	ID             string                     `json:"id"`
+	SubscriberID   string                     `json:"subscriber_id"`
+	SubscriberType SubscriberType             `json:"subscriber_type"`
+	Filter         *EventFilter               `json:"filter"`
+	DeliveryModes  []DeliveryMode             `json:"delivery_modes"`
+	Priority       SubscriptionPriority       `json:"priority"`
+	CreatedAt      time.Time                  `json:"created_at"`
+	LastActivity   time.Time                  `json:"last_activity"`
+	Statistics     *DistributionStats         `json:"statistics"`
+	Configuration  *SubscriptionConfiguration `json:"configuration"`
 }
 
 // DistributionEvent represents an event ready for distribution
 type DistributionEvent struct {
-	Event           *Event                    `json:"event"`
-	Subscriptions   []*DistributionSubscription `json:"subscriptions"`
-	Priority        EventPriority             `json:"priority"`
-	CreatedAt       time.Time                 `json:"created_at"`
-	Attempts        int                       `json:"attempts"`
-	LastAttempt     time.Time                 `json:"last_attempt"`
-	DeliveryResults map[string]*DeliveryResult `json:"delivery_results"`
+	Event           *Event                          `json:"event"`
+	Subscriptions   []*DistributionSubscription     `json:"subscriptions"`
+	Priority        EventPriority                   `json:"priority"`
+	CreatedAt       time.Time                       `json:"created_at"`
+	Attempts        int                             `json:"attempts"`
+	LastAttempt     time.Time                       `json:"last_attempt"`
+	DeliveryResults map[string]*push.DeliveryResult `json:"delivery_results"`
 }
 
 // DistributionStats tracks distribution statistics
 type DistributionStats struct {
-	EventsReceived     int64         `json:"events_received"`
-	EventsDelivered    int64         `json:"events_delivered"`
-	EventsFailed       int64         `json:"events_failed"`
-	EventsFiltered     int64         `json:"events_filtered"`
-	AverageLatency     time.Duration `json:"average_latency"`
-	LastDelivery       time.Time     `json:"last_delivery"`
-	DeliverySuccessRate float64      `json:"delivery_success_rate"`
-	mu                 sync.RWMutex
+	EventsReceived      int64         `json:"events_received"`
+	EventsDelivered     int64         `json:"events_delivered"`
+	EventsFailed        int64         `json:"events_failed"`
+	EventsFiltered      int64         `json:"events_filtered"`
+	AverageLatency      time.Duration `json:"average_latency"`
+	LastDelivery        time.Time     `json:"last_delivery"`
+	DeliverySuccessRate float64       `json:"delivery_success_rate"`
+	mu                  sync.RWMutex
 }
 
 // SubscriberType defines types of subscribers
 type SubscriberType string
 
 const (
-	SubscriberTypeWebSocket      SubscriberType = "websocket"
+	SubscriberTypeWebSocket        SubscriberType = "websocket"
 	SubscriberTypePushNotification SubscriberType = "push_notification"
-	SubscriberTypeCLI            SubscriberType = "cli"
-	SubscriberTypeWebhook        SubscriberType = "webhook"
+	SubscriberTypeCLI              SubscriberType = "cli"
+	SubscriberTypeWebhook          SubscriberType = "webhook"
 )
 
 // SubscriptionPriority defines subscription priority levels
 type SubscriptionPriority int
 
 const (
-	SubscriptionPriorityLow    SubscriptionPriority = 1
-	SubscriptionPriorityNormal SubscriptionPriority = 2
-	SubscriptionPriorityHigh   SubscriptionPriority = 3
+	SubscriptionPriorityLow      SubscriptionPriority = 1
+	SubscriptionPriorityNormal   SubscriptionPriority = 2
+	SubscriptionPriorityHigh     SubscriptionPriority = 3
 	SubscriptionPriorityCritical SubscriptionPriority = 4
 )
 
@@ -148,27 +151,27 @@ type BatchNotification struct {
 type NotificationPriority string
 
 const (
-	NotificationPriorityLow    NotificationPriority = "low"
-	NotificationPriorityNormal NotificationPriority = "normal"
-	NotificationPriorityHigh   NotificationPriority = "high"
+	NotificationPriorityLow      NotificationPriority = "low"
+	NotificationPriorityNormal   NotificationPriority = "normal"
+	NotificationPriorityHigh     NotificationPriority = "high"
 	NotificationPriorityCritical NotificationPriority = "critical"
 )
 
 // DefaultDistributorConfig returns default distributor configuration
 func DefaultDistributorConfig() *DistributorConfig {
 	return &DistributorConfig{
-		QueueSize:               10000,
-		WorkerCount:             5,
-		BatchSize:               50,
-		FlushInterval:           5 * time.Second,
-		EnableWebSocket:         true,
-		EnablePushNotification:  true,
-		EnableFiltering:         true,
-		EnablePersistence:       true,
-		EnableMetrics:           true,
-		RetryAttempts:           3,
-		RetryDelay:              time.Second,
-		DeduplicationWindow:     5 * time.Second,
+		QueueSize:              10000,
+		WorkerCount:            5,
+		BatchSize:              50,
+		FlushInterval:          5 * time.Second,
+		EnableWebSocket:        true,
+		EnablePushNotification: true,
+		EnableFiltering:        true,
+		EnablePersistence:      true,
+		EnableMetrics:          true,
+		RetryAttempts:          3,
+		RetryDelay:             time.Second,
+		DeduplicationWindow:    5 * time.Second,
 	}
 }
 
@@ -226,7 +229,7 @@ func (ed *EventDistributor) Start() error {
 	defer ed.mu.Unlock()
 
 	if ed.running {
-		return fmt.Errorf("event distributor already running")
+		return errors.New("event distributor already running")
 	}
 
 	log.Println("Starting event distributor...")
@@ -254,7 +257,7 @@ func (ed *EventDistributor) Stop() error {
 	ed.mu.Lock()
 	if !ed.running {
 		ed.mu.Unlock()
-		return fmt.Errorf("event distributor not running")
+		return errors.New("event distributor not running")
 	}
 	ed.running = false
 	ed.mu.Unlock()
@@ -296,7 +299,7 @@ func (ed *EventDistributor) Subscribe(subscriberID string, subscriberType Subscr
 		CreatedAt:      time.Now(),
 		LastActivity:   time.Now(),
 		Statistics:     &DistributionStats{},
-		Configuration:  &SubscriptionConfiguration{
+		Configuration: &SubscriptionConfiguration{
 			MaxRetries:          ed.config.RetryAttempts,
 			RetryDelay:          ed.config.RetryDelay,
 			EnableDeduplication: true,
@@ -310,7 +313,7 @@ func (ed *EventDistributor) Subscribe(subscriberID string, subscriberType Subscr
 
 	ed.subscriptions[subscription.ID] = subscription
 
-	log.Printf("Created distribution subscription %s for subscriber %s (type: %s)", 
+	log.Printf("Created distribution subscription %s for subscriber %s (type: %s)",
 		subscription.ID, subscriberID, subscriberType)
 
 	return subscription, nil
@@ -328,7 +331,7 @@ func (ed *EventDistributor) Unsubscribe(subscriptionID string) error {
 
 	delete(ed.subscriptions, subscriptionID)
 
-	log.Printf("Removed distribution subscription %s for subscriber %s", 
+	log.Printf("Removed distribution subscription %s for subscriber %s",
 		subscriptionID, subscription.SubscriberID)
 
 	return nil
@@ -337,7 +340,7 @@ func (ed *EventDistributor) Unsubscribe(subscriptionID string) error {
 // DistributeEvent distributes an event to all matching subscribers
 func (ed *EventDistributor) DistributeEvent(event *Event) error {
 	if !ed.IsRunning() {
-		return fmt.Errorf("event distributor not running")
+		return errors.New("event distributor not running")
 	}
 
 	startTime := time.Now()
@@ -349,7 +352,7 @@ func (ed *EventDistributor) DistributeEvent(event *Event) error {
 			log.Printf("Event %s filtered out by filter engine", event.ID)
 			return nil
 		}
-		
+
 		// Use transformed event if transformation was applied
 		if filterResult.Transformed != nil {
 			event = filterResult.Transformed
@@ -370,18 +373,18 @@ func (ed *EventDistributor) DistributeEvent(event *Event) error {
 		Priority:        event.GetPriority(),
 		CreatedAt:       time.Now(),
 		Attempts:        0,
-		DeliveryResults: make(map[string]*DeliveryResult),
+		DeliveryResults: make(map[string]*push.DeliveryResult),
 	}
 
 	// Queue for distribution
 	select {
 	case ed.eventQueue <- distributionEvent:
-		log.Printf("Queued event %s for distribution to %d subscribers", 
+		log.Printf("Queued event %s for distribution to %d subscribers",
 			event.ID, len(matchingSubscriptions))
 	default:
 		// Queue is full, drop event
 		log.Printf("Distribution queue full, dropping event %s", event.ID)
-		return fmt.Errorf("distribution queue full")
+		return errors.New("distribution queue full")
 	}
 
 	// Record metrics if enabled
@@ -509,7 +512,7 @@ func (ed *EventDistributor) processDistributionEvent(distributionEvent *Distribu
 		}
 	}
 
-	log.Printf("Processed distribution event %s (took %v, attempt %d)", 
+	log.Printf("Processed distribution event %s (took %v, attempt %d)",
 		distributionEvent.Event.ID, time.Since(startTime), distributionEvent.Attempts)
 }
 
@@ -523,13 +526,13 @@ func (ed *EventDistributor) deliverToSubscription(event *Event, subscription *Di
 	subscription.Statistics.EventsReceived++
 	subscription.Statistics.mu.Unlock()
 
-	var deliveryResults []*DeliveryResult
+	var deliveryResults []*push.DeliveryResult
 
 	// Deliver via each configured delivery mode
 	for _, deliveryMode := range subscription.DeliveryModes {
 		result := ed.deliverViaMode(event, subscription, deliveryMode)
 		deliveryResults = append(deliveryResults, result)
-		
+
 		// Store result in distribution event
 		resultKey := fmt.Sprintf("%s_%s", subscription.ID, deliveryMode)
 		distributionEvent.DeliveryResults[resultKey] = result
@@ -550,15 +553,15 @@ func (ed *EventDistributor) deliverToSubscription(event *Event, subscription *Di
 				failed++
 			}
 		}
-		
+
 		ed.metricsCollector.RecordSubscriberActivity(
 			subscription.SubscriberID, 1, successful, failed, latency)
 	}
 }
 
 // deliverViaMode delivers an event via a specific delivery mode
-func (ed *EventDistributor) deliverViaMode(event *Event, subscription *DistributionSubscription, mode DeliveryMode) *DeliveryResult {
-	result := &DeliveryResult{
+func (ed *EventDistributor) deliverViaMode(event *Event, subscription *DistributionSubscription, mode DeliveryMode) *push.DeliveryResult {
+	result := &push.DeliveryResult{
 		NotificationID: event.ID,
 		EndpointID:     subscription.SubscriberID,
 		Timestamp:      time.Now(),
@@ -592,8 +595,8 @@ func (ed *EventDistributor) deliverViaMode(event *Event, subscription *Distribut
 }
 
 // deliverViaWebSocket delivers an event via WebSocket
-func (ed *EventDistributor) deliverViaWebSocket(event *Event, subscription *DistributionSubscription) *DeliveryResult {
-	result := &DeliveryResult{
+func (ed *EventDistributor) deliverViaWebSocket(event *Event, subscription *DistributionSubscription) *push.DeliveryResult {
+	result := &push.DeliveryResult{
 		NotificationID: event.ID,
 		EndpointID:     subscription.SubscriberID,
 		Timestamp:      time.Now(),
@@ -628,8 +631,8 @@ func (ed *EventDistributor) deliverViaWebSocket(event *Event, subscription *Dist
 }
 
 // deliverViaPushNotification delivers an event via push notification
-func (ed *EventDistributor) deliverViaPushNotification(event *Event, subscription *DistributionSubscription) *DeliveryResult {
-	result := &DeliveryResult{
+func (ed *EventDistributor) deliverViaPushNotification(event *Event, subscription *DistributionSubscription) *push.DeliveryResult {
+	result := &push.DeliveryResult{
 		NotificationID: event.ID,
 		EndpointID:     subscription.SubscriberID,
 		Timestamp:      time.Now(),
@@ -681,7 +684,7 @@ func (ed *EventDistributor) createPushNotificationFromEvent(event *Event) *PushN
 }
 
 // updateSubscriptionStatistics updates statistics for a subscription
-func (ed *EventDistributor) updateSubscriptionStatistics(subscription *DistributionSubscription, results []*DeliveryResult, latency time.Duration) {
+func (ed *EventDistributor) updateSubscriptionStatistics(subscription *DistributionSubscription, results []*push.DeliveryResult, latency time.Duration) {
 	subscription.Statistics.mu.Lock()
 	defer subscription.Statistics.mu.Unlock()
 
@@ -740,7 +743,7 @@ func (ed *EventDistributor) collectMetrics() {
 	queueLength := len(ed.eventQueue)
 	ed.mu.RUnlock()
 
-	log.Printf("Distribution metrics: subscriptions=%d, queue_length=%d", 
+	log.Printf("Distribution metrics: subscriptions=%d, queue_length=%d",
 		subscriptionCount, queueLength)
 }
 
@@ -753,17 +756,17 @@ func (ed *EventDistributor) GetStatus() map[string]interface{} {
 	ed.mu.RUnlock()
 
 	return map[string]interface{}{
-		"running":            ed.IsRunning(),
-		"worker_count":       ed.config.WorkerCount,
-		"subscription_count": subscriptionCount,
-		"queue_length":       queueLength,
-		"queue_capacity":     queueCapacity,
-		"queue_utilization":  float64(queueLength) / float64(queueCapacity) * 100,
-		"websocket_enabled":  ed.config.EnableWebSocket,
-		"push_enabled":       ed.config.EnablePushNotification,
-		"filtering_enabled":  ed.config.EnableFiltering,
+		"running":             ed.IsRunning(),
+		"worker_count":        ed.config.WorkerCount,
+		"subscription_count":  subscriptionCount,
+		"queue_length":        queueLength,
+		"queue_capacity":      queueCapacity,
+		"queue_utilization":   float64(queueLength) / float64(queueCapacity) * 100,
+		"websocket_enabled":   ed.config.EnableWebSocket,
+		"push_enabled":        ed.config.EnablePushNotification,
+		"filtering_enabled":   ed.config.EnableFiltering,
 		"persistence_enabled": ed.config.EnablePersistence,
-		"metrics_enabled":    ed.config.EnableMetrics,
+		"metrics_enabled":     ed.config.EnableMetrics,
 	}
 }
 

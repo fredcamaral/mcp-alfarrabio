@@ -37,14 +37,14 @@ func DefaultTemplateConfig() TemplateConfig {
 // NewTemplateMatcher creates a new template matcher
 func NewTemplateMatcher() *TemplateMatcher {
 	return &TemplateMatcher{
-		templates: getBuiltinTemplates(),
+		templates: []types.TaskTemplate{}, // TODO: implement getBuiltinTemplates with new structure
 		config:    DefaultTemplateConfig(),
 	}
 }
 
 // NewTemplateMatcherWithConfig creates a new template matcher with custom config
 func NewTemplateMatcherWithConfig(templates []types.TaskTemplate, config TemplateConfig) *TemplateMatcher {
-	allTemplates := append(getBuiltinTemplates(), templates...)
+	allTemplates := templates // TODO: append builtin templates when implemented
 	return &TemplateMatcher{
 		templates: allTemplates,
 		config:    config,
@@ -117,40 +117,64 @@ func (tm *TemplateMatcher) ApplyTemplate(task *types.Task, template *types.TaskT
 	// Apply template metadata
 	enhancedTask.Metadata.TemplateID = template.ID
 
-	// Enhance task type if not set or if template is more specific
-	if enhancedTask.Type == "" || tm.isMoreSpecificType(template.Type, enhancedTask.Type) {
-		enhancedTask.Type = template.Type
+	// Note: TaskTemplate fields have changed - Type and DefaultPriority are no longer available
+	// Template data is now stored in TemplateData JSONObject
+	
+	// Extract type from template data if available
+	if templateData, ok := template.TemplateData["type"].(string); ok && enhancedTask.Type == "" {
+		enhancedTask.Type = types.TaskType(templateData)
 	}
 
-	// Enhance priority if template suggests higher priority
-	if tm.isHigherPriority(template.DefaultPriority, enhancedTask.Priority) {
-		enhancedTask.Priority = template.DefaultPriority
+	// Extract priority from template data if available
+	if templatePriority, ok := template.TemplateData["priority"].(string); ok {
+		priority := types.TaskPriority(templatePriority)
+		if tm.isHigherPriorityLegacy(priority, enhancedTask.Priority) {
+			enhancedTask.Priority = priority
+		}
 	}
 
-	// Enhance complexity if not analyzed yet
-	if enhancedTask.Complexity.Level == "" {
-		enhancedTask.Complexity.Level = template.DefaultComplexity
+	// Enhance complexity if not analyzed yet  
+	if enhancedTask.Complexity.Level == "" && template.ComplexityLevel != "" {
+		enhancedTask.Complexity.Level = types.ComplexityLevel(template.ComplexityLevel)
 	}
 
 	// Apply effort estimate if not set
-	if enhancedTask.EstimatedEffort.Hours == 0 {
-		enhancedTask.EstimatedEffort = template.EstimatedEffort
+	if enhancedTask.EstimatedEffort.Hours == 0 && template.EstimatedEffortHours != nil {
+		enhancedTask.EstimatedEffort.Hours = *template.EstimatedEffortHours
+		enhancedTask.EstimatedEffort.EstimationMethod = "template_default"
 	}
 
-	// Merge acceptance criteria
+	// Extract and merge acceptance criteria from template data
+	templateAC := []string{}
+	if ac, ok := template.TemplateData["acceptance_criteria"].([]interface{}); ok {
+		for _, item := range ac {
+			if acStr, ok := item.(string); ok {
+				templateAC = append(templateAC, acStr)
+			}
+		}
+	}
 	enhancedTask.AcceptanceCriteria = tm.mergeAcceptanceCriteria(
 		enhancedTask.AcceptanceCriteria,
-		template.AcceptanceCriteria,
+		templateAC,
 	)
 
-	// Merge required skills
+	// Merge required skills - convert JSONArray to []string
+	templateSkills := tm.jsonArrayToStringSlice(template.RequiredSkills)
 	enhancedTask.Complexity.RequiredSkills = tm.mergeSkills(
 		enhancedTask.Complexity.RequiredSkills,
-		template.RequiredSkills,
+		templateSkills,
 	)
 
-	// Merge tags
-	enhancedTask.Tags = tm.mergeTags(enhancedTask.Tags, template.Tags)
+	// Extract and merge tags from template data
+	templateTags := []string{}
+	if tags, ok := template.TemplateData["tags"].([]interface{}); ok {
+		for _, tag := range tags {
+			if tagStr, ok := tag.(string); ok {
+				templateTags = append(templateTags, tagStr)
+			}
+		}
+	}
+	enhancedTask.Tags = tm.mergeTags(enhancedTask.Tags, templateTags)
 
 	// Update template usage statistics
 	tm.updateTemplateUsage(template.ID)
@@ -163,10 +187,13 @@ func (tm *TemplateMatcher) calculateMatchScore(task *types.Task, template *types
 	score := 0.0
 
 	// Task type match (high weight)
-	if task.Type == template.Type {
-		score += 0.3
-	} else if tm.areRelatedTypes(task.Type, template.Type) {
-		score += 0.15
+	if templateType, ok := template.TemplateData["type"].(string); ok {
+		taskType := types.TaskType(templateType)
+		if task.Type == taskType {
+			score += 0.3
+		} else if tm.areRelatedTypes(task.Type, taskType) {
+			score += 0.15
+		}
 	}
 
 	// Keyword matching in title and description
@@ -187,7 +214,7 @@ func (tm *TemplateMatcher) calculateMatchScore(task *types.Task, template *types
 	score += techScore * 0.1
 
 	// Popular template boost
-	if tm.config.BoostPopularTemplates && template.SuccessRate > 0.8 {
+	if tm.config.BoostPopularTemplates && template.SuccessRate != nil && *template.SuccessRate > 0.8 {
 		score += 0.05
 	}
 
@@ -205,13 +232,22 @@ func (tm *TemplateMatcher) calculateKeywordMatch(task *types.Task, template *typ
 	taskContent := strings.ToLower(task.Title + " " + task.Description)
 
 	matches := 0
-	total := len(template.Applicability.Keywords)
+	// Extract keywords from applicability JSON
+	keywords := []string{}
+	if keywordData, ok := template.Applicability["keywords"].([]interface{}); ok {
+		for _, kw := range keywordData {
+			if kwStr, ok := kw.(string); ok {
+				keywords = append(keywords, kwStr)
+			}
+		}
+	}
 
+	total := len(keywords)
 	if total == 0 {
 		return 0.0
 	}
 
-	for _, keyword := range template.Applicability.Keywords {
+	for _, keyword := range keywords {
 		if strings.Contains(taskContent, strings.ToLower(keyword)) {
 			matches++
 		}
@@ -237,9 +273,19 @@ func (tm *TemplateMatcher) calculateContextMatch(template *types.TaskTemplate, c
 	factors++
 
 	// Team size match
-	if len(template.Applicability.TeamSizes) > 0 {
+	// Extract team sizes from applicability JSON
+	teamSizes := []int{}
+	if teamData, ok := template.Applicability["team_sizes"].([]interface{}); ok {
+		for _, ts := range teamData {
+			if tsFloat, ok := ts.(float64); ok {
+				teamSizes = append(teamSizes, int(tsFloat))
+			}
+		}
+	}
+	
+	if len(teamSizes) > 0 {
 		teamMatch := false
-		for _, size := range template.Applicability.TeamSizes {
+		for _, size := range teamSizes {
 			if size == context.TeamSize {
 				teamMatch = true
 				break
@@ -260,12 +306,22 @@ func (tm *TemplateMatcher) calculateContextMatch(template *types.TaskTemplate, c
 
 // calculateTechStackMatch calculates tech stack matching score
 func (tm *TemplateMatcher) calculateTechStackMatch(template *types.TaskTemplate, techStack []string) float64 {
-	if len(template.Applicability.TechStacks) == 0 || len(techStack) == 0 {
+	// Extract tech stacks from applicability JSON
+	templateTechStacks := []string{}
+	if techData, ok := template.Applicability["tech_stacks"].([]interface{}); ok {
+		for _, tech := range techData {
+			if techStr, ok := tech.(string); ok {
+				templateTechStacks = append(templateTechStacks, techStr)
+			}
+		}
+	}
+
+	if len(templateTechStacks) == 0 || len(techStack) == 0 {
 		return 0.0
 	}
 
 	matches := 0
-	for _, templateTech := range template.Applicability.TechStacks {
+	for _, templateTech := range templateTechStacks {
 		for _, contextTech := range techStack {
 			if strings.Contains(strings.ToLower(contextTech), strings.ToLower(templateTech)) {
 				matches++
@@ -274,7 +330,7 @@ func (tm *TemplateMatcher) calculateTechStackMatch(template *types.TaskTemplate,
 		}
 	}
 
-	return float64(matches) / float64(len(template.Applicability.TechStacks))
+	return float64(matches) / float64(len(templateTechStacks))
 }
 
 // calculateFuzzyMatch calculates fuzzy matching score using semantic similarity
@@ -294,7 +350,11 @@ func (tm *TemplateMatcher) calculateFuzzyMatch(task *types.Task, template *types
 	}
 
 	taskContent := strings.ToLower(task.Title + " " + task.Description)
-	templateContent := strings.ToLower(template.Name + " " + template.Description)
+	templateDesc := ""
+	if template.Description != nil {
+		templateDesc = *template.Description
+	}
+	templateContent := strings.ToLower(template.Name + " " + templateDesc)
 
 	commonConcepts := 0
 	totalConcepts := 0
@@ -341,14 +401,27 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 	reasons := []string{}
 
 	// Task type match
-	if task.Type == template.Type {
-		reasons = append(reasons, fmt.Sprintf("Task type matches: %s", template.Type))
+	if templateType, ok := template.TemplateData["type"].(string); ok {
+		if string(task.Type) == templateType {
+			reasons = append(reasons, fmt.Sprintf("Task type matches: %s", templateType))
+		}
 	}
 
 	// Keyword matches
 	taskContent := strings.ToLower(task.Title + " " + task.Description)
 	matchedKeywords := []string{}
-	for _, keyword := range template.Applicability.Keywords {
+	
+	// Extract keywords from applicability JSON
+	keywords := []string{}
+	if keywordData, ok := template.Applicability["keywords"].([]interface{}); ok {
+		for _, kw := range keywordData {
+			if kwStr, ok := kw.(string); ok {
+				keywords = append(keywords, kwStr)
+			}
+		}
+	}
+	
+	for _, keyword := range keywords {
 		if strings.Contains(taskContent, strings.ToLower(keyword)) {
 			matchedKeywords = append(matchedKeywords, keyword)
 		}
@@ -364,7 +437,18 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 
 	// Tech stack matches
 	matchedTech := []string{}
-	for _, templateTech := range template.Applicability.TechStacks {
+	
+	// Extract tech stacks from applicability JSON
+	templateTechStacks := []string{}
+	if techData, ok := template.Applicability["tech_stacks"].([]interface{}); ok {
+		for _, tech := range techData {
+			if techStr, ok := tech.(string); ok {
+				templateTechStacks = append(templateTechStacks, techStr)
+			}
+		}
+	}
+	
+	for _, templateTech := range templateTechStacks {
 		for _, contextTech := range context.TechStack {
 			if strings.Contains(strings.ToLower(contextTech), strings.ToLower(templateTech)) {
 				matchedTech = append(matchedTech, templateTech)
@@ -377,8 +461,8 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 	}
 
 	// High success rate
-	if template.SuccessRate > 0.8 {
-		reasons = append(reasons, fmt.Sprintf("High success rate: %.1f%%", template.SuccessRate*100))
+	if template.SuccessRate != nil && *template.SuccessRate > 0.8 {
+		reasons = append(reasons, fmt.Sprintf("High success rate: %.1f%%", *template.SuccessRate*100))
 	}
 
 	return reasons
@@ -389,13 +473,13 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 // areRelatedTypes checks if two task types are related
 func (tm *TemplateMatcher) areRelatedTypes(type1, type2 types.TaskType) bool {
 	relatedTypes := map[types.TaskType][]types.TaskType{
-		types.TaskTypeImplementation: {types.TaskTypeDesign, types.TaskTypeArchitecture},
-		types.TaskTypeDesign:         {types.TaskTypeImplementation, types.TaskTypeArchitecture},
-		types.TaskTypeTesting:        {types.TaskTypeImplementation, types.TaskTypeReview},
-		types.TaskTypeDocumentation:  {types.TaskTypeImplementation, types.TaskTypeReview},
-		types.TaskTypeDeployment:     {types.TaskTypeImplementation, types.TaskTypeTesting},
-		types.TaskTypeRefactoring:    {types.TaskTypeImplementation, types.TaskTypeArchitecture},
-		types.TaskTypeIntegration:    {types.TaskTypeImplementation, types.TaskTypeArchitecture},
+		types.TaskTypeLegacyImplementation: {types.TaskTypeLegacyDesign, types.TaskTypeLegacyArchitecture},
+		types.TaskTypeLegacyDesign:         {types.TaskTypeLegacyImplementation, types.TaskTypeLegacyArchitecture},
+		types.TaskTypeLegacyTesting:        {types.TaskTypeLegacyImplementation, types.TaskTypeLegacyReview},
+		types.TaskTypeLegacyDocumentation:  {types.TaskTypeLegacyImplementation, types.TaskTypeLegacyReview},
+		types.TaskTypeLegacyDeployment:     {types.TaskTypeLegacyImplementation, types.TaskTypeLegacyTesting},
+		types.TaskTypeLegacyRefactoring:    {types.TaskTypeLegacyImplementation, types.TaskTypeLegacyArchitecture},
+		types.TaskTypeLegacyIntegration:    {types.TaskTypeLegacyImplementation, types.TaskTypeLegacyArchitecture},
 	}
 
 	if related, exists := relatedTypes[type1]; exists {
@@ -412,18 +496,18 @@ func (tm *TemplateMatcher) areRelatedTypes(type1, type2 types.TaskType) bool {
 // isMoreSpecificType checks if one type is more specific than another
 func (tm *TemplateMatcher) isMoreSpecificType(template, current types.TaskType) bool {
 	specificityOrder := map[types.TaskType]int{
-		types.TaskTypeImplementation: 1,
-		types.TaskTypeDesign:         2,
-		types.TaskTypeTesting:        3,
-		types.TaskTypeDocumentation:  4,
-		types.TaskTypeResearch:       5,
-		types.TaskTypeReview:         6,
-		types.TaskTypeDeployment:     7,
-		types.TaskTypeArchitecture:   8,
-		types.TaskTypeBugFix:         9,
-		types.TaskTypeRefactoring:    10,
-		types.TaskTypeIntegration:    11,
-		types.TaskTypeAnalysis:       12,
+		types.TaskTypeLegacyImplementation: 1,
+		types.TaskTypeLegacyDesign:         2,
+		types.TaskTypeLegacyTesting:        3,
+		types.TaskTypeLegacyDocumentation:  4,
+		types.TaskTypeLegacyResearch:       5,
+		types.TaskTypeLegacyReview:         6,
+		types.TaskTypeLegacyDeployment:     7,
+		types.TaskTypeLegacyArchitecture:   8,
+		types.TaskTypeLegacyBugFix:         9,
+		types.TaskTypeLegacyRefactoring:    10,
+		types.TaskTypeLegacyIntegration:    11,
+		types.TaskTypeLegacyAnalysis:       12,
 	}
 
 	templateSpec, templateExists := specificityOrder[template]
@@ -439,11 +523,11 @@ func (tm *TemplateMatcher) isMoreSpecificType(template, current types.TaskType) 
 // isHigherPriority checks if one priority is higher than another
 func (tm *TemplateMatcher) isHigherPriority(template, current types.TaskPriority) bool {
 	priorityOrder := map[types.TaskPriority]int{
-		types.TaskPriorityLow:      1,
-		types.TaskPriorityMedium:   2,
-		types.TaskPriorityHigh:     3,
-		types.TaskPriorityCritical: 4,
-		types.TaskPriorityBlocking: 5,
+		types.TaskPriorityLegacyLow:      1,
+		types.TaskPriorityLegacyMedium:   2,
+		types.TaskPriorityLegacyHigh:     3,
+		types.TaskPriorityLegacyCritical: 4,
+		types.TaskPriorityLegacyBlocking: 5,
 	}
 
 	templatePrio, templateExists := priorityOrder[template]
@@ -458,12 +542,22 @@ func (tm *TemplateMatcher) isHigherPriority(template, current types.TaskPriority
 
 // matchesProjectType checks if template applies to project type
 func (tm *TemplateMatcher) matchesProjectType(template *types.TaskTemplate, projectType types.ProjectType) bool {
-	if len(template.Applicability.ProjectTypes) == 0 {
+	// Extract project types from applicability JSON
+	projectTypes := []string{}
+	if projectTypeData, ok := template.Applicability["project_types"].([]interface{}); ok {
+		for _, pt := range projectTypeData {
+			if ptStr, ok := pt.(string); ok {
+				projectTypes = append(projectTypes, ptStr)
+			}
+		}
+	}
+
+	if len(projectTypes) == 0 {
 		return true // Template applies to all project types
 	}
 
-	for _, templateType := range template.Applicability.ProjectTypes {
-		if templateType == projectType {
+	for _, templateType := range projectTypes {
+		if templateType == string(projectType) {
 			return true
 		}
 	}
@@ -555,6 +649,8 @@ func (tm *TemplateMatcher) updateTemplateUsage(templateID string) {
 }
 
 // getBuiltinTemplates returns a set of built-in task templates
+// TODO: Update to use new TaskTemplate structure with JSONObject fields
+/*
 func getBuiltinTemplates() []types.TaskTemplate {
 	now := time.Now()
 
@@ -756,4 +852,30 @@ func getBuiltinTemplates() []types.TaskTemplate {
 			SuccessRate: 0.92,
 		},
 	}
+}
+*/
+
+// Helper methods for template enhancement
+
+// jsonArrayToStringSlice converts JSONArray to []string
+func (tm *TemplateMatcher) jsonArrayToStringSlice(jsonArr types.JSONArray) []string {
+	result := make([]string, 0, len(jsonArr))
+	for _, item := range jsonArr {
+		if str, ok := item.(string); ok {
+			result = append(result, str)
+		}
+	}
+	return result
+}
+
+// isHigherPriorityLegacy checks if the first priority is higher than the second
+func (tm *TemplateMatcher) isHigherPriorityLegacy(p1, p2 types.TaskPriority) bool {
+	priorities := map[types.TaskPriority]int{
+		types.TaskPriorityLegacyLow:      1,
+		types.TaskPriorityLegacyMedium:   2,
+		types.TaskPriorityLegacyHigh:     3,
+		types.TaskPriorityLegacyCritical: 4,
+		types.TaskPriorityLegacyBlocking: 5,
+	}
+	return priorities[p1] > priorities[p2]
 }

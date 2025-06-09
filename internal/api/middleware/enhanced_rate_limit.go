@@ -16,34 +16,34 @@ import (
 
 // EnhancedRateLimit provides comprehensive rate limiting middleware
 type EnhancedRateLimit struct {
-	config      *ratelimit.Config
-	redisLimiter *ratelimit.RedisLimiter
+	config          *ratelimit.Config
+	redisLimiter    *ratelimit.RedisLimiter
 	fallbackLimiter *ratelimit.SlidingWindow
-	monitor     *ratelimit.Monitor
+	monitor         *ratelimit.Monitor
 }
 
 // RateLimitContext holds rate limiting context for a request
 type RateLimitContext struct {
-	Key          string
-	IP           string
-	UserAgent    string
-	Endpoint     string
-	Method       string
-	IsInternal   bool
-	UserID       string
-	SessionID    string
-	ClientID     string
+	Key        string
+	IP         string
+	UserAgent  string
+	Endpoint   string
+	Method     string
+	IsInternal bool
+	UserID     string
+	SessionID  string
+	ClientID   string
 }
 
 // RateLimitResponse represents the response when rate limited
 type RateLimitResponse struct {
-	Error       string `json:"error"`
-	Message     string `json:"message"`
-	RetryAfter  int    `json:"retry_after"`
-	Limit       int    `json:"limit"`
-	Remaining   int    `json:"remaining"`
-	ResetTime   int64  `json:"reset_time"`
-	RequestID   string `json:"request_id,omitempty"`
+	Error      string `json:"error"`
+	Message    string `json:"message"`
+	RetryAfter int    `json:"retry_after"`
+	Limit      int    `json:"limit"`
+	Remaining  int    `json:"remaining"`
+	ResetTime  int64  `json:"reset_time"`
+	RequestID  string `json:"request_id,omitempty"`
 }
 
 // NewEnhancedRateLimit creates a new enhanced rate limiting middleware
@@ -223,9 +223,9 @@ func (erl *EnhancedRateLimit) isInternalRequest(r *http.Request) bool {
 	}
 
 	// Check for health check patterns
-	if strings.Contains(r.URL.Path, "/health") || 
-	   strings.Contains(r.URL.Path, "/metrics") ||
-	   strings.Contains(r.URL.Path, "/status") {
+	if strings.Contains(r.URL.Path, "/health") ||
+		strings.Contains(r.URL.Path, "/metrics") ||
+		strings.Contains(r.URL.Path, "/status") {
 		return true
 	}
 
@@ -334,12 +334,12 @@ func (erl *EnhancedRateLimit) handleRateLimited(w http.ResponseWriter, r *http.R
 
 	// Create response
 	response := RateLimitResponse{
-		Error:     "rate_limit_exceeded",
-		Message:   "Rate limit exceeded. Please try again later.",
+		Error:      "rate_limit_exceeded",
+		Message:    "Rate limit exceeded. Please try again later.",
 		RetryAfter: int(result.RetryAfter.Seconds()),
-		Limit:     result.Limit,
-		Remaining: result.Remaining,
-		ResetTime: result.ResetTime.Unix(),
+		Limit:      result.Limit,
+		Remaining:  result.Remaining,
+		ResetTime:  result.ResetTime.Unix(),
 	}
 
 	// Use custom response body if provided
@@ -360,7 +360,7 @@ func (erl *EnhancedRateLimit) addRateLimitHeaders(w http.ResponseWriter, result 
 	w.Header().Set("X-RateLimit-Limit", strconv.Itoa(result.Limit))
 	w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(result.Remaining))
 	w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(result.ResetTime.Unix(), 10))
-	
+
 	if result.RetryAfter > 0 {
 		w.Header().Set("Retry-After", strconv.Itoa(int(result.RetryAfter.Seconds())))
 	}
@@ -368,7 +368,7 @@ func (erl *EnhancedRateLimit) addRateLimitHeaders(w http.ResponseWriter, result 
 	// Add additional headers
 	w.Header().Set("X-RateLimit-Algorithm", string(result.Algorithm))
 	w.Header().Set("X-RateLimit-Window", result.Window.String())
-	
+
 	if result.Burst > 0 {
 		w.Header().Set("X-RateLimit-Burst", strconv.Itoa(result.Burst))
 	}

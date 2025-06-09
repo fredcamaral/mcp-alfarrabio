@@ -78,7 +78,7 @@ func (s *Service) CreateTask(ctx context.Context, task *types.Task, userID strin
 	}
 	task.Timestamps.Created = now
 	task.Timestamps.Updated = now
-	task.Status = types.TaskStatusTodo // Default status
+	task.Status = types.TaskStatusLegacyTodo // Default status
 
 	// Validate workflow transition
 	if s.config.WorkflowValidation {
@@ -394,9 +394,9 @@ func (s *Service) generateTaskID() string {
 func (s *Service) updateStatusTimestamp(task *types.Task, oldStatus types.TaskStatus) {
 	now := time.Now()
 	switch task.Status {
-	case types.TaskStatusInProgress:
+	case types.TaskStatusLegacyInProgress:
 		task.Timestamps.Started = &now
-	case types.TaskStatusCompleted:
+	case types.TaskStatusLegacyCompleted:
 		task.Timestamps.Completed = &now
 	}
 }

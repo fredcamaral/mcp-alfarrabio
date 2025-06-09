@@ -48,8 +48,8 @@ type Client struct {
 	Connection *websocket.Conn
 	Send       chan MemoryEvent
 	Hub        *Hub
-	Repository string // Filter events by repository
-	SessionID  string // Filter events by session
+	Repository string              // Filter events by repository
+	SessionID  string              // Filter events by session
 	Metadata   *ConnectionMetadata // Connection metadata for enhanced features
 }
 

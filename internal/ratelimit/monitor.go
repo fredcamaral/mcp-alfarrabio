@@ -12,13 +12,13 @@ import (
 
 // Monitor provides comprehensive rate limiting monitoring and alerting
 type Monitor struct {
-	mu       sync.RWMutex
-	config   *Config
-	metrics  *Metrics
-	alerts   chan *Alert
-	limiter  RateLimiter
-	done     chan struct{}
-	
+	mu      sync.RWMutex
+	config  *Config
+	metrics *Metrics
+	alerts  chan *Alert
+	limiter RateLimiter
+	done    chan struct{}
+
 	// Monitoring state
 	lastCheck      time.Time
 	alertsSent     map[string]time.Time
@@ -35,47 +35,47 @@ type RateLimiter interface {
 // Metrics holds real-time rate limiting metrics
 type Metrics struct {
 	mu sync.RWMutex
-	
+
 	// Request metrics
-	TotalRequests     int64 `json:"total_requests"`
-	AllowedRequests   int64 `json:"allowed_requests"`
-	BlockedRequests   int64 `json:"blocked_requests"`
-	
+	TotalRequests   int64 `json:"total_requests"`
+	AllowedRequests int64 `json:"allowed_requests"`
+	BlockedRequests int64 `json:"blocked_requests"`
+
 	// Performance metrics
-	AverageCheckTime  time.Duration `json:"average_check_time"`
-	MaxCheckTime      time.Duration `json:"max_check_time"`
-	MinCheckTime      time.Duration `json:"min_check_time"`
-	
+	AverageCheckTime time.Duration `json:"average_check_time"`
+	MaxCheckTime     time.Duration `json:"max_check_time"`
+	MinCheckTime     time.Duration `json:"min_check_time"`
+
 	// Error metrics
-	TotalErrors       int64 `json:"total_errors"`
-	RedisErrors       int64 `json:"redis_errors"`
-	FallbackUsage     int64 `json:"fallback_usage"`
-	
+	TotalErrors   int64 `json:"total_errors"`
+	RedisErrors   int64 `json:"redis_errors"`
+	FallbackUsage int64 `json:"fallback_usage"`
+
 	// Rate metrics by endpoint
-	EndpointMetrics   map[string]*EndpointMetrics `json:"endpoint_metrics"`
-	
+	EndpointMetrics map[string]*EndpointMetrics `json:"endpoint_metrics"`
+
 	// Time series data (last hour)
-	RequestsPerMinute []int64   `json:"requests_per_minute"`
-	BlockedPerMinute  []int64   `json:"blocked_per_minute"`
-	ErrorsPerMinute   []int64   `json:"errors_per_minute"`
-	
+	RequestsPerMinute []int64 `json:"requests_per_minute"`
+	BlockedPerMinute  []int64 `json:"blocked_per_minute"`
+	ErrorsPerMinute   []int64 `json:"errors_per_minute"`
+
 	// Current state
-	ActiveConnections int   `json:"active_connections"`
-	HealthyLimiters   int   `json:"healthy_limiters"`
+	ActiveConnections int       `json:"active_connections"`
+	HealthyLimiters   int       `json:"healthy_limiters"`
 	LastUpdated       time.Time `json:"last_updated"`
 }
 
 // EndpointMetrics holds metrics for a specific endpoint
 type EndpointMetrics struct {
 	mu sync.RWMutex
-	
+
 	Endpoint        string        `json:"endpoint"`
 	TotalRequests   int64         `json:"total_requests"`
 	AllowedRequests int64         `json:"allowed_requests"`
 	BlockedRequests int64         `json:"blocked_requests"`
 	AverageLatency  time.Duration `json:"average_latency"`
 	LastRequest     time.Time     `json:"last_request"`
-	
+
 	// Recent activity (sliding window)
 	RecentRequests  []RequestRecord `json:"recent_requests"`
 	UtilizationRate float64         `json:"utilization_rate"`
@@ -93,28 +93,28 @@ type RequestRecord struct {
 
 // Alert represents a rate limiting alert
 type Alert struct {
-	ID          string                 `json:"id"`
-	Type        AlertType              `json:"type"`
-	Severity    Severity               `json:"severity"`
-	Message     string                 `json:"message"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Endpoint    string                 `json:"endpoint,omitempty"`
-	Key         string                 `json:"key,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	Resolved    bool                   `json:"resolved"`
-	ResolvedAt  *time.Time             `json:"resolved_at,omitempty"`
+	ID         string                 `json:"id"`
+	Type       AlertType              `json:"type"`
+	Severity   Severity               `json:"severity"`
+	Message    string                 `json:"message"`
+	Timestamp  time.Time              `json:"timestamp"`
+	Endpoint   string                 `json:"endpoint,omitempty"`
+	Key        string                 `json:"key,omitempty"`
+	Metadata   map[string]interface{} `json:"metadata"`
+	Resolved   bool                   `json:"resolved"`
+	ResolvedAt *time.Time             `json:"resolved_at,omitempty"`
 }
 
 // AlertType represents different types of alerts
 type AlertType string
 
 const (
-	AlertTypeHighUsage     AlertType = "high_usage"
-	AlertTypeRateLimited   AlertType = "rate_limited"
-	AlertTypeRedisDown     AlertType = "redis_down"
-	AlertTypeHighLatency   AlertType = "high_latency"
-	AlertTypeConfigError   AlertType = "config_error"
-	AlertTypeFallbackUsed  AlertType = "fallback_used"
+	AlertTypeHighUsage    AlertType = "high_usage"
+	AlertTypeRateLimited  AlertType = "rate_limited"
+	AlertTypeRedisDown    AlertType = "redis_down"
+	AlertTypeHighLatency  AlertType = "high_latency"
+	AlertTypeConfigError  AlertType = "config_error"
+	AlertTypeFallbackUsed AlertType = "fallback_used"
 )
 
 // Severity represents alert severity levels
@@ -129,12 +129,12 @@ const (
 
 // PerformanceMetric tracks performance over time
 type PerformanceMetric struct {
-	Timestamp       time.Time     `json:"timestamp"`
-	CheckDuration   time.Duration `json:"check_duration"`
-	RequestCount    int64         `json:"request_count"`
-	ErrorCount      int64         `json:"error_count"`
-	MemoryUsage     int64         `json:"memory_usage"`
-	RedisLatency    time.Duration `json:"redis_latency"`
+	Timestamp     time.Time     `json:"timestamp"`
+	CheckDuration time.Duration `json:"check_duration"`
+	RequestCount  int64         `json:"request_count"`
+	ErrorCount    int64         `json:"error_count"`
+	MemoryUsage   int64         `json:"memory_usage"`
+	RedisLatency  time.Duration `json:"redis_latency"`
 }
 
 // NewMonitor creates a new rate limit monitor
@@ -358,7 +358,7 @@ func (m *Monitor) GetMetrics(ctx context.Context) (*Metrics, error) {
 // GetAlerts returns current alerts
 func (m *Monitor) GetAlerts(ctx context.Context) ([]*Alert, error) {
 	alerts := make([]*Alert, 0)
-	
+
 	// Drain alerts channel without blocking
 	for {
 		select {
@@ -373,7 +373,7 @@ func (m *Monitor) GetAlerts(ctx context.Context) ([]*Alert, error) {
 // GetHealthStatus returns the health status of rate limiting
 func (m *Monitor) GetHealthStatus(ctx context.Context) (map[string]interface{}, error) {
 	status := make(map[string]interface{})
-	
+
 	// Check limiter health
 	var limiterHealthy bool
 	if m.limiter != nil {
@@ -383,13 +383,13 @@ func (m *Monitor) GetHealthStatus(ctx context.Context) (map[string]interface{}, 
 			status["limiter_error"] = err.Error()
 		}
 	}
-	
+
 	status["limiter_healthy"] = limiterHealthy
 	status["monitoring_enabled"] = m.config.EnableMetrics
 	status["alerting_enabled"] = m.config.EnableAlerting
 	status["last_check"] = m.lastCheck
 	status["alerts_in_queue"] = len(m.alerts)
-	
+
 	// Get current metrics summary
 	m.metrics.mu.RLock()
 	status["total_requests"] = m.metrics.TotalRequests
@@ -397,7 +397,7 @@ func (m *Monitor) GetHealthStatus(ctx context.Context) (map[string]interface{}, 
 	status["error_rate"] = float64(m.metrics.TotalErrors) / float64(m.metrics.TotalRequests)
 	status["active_endpoints"] = len(m.metrics.EndpointMetrics)
 	m.metrics.mu.RUnlock()
-	
+
 	return status, nil
 }
 
@@ -406,7 +406,7 @@ func (m *Monitor) getOrCreateEndpointMetrics(endpoint string) *EndpointMetrics {
 	if existing, exists := m.metrics.EndpointMetrics[endpoint]; exists {
 		return existing
 	}
-	
+
 	endpointMetrics := &EndpointMetrics{
 		Endpoint:       endpoint,
 		RecentRequests: make([]RequestRecord, 0, 100),
@@ -418,7 +418,7 @@ func (m *Monitor) getOrCreateEndpointMetrics(endpoint string) *EndpointMetrics {
 // updateTimeSeriesMetrics updates minute-by-minute metrics
 func (m *Monitor) updateTimeSeriesMetrics(allowed bool) {
 	minute := time.Now().Minute()
-	
+
 	m.metrics.RequestsPerMinute[minute]++
 	if !allowed {
 		m.metrics.BlockedPerMinute[minute]++
@@ -444,10 +444,10 @@ func (m *Monitor) checkForAlerts(endpoint, key string, result *LimitResult, _ *E
 					Metadata: map[string]interface{}{
 						"utilization_rate": utilizationRate,
 						"current_count":    result.Count,
-						"limit":           result.Limit,
+						"limit":            result.Limit,
 					},
 				}
-				
+
 				select {
 				case m.alerts <- alert:
 					m.alertsSent[alertKey] = time.Now()
@@ -472,11 +472,11 @@ func (m *Monitor) checkForAlerts(endpoint, key string, result *LimitResult, _ *E
 				Key:       key,
 				Metadata: map[string]interface{}{
 					"current_count": result.Count,
-					"limit":        result.Limit,
-					"retry_after":  result.RetryAfter.Seconds(),
+					"limit":         result.Limit,
+					"retry_after":   result.RetryAfter.Seconds(),
 				},
 			}
-			
+
 			select {
 			case m.alerts <- alert:
 				m.alertsSent[alertKey] = time.Now()
@@ -583,7 +583,7 @@ func (m *Monitor) collectPerformanceMetrics() {
 	}
 
 	m.performanceLog = append(m.performanceLog, metric)
-	
+
 	// Keep only last 1000 entries
 	if len(m.performanceLog) > 1000 {
 		m.performanceLog = m.performanceLog[len(m.performanceLog)-1000:]

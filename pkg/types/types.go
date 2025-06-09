@@ -100,7 +100,7 @@ func (o Outcome) Valid() bool {
 // Valid returns true if the task status is valid
 func (ts TaskStatus) Valid() bool {
 	switch ts {
-	case TaskStatusTodo, TaskStatusInProgress, TaskStatusCompleted, TaskStatusBlocked, TaskStatusCancelled:
+	case TaskStatusLegacyTodo, TaskStatusLegacyInProgress, TaskStatusLegacyCompleted, TaskStatusLegacyBlocked, TaskStatusLegacyCancelled:
 		return true
 	}
 	return false
@@ -548,4 +548,25 @@ func (r *Recency) UnmarshalJSON(data []byte) error {
 	}
 	*r = Recency(s)
 	return nil
+}
+
+// MigrationStatistics represents migration system statistics
+type MigrationStatistics struct {
+	TotalMigrations           int       `json:"total_migrations"`
+	SuccessfulMigrations      int       `json:"successful_migrations"`
+	RolledBackMigrations      int       `json:"rolled_back_migrations"`
+	CurrentVersion            int       `json:"current_version"`
+	LastMigrationDate         time.Time `json:"last_migration_date"`
+	AvgExecutionTimeMs        float64   `json:"avg_execution_time_ms"`
+	DestructiveMigrations     int       `json:"destructive_migrations"`
+	MigrationsWithoutRollback int       `json:"migrations_without_rollback"`
+}
+
+// ValidationStatistics represents migration validation statistics
+type ValidationStatistics struct {
+	TotalValidations      int     `json:"total_validations"`
+	PassedValidations     int     `json:"passed_validations"`
+	FailedValidations     int     `json:"failed_validations"`
+	ValidationsWithErrors int     `json:"validations_with_errors"`
+	AvgValidationTimeMs   float64 `json:"avg_validation_time_ms"`
 }

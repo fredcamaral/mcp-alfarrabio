@@ -59,14 +59,14 @@ type DeliveryTracker struct {
 
 // DeliveryAnalytics tracks delivery performance metrics
 type DeliveryAnalytics struct {
-	TotalDeliveries     int64         `json:"total_deliveries"`
-	SuccessfulDeliveries int64        `json:"successful_deliveries"`
-	FailedDeliveries    int64         `json:"failed_deliveries"`
-	AverageLatency      time.Duration `json:"average_latency"`
-	RetryRate           float64       `json:"retry_rate"`
-	ErrorRate           float64       `json:"error_rate"`
-	LastDelivery        time.Time     `json:"last_delivery"`
-	mu                  sync.RWMutex
+	TotalDeliveries      int64         `json:"total_deliveries"`
+	SuccessfulDeliveries int64         `json:"successful_deliveries"`
+	FailedDeliveries     int64         `json:"failed_deliveries"`
+	AverageLatency       time.Duration `json:"average_latency"`
+	RetryRate            float64       `json:"retry_rate"`
+	ErrorRate            float64       `json:"error_rate"`
+	LastDelivery         time.Time     `json:"last_delivery"`
+	mu                   sync.RWMutex
 }
 
 // Dispatcher manages notification delivery to CLI endpoints
@@ -93,12 +93,12 @@ type DeliveryJob struct {
 
 // DispatcherConfig configures the notification dispatcher
 type DispatcherConfig struct {
-	WorkerCount     int           `json:"worker_count"`
-	QueueSize       int           `json:"queue_size"`
-	Timeout         time.Duration `json:"timeout"`
-	RetryBackoff    time.Duration `json:"retry_backoff"`
-	MaxConcurrency  int           `json:"max_concurrency"`
-	CircuitBreaker  bool          `json:"circuit_breaker"`
+	WorkerCount    int           `json:"worker_count"`
+	QueueSize      int           `json:"queue_size"`
+	Timeout        time.Duration `json:"timeout"`
+	RetryBackoff   time.Duration `json:"retry_backoff"`
+	MaxConcurrency int           `json:"max_concurrency"`
+	CircuitBreaker bool          `json:"circuit_breaker"`
 }
 
 // DefaultDispatcherConfig returns default dispatcher configuration
@@ -226,7 +226,7 @@ func (d *Dispatcher) Dispatch(notification *Notification) error {
 			case d.jobQueue <- job:
 				// Job queued successfully
 			default:
-				log.Printf("Job queue full, dropping notification %s for endpoint %s", 
+				log.Printf("Job queue full, dropping notification %s for endpoint %s",
 					notification.ID, endpoint.ID)
 			}
 		}
@@ -291,7 +291,7 @@ func (d *Dispatcher) worker(id int) {
 // processDeliveryJob processes a single delivery job
 func (d *Dispatcher) processDeliveryJob(job *DeliveryJob) {
 	startTime := time.Now()
-	
+
 	result := &DeliveryResult{
 		NotificationID: job.Notification.ID,
 		EndpointID:     job.Endpoint.ID,
@@ -352,9 +352,9 @@ func (d *Dispatcher) processDeliveryJob(job *DeliveryJob) {
 	// Check if delivery was successful
 	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
 		result.Success = true
-		log.Printf("Successfully delivered notification %s to endpoint %s (attempt %d, %v)", 
+		log.Printf("Successfully delivered notification %s to endpoint %s (attempt %d, %v)",
 			job.Notification.ID, job.Endpoint.ID, job.Attempt, result.Duration)
-		
+
 		// Update endpoint health
 		if err := d.registry.UpdateLastSeen(job.Endpoint.ID); err != nil {
 			log.Printf("Failed to update last seen for endpoint %s: %v", job.Endpoint.ID, err)
@@ -362,9 +362,9 @@ func (d *Dispatcher) processDeliveryJob(job *DeliveryJob) {
 	} else {
 		result.Success = false
 		result.Error = fmt.Sprintf("HTTP %d: %s", resp.StatusCode, result.Response)
-		log.Printf("Failed to deliver notification %s to endpoint %s: %s", 
+		log.Printf("Failed to deliver notification %s to endpoint %s: %s",
 			job.Notification.ID, job.Endpoint.ID, result.Error)
-		
+
 		d.handleDeliveryFailure(job, result)
 	}
 
@@ -450,7 +450,7 @@ func (d *Dispatcher) handleDeliveryFailure(job *DeliveryJob, result *DeliveryRes
 
 		// Exponential backoff: delay * 2^(attempt-1)
 		backoffDelay := time.Duration(int64(retryDelay) * (1 << (job.Attempt - 1)))
-		
+
 		// Cap backoff at 5 minutes
 		if backoffDelay > 5*time.Minute {
 			backoffDelay = 5 * time.Minute
@@ -459,7 +459,7 @@ func (d *Dispatcher) handleDeliveryFailure(job *DeliveryJob, result *DeliveryRes
 		// Schedule retry
 		go func() {
 			time.Sleep(backoffDelay)
-			
+
 			retryJob := &DeliveryJob{
 				Notification: job.Notification,
 				Endpoint:     job.Endpoint,
@@ -469,15 +469,15 @@ func (d *Dispatcher) handleDeliveryFailure(job *DeliveryJob, result *DeliveryRes
 
 			select {
 			case d.jobQueue <- retryJob:
-				log.Printf("Scheduled retry %d for notification %s to endpoint %s (delay: %v)", 
+				log.Printf("Scheduled retry %d for notification %s to endpoint %s (delay: %v)",
 					retryJob.Attempt, job.Notification.ID, job.Endpoint.ID, backoffDelay)
 			default:
-				log.Printf("Failed to schedule retry for notification %s to endpoint %s (queue full)", 
+				log.Printf("Failed to schedule retry for notification %s to endpoint %s (queue full)",
 					job.Notification.ID, job.Endpoint.ID)
 			}
 		}()
 	} else {
-		log.Printf("Max attempts reached for notification %s to endpoint %s", 
+		log.Printf("Max attempts reached for notification %s to endpoint %s",
 			job.Notification.ID, job.Endpoint.ID)
 	}
 }
@@ -518,12 +518,12 @@ func (d *Dispatcher) trackDeliveryResult(result *DeliveryResult) {
 
 	// Calculate rates
 	if d.tracker.analytics.TotalDeliveries > 0 {
-		d.tracker.analytics.ErrorRate = float64(d.tracker.analytics.FailedDeliveries) / 
+		d.tracker.analytics.ErrorRate = float64(d.tracker.analytics.FailedDeliveries) /
 			float64(d.tracker.analytics.TotalDeliveries) * 100
-		
+
 		// Retry rate (approximate)
-		d.tracker.analytics.RetryRate = float64(d.tracker.analytics.TotalDeliveries - 
-			d.tracker.analytics.SuccessfulDeliveries - d.tracker.analytics.FailedDeliveries) / 
+		d.tracker.analytics.RetryRate = float64(d.tracker.analytics.TotalDeliveries-
+			d.tracker.analytics.SuccessfulDeliveries-d.tracker.analytics.FailedDeliveries) /
 			float64(d.tracker.analytics.TotalDeliveries) * 100
 	}
 }

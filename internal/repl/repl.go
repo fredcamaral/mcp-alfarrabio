@@ -754,7 +754,7 @@ func (r *REPL) loadSession(filename string) error {
 	if strings.Contains(cleanPath, "..") {
 		return errors.New("invalid file path: directory traversal detected")
 	}
-	
+
 	data, err := os.ReadFile(cleanPath) // #nosec G304 - path validated above
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)

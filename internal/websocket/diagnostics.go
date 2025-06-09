@@ -13,12 +13,12 @@ import (
 
 // DiagnosticsManager provides comprehensive connection diagnostics
 type DiagnosticsManager struct {
-	mu              sync.RWMutex
-	config          *DiagnosticsConfig
-	connections     map[string]*ConnectionDiagnostics
-	systemDiag      *SystemDiagnostics
-	debugSessions   map[string]*DebugSession
-	done            chan struct{}
+	mu            sync.RWMutex
+	config        *DiagnosticsConfig
+	connections   map[string]*ConnectionDiagnostics
+	systemDiag    *SystemDiagnostics
+	debugSessions map[string]*DebugSession
+	done          chan struct{}
 }
 
 // DiagnosticsConfig configures diagnostics behavior
@@ -35,83 +35,83 @@ type DiagnosticsConfig struct {
 
 // ConnectionDiagnostics tracks diagnostic information for a connection
 type ConnectionDiagnostics struct {
-	mu                sync.RWMutex
-	ID                string
-	Connection        *websocket.Conn
-	StartTime         time.Time
-	RemoteAddr        string
-	LocalAddr         string
-	Protocol          string
-	UserAgent         string
-	
+	mu         sync.RWMutex
+	ID         string
+	Connection *websocket.Conn
+	StartTime  time.Time
+	RemoteAddr string
+	LocalAddr  string
+	Protocol   string
+	UserAgent  string
+
 	// Network diagnostics
-	NetworkInfo       *NetworkInfo
-	ConnectionState   *DiagnosticConnectionState
+	NetworkInfo        *NetworkInfo
+	ConnectionState    *DiagnosticConnectionState
 	PerformanceMetrics *DiagnosticPerformanceMetrics
-	
+
 	// Debug information
-	DebugLogs         []*DebugEntry
-	EventTimeline     []*DiagnosticEvent
-	Traces            []*NetworkTrace
-	
+	DebugLogs     []*DebugEntry
+	EventTimeline []*DiagnosticEvent
+	Traces        []*NetworkTrace
+
 	// Health diagnostics
-	HealthChecks      []*HealthCheck
-	LastHealthCheck   time.Time
-	HealthStatus      HealthDiagStatus
+	HealthChecks    []*HealthCheck
+	LastHealthCheck time.Time
+	HealthStatus    HealthDiagStatus
 }
 
 // SystemDiagnostics tracks system-wide diagnostic information
 type SystemDiagnostics struct {
-	mu                sync.RWMutex
-	StartTime         time.Time
-	SystemHealth      SystemHealthStatus
-	ResourceUsage     *ResourceUsage
-	NetworkStats      *NetworkStats
+	mu                 sync.RWMutex
+	StartTime          time.Time
+	SystemHealth       SystemHealthStatus
+	ResourceUsage      *ResourceUsage
+	NetworkStats       *NetworkStats
 	PerformanceProfile *SystemPerformance
-	LastUpdate        time.Time
+	LastUpdate         time.Time
 }
 
 // DebugSession represents an active debugging session
 type DebugSession struct {
-	ID                string
-	ConnectionID      string
-	StartTime         time.Time
-	EnabledFeatures   []DebugFeature
-	LogLevel          LogLevel
-	Filters           []DebugFilter
-	Collectors        map[string]bool
-	OutputChannels    []string
-	LastActivity      time.Time
+	ID              string
+	ConnectionID    string
+	StartTime       time.Time
+	EnabledFeatures []DebugFeature
+	LogLevel        LogLevel
+	Filters         []DebugFilter
+	Collectors      map[string]bool
+	OutputChannels  []string
+	LastActivity    time.Time
 }
 
 // NetworkInfo contains network-level diagnostic information
 type NetworkInfo struct {
-	LocalIP           string        `json:"local_ip"`
-	RemoteIP          string        `json:"remote_ip"`
-	LocalPort         int           `json:"local_port"`
-	RemotePort        int           `json:"remote_port"`
-	NetworkInterface  string        `json:"network_interface"`
-	ConnectionType    string        `json:"connection_type"`
-	TLSVersion        string        `json:"tls_version,omitempty"`
-	CipherSuite       string        `json:"cipher_suite,omitempty"`
-	Latency           time.Duration `json:"latency"`
-	Bandwidth         float64       `json:"bandwidth_bps"`
-	PacketLoss        float64       `json:"packet_loss_percent"`
-	Jitter            time.Duration `json:"jitter"`
+	LocalIP          string        `json:"local_ip"`
+	RemoteIP         string        `json:"remote_ip"`
+	LocalPort        int           `json:"local_port"`
+	RemotePort       int           `json:"remote_port"`
+	NetworkInterface string        `json:"network_interface"`
+	ConnectionType   string        `json:"connection_type"`
+	TLSVersion       string        `json:"tls_version,omitempty"`
+	CipherSuite      string        `json:"cipher_suite,omitempty"`
+	Latency          time.Duration `json:"latency"`
+	Bandwidth        float64       `json:"bandwidth_bps"`
+	PacketLoss       float64       `json:"packet_loss_percent"`
+	Jitter           time.Duration `json:"jitter"`
 }
 
 // DiagnosticConnectionState tracks the state of a WebSocket connection
 type DiagnosticConnectionState struct {
-	State             string        `json:"state"`
-	SubState          string        `json:"sub_state"`
-	ReadyState        int           `json:"ready_state"`
-	BufferedAmount    int64         `json:"buffered_amount"`
-	Extensions        []string      `json:"extensions"`
-	Protocol          string        `json:"protocol"`
-	CloseCode         int           `json:"close_code,omitempty"`
-	CloseReason       string        `json:"close_reason,omitempty"`
-	LastStateChange   time.Time     `json:"last_state_change"`
-	StateHistory      []StateChange `json:"state_history"`
+	State           string        `json:"state"`
+	SubState        string        `json:"sub_state"`
+	ReadyState      int           `json:"ready_state"`
+	BufferedAmount  int64         `json:"buffered_amount"`
+	Extensions      []string      `json:"extensions"`
+	Protocol        string        `json:"protocol"`
+	CloseCode       int           `json:"close_code,omitempty"`
+	CloseReason     string        `json:"close_reason,omitempty"`
+	LastStateChange time.Time     `json:"last_state_change"`
+	StateHistory    []StateChange `json:"state_history"`
 }
 
 // DiagnosticPerformanceMetrics tracks performance-related metrics
@@ -127,13 +127,13 @@ type DiagnosticPerformanceMetrics struct {
 
 // DebugEntry represents a debug log entry
 type DebugEntry struct {
-	Timestamp    time.Time   `json:"timestamp"`
-	Level        LogLevel    `json:"level"`
-	Component    string      `json:"component"`
-	Message      string      `json:"message"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Level        LogLevel               `json:"level"`
+	Component    string                 `json:"component"`
+	Message      string                 `json:"message"`
 	Context      map[string]interface{} `json:"context"`
-	StackTrace   string      `json:"stack_trace,omitempty"`
-	ConnectionID string      `json:"connection_id,omitempty"`
+	StackTrace   string                 `json:"stack_trace,omitempty"`
+	ConnectionID string                 `json:"connection_id,omitempty"`
 }
 
 // DiagnosticEvent represents a diagnostic event
@@ -148,52 +148,56 @@ type DiagnosticEvent struct {
 
 // NetworkTrace represents network-level tracing information
 type NetworkTrace struct {
-	Timestamp     time.Time `json:"timestamp"`
-	Direction     string    `json:"direction"`
-	MessageType   string    `json:"message_type"`
-	Size          int       `json:"size"`
-	Latency       time.Duration `json:"latency"`
-	Headers       map[string]string `json:"headers,omitempty"`
-	Payload       string    `json:"payload,omitempty"`
-	Error         string    `json:"error,omitempty"`
+	Timestamp   time.Time         `json:"timestamp"`
+	Direction   string            `json:"direction"`
+	MessageType string            `json:"message_type"`
+	Size        int               `json:"size"`
+	Latency     time.Duration     `json:"latency"`
+	Headers     map[string]string `json:"headers,omitempty"`
+	Payload     string            `json:"payload,omitempty"`
+	Error       string            `json:"error,omitempty"`
 }
 
 // HealthCheck represents a health check result
 type HealthCheck struct {
-	Timestamp   time.Time              `json:"timestamp"`
-	CheckType   HealthCheckType        `json:"check_type"`
-	Status      HealthCheckStatus      `json:"status"`
-	Latency     time.Duration          `json:"latency"`
-	Details     map[string]interface{} `json:"details"`
-	Errors      []string               `json:"errors,omitempty"`
+	Timestamp time.Time              `json:"timestamp"`
+	CheckType HealthCheckType        `json:"check_type"`
+	Status    HealthCheckStatus      `json:"status"`
+	Latency   time.Duration          `json:"latency"`
+	Details   map[string]interface{} `json:"details"`
+	Errors    []string               `json:"errors,omitempty"`
 }
 
 // Enums and constants
 
 type DetailLevel string
+
 const (
-	DetailLevelBasic     DetailLevel = "basic"
-	DetailLevelStandard  DetailLevel = "standard"
-	DetailLevelDetailed  DetailLevel = "detailed"
-	DetailLevelVerbose   DetailLevel = "verbose"
+	DetailLevelBasic    DetailLevel = "basic"
+	DetailLevelStandard DetailLevel = "standard"
+	DetailLevelDetailed DetailLevel = "detailed"
+	DetailLevelVerbose  DetailLevel = "verbose"
 )
 
 type HealthDiagStatus string
+
 const (
-	HealthDiagHealthy   HealthDiagStatus = "healthy"
-	HealthDiagWarning   HealthDiagStatus = "warning"
-	HealthDiagCritical  HealthDiagStatus = "critical"
-	HealthDiagUnknown   HealthDiagStatus = "unknown"
+	HealthDiagHealthy  HealthDiagStatus = "healthy"
+	HealthDiagWarning  HealthDiagStatus = "warning"
+	HealthDiagCritical HealthDiagStatus = "critical"
+	HealthDiagUnknown  HealthDiagStatus = "unknown"
 )
 
 type SystemHealthStatus string
+
 const (
-	SystemHealthy    SystemHealthStatus = "healthy"
-	SystemDegraded   SystemHealthStatus = "degraded"
-	SystemUnhealthy  SystemHealthStatus = "unhealthy"
+	SystemHealthy   SystemHealthStatus = "healthy"
+	SystemDegraded  SystemHealthStatus = "degraded"
+	SystemUnhealthy SystemHealthStatus = "unhealthy"
 )
 
 type DebugFeature string
+
 const (
 	FeatureNetworkTracing  DebugFeature = "network_tracing"
 	FeatureMessageLogging  DebugFeature = "message_logging"
@@ -203,6 +207,7 @@ const (
 )
 
 type LogLevel string
+
 const (
 	LogLevelDebug LogLevel = "debug"
 	LogLevelInfo  LogLevel = "info"
@@ -216,6 +221,7 @@ type DebugFilter struct {
 }
 
 type FilterType string
+
 const (
 	FilterConnectionID FilterType = "connection_id"
 	FilterMessageType  FilterType = "message_type"
@@ -224,23 +230,26 @@ const (
 )
 
 type EventType string
+
 const (
-	EventConnection   EventType = "connection"
-	EventMessage      EventType = "message"
-	EventError        EventType = "error"
-	EventPerformance  EventType = "performance"
-	EventSecurity     EventType = "security"
+	EventConnection  EventType = "connection"
+	EventMessage     EventType = "message"
+	EventError       EventType = "error"
+	EventPerformance EventType = "performance"
+	EventSecurity    EventType = "security"
 )
 
 type EventCategory string
+
 const (
-	CategoryNetwork    EventCategory = "network"
-	CategoryProtocol   EventCategory = "protocol"
+	CategoryNetwork     EventCategory = "network"
+	CategoryProtocol    EventCategory = "protocol"
 	CategoryApplication EventCategory = "application"
-	CategorySystem     EventCategory = "system"
+	CategorySystem      EventCategory = "system"
 )
 
 type EventSeverity string
+
 const (
 	SeverityLow      EventSeverity = "low"
 	SeverityMedium   EventSeverity = "medium"
@@ -249,15 +258,17 @@ const (
 )
 
 type HealthCheckType string
+
 const (
-	HealthCheckPing        HealthCheckType = "ping"
-	HealthCheckEcho        HealthCheckType = "echo"
-	HealthCheckBandwidth   HealthCheckType = "bandwidth"
-	HealthCheckLatency     HealthCheckType = "latency"
+	HealthCheckPing         HealthCheckType = "ping"
+	HealthCheckEcho         HealthCheckType = "echo"
+	HealthCheckBandwidth    HealthCheckType = "bandwidth"
+	HealthCheckLatency      HealthCheckType = "latency"
 	HealthCheckConnectivity HealthCheckType = "connectivity"
 )
 
 type HealthCheckStatus string
+
 const (
 	HealthCheckPassed  HealthCheckStatus = "passed"
 	HealthCheckFailed  HealthCheckStatus = "failed"
@@ -267,23 +278,23 @@ const (
 // Additional supporting types
 
 type ResourceUsage struct {
-	CPUUsage    float64 `json:"cpu_usage_percent"`
-	MemoryUsage int64   `json:"memory_usage_bytes"`
-	DiskUsage   int64   `json:"disk_usage_bytes"`
+	CPUUsage    float64   `json:"cpu_usage_percent"`
+	MemoryUsage int64     `json:"memory_usage_bytes"`
+	DiskUsage   int64     `json:"disk_usage_bytes"`
 	NetworkIO   NetworkIO `json:"network_io"`
-	OpenFiles   int     `json:"open_files"`
-	Threads     int     `json:"threads"`
+	OpenFiles   int       `json:"open_files"`
+	Threads     int       `json:"threads"`
 }
 
 type NetworkStats struct {
-	BytesReceived    int64   `json:"bytes_received"`
-	BytesSent        int64   `json:"bytes_sent"`
-	PacketsReceived  int64   `json:"packets_received"`
-	PacketsSent      int64   `json:"packets_sent"`
-	ErrorsReceived   int64   `json:"errors_received"`
-	ErrorsSent       int64   `json:"errors_sent"`
-	DroppedPackets   int64   `json:"dropped_packets"`
-	Retransmissions  int64   `json:"retransmissions"`
+	BytesReceived   int64 `json:"bytes_received"`
+	BytesSent       int64 `json:"bytes_sent"`
+	PacketsReceived int64 `json:"packets_received"`
+	PacketsSent     int64 `json:"packets_sent"`
+	ErrorsReceived  int64 `json:"errors_received"`
+	ErrorsSent      int64 `json:"errors_sent"`
+	DroppedPackets  int64 `json:"dropped_packets"`
+	Retransmissions int64 `json:"retransmissions"`
 }
 
 type SystemPerformance struct {
@@ -362,7 +373,7 @@ func (dm *DiagnosticsManager) RegisterConnection(id string, conn *websocket.Conn
 	// Extract connection information
 	localAddr := ""
 	remoteAddr := ""
-	
+
 	if conn.UnderlyingConn() != nil {
 		localAddr = conn.UnderlyingConn().LocalAddr().String()
 		remoteAddr = conn.UnderlyingConn().RemoteAddr().String()
@@ -375,21 +386,21 @@ func (dm *DiagnosticsManager) RegisterConnection(id string, conn *websocket.Conn
 		LocalAddr:  localAddr,
 		RemoteAddr: remoteAddr,
 		Protocol:   conn.Subprotocol(),
-		
+
 		NetworkInfo: &NetworkInfo{},
 		ConnectionState: &DiagnosticConnectionState{
-			State:         "connected",
-			ReadyState:    1, // OPEN
-			StateHistory:  make([]StateChange, 0),
+			State:           "connected",
+			ReadyState:      1, // OPEN
+			StateHistory:    make([]StateChange, 0),
 			LastStateChange: time.Now(),
 		},
 		PerformanceMetrics: &DiagnosticPerformanceMetrics{},
-		
+
 		DebugLogs:     make([]*DebugEntry, 0),
 		EventTimeline: make([]*DiagnosticEvent, 0),
 		Traces:        make([]*NetworkTrace, 0),
 		HealthChecks:  make([]*HealthCheck, 0),
-		
+
 		HealthStatus: HealthDiagHealthy,
 	}
 
@@ -399,7 +410,7 @@ func (dm *DiagnosticsManager) RegisterConnection(id string, conn *websocket.Conn
 	dm.connections[id] = diag
 
 	// Log registration event
-	dm.logEvent(id, EventConnection, CategoryNetwork, "Connection registered for diagnostics", 
+	dm.logEvent(id, EventConnection, CategoryNetwork, "Connection registered for diagnostics",
 		map[string]interface{}{
 			"remote_addr": remoteAddr,
 			"local_addr":  localAddr,
@@ -433,7 +444,7 @@ func (dm *DiagnosticsManager) initializeNetworkInfo(diag *ConnectionDiagnostics)
 	}
 
 	conn := diag.Connection.UnderlyingConn()
-	
+
 	// Extract IP addresses and ports
 	if localAddr := conn.LocalAddr(); localAddr != nil {
 		if tcpAddr, ok := localAddr.(*net.TCPAddr); ok {
@@ -450,7 +461,7 @@ func (dm *DiagnosticsManager) initializeNetworkInfo(diag *ConnectionDiagnostics)
 	}
 
 	diag.NetworkInfo.ConnectionType = "websocket"
-	
+
 	// Perform initial latency test
 	go dm.measureLatency(diag)
 }
@@ -471,7 +482,7 @@ func (dm *DiagnosticsManager) measureLatency(diag *ConnectionDiagnostics) {
 	// Note: In a real implementation, you'd wait for the pong response
 	// For simplicity, we're just measuring the write latency here
 	latency := time.Since(start)
-	
+
 	diag.mu.Lock()
 	diag.NetworkInfo.Latency = latency
 	diag.mu.Unlock()
@@ -506,7 +517,7 @@ func (dm *DiagnosticsManager) LogMessage(connectionID, messageType string, size 
 
 	diag.mu.Lock()
 	diag.Traces = append(diag.Traces, trace)
-	
+
 	// Trim traces if needed
 	if len(diag.Traces) > 1000 {
 		diag.Traces = diag.Traces[1:]
@@ -553,9 +564,9 @@ func (dm *DiagnosticsManager) logError(connectionID, message string, err error) 
 }
 
 // logEvent logs a diagnostic event
-func (dm *DiagnosticsManager) logEvent(connectionID string, eventType EventType, category EventCategory, 
+func (dm *DiagnosticsManager) logEvent(connectionID string, eventType EventType, category EventCategory,
 	description string, data map[string]interface{}, severity EventSeverity) {
-	
+
 	event := &DiagnosticEvent{
 		Timestamp:   time.Now(),
 		Type:        eventType,
@@ -572,7 +583,7 @@ func (dm *DiagnosticsManager) logEvent(connectionID string, eventType EventType,
 	if exists {
 		diag.mu.Lock()
 		diag.EventTimeline = append(diag.EventTimeline, event)
-		
+
 		// Trim events if needed
 		if len(diag.EventTimeline) > 500 {
 			diag.EventTimeline = diag.EventTimeline[1:]
@@ -594,7 +605,7 @@ func (dm *DiagnosticsManager) addDebugEntry(connectionID string, entry *DebugEnt
 	if exists {
 		diag.mu.Lock()
 		diag.DebugLogs = append(diag.DebugLogs, entry)
-		
+
 		// Trim logs if needed
 		if len(diag.DebugLogs) > dm.config.MaxLogEntries {
 			diag.DebugLogs = diag.DebugLogs[1:]
@@ -613,7 +624,7 @@ func (dm *DiagnosticsManager) StartDebugSession(connectionID string, features []
 	}
 
 	sessionID := fmt.Sprintf("debug_%s_%d", connectionID, time.Now().Unix())
-	
+
 	session := &DebugSession{
 		ID:              sessionID,
 		ConnectionID:    connectionID,
@@ -688,7 +699,7 @@ func (dm *DiagnosticsManager) PerformHealthCheck(connectionID string, checkType 
 	diag.mu.Lock()
 	diag.HealthChecks = append(diag.HealthChecks, check)
 	diag.LastHealthCheck = time.Now()
-	
+
 	// Trim health checks if needed
 	if len(diag.HealthChecks) > 100 {
 		diag.HealthChecks = diag.HealthChecks[1:]
@@ -720,7 +731,7 @@ func (dm *DiagnosticsManager) performLatencyCheck(diag *ConnectionDiagnostics, c
 	diag.mu.RUnlock()
 
 	check.Details["current_latency_ms"] = latency.Milliseconds()
-	
+
 	switch {
 	case latency < 100*time.Millisecond:
 		check.Status = HealthCheckPassed
@@ -754,12 +765,12 @@ func (dm *DiagnosticsManager) performSystemDiagnostics() {
 	defer dm.systemDiag.mu.Unlock()
 
 	dm.systemDiag.LastUpdate = time.Now()
-	
+
 	// Update system health based on connection health
 	dm.mu.RLock()
 	totalConnections := len(dm.connections)
 	healthyConnections := 0
-	
+
 	for _, diag := range dm.connections {
 		if diag.HealthStatus == HealthDiagHealthy {
 			healthyConnections++
@@ -791,7 +802,7 @@ func (dm *DiagnosticsManager) cleanupOldData() {
 
 	for _, diag := range dm.connections {
 		diag.mu.Lock()
-		
+
 		// Clean old debug logs
 		validLogs := make([]*DebugEntry, 0)
 		for _, entry := range diag.DebugLogs {

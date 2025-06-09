@@ -1,200 +1,264 @@
-# Claude Vector Memory MCP Server - Production Configuration
-
+# Production configuration for MCP Memory Server
 server:
   host: "0.0.0.0"
-  port: 8080
-  read_timeout: 30s
-  write_timeout: 30s
-  idle_timeout: 120s
+  port: 9080
+  read_timeout: "30s"
+  write_timeout: "30s"
+  idle_timeout: "120s"
+  shutdown_timeout: "30s"
   max_header_bytes: 1048576
+  
+  # TLS Configuration (if using direct HTTPS)
+  tls:
+    enabled: false
+    cert_file: "/app/ssl/server.crt"
+    key_file: "/app/ssl/server.key"
+    min_version: "1.2"
+    max_version: "1.3"
 
-health:
-  enabled: true
-  port: 8081
-  path: "/health"
-  checks:
-    - name: "database"
-      enabled: true
-      timeout: 5s
-    - name: "vector_storage"
-      enabled: true
-      timeout: 5s
-    - name: "redis"
-      enabled: true
-      timeout: 3s
+# Database configuration  
+database:
+  host: "postgres"
+  port: 5432
+  database: "mcp_memory"
+  username: "mcp_user" 
+  password: "${POSTGRES_PASSWORD}"
+  sslmode: "require"
+  
+  # Connection pooling
+  max_connections: 25
+  max_idle_connections: 5
+  connection_max_lifetime: "5m"
+  connection_max_idle_time: "1m"
+  
+  # Performance tuning
+  statement_timeout: "30s"
+  lock_timeout: "10s"
+  idle_in_transaction_session_timeout: "60s"
+  
+  # Backup configuration
+  backup:
+    enabled: true
+    interval: "6h"
+    retention_days: 30
+    s3_bucket: "${BACKUP_S3_BUCKET}"
+    s3_prefix: "mcp-memory/postgres"
 
-metrics:
-  enabled: true
-  port: 8082
-  path: "/metrics"
-  interval: 30s
+# Vector database configuration
+vector_store:
+  type: "qdrant"
+  url: "http://qdrant:6333"
+  api_key: "${QDRANT_API_KEY}"
+  timeout: "30s"
+  max_retries: 3
+  collection_name: "mcp_memory_vectors"
+  vector_size: 1536
+  distance: "cosine"
+  
+  # Performance configuration
+  batch_size: 100
+  parallel_requests: 4
+  index_threshold: 10000
+  
+  # Replication (if using Qdrant cluster)
+  replication:
+    enabled: false
+    factor: 2
 
-logging:
-  level: "warn"
-  format: "json"
-  output: "stdout"
-  structured: true
-  fields:
-    service: "lerian-mcp-memory-server"
-    version: "VERSION_PLACEHOLDER"
-    environment: "production"
+# AI service configuration
+ai_service:
+  provider: "openai"
+  api_key: "${OPENAI_API_KEY}"
+  model: "text-embedding-ada-002"
+  max_tokens: 8192
+  timeout: "30s"
+  max_retries: 3
+  retry_delay: "1s"
+  
+  # Rate limiting
+  rate_limit:
+    requests_per_minute: 1000
+    requests_per_hour: 50000
+  
+  # Circuit breaker
+  circuit_breaker:
+    enabled: true
+    threshold: 10
+    timeout: "60s"
+    max_requests: 100
 
-storage:
-  type: "postgres"
-  postgres:
-    host: "${MCP_DB_HOST}"
-    port: 5432
-    database: "${MCP_DB_NAME}"
-    username: "${MCP_DB_USER}"
-    password: "${MCP_DB_PASSWORD}"
-    ssl_mode: "require"
-    max_connections: 50
-    max_idle_connections: 25
-    connection_max_lifetime: 600s
-
-vector:
-  engine: "faiss"
-  dimension: 1536
-  index_type: "IVF"
-  nlist: 1000
-  nprobe: 50
-  distance_metric: "cosine"
-  cache_size: 10000
-  persist_path: "/app/data/vectors"
-
+# Memory management
 memory:
-  conversation_history_limit: 1000
-  max_memory_entries: 100000
-  cleanup_interval: 1h
-  retention_policy:
-    default_ttl: 720h  # 30 days
-    max_ttl: 8760h     # 365 days
+  chunk_size: 2048
+  overlap_size: 200
+  max_chunks_per_operation: 1000
+  similarity_threshold: 0.7
+  max_search_results: 100
+  
+  # Decay configuration
+  decay:
+    enabled: true
+    half_life: "30d"
+    min_relevance: 0.1
+    cleanup_interval: "24h"
+  
+  # Analytics
+  analytics:
+    enabled: true
+    sampling_rate: 0.1
+    retention_days: 90
 
-intelligence:
-  pattern_recognition:
-    enabled: true
-    min_pattern_frequency: 5
-    max_patterns: 50000
-    similarity_threshold: 0.85
-  
-  knowledge_graph:
-    enabled: true
-    max_entities: 100000
-    max_relationships: 500000
-    relationship_threshold: 0.75
-  
-  context_suggestion:
-    enabled: true
-    max_suggestions: 10
-    relevance_threshold: 0.7
-    temporal_weight: 0.3
-  
-  learning:
-    enabled: true
-    feedback_weight: 0.1
-    adaptation_rate: 0.05
-
-caching:
-  memory:
-    enabled: true
-    type: "lru"
-    size: 10000
-    ttl: 1h
-  
-  query:
-    enabled: true
-    type: "lfu"
-    size: 5000
-    ttl: 30m
-  
-  vector:
-    enabled: true
-    type: "fifo"
-    size: 1000
-    ttl: 15m
-  
-  redis:
-    enabled: true
-    host: "${MCP_REDIS_HOST}"
-    port: 6379
-    password: "${MCP_REDIS_PASSWORD}"
-    db: 0
-    pool_size: 20
-    max_retries: 3
-    retry_backoff: 100ms
-
+# Security configuration
 security:
+  jwt:
+    secret: "${JWT_SECRET}"
+    expiration: "24h"
+    algorithm: "HS256"
+    
+  api_key:
+    enabled: true
+    salt: "${API_KEY_SALT}"
+    length: 32
+    
   encryption:
-    enabled: true
-    algorithm: "aes-gcm"
-    key_derivation: "pbkdf2"
-    iterations: 100000
-    key_source: "env"
-    master_key_env: "MCP_MASTER_KEY"
-  
-  access_control:
-    enabled: true
-    default_permissions: ["read"]
-    session_timeout: 24h
-    max_sessions_per_user: 10
-    token_secret: "${MCP_TOKEN_SECRET}"
-  
+    key: "${ENCRYPTION_KEY}"
+    algorithm: "AES-256-GCM"
+    
   rate_limiting:
     enabled: true
-    requests_per_minute: 60
-    burst_size: 10
-    distributed: true
-
-backup:
-  enabled: true
-  interval: 24h
-  retention_days: 90
-  compression: true
-  encryption: true
-  path: "/app/backups"
-  s3:
-    enabled: true
-    bucket: "${MCP_BACKUP_BUCKET}"
-    region: "${AWS_REGION}"
-    access_key: "${AWS_ACCESS_KEY_ID}"
-    secret_key: "${AWS_SECRET_ACCESS_KEY}"
-
-monitoring:
-  enabled: true
-  interval: 30s
-  alerts:
-    memory_threshold: 85
-    cpu_threshold: 80
-    disk_threshold: 90
-    error_rate_threshold: 1
-    response_time_threshold: 5000ms
-  
-  external:
-    prometheus:
-      enabled: true
-      push_gateway: "${MCP_PROMETHEUS_PUSH_GATEWAY}"
+    requests_per_minute: 1000
+    burst: 100
     
-    datadog:
-      enabled: false
-      api_key: "${DATADOG_API_KEY}"
-    
-    new_relic:
-      enabled: false
-      license_key: "${NEW_RELIC_LICENSE_KEY}"
-
-performance:
-  max_concurrent_requests: 1000
-  request_timeout: 30s
-  batch_size: 1000
-  worker_pool_size: 50
-  memory_limit: "2GB"
-  gc_target_percentage: 100
-
-development:
-  debug: false
-  profiling: false
   cors:
     enabled: true
-    allowed_origins: ["${MCP_ALLOWED_ORIGIN}"]
-    allowed_methods: ["GET", "POST", "PUT", "DELETE"]
-    allowed_headers: ["Authorization", "Content-Type"]
+    allowed_origins:
+      - "https://app.mcp-memory.com"
+      - "https://dashboard.mcp-memory.com"
+    allowed_methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
+    allowed_headers: ["Authorization", "Content-Type", "X-API-Key"]
+    max_age: 86400
+
+# Caching configuration
+cache:
+  type: "redis"
+  url: "redis://redis:6379"
+  password: "${REDIS_PASSWORD}"
+  database: 0
+  max_connections: 10
+  
+  # TTL settings
+  default_ttl: "5m"
+  query_ttl: "10m"
+  embedding_ttl: "1h"
+  
+  # Memory cache fallback
+  memory:
+    enabled: true
+    max_size: "100MB"
+    ttl: "1m"
+
+# Logging configuration
+logging:
+  level: "info"
+  format: "json"
+  output: "stdout"
+  
+  # File logging
+  file:
+    enabled: true
+    path: "/app/logs/mcp-memory.log"
+    max_size: "100MB"
+    max_backups: 5
+    max_age: 30
+    compress: true
+  
+  # Structured logging
+  fields:
+    service: "mcp-memory-server"
+    version: "1.0.0"
+    environment: "production"
+
+# Metrics configuration
+metrics:
+  enabled: true
+  port: 9090
+  path: "/metrics"
+  
+  # Prometheus configuration
+  prometheus:
+    enabled: true
+    namespace: "mcp_memory"
+    subsystem: "server"
+  
+  # Custom metrics
+  custom:
+    - name: "memory_operations_total"
+      type: "counter"
+      help: "Total number of memory operations"
+    - name: "query_duration_seconds"
+      type: "histogram"
+      help: "Query execution duration"
+    - name: "active_connections"
+      type: "gauge"
+      help: "Number of active connections"
+
+# Health check configuration
+health:
+  enabled: true
+  port: 9080
+  path: "/health"
+  interval: "30s"
+  timeout: "10s"
+  
+  # Component health checks
+  checks:
+    database:
+      enabled: true
+      timeout: "5s"
+      query: "SELECT 1"
+    vector_store:
+      enabled: true
+      timeout: "5s"
+    ai_service:
+      enabled: true
+      timeout: "10s"
+    cache:
+      enabled: true
+      timeout: "3s"
+
+# Tracing configuration
+tracing:
+  enabled: true
+  provider: "jaeger"
+  endpoint: "http://jaeger:14268/api/traces"
+  service_name: "mcp-memory-server"
+  sampling_rate: 0.1
+  
+  # Trace exporters
+  exporters:
+    jaeger:
+      enabled: true
+      agent_endpoint: "jaeger:6831"
+    console:
+      enabled: false
+
+# Feature flags
+features:
+  advanced_analytics: true
+  memory_compression: true
+  distributed_caching: true
+  auto_scaling: false
+  real_time_sync: true
+  
+# Environment-specific overrides
+environment:
+  name: "production"
+  region: "${AWS_REGION:-us-west-2}"
+  availability_zone: "${AWS_AZ:-us-west-2a}"
+  
+# Resource limits
+resources:
+  max_concurrent_requests: 100
+  max_memory_usage: "3GB"
+  max_cpu_usage: "80%"
+  max_disk_usage: "80%"

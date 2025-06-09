@@ -10024,7 +10024,7 @@ func (ms *MemoryServer) validateCreateTaskParams(params map[string]interface{}) 
 		SessionID:   sessionID,
 		Repository:  GlobalMemoryRepository,
 		Priority:    types.PriorityMedium,
-		Status:      types.TaskStatusTodo,
+		Status:      types.TaskStatusLegacyTodo,
 	}, nil
 }
 
@@ -10432,7 +10432,7 @@ func (ms *MemoryServer) addTaskStatusFilter(filters, params map[string]interface
 	case "active":
 		// Active includes: todo, in_progress, blocked
 		filters["task_status_in"] = []string{
-			string(types.TaskStatusTodo),
+			string(types.TaskStatusLegacyTodo),
 			string(types.TaskStatusInProgress),
 			string(types.TaskStatusBlocked),
 		}
@@ -10574,13 +10574,13 @@ func (ms *MemoryServer) handleCompleteTask(ctx context.Context, params map[strin
 
 	// Update task to completed status
 	updatedChunk := *chunk
-	completedStatus := types.TaskStatusCompleted
+	completedStatus := types.TaskStatusLegacyCompleted
 	progress := 100
 	updatedChunk.Metadata.TaskStatus = &completedStatus
 	updatedChunk.Metadata.TaskProgress = &progress
 
 	updates := map[string]interface{}{
-		"task_status":   string(types.TaskStatusCompleted),
+		"task_status":   string(types.TaskStatusLegacyCompleted),
 		"task_progress": 100,
 	}
 

@@ -159,14 +159,14 @@ func (s *Suggester) suggestDiscoveryToRequirementsTasks(projectState types.Proje
 	suggestions := []TaskSuggestion{}
 
 	// Check if user research is complete
-	if !s.hasTaskType(existingTasks, types.TaskTypeResearch) {
+	if !s.hasTaskType(existingTasks, types.TaskTypeLegacyResearch) {
 		suggestions = append(suggestions, TaskSuggestion{
 			Task: types.Task{
 				ID:          s.generateTaskID("user_research"),
 				Title:       "Conduct User Research and Stakeholder Interviews",
 				Description: "Gather requirements through user interviews, surveys, and stakeholder meetings to understand needs and expectations",
-				Type:        types.TaskTypeResearch,
-				Priority:    types.TaskPriorityHigh,
+				Type:        types.TaskTypeLegacyResearch,
+				Priority:    types.TaskPriorityLegacyHigh,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            16.0,
 					Days:             2.0,
@@ -199,8 +199,8 @@ func (s *Suggester) suggestDiscoveryToRequirementsTasks(projectState types.Proje
 				ID:          s.generateTaskID("market_analysis"),
 				Title:       "Conduct Market and Competitive Analysis",
 				Description: "Analyze market landscape, competitors, and positioning to inform product strategy and requirements",
-				Type:        types.TaskTypeAnalysis,
-				Priority:    types.TaskPriorityMedium,
+				Type:        types.TaskTypeLegacyAnalysis,
+				Priority:    types.TaskPriorityLegacyMedium,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            12.0,
 					Days:             1.5,
@@ -240,8 +240,8 @@ func (s *Suggester) suggestRequirementsToDesignTasks(projectState types.ProjectS
 				ID:          s.generateTaskID("create_prd"),
 				Title:       "Create Product Requirements Document (PRD)",
 				Description: "Compile research findings into a comprehensive PRD documenting functional and non-functional requirements",
-				Type:        types.TaskTypeDocumentation,
-				Priority:    types.TaskPriorityCritical,
+				Type:        types.TaskTypeLegacyDocumentation,
+				Priority:    types.TaskPriorityLegacyCritical,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            24.0,
 					Days:             3.0,
@@ -275,8 +275,8 @@ func (s *Suggester) suggestRequirementsToDesignTasks(projectState types.ProjectS
 				ID:          s.generateTaskID("create_user_stories"),
 				Title:       "Create and Prioritize User Stories",
 				Description: "Break down requirements into detailed user stories with acceptance criteria and priority rankings",
-				Type:        types.TaskTypeAnalysis,
-				Priority:    types.TaskPriorityHigh,
+				Type:        types.TaskTypeLegacyAnalysis,
+				Priority:    types.TaskPriorityLegacyHigh,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            16.0,
 					Days:             2.0,
@@ -310,14 +310,14 @@ func (s *Suggester) suggestDesignToDevelopmentTasks(projectState types.ProjectSt
 	suggestions := []TaskSuggestion{}
 
 	// Suggest technical architecture if not done
-	if !s.hasTaskType(existingTasks, types.TaskTypeArchitecture) {
+	if !s.hasTaskType(existingTasks, types.TaskTypeLegacyArchitecture) {
 		suggestions = append(suggestions, TaskSuggestion{
 			Task: types.Task{
 				ID:          s.generateTaskID("technical_architecture"),
 				Title:       "Design Technical Architecture and System Design",
 				Description: "Create comprehensive technical architecture including system components, data flow, and technology stack decisions",
-				Type:        types.TaskTypeArchitecture,
-				Priority:    types.TaskPriorityCritical,
+				Type:        types.TaskTypeLegacyArchitecture,
+				Priority:    types.TaskPriorityLegacyCritical,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            32.0,
 					Days:             4.0,
@@ -351,8 +351,8 @@ func (s *Suggester) suggestDesignToDevelopmentTasks(projectState types.ProjectSt
 				ID:          s.generateTaskID("dev_environment"),
 				Title:       "Setup Development Environment and CI/CD Pipeline",
 				Description: "Configure development environment, version control, and continuous integration/deployment pipeline",
-				Type:        types.TaskTypeImplementation,
-				Priority:    types.TaskPriorityHigh,
+				Type:        types.TaskTypeLegacyImplementation,
+				Priority:    types.TaskPriorityLegacyHigh,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            20.0,
 					Days:             2.5,
@@ -387,14 +387,14 @@ func (s *Suggester) suggestDevelopmentToTestingTasks(projectState types.ProjectS
 	suggestions := []TaskSuggestion{}
 
 	// Suggest test strategy if not defined
-	if !s.hasTaskType(existingTasks, types.TaskTypeTesting) {
+	if !s.hasTaskType(existingTasks, types.TaskTypeLegacyTesting) {
 		suggestions = append(suggestions, TaskSuggestion{
 			Task: types.Task{
 				ID:          s.generateTaskID("test_strategy"),
 				Title:       "Define Testing Strategy and Test Plans",
 				Description: "Create comprehensive testing strategy covering unit, integration, and end-to-end testing approaches",
-				Type:        types.TaskTypeTesting,
-				Priority:    types.TaskPriorityHigh,
+				Type:        types.TaskTypeLegacyTesting,
+				Priority:    types.TaskPriorityLegacyHigh,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            16.0,
 					Days:             2.0,
@@ -429,14 +429,14 @@ func (s *Suggester) suggestTestingToDeploymentTasks(projectState types.ProjectSt
 	suggestions := []TaskSuggestion{}
 
 	// Suggest deployment strategy
-	if !s.hasTaskType(existingTasks, types.TaskTypeDeployment) {
+	if !s.hasTaskType(existingTasks, types.TaskTypeLegacyDeployment) {
 		suggestions = append(suggestions, TaskSuggestion{
 			Task: types.Task{
 				ID:          s.generateTaskID("deployment_strategy"),
 				Title:       "Define Deployment Strategy and Release Process",
 				Description: "Plan deployment approach, rollback procedures, and release management processes",
-				Type:        types.TaskTypeDeployment,
-				Priority:    types.TaskPriorityHigh,
+				Type:        types.TaskTypeLegacyDeployment,
+				Priority:    types.TaskPriorityLegacyHigh,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            12.0,
 					Days:             1.5,
@@ -477,8 +477,8 @@ func (s *Suggester) suggestDeploymentToMaintenanceTasks(projectState types.Proje
 				ID:          s.generateTaskID("monitoring_setup"),
 				Title:       "Setup Production Monitoring and Observability",
 				Description: "Implement comprehensive monitoring, logging, and alerting for production systems",
-				Type:        types.TaskTypeImplementation,
-				Priority:    types.TaskPriorityCritical,
+				Type:        types.TaskTypeLegacyImplementation,
+				Priority:    types.TaskPriorityLegacyCritical,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            24.0,
 					Days:             3.0,
@@ -522,8 +522,8 @@ func (s *Suggester) suggestBottleneckResolutionTasks(projectState types.ProjectS
 					ID:          s.generateTaskID("testing_bottleneck"),
 					Title:       "Resolve Testing Bottleneck",
 					Description: "Address testing bottleneck: " + bottleneck,
-					Type:        types.TaskTypeTesting,
-					Priority:    types.TaskPriorityHigh,
+					Type:        types.TaskTypeLegacyTesting,
+					Priority:    types.TaskPriorityLegacyHigh,
 					EstimatedEffort: types.EffortEstimate{
 						Hours:            8.0,
 						Days:             1.0,
@@ -554,8 +554,8 @@ func (s *Suggester) suggestBottleneckResolutionTasks(projectState types.ProjectS
 					ID:          s.generateTaskID("review_bottleneck"),
 					Title:       "Streamline Code Review Process",
 					Description: "Address review bottleneck: " + bottleneck,
-					Type:        types.TaskTypeReview,
-					Priority:    types.TaskPriorityMedium,
+					Type:        types.TaskTypeLegacyReview,
+					Priority:    types.TaskPriorityLegacyMedium,
 					EstimatedEffort: types.EffortEstimate{
 						Hours:            4.0,
 						Days:             0.5,
@@ -600,15 +600,15 @@ func (s *Suggester) suggestQualityImprovementTasks(existingTasks []types.Task, g
 	}
 
 	// Suggest testing if underrepresented
-	testingRatio := float64(typeCount[types.TaskTypeTesting]) / float64(totalTasks)
+	testingRatio := float64(typeCount[types.TaskTypeLegacyTesting]) / float64(totalTasks)
 	if testingRatio < 0.2 {
 		suggestions = append(suggestions, TaskSuggestion{
 			Task: types.Task{
 				ID:          s.generateTaskID("add_testing"),
 				Title:       "Increase Test Coverage",
 				Description: "Add comprehensive testing to improve code quality and reduce bugs",
-				Type:        types.TaskTypeTesting,
-				Priority:    types.TaskPriorityMedium,
+				Type:        types.TaskTypeLegacyTesting,
+				Priority:    types.TaskPriorityLegacyMedium,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            16.0,
 					Days:             2.0,
@@ -635,15 +635,15 @@ func (s *Suggester) suggestQualityImprovementTasks(existingTasks []types.Task, g
 	}
 
 	// Suggest documentation if underrepresented
-	docRatio := float64(typeCount[types.TaskTypeDocumentation]) / float64(totalTasks)
+	docRatio := float64(typeCount[types.TaskTypeLegacyDocumentation]) / float64(totalTasks)
 	if docRatio < 0.1 {
 		suggestions = append(suggestions, TaskSuggestion{
 			Task: types.Task{
 				ID:          s.generateTaskID("add_documentation"),
 				Title:       "Improve Project Documentation",
 				Description: "Create comprehensive documentation to improve maintainability and onboarding",
-				Type:        types.TaskTypeDocumentation,
-				Priority:    types.TaskPriorityLow,
+				Type:        types.TaskTypeLegacyDocumentation,
+				Priority:    types.TaskPriorityLegacyLow,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            8.0,
 					Days:             1.0,
@@ -685,8 +685,8 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 					ID:          s.generateTaskID("performance_risk"),
 					Title:       "Address Performance Risk",
 					Description: "Mitigate performance challenge: " + challenge,
-					Type:        types.TaskTypeAnalysis,
-					Priority:    types.TaskPriorityHigh,
+					Type:        types.TaskTypeLegacyAnalysis,
+					Priority:    types.TaskPriorityLegacyHigh,
 					EstimatedEffort: types.EffortEstimate{
 						Hours:            12.0,
 						Days:             1.5,
@@ -717,8 +717,8 @@ func (s *Suggester) suggestRiskMitigationTasks(projectState types.ProjectState, 
 					ID:          s.generateTaskID("security_risk"),
 					Title:       "Address Security Risk",
 					Description: "Mitigate security challenge: " + challenge,
-					Type:        types.TaskTypeAnalysis,
-					Priority:    types.TaskPriorityCritical,
+					Type:        types.TaskTypeLegacyAnalysis,
+					Priority:    types.TaskPriorityLegacyCritical,
 					EstimatedEffort: types.EffortEstimate{
 						Hours:            16.0,
 						Days:             2.0,
@@ -762,14 +762,14 @@ func (s *Suggester) suggestDependencySetupTasks(existingTasks []types.Task, genC
 	// Find tasks that are heavily depended upon but might need prerequisites
 	for _, task := range existingTasks {
 		if dependencyMap[task.ID] > 2 { // Task is a dependency for multiple other tasks
-			if task.Type == types.TaskTypeImplementation && !s.hasRelatedTask(existingTasks, task.ID, types.TaskTypeDesign) {
+			if task.Type == types.TaskTypeLegacyImplementation && !s.hasRelatedTask(existingTasks, task.ID, types.TaskTypeLegacyDesign) {
 				suggestions = append(suggestions, TaskSuggestion{
 					Task: types.Task{
 						ID:          s.generateTaskID("design_prerequisite"),
 						Title:       "Design for " + task.Title,
 						Description: "Create design and specifications before implementing " + task.Title,
-						Type:        types.TaskTypeDesign,
-						Priority:    types.TaskPriorityHigh,
+						Type:        types.TaskTypeLegacyDesign,
+						Priority:    types.TaskPriorityLegacyHigh,
 						EstimatedEffort: types.EffortEstimate{
 							Hours:            6.0,
 							Days:             0.75,
@@ -807,14 +807,14 @@ func (s *Suggester) suggestArchitecturalTasks(projectState types.ProjectState, e
 	suggestions := []TaskSuggestion{}
 
 	// Check if architecture documentation exists
-	if !s.hasTaskType(existingTasks, types.TaskTypeArchitecture) && len(existingTasks) > 5 {
+	if !s.hasTaskType(existingTasks, types.TaskTypeLegacyArchitecture) && len(existingTasks) > 5 {
 		suggestions = append(suggestions, TaskSuggestion{
 			Task: types.Task{
 				ID:          s.generateTaskID("architecture_documentation"),
 				Title:       "Document System Architecture",
 				Description: "Create comprehensive architectural documentation for the system",
-				Type:        types.TaskTypeArchitecture,
-				Priority:    types.TaskPriorityMedium,
+				Type:        types.TaskTypeLegacyArchitecture,
+				Priority:    types.TaskPriorityLegacyMedium,
 				EstimatedEffort: types.EffortEstimate{
 					Hours:            12.0,
 					Days:             1.5,

@@ -457,12 +457,12 @@ func (r *REPL) handleShowCommand(item string, args []string) (string, error) {
 		return r.showTRD()
 	case "task":
 		if len(args) == 0 {
-			return "", fmt.Errorf("specify task ID")
+			return "", errors.New("specify task ID")
 		}
 		return r.showTask(args[0])
 	case "rule":
 		if len(args) == 0 {
-			return "", fmt.Errorf("specify rule name")
+			return "", errors.New("specify rule name")
 		}
 		return r.showRule(args[0])
 	default:

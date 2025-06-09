@@ -2,6 +2,7 @@
 package events
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -29,10 +30,10 @@ type FilterRule struct {
 
 // FilterCondition represents a single filtering condition
 type FilterCondition struct {
-	Field     string      `json:"field"`
-	Operator  FilterOp    `json:"operator"`
-	Value     interface{} `json:"value"`
-	CaseSensitive bool    `json:"case_sensitive"`
+	Field         string      `json:"field"`
+	Operator      FilterOp    `json:"operator"`
+	Value         interface{} `json:"value"`
+	CaseSensitive bool        `json:"case_sensitive"`
 }
 
 // FilterAction represents an action to take when a filter matches
@@ -54,36 +55,36 @@ const (
 type FilterOp string
 
 const (
-	FilterOpEquals       FilterOp = "equals"
-	FilterOpNotEquals    FilterOp = "not_equals"
-	FilterOpContains     FilterOp = "contains"
-	FilterOpNotContains  FilterOp = "not_contains"
-	FilterOpStartsWith   FilterOp = "starts_with"
-	FilterOpEndsWith     FilterOp = "ends_with"
-	FilterOpRegex        FilterOp = "regex"
-	FilterOpIn           FilterOp = "in"
-	FilterOpNotIn        FilterOp = "not_in"
-	FilterOpGreaterThan  FilterOp = "greater_than"
-	FilterOpLessThan     FilterOp = "less_than"
-	FilterOpBetween      FilterOp = "between"
-	FilterOpExists       FilterOp = "exists"
-	FilterOpNotExists    FilterOp = "not_exists"
-	FilterOpEmpty        FilterOp = "empty"
-	FilterOpNotEmpty     FilterOp = "not_empty"
+	FilterOpEquals      FilterOp = "equals"
+	FilterOpNotEquals   FilterOp = "not_equals"
+	FilterOpContains    FilterOp = "contains"
+	FilterOpNotContains FilterOp = "not_contains"
+	FilterOpStartsWith  FilterOp = "starts_with"
+	FilterOpEndsWith    FilterOp = "ends_with"
+	FilterOpRegex       FilterOp = "regex"
+	FilterOpIn          FilterOp = "in"
+	FilterOpNotIn       FilterOp = "not_in"
+	FilterOpGreaterThan FilterOp = "greater_than"
+	FilterOpLessThan    FilterOp = "less_than"
+	FilterOpBetween     FilterOp = "between"
+	FilterOpExists      FilterOp = "exists"
+	FilterOpNotExists   FilterOp = "not_exists"
+	FilterOpEmpty       FilterOp = "empty"
+	FilterOpNotEmpty    FilterOp = "not_empty"
 )
 
 // FilterActionType defines types of filter actions
 type FilterActionType string
 
 const (
-	FilterActionAllow      FilterActionType = "allow"
-	FilterActionDeny       FilterActionType = "deny"
-	FilterActionTransform  FilterActionType = "transform"
-	FilterActionRoute      FilterActionType = "route"
-	FilterActionTag        FilterActionType = "tag"
-	FilterActionPriority   FilterActionType = "priority"
-	FilterActionDelay      FilterActionType = "delay"
-	FilterActionDuplicate  FilterActionType = "duplicate"
+	FilterActionAllow     FilterActionType = "allow"
+	FilterActionDeny      FilterActionType = "deny"
+	FilterActionTransform FilterActionType = "transform"
+	FilterActionRoute     FilterActionType = "route"
+	FilterActionTag       FilterActionType = "tag"
+	FilterActionPriority  FilterActionType = "priority"
+	FilterActionDelay     FilterActionType = "delay"
+	FilterActionDuplicate FilterActionType = "duplicate"
 )
 
 // FilterResult represents the result of applying filters
@@ -106,7 +107,7 @@ func NewFilterEngine() *FilterEngine {
 // AddRule adds a filter rule to the engine
 func (fe *FilterEngine) AddRule(rule *FilterRule) error {
 	if rule.ID == "" {
-		return fmt.Errorf("filter rule ID cannot be empty")
+		return errors.New("filter rule ID cannot be empty")
 	}
 
 	// Validate and compile regex patterns
@@ -114,7 +115,7 @@ func (fe *FilterEngine) AddRule(rule *FilterRule) error {
 		if condition.Operator == FilterOpRegex {
 			pattern, ok := condition.Value.(string)
 			if !ok {
-				return fmt.Errorf("regex condition value must be a string")
+				return errors.New("regex condition value must be a string")
 			}
 
 			compiledRegex, err := regexp.Compile(pattern)
@@ -133,7 +134,7 @@ func (fe *FilterEngine) AddRule(rule *FilterRule) error {
 // RemoveRule removes a filter rule from the engine
 func (fe *FilterEngine) RemoveRule(ruleID string) {
 	delete(fe.filterRules, ruleID)
-	
+
 	// Clean up compiled regexes for this rule
 	for key := range fe.compiledRegexes {
 		if strings.HasPrefix(key, ruleID+"_") {
@@ -178,25 +179,25 @@ func (fe *FilterEngine) ApplyFilters(event *Event) *FilterResult {
 
 		if fe.ruleMatches(event, rule) {
 			result.MatchedRules = append(result.MatchedRules, rule.ID)
-			
+
 			// Apply rule actions
 			for _, action := range rule.Actions {
 				result.Actions = append(result.Actions, action)
-				
+
 				switch action.Type {
 				case FilterActionDeny:
 					result.Allowed = false
 					return result // Early exit for deny actions
-					
+
 				case FilterActionTransform:
 					result.Transformed = fe.applyTransformation(result.Transformed, action)
-					
+
 				case FilterActionTag:
 					fe.applyTagAction(result.Transformed, action)
-					
+
 				case FilterActionPriority:
 					fe.applyPriorityAction(result.Transformed, action)
-					
+
 				case FilterActionRoute:
 					fe.applyRouteAction(result, action)
 				}
@@ -273,19 +274,19 @@ func CombineFilters(filters ...*EventFilter) *EventFilter {
 	if len(filters) == 0 {
 		return nil
 	}
-	
+
 	if len(filters) == 1 {
 		return filters[0]
 	}
 
 	combined := &EventFilter{}
-	
+
 	// Combine all filter criteria
 	for _, filter := range filters {
 		if filter == nil {
 			continue
 		}
-		
+
 		combined.Types = append(combined.Types, filter.Types...)
 		combined.Actions = append(combined.Actions, filter.Actions...)
 		combined.Sources = append(combined.Sources, filter.Sources...)
@@ -294,7 +295,7 @@ func CombineFilters(filters ...*EventFilter) *EventFilter {
 		combined.UserIDs = append(combined.UserIDs, filter.UserIDs...)
 		combined.ClientIDs = append(combined.ClientIDs, filter.ClientIDs...)
 		combined.Tags = append(combined.Tags, filter.Tags...)
-		
+
 		// Use the most restrictive time range
 		if filter.After != nil && (combined.After == nil || filter.After.After(*combined.After)) {
 			combined.After = filter.After
@@ -302,7 +303,7 @@ func CombineFilters(filters ...*EventFilter) *EventFilter {
 		if filter.Before != nil && (combined.Before == nil || filter.Before.Before(*combined.Before)) {
 			combined.Before = filter.Before
 		}
-		
+
 		// Combine metadata
 		if combined.Metadata == nil {
 			combined.Metadata = make(map[string]interface{})
@@ -311,7 +312,7 @@ func CombineFilters(filters ...*EventFilter) *EventFilter {
 			combined.Metadata[key] = value
 		}
 	}
-	
+
 	return combined
 }
 
@@ -329,7 +330,7 @@ func (fe *FilterEngine) ruleMatches(event *Event, rule *FilterRule) bool {
 			}
 		}
 		return true
-		
+
 	case FilterLogicOR:
 		for _, condition := range rule.Conditions {
 			if fe.conditionMatches(event, condition) {
@@ -337,7 +338,7 @@ func (fe *FilterEngine) ruleMatches(event *Event, rule *FilterRule) bool {
 			}
 		}
 		return false
-		
+
 	case FilterLogicNOT:
 		for _, condition := range rule.Conditions {
 			if fe.conditionMatches(event, condition) {
@@ -345,7 +346,7 @@ func (fe *FilterEngine) ruleMatches(event *Event, rule *FilterRule) bool {
 			}
 		}
 		return true
-		
+
 	default:
 		// Default to AND logic
 		for _, condition := range rule.Conditions {
@@ -360,50 +361,50 @@ func (fe *FilterEngine) ruleMatches(event *Event, rule *FilterRule) bool {
 // conditionMatches checks if an event field matches a filter condition
 func (fe *FilterEngine) conditionMatches(event *Event, condition *FilterCondition) bool {
 	fieldValue := fe.getFieldValue(event, condition.Field)
-	
+
 	switch condition.Operator {
 	case FilterOpEquals:
 		return fe.compareValues(fieldValue, condition.Value, condition.CaseSensitive) == 0
-		
+
 	case FilterOpNotEquals:
 		return fe.compareValues(fieldValue, condition.Value, condition.CaseSensitive) != 0
-		
+
 	case FilterOpContains:
 		return fe.stringContains(fieldValue, condition.Value, condition.CaseSensitive)
-		
+
 	case FilterOpNotContains:
 		return !fe.stringContains(fieldValue, condition.Value, condition.CaseSensitive)
-		
+
 	case FilterOpStartsWith:
 		return fe.stringStartsWith(fieldValue, condition.Value, condition.CaseSensitive)
-		
+
 	case FilterOpEndsWith:
 		return fe.stringEndsWith(fieldValue, condition.Value, condition.CaseSensitive)
-		
+
 	case FilterOpRegex:
 		if regex, exists := fe.compiledRegexes[condition.Field]; exists {
 			return regex.MatchString(fmt.Sprintf("%v", fieldValue))
 		}
 		return false
-		
+
 	case FilterOpIn:
 		return fe.valueInSlice(fieldValue, condition.Value)
-		
+
 	case FilterOpNotIn:
 		return !fe.valueInSlice(fieldValue, condition.Value)
-		
+
 	case FilterOpExists:
 		return fieldValue != nil
-		
+
 	case FilterOpNotExists:
 		return fieldValue == nil
-		
+
 	case FilterOpEmpty:
 		return fe.isEmpty(fieldValue)
-		
+
 	case FilterOpNotEmpty:
 		return !fe.isEmpty(fieldValue)
-		
+
 	default:
 		return false
 	}
@@ -463,12 +464,12 @@ func (fe *FilterEngine) getFieldValue(event *Event, field string) interface{} {
 func (fe *FilterEngine) compareValues(a, b interface{}, caseSensitive bool) int {
 	aStr := fmt.Sprintf("%v", a)
 	bStr := fmt.Sprintf("%v", b)
-	
+
 	if !caseSensitive {
 		aStr = strings.ToLower(aStr)
 		bStr = strings.ToLower(bStr)
 	}
-	
+
 	return strings.Compare(aStr, bStr)
 }
 
@@ -476,12 +477,12 @@ func (fe *FilterEngine) compareValues(a, b interface{}, caseSensitive bool) int 
 func (fe *FilterEngine) stringContains(a, b interface{}, caseSensitive bool) bool {
 	aStr := fmt.Sprintf("%v", a)
 	bStr := fmt.Sprintf("%v", b)
-	
+
 	if !caseSensitive {
 		aStr = strings.ToLower(aStr)
 		bStr = strings.ToLower(bStr)
 	}
-	
+
 	return strings.Contains(aStr, bStr)
 }
 
@@ -489,12 +490,12 @@ func (fe *FilterEngine) stringContains(a, b interface{}, caseSensitive bool) boo
 func (fe *FilterEngine) stringStartsWith(a, b interface{}, caseSensitive bool) bool {
 	aStr := fmt.Sprintf("%v", a)
 	bStr := fmt.Sprintf("%v", b)
-	
+
 	if !caseSensitive {
 		aStr = strings.ToLower(aStr)
 		bStr = strings.ToLower(bStr)
 	}
-	
+
 	return strings.HasPrefix(aStr, bStr)
 }
 
@@ -502,12 +503,12 @@ func (fe *FilterEngine) stringStartsWith(a, b interface{}, caseSensitive bool) b
 func (fe *FilterEngine) stringEndsWith(a, b interface{}, caseSensitive bool) bool {
 	aStr := fmt.Sprintf("%v", a)
 	bStr := fmt.Sprintf("%v", b)
-	
+
 	if !caseSensitive {
 		aStr = strings.ToLower(aStr)
 		bStr = strings.ToLower(bStr)
 	}
-	
+
 	return strings.HasSuffix(aStr, bStr)
 }
 
@@ -528,7 +529,7 @@ func (fe *FilterEngine) isEmpty(value interface{}) bool {
 	if value == nil {
 		return true
 	}
-	
+
 	str := fmt.Sprintf("%v", value)
 	return strings.TrimSpace(str) == ""
 }
@@ -539,7 +540,7 @@ func (fe *FilterEngine) getSortedRules() []*FilterRule {
 	for _, rule := range fe.filterRules {
 		rules = append(rules, rule)
 	}
-	
+
 	// Simple insertion sort by priority (descending)
 	for i := 1; i < len(rules); i++ {
 		key := rules[i]
@@ -550,7 +551,7 @@ func (fe *FilterEngine) getSortedRules() []*FilterRule {
 		}
 		rules[j+1] = key
 	}
-	
+
 	return rules
 }
 
@@ -558,32 +559,32 @@ func (fe *FilterEngine) getSortedRules() []*FilterRule {
 func (fe *FilterEngine) applyTransformation(event *Event, action *FilterAction) *Event {
 	// Clone the event to avoid modifying the original
 	transformed := event.Clone()
-	
+
 	// Apply transformations based on action parameters
 	if newType, exists := action.Parameters["type"]; exists {
 		if eventType, ok := newType.(EventType); ok {
 			transformed.Type = eventType
 		}
 	}
-	
+
 	if newAction, exists := action.Parameters["action"]; exists {
 		if actionStr, ok := newAction.(string); ok {
 			transformed.Action = actionStr
 		}
 	}
-	
+
 	if newSource, exists := action.Parameters["source"]; exists {
 		if sourceStr, ok := newSource.(string); ok {
 			transformed.Source = sourceStr
 		}
 	}
-	
+
 	if addTags, exists := action.Parameters["add_tags"]; exists {
 		if tags, ok := addTags.([]string); ok {
 			transformed.Tags = append(transformed.Tags, tags...)
 		}
 	}
-	
+
 	if addMetadata, exists := action.Parameters["add_metadata"]; exists {
 		if metadata, ok := addMetadata.(map[string]interface{}); ok {
 			for key, value := range metadata {
@@ -591,7 +592,7 @@ func (fe *FilterEngine) applyTransformation(event *Event, action *FilterAction) 
 			}
 		}
 	}
-	
+
 	return transformed
 }
 
@@ -616,7 +617,7 @@ func (fe *FilterEngine) applyRouteAction(result *FilterResult, action *FilterAct
 	if route, exists := action.Parameters["route"]; exists {
 		result.Metadata["route"] = route
 	}
-	
+
 	if subscribers, exists := action.Parameters["subscribers"]; exists {
 		result.Metadata["target_subscribers"] = subscribers
 	}

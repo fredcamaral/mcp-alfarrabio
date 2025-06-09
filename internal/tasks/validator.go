@@ -46,25 +46,25 @@ func DefaultValidationConfig() ValidationConfig {
 		MinEstimatedHours:         0.5,
 		MaxEstimatedHours:         160.0, // 4 weeks
 		ValidTaskTypes: []types.TaskType{
-			types.TaskTypeImplementation,
-			types.TaskTypeDesign,
-			types.TaskTypeTesting,
-			types.TaskTypeDocumentation,
-			types.TaskTypeResearch,
-			types.TaskTypeReview,
-			types.TaskTypeDeployment,
-			types.TaskTypeArchitecture,
-			types.TaskTypeBugFix,
-			types.TaskTypeRefactoring,
-			types.TaskTypeIntegration,
-			types.TaskTypeAnalysis,
+			types.TaskTypeLegacyImplementation,
+			types.TaskTypeLegacyDesign,
+			types.TaskTypeLegacyTesting,
+			types.TaskTypeLegacyDocumentation,
+			types.TaskTypeLegacyResearch,
+			types.TaskTypeLegacyReview,
+			types.TaskTypeLegacyDeployment,
+			types.TaskTypeLegacyArchitecture,
+			types.TaskTypeLegacyBugFix,
+			types.TaskTypeLegacyRefactoring,
+			types.TaskTypeLegacyIntegration,
+			types.TaskTypeLegacyAnalysis,
 		},
 		ValidPriorities: []types.TaskPriority{
-			types.TaskPriorityLow,
-			types.TaskPriorityMedium,
-			types.TaskPriorityHigh,
-			types.TaskPriorityCritical,
-			types.TaskPriorityBlocking,
+			types.TaskPriorityLegacyLow,
+			types.TaskPriorityLegacyMedium,
+			types.TaskPriorityLegacyHigh,
+			types.TaskPriorityLegacyCritical,
+			types.TaskPriorityLegacyBlocking,
 		},
 		ForbiddenWords: []string{
 			"todo", "fixme", "hack", "temp", "temporary", "placeholder",
@@ -272,7 +272,7 @@ func (v *Validator) validateDescription(task *types.Task, result *types.TaskVali
 		}
 	}
 
-	if task.Type == types.TaskTypeImplementation && !hasTechnicalDetails {
+	if task.Type == types.TaskTypeLegacyImplementation && !hasTechnicalDetails {
 		v.addWarning(result, "description", "technical_detail",
 			"Implementation tasks should include technical details",
 			"Add specific technical requirements or implementation notes",
@@ -472,7 +472,7 @@ func (v *Validator) checkForbiddenWords(task *types.Task, result *types.TaskVali
 // validateTaskConsistency validates consistency between different task fields
 func (v *Validator) validateTaskConsistency(task *types.Task, result *types.TaskValidationResult) {
 	// Check priority vs complexity consistency
-	if task.Priority == types.TaskPriorityCritical && task.Complexity.Level == types.ComplexityTrivial {
+	if task.Priority == types.TaskPriorityLegacyCritical && task.Complexity.Level == types.ComplexityTrivial {
 		v.addWarning(result, "priority", "consistency",
 			"Critical priority with trivial complexity seems inconsistent",
 			"Review priority or complexity assessment",
@@ -495,16 +495,16 @@ func (v *Validator) validateTypeConsistency(task *types.Task, result *types.Task
 	content := strings.ToLower(task.Title + " " + task.Description)
 
 	typeKeywords := map[types.TaskType][]string{
-		types.TaskTypeImplementation: {"implement", "build", "create", "develop", "code"},
-		types.TaskTypeDesign:         {"design", "mockup", "wireframe", "prototype", "ui", "ux"},
-		types.TaskTypeTesting:        {"test", "qa", "verify", "validate", "check"},
-		types.TaskTypeDocumentation:  {"document", "readme", "guide", "manual", "docs"},
-		types.TaskTypeResearch:       {"research", "investigate", "analyze", "study", "explore"},
-		types.TaskTypeReview:         {"review", "audit", "inspect", "evaluate", "assess"},
-		types.TaskTypeDeployment:     {"deploy", "release", "publish", "launch", "ship"},
-		types.TaskTypeArchitecture:   {"architecture", "design", "structure", "system", "framework"},
-		types.TaskTypeBugFix:         {"fix", "bug", "issue", "error", "defect"},
-		types.TaskTypeRefactoring:    {"refactor", "cleanup", "improve", "optimize", "restructure"},
+		types.TaskTypeLegacyImplementation: {"implement", "build", "create", "develop", "code"},
+		types.TaskTypeLegacyDesign:         {"design", "mockup", "wireframe", "prototype", "ui", "ux"},
+		types.TaskTypeLegacyTesting:        {"test", "qa", "verify", "validate", "check"},
+		types.TaskTypeLegacyDocumentation:  {"document", "readme", "guide", "manual", "docs"},
+		types.TaskTypeLegacyResearch:       {"research", "investigate", "analyze", "study", "explore"},
+		types.TaskTypeLegacyReview:         {"review", "audit", "inspect", "evaluate", "assess"},
+		types.TaskTypeLegacyDeployment:     {"deploy", "release", "publish", "launch", "ship"},
+		types.TaskTypeLegacyArchitecture:   {"architecture", "design", "structure", "system", "framework"},
+		types.TaskTypeLegacyBugFix:         {"fix", "bug", "issue", "error", "defect"},
+		types.TaskTypeLegacyRefactoring:    {"refactor", "cleanup", "improve", "optimize", "restructure"},
 	}
 
 	if keywords, exists := typeKeywords[task.Type]; exists {
@@ -538,7 +538,7 @@ func (v *Validator) validatePriorityConsistency(task *types.Task, result *types.
 		}
 	}
 
-	if hasUrgentKeywords && (task.Priority == types.TaskPriorityLow || task.Priority == types.TaskPriorityMedium) {
+	if hasUrgentKeywords && (task.Priority == types.TaskPriorityLegacyLow || task.Priority == types.TaskPriorityLegacyMedium) {
 		v.addWarning(result, "priority", "consistency",
 			"Content suggests urgency but priority is not high",
 			"Consider increasing priority or removing urgent language",

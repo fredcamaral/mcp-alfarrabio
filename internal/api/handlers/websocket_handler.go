@@ -46,7 +46,7 @@ func (wh *WebSocketHandler) HandleUpgrade(w http.ResponseWriter, r *http.Request
 	}
 
 	// Log the upgrade request
-	log.Printf("WebSocket upgrade request from %s (User-Agent: %s)", 
+	log.Printf("WebSocket upgrade request from %s (User-Agent: %s)",
 		r.RemoteAddr, r.UserAgent())
 
 	// Delegate to the WebSocket server
@@ -61,11 +61,11 @@ func (wh *WebSocketHandler) HandleStatus(w http.ResponseWriter, r *http.Request)
 	}
 
 	status := map[string]interface{}{
-		"status":            "running",
-		"connection_count":  wh.server.GetConnectionCount(),
-		"max_connections":   wh.server.GetConfig().MaxConnections,
-		"server_config":     wh.server.GetConfig(),
-		"timestamp":         time.Now(),
+		"status":           "running",
+		"connection_count": wh.server.GetConnectionCount(),
+		"max_connections":  wh.server.GetConfig().MaxConnections,
+		"server_config":    wh.server.GetConfig(),
+		"timestamp":        time.Now(),
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -83,7 +83,7 @@ func (wh *WebSocketHandler) HandleMetrics(w http.ResponseWriter, r *http.Request
 		return
 	}
 
-	metrics := wh.server.GetMetrics().GetSummary()
+	metrics := wh.server.GetMetrics()
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(metrics); err != nil {
@@ -101,7 +101,7 @@ func (wh *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.
 	}
 
 	pool := wh.server.GetPool()
-	
+
 	// Get query parameters
 	clientID := r.URL.Query().Get("client_id")
 	repository := r.URL.Query().Get("repository")
@@ -116,19 +116,19 @@ func (wh *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.
 			http.Error(w, "Client not found", http.StatusNotFound)
 			return
 		}
-		
+
 		result = map[string]interface{}{
-			"client_id":   client.ID,
-			"repository":  client.Repository,
-			"session_id":  client.SessionID,
-			"metadata":    client.Metadata,
-			"connected":   true,
+			"client_id":  client.ID,
+			"repository": client.Repository,
+			"session_id": client.SessionID,
+			"metadata":   client.Metadata,
+			"connected":  true,
 		}
 	} else if repository != "" {
 		// Get connections by repository
 		clients := pool.GetConnectionsByRepository(repository)
 		connections := make([]map[string]interface{}, len(clients))
-		
+
 		for i, client := range clients {
 			connections[i] = map[string]interface{}{
 				"client_id":  client.ID,
@@ -136,17 +136,17 @@ func (wh *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.
 				"metadata":   client.Metadata,
 			}
 		}
-		
+
 		result = map[string]interface{}{
-			"repository":   repository,
-			"connections":  connections,
-			"count":        len(connections),
+			"repository":  repository,
+			"connections": connections,
+			"count":       len(connections),
 		}
 	} else if sessionID != "" {
 		// Get connections by session
 		clients := pool.GetConnectionsBySession(sessionID)
 		connections := make([]map[string]interface{}, len(clients))
-		
+
 		for i, client := range clients {
 			connections[i] = map[string]interface{}{
 				"client_id":  client.ID,
@@ -154,7 +154,7 @@ func (wh *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.
 				"metadata":   client.Metadata,
 			}
 		}
-		
+
 		result = map[string]interface{}{
 			"session_id":  sessionID,
 			"connections": connections,
@@ -164,17 +164,17 @@ func (wh *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.
 		// Get all connections summary
 		allConnections := pool.GetAllConnections()
 		summary := make([]map[string]interface{}, 0, len(allConnections))
-		
+
 		for _, client := range allConnections {
 			summary = append(summary, map[string]interface{}{
-				"client_id":  client.ID,
-				"repository": client.Repository,
-				"session_id": client.SessionID,
-				"connected_at": client.Metadata.ConnectedAt,
+				"client_id":     client.ID,
+				"repository":    client.Repository,
+				"session_id":    client.SessionID,
+				"connected_at":  client.Metadata.ConnectedAt,
 				"last_activity": client.Metadata.LastActivity,
 			})
 		}
-		
+
 		result = map[string]interface{}{
 			"total_connections": len(allConnections),
 			"connections":       summary,
@@ -242,12 +242,12 @@ func (wh *WebSocketHandler) HandleHealthCheck(w http.ResponseWriter, r *http.Req
 	if wh.server.IsRunning() {
 		health["connections"] = wh.server.GetConnectionCount()
 		health["max_connections"] = wh.server.GetConfig().MaxConnections
-		
+
 		// Add basic performance indicators
-		metrics := wh.server.GetMetrics().GetSummary()
-		health["uptime"] = metrics.Uptime.String()
-		health["total_connections"] = metrics.Connections.TotalConnections
-		health["error_rate"] = float64(metrics.Errors.TotalErrors) / float64(metrics.Connections.TotalConnections) * 100
+		metrics := wh.server.GetMetrics()
+		health["uptime"] = time.Duration(metrics.UptimeSeconds * int64(time.Second)).String()
+		health["total_connections"] = metrics.TotalConnections
+		health["error_rate"] = float64(metrics.TotalErrors) / float64(metrics.TotalConnections) * 100
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -337,20 +337,20 @@ func (wh *WebSocketHandler) HandleConnectionsList(w http.ResponseWriter, r *http
 	if startIndex >= total {
 		// Empty page
 		response := map[string]interface{}{
-			"connections":   []interface{}{},
+			"connections": []interface{}{},
 			"pagination": map[string]interface{}{
-				"page":       page,
-				"page_size":  pageSize,
-				"total":      total,
-				"pages":      (total + pageSize - 1) / pageSize,
+				"page":      page,
+				"page_size": pageSize,
+				"total":     total,
+				"pages":     (total + pageSize - 1) / pageSize,
 			},
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Failed to encode JSON response: %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
-	}
+			log.Printf("Failed to encode JSON response: %v", err)
+			http.Error(w, "Internal server error", http.StatusInternalServerError)
+			return
+		}
 		return
 	}
 
@@ -364,15 +364,15 @@ func (wh *WebSocketHandler) HandleConnectionsList(w http.ResponseWriter, r *http
 	for _, client := range allConnections {
 		if i >= startIndex && i < endIndex {
 			connections = append(connections, map[string]interface{}{
-				"client_id":     client.ID,
-				"repository":    client.Repository,
-				"session_id":    client.SessionID,
-				"remote_addr":   client.Metadata.RemoteAddr,
-				"user_agent":    client.Metadata.UserAgent,
-				"connected_at":  client.Metadata.ConnectedAt,
-				"last_activity": client.Metadata.LastActivity,
-				"cli_version":   client.Metadata.CLIVersion,
-				"bytes_sent":    client.Metadata.BytesSent,
+				"client_id":      client.ID,
+				"repository":     client.Repository,
+				"session_id":     client.SessionID,
+				"remote_addr":    client.Metadata.RemoteAddr,
+				"user_agent":     client.Metadata.UserAgent,
+				"connected_at":   client.Metadata.ConnectedAt,
+				"last_activity":  client.Metadata.LastActivity,
+				"cli_version":    client.Metadata.CLIVersion,
+				"bytes_sent":     client.Metadata.BytesSent,
 				"bytes_received": client.Metadata.BytesReceived,
 			})
 		}

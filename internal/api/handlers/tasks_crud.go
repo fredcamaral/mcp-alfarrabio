@@ -292,7 +292,7 @@ func (h *TaskCRUDHandler) requestToTask(req *CreateTaskRequest) types.Task {
 		Description:        req.Description,
 		Type:               req.Type,
 		Priority:           req.Priority,
-		Status:             types.TaskStatusTodo, // Default status
+		Status:             types.TaskStatusLegacyTodo, // Default status
 		AcceptanceCriteria: req.AcceptanceCriteria,
 		Dependencies:       req.Dependencies,
 		Tags:               req.Tags,

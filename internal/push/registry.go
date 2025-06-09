@@ -11,15 +11,15 @@ import (
 
 // CLIEndpoint represents a registered CLI endpoint for push notifications
 type CLIEndpoint struct {
-	ID           string            `json:"id"`
-	URL          string            `json:"url"`
-	Version      string            `json:"version"`
-	Capabilities []string          `json:"capabilities"`
-	Metadata     map[string]string `json:"metadata"`
-	RegisteredAt time.Time         `json:"registered_at"`
-	LastSeen     time.Time         `json:"last_seen"`
-	Status       EndpointStatus    `json:"status"`
-	Health       *EndpointHealth   `json:"health"`
+	ID           string                   `json:"id"`
+	URL          string                   `json:"url"`
+	Version      string                   `json:"version"`
+	Capabilities []string                 `json:"capabilities"`
+	Metadata     map[string]string        `json:"metadata"`
+	RegisteredAt time.Time                `json:"registered_at"`
+	LastSeen     time.Time                `json:"last_seen"`
+	Status       EndpointStatus           `json:"status"`
+	Health       *EndpointHealth          `json:"health"`
 	Preferences  *NotificationPreferences `json:"preferences"`
 }
 
@@ -47,14 +47,14 @@ type EndpointHealth struct {
 
 // NotificationPreferences defines CLI notification preferences
 type NotificationPreferences struct {
-	EnabledEvents    []string          `json:"enabled_events"`
-	DisabledEvents   []string          `json:"disabled_events"`
-	MaxRetries       int               `json:"max_retries"`
-	RetryDelay       time.Duration     `json:"retry_delay"`
-	DeliveryTimeout  time.Duration     `json:"delivery_timeout"`
-	Filters          map[string]string `json:"filters"`
-	BatchSize        int               `json:"batch_size"`
-	BatchTimeout     time.Duration     `json:"batch_timeout"`
+	EnabledEvents   []string          `json:"enabled_events"`
+	DisabledEvents  []string          `json:"disabled_events"`
+	MaxRetries      int               `json:"max_retries"`
+	RetryDelay      time.Duration     `json:"retry_delay"`
+	DeliveryTimeout time.Duration     `json:"delivery_timeout"`
+	Filters         map[string]string `json:"filters"`
+	BatchSize       int               `json:"batch_size"`
+	BatchTimeout    time.Duration     `json:"batch_timeout"`
 }
 
 // DefaultNotificationPreferences returns default notification preferences
@@ -82,15 +82,15 @@ type Registry struct {
 
 // RegistryMetrics tracks registry performance
 type RegistryMetrics struct {
-	TotalEndpoints     int           `json:"total_endpoints"`
-	ActiveEndpoints    int           `json:"active_endpoints"`
-	InactiveEndpoints  int           `json:"inactive_endpoints"`
-	RegistrationCount  int64         `json:"registration_count"`
-	DeregistrationCount int64        `json:"deregistration_count"`
-	CleanupCount       int64         `json:"cleanup_count"`
-	LastCleanup        time.Time     `json:"last_cleanup"`
-	AverageUptime      time.Duration `json:"average_uptime"`
-	mu                 sync.RWMutex
+	TotalEndpoints      int           `json:"total_endpoints"`
+	ActiveEndpoints     int           `json:"active_endpoints"`
+	InactiveEndpoints   int           `json:"inactive_endpoints"`
+	RegistrationCount   int64         `json:"registration_count"`
+	DeregistrationCount int64         `json:"deregistration_count"`
+	CleanupCount        int64         `json:"cleanup_count"`
+	LastCleanup         time.Time     `json:"last_cleanup"`
+	AverageUptime       time.Duration `json:"average_uptime"`
+	mu                  sync.RWMutex
 }
 
 // NewRegistry creates a new CLI endpoint registry
@@ -340,7 +340,7 @@ func (r *Registry) cleanup() {
 		endpoint := r.endpoints[id]
 		delete(r.endpoints, id)
 		r.metrics.CleanupCount++
-		log.Printf("Cleaned up inactive CLI endpoint: %s (last seen %v ago)", 
+		log.Printf("Cleaned up inactive CLI endpoint: %s (last seen %v ago)",
 			id, now.Sub(endpoint.LastSeen))
 	}
 

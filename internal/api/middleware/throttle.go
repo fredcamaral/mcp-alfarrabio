@@ -235,7 +235,7 @@ func (t *Throttler) GetMetrics() *ThrottleMetrics {
 
 	// Create new instance with zero values (fresh mutex)
 	metrics := NewThrottleMetrics()
-	
+
 	// Copy data fields explicitly (not the mutex)
 	metrics.TotalRequests = t.metrics.TotalRequests
 	metrics.QueuedRequests = t.metrics.QueuedRequests
@@ -243,7 +243,7 @@ func (t *Throttler) GetMetrics() *ThrottleMetrics {
 	metrics.ProcessedRequests = t.metrics.ProcessedRequests
 	metrics.AverageQueueTime = t.metrics.AverageQueueTime
 	metrics.WorkerUtilization = t.metrics.WorkerUtilization
-	
+
 	// Copy queue lengths
 	for priority, queue := range t.queues {
 		metrics.QueueLengths[priority] = len(queue.requests)

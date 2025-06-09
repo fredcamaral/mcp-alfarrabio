@@ -43,14 +43,14 @@ func (s ConnectionState) String() string {
 
 // EnhancedClient extends the basic Client with additional functionality
 type EnhancedClient struct {
-	*Client                    // Embed the original Client
-	State       ConnectionState
-	Metadata    *ConnectionMetadata
-	metrics     *ClientMetrics
-	rateLimiter *ClientRateLimiter
+	*Client      // Embed the original Client
+	State        ConnectionState
+	Metadata     *ConnectionMetadata
+	metrics      *ClientMetrics
+	rateLimiter  *ClientRateLimiter
 	lastActivity time.Time
-	errorCount  int
-	maxErrors   int
+	errorCount   int
+	maxErrors    int
 }
 
 // ClientMetrics tracks per-client metrics
@@ -76,7 +76,7 @@ type ClientRateLimiter struct {
 // NewEnhancedClient creates a new enhanced WebSocket client
 func NewEnhancedClient(id string, conn *websocket.Conn, hub *Hub, repository, sessionID string) *EnhancedClient {
 	baseClient := NewClient(id, conn, hub, repository, sessionID)
-	
+
 	return &EnhancedClient{
 		Client:       baseClient,
 		State:        StateConnected,
@@ -98,18 +98,18 @@ func NewClientRateLimiter(messagesPerSecond int) *ClientRateLimiter {
 // CheckRateLimit checks if a message is within rate limits
 func (rl *ClientRateLimiter) CheckRateLimit() bool {
 	now := time.Now()
-	
+
 	// Reset window if a second has passed
 	if now.Sub(rl.windowStart) >= time.Second {
 		rl.messageCount = 0
 		rl.windowStart = now
 	}
-	
+
 	// Check if within limits
 	if rl.messageCount >= rl.messagesPerSecond {
 		return false
 	}
-	
+
 	rl.messageCount++
 	rl.lastMessageTime = now
 	return true
@@ -135,7 +135,7 @@ func (ec *EnhancedClient) EnhancedWritePump(ctx context.Context) {
 				ec.recordError()
 				return
 			}
-			
+
 			if !ok {
 				// The hub closed the channel
 				if err := ec.Connection.WriteMessage(websocket.CloseMessage, []byte{}); err != nil {
@@ -160,7 +160,7 @@ func (ec *EnhancedClient) EnhancedWritePump(ctx context.Context) {
 				ec.recordError()
 				continue
 			}
-			
+
 			heartbeat := MemoryEvent{
 				Type:      "heartbeat",
 				Timestamp: time.Now(),
@@ -169,13 +169,13 @@ func (ec *EnhancedClient) EnhancedWritePump(ctx context.Context) {
 					"uptime":    time.Since(ec.metrics.ConnectedAt).String(),
 				},
 			}
-			
+
 			if err := ec.Connection.WriteJSON(heartbeat); err != nil {
 				log.Printf("Error writing heartbeat: %v", err)
 				ec.recordError()
 				return
 			}
-			
+
 			ec.recordMessageSent(int64(len("heartbeat")))
 
 		case <-ctx.Done():
@@ -200,7 +200,7 @@ func (ec *EnhancedClient) EnhancedReadPump(ctx context.Context) {
 	if err := ec.Connection.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
 		log.Printf("Error setting read deadline: %v", err)
 	}
-	
+
 	ec.Connection.SetPongHandler(func(string) error {
 		if err := ec.Connection.SetReadDeadline(time.Now().Add(60 * time.Second)); err != nil {
 			log.Printf("Error setting read deadline in pong handler: %v", err)
@@ -294,7 +294,7 @@ func (ec *EnhancedClient) handleEnhancedClientMessage(msg map[string]interface{}
 			Type:      "pong",
 			Timestamp: startTime,
 			Data: map[string]interface{}{
-				"client_id": ec.ID,
+				"client_id":   ec.ID,
 				"server_time": startTime.Unix(),
 			},
 		}
@@ -371,7 +371,7 @@ func (ec *EnhancedClient) recordLatency(latency time.Duration) {
 func (ec *EnhancedClient) recordError() {
 	ec.errorCount++
 	ec.metrics.Errors++
-	
+
 	// Check if max errors exceeded
 	if ec.errorCount >= ec.maxErrors {
 		log.Printf("Client %s exceeded max errors (%d), marking for disconnection", ec.ID, ec.maxErrors)
@@ -387,7 +387,7 @@ func (ec *EnhancedClient) sendMetrics() {
 		Timestamp: time.Now(),
 		Data:      metrics,
 	}
-	
+
 	select {
 	case ec.Send <- metricsEvent:
 		log.Printf("Sent metrics to client %s", ec.ID)
@@ -399,7 +399,7 @@ func (ec *EnhancedClient) sendMetrics() {
 // GetMetrics returns current client metrics
 func (ec *EnhancedClient) GetMetrics() *ClientMetrics {
 	uptime := time.Since(ec.metrics.ConnectedAt)
-	
+
 	return &ClientMetrics{
 		MessagesReceived: ec.metrics.MessagesReceived,
 		MessagesSent:     ec.metrics.MessagesSent,
@@ -425,17 +425,17 @@ func (ec *EnhancedClient) GetIdleTime() time.Duration {
 // estimateMessageSize estimates the size of a MemoryEvent
 func (ec *EnhancedClient) estimateMessageSize(event MemoryEvent) int64 {
 	// Rough estimation based on string lengths
-	size := int64(len(event.Type) + len(event.Action) + len(event.ChunkID) + 
+	size := int64(len(event.Type) + len(event.Action) + len(event.ChunkID) +
 		len(event.Repository) + len(event.SessionID) + len(event.Content) + len(event.Summary))
-	
+
 	// Add estimated size for tags and data
 	for _, tag := range event.Tags {
 		size += int64(len(tag))
 	}
-	
+
 	// Add rough estimation for JSON data (this could be more precise)
 	size += 100 // Estimated overhead for JSON structure and timestamp
-	
+
 	return size
 }
 

@@ -17,18 +17,17 @@ type ConnectionPool struct {
 
 // PoolMetrics tracks connection pool performance
 type PoolMetrics struct {
-	TotalConnections     int64         `json:"total_connections"`
-	ActiveConnections    int           `json:"active_connections"`
-	MaxConnections       int           `json:"max_connections"`
-	ConnectionsAccepted  int64         `json:"connections_accepted"`
-	ConnectionsRejected  int64         `json:"connections_rejected"`
-	ConnectionsClosed    int64         `json:"connections_closed"`
-	AverageLifetime      time.Duration `json:"average_lifetime"`
-	MemoryUsage          int64         `json:"memory_usage_bytes"`
-	LastCleanup          time.Time     `json:"last_cleanup"`
-	mu                   sync.RWMutex
+	TotalConnections    int64         `json:"total_connections"`
+	ActiveConnections   int           `json:"active_connections"`
+	MaxConnections      int           `json:"max_connections"`
+	ConnectionsAccepted int64         `json:"connections_accepted"`
+	ConnectionsRejected int64         `json:"connections_rejected"`
+	ConnectionsClosed   int64         `json:"connections_closed"`
+	AverageLifetime     time.Duration `json:"average_lifetime"`
+	MemoryUsage         int64         `json:"memory_usage_bytes"`
+	LastCleanup         time.Time     `json:"last_cleanup"`
+	mu                  sync.RWMutex
 }
-
 
 // NewConnectionPool creates a new connection pool
 func NewConnectionPool(maxSize int) *ConnectionPool {
@@ -59,7 +58,7 @@ func (p *ConnectionPool) AddConnection(client *Client) bool {
 	p.metrics.ConnectionsAccepted++
 	p.metrics.TotalConnections++
 
-	log.Printf("Connection added to pool: %s (total: %d/%d)", 
+	log.Printf("Connection added to pool: %s (total: %d/%d)",
 		client.ID, len(p.connections), p.maxSize)
 
 	return true
@@ -86,7 +85,7 @@ func (p *ConnectionPool) RemoveConnection(clientID string) bool {
 	p.metrics.ActiveConnections = len(p.connections)
 	p.metrics.ConnectionsClosed++
 
-	log.Printf("Connection removed from pool: %s (total: %d/%d)", 
+	log.Printf("Connection removed from pool: %s (total: %d/%d)",
 		clientID, len(p.connections), p.maxSize)
 
 	return true
@@ -193,7 +192,7 @@ func (p *ConnectionPool) CleanupStaleConnections(maxIdleTime time.Duration) int 
 	// Remove stale connections
 	for _, id := range staleConnections {
 		client := p.connections[id]
-		
+
 		// Close connection
 		if client.Connection != nil {
 			if err := client.Connection.Close(); err != nil {
@@ -258,15 +257,15 @@ func (p *ConnectionPool) GetMetrics() *PoolMetrics {
 
 	// Return a copy to avoid race conditions
 	return &PoolMetrics{
-		TotalConnections:     p.metrics.TotalConnections,
-		ActiveConnections:    p.metrics.ActiveConnections,
-		MaxConnections:       p.metrics.MaxConnections,
-		ConnectionsAccepted:  p.metrics.ConnectionsAccepted,
-		ConnectionsRejected:  p.metrics.ConnectionsRejected,
-		ConnectionsClosed:    p.metrics.ConnectionsClosed,
-		AverageLifetime:      p.metrics.AverageLifetime,
-		MemoryUsage:          p.metrics.MemoryUsage,
-		LastCleanup:          p.metrics.LastCleanup,
+		TotalConnections:    p.metrics.TotalConnections,
+		ActiveConnections:   p.metrics.ActiveConnections,
+		MaxConnections:      p.metrics.MaxConnections,
+		ConnectionsAccepted: p.metrics.ConnectionsAccepted,
+		ConnectionsRejected: p.metrics.ConnectionsRejected,
+		ConnectionsClosed:   p.metrics.ConnectionsClosed,
+		AverageLifetime:     p.metrics.AverageLifetime,
+		MemoryUsage:         p.metrics.MemoryUsage,
+		LastCleanup:         p.metrics.LastCleanup,
 	}
 }
 
@@ -315,10 +314,10 @@ func (p *ConnectionPool) GetConnectionStats() map[string]interface{} {
 	defer p.mu.RUnlock()
 
 	stats := map[string]interface{}{
-		"total_connections":    len(p.connections),
-		"max_connections":      p.maxSize,
-		"utilization_percent":  float64(len(p.connections)) / float64(p.maxSize) * 100,
-		"available_slots":      p.maxSize - len(p.connections),
+		"total_connections":   len(p.connections),
+		"max_connections":     p.maxSize,
+		"utilization_percent": float64(len(p.connections)) / float64(p.maxSize) * 100,
+		"available_slots":     p.maxSize - len(p.connections),
 	}
 
 	// Connection distribution by repository

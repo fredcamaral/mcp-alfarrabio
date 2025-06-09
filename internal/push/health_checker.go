@@ -215,7 +215,7 @@ func (hc *HealthChecker) performHealthCheckCycle() {
 	// Update metrics
 	hc.updateCycleMetrics(len(endpoints), healthyCount, unhealthyCount, time.Since(startTime))
 
-	log.Printf("Health check cycle completed: %d healthy, %d unhealthy (took %v)", 
+	log.Printf("Health check cycle completed: %d healthy, %d unhealthy (took %v)",
 		healthyCount, unhealthyCount, time.Since(startTime))
 }
 
@@ -286,7 +286,7 @@ func (hc *HealthChecker) getHealthCheckURL(endpoint *CLIEndpoint) string {
 
 	// Try common health check paths
 	healthPaths := []string{"/health", "/healthz", "/ping", "/status"}
-	
+
 	// Use the first path or default to /health
 	for _, path := range healthPaths {
 		if hc.hasCapability(endpoint, "health_check_"+strings.TrimPrefix(path, "/")) {
@@ -364,10 +364,10 @@ func (hc *HealthChecker) processHealthCheckResult(result *HealthCheckResult) {
 	// Log health status changes
 	if result.Success != endpoint.Health.IsHealthy {
 		if result.Success {
-			log.Printf("Endpoint %s (%s) is now healthy (response time: %v)", 
+			log.Printf("Endpoint %s (%s) is now healthy (response time: %v)",
 				result.EndpointID, result.URL, result.ResponseTime)
 		} else {
-			log.Printf("Endpoint %s (%s) is now unhealthy: %s (consecutive failures: %d)", 
+			log.Printf("Endpoint %s (%s) is now unhealthy: %s (consecutive failures: %d)",
 				result.EndpointID, result.URL, result.Error, newHealth.ConsecutiveFailures)
 		}
 	}
@@ -448,7 +448,7 @@ func (hc *HealthChecker) GetMetrics() *HealthMetrics {
 // GetHealthSummary returns a summary of endpoint health status
 func (hc *HealthChecker) GetHealthSummary() map[string]interface{} {
 	metrics := hc.GetMetrics()
-	
+
 	return map[string]interface{}{
 		"running":             hc.IsRunning(),
 		"check_interval":      hc.checkInterval.String(),

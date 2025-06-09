@@ -1,445 +1,324 @@
-// Package pool provides connection pooling for storage backends
+// Package pool provides database connection pooling functionality with monitoring and health checks.
 package pool
 
 import (
 	"context"
-	"errors"
+	"database/sql"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
+
+	"lerian-mcp-memory/internal/config"
+
+	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
-var (
-	ErrPoolClosed    = errors.New("pool is closed")
-	ErrPoolExhausted = errors.New("pool is exhausted")
-	ErrInvalidConn   = errors.New("invalid connection")
-)
-
-// Connection represents a pooled connection
-type Connection interface {
-	// IsAlive checks if the connection is still valid
-	IsAlive() bool
-	// Close closes the underlying connection
-	Close() error
-	// Reset resets the connection state
-	Reset() error
-}
-
-// Factory creates new connections
-type Factory func(ctx context.Context) (Connection, error)
-
-// PoolConfig holds pool configuration
-type PoolConfig struct {
-	MaxSize             int           // Maximum number of connections
-	MinSize             int           // Minimum number of connections to maintain
-	MaxIdleTime         time.Duration // Maximum time a connection can be idle
-	MaxLifetime         time.Duration // Maximum lifetime of a connection
-	HealthCheckInterval time.Duration // How often to check connection health
-}
-
-// DefaultPoolConfig returns default pool configuration
-func DefaultPoolConfig() *PoolConfig {
-	return &PoolConfig{
-		MaxSize:             10,
-		MinSize:             2,
-		MaxIdleTime:         30 * time.Minute,
-		MaxLifetime:         2 * time.Hour,
-		HealthCheckInterval: 1 * time.Minute,
-	}
-}
-
-// pooledConn wraps a connection with metadata
-type pooledConn struct {
-	conn       Connection
-	createdAt  time.Time
-	lastUsedAt time.Time
-	usageCount int64
-	mu         sync.Mutex
-}
-
-func (pc *pooledConn) isExpired(maxLifetime, maxIdleTime time.Duration) bool {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
-
-	now := time.Now()
-	if maxLifetime > 0 && now.Sub(pc.createdAt) > maxLifetime {
-		return true
-	}
-	if maxIdleTime > 0 && now.Sub(pc.lastUsedAt) > maxIdleTime {
-		return true
-	}
-	return false
-}
-
-func (pc *pooledConn) markUsed() {
-	pc.mu.Lock()
-	defer pc.mu.Unlock()
-	pc.lastUsedAt = time.Now()
-	pc.usageCount++
-}
-
-// ConnectionPool manages a pool of connections
+// ConnectionPool manages database connections with health monitoring
 type ConnectionPool struct {
-	config      *PoolConfig
-	factory     Factory
-	connections chan *pooledConn
-	mu          sync.RWMutex
-	closed      int32
-	activeCount int32
-	waitCount   int32
-
-	// Metrics
-	totalCreated   int64
-	totalDestroyed int64
-	totalErrors    int64
-
-	// Health check
-	healthTicker *time.Ticker
-	healthDone   chan struct{}
-	healthWg     sync.WaitGroup
+	db            *sql.DB
+	config        *config.DatabaseConfig
+	stats         *PoolStats
+	healthChecker *HealthChecker
+	mu            sync.RWMutex
 }
 
-// NewConnectionPool creates a new connection pool
-func NewConnectionPool(config *PoolConfig, factory Factory) (*ConnectionPool, error) {
-	if config == nil {
-		config = DefaultPoolConfig()
+// PoolStats tracks connection pool statistics
+type PoolStats struct {
+	TotalConns        int           `json:"total_connections"`
+	IdleConns         int           `json:"idle_connections"`
+	OpenConns         int           `json:"open_connections"`
+	InUseConns        int           `json:"in_use_connections"`
+	WaitCount         int64         `json:"wait_count"`
+	WaitDuration      time.Duration `json:"wait_duration"`
+	MaxIdleClosed     int64         `json:"max_idle_closed"`
+	MaxIdleTimeClosed int64         `json:"max_idle_time_closed"`
+	MaxLifetimeClosed int64         `json:"max_lifetime_closed"`
+}
+
+// HealthChecker monitors connection pool health
+type HealthChecker struct {
+	interval     time.Duration
+	timeout      time.Duration
+	failureCount int
+	maxFailures  int
+	isHealthy    bool
+	lastCheck    time.Time
+	lastError    error
+	mu           sync.RWMutex
+	stopCh       chan struct{}
+	isRunning    bool
+}
+
+// NewConnectionPool creates a new database connection pool
+func NewConnectionPool(cfg *config.DatabaseConfig) (*ConnectionPool, error) {
+	// Build connection string
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Name, cfg.SSLMode)
+
+	// Open database connection
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	if config.MaxSize <= 0 {
-		return nil, errors.New("max size must be positive")
+	// Configure connection pool
+	db.SetMaxOpenConns(cfg.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.MaxIdleConns)
+	db.SetConnMaxLifetime(cfg.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.ConnMaxIdleTime)
+
+	// Test connection
+	ctx, cancel := context.WithTimeout(context.Background(), cfg.QueryTimeout)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
+		db.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
-	if config.MinSize < 0 || config.MinSize > config.MaxSize {
-		return nil, errors.New("invalid min size")
+
+	// Create health checker
+	healthChecker := &HealthChecker{
+		interval:    time.Minute,
+		timeout:     time.Second * 10,
+		maxFailures: 3,
+		isHealthy:   true,
+		stopCh:      make(chan struct{}),
 	}
 
 	pool := &ConnectionPool{
-		config:      config,
-		factory:     factory,
-		connections: make(chan *pooledConn, config.MaxSize),
-		healthDone:  make(chan struct{}),
+		db:            db,
+		config:        cfg,
+		stats:         &PoolStats{},
+		healthChecker: healthChecker,
 	}
 
-	// Pre-create minimum connections
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-	defer cancel()
-
-	for i := 0; i < config.MinSize; i++ {
-		if err := pool.createConnection(ctx); err != nil {
-			// Clean up any created connections
-			_ = pool.Close()
-			return nil, fmt.Errorf("failed to create initial connections: %w", err)
-		}
-	}
-
-	// Start health check routine
-	if config.HealthCheckInterval > 0 {
-		pool.healthTicker = time.NewTicker(config.HealthCheckInterval)
-		pool.healthWg.Add(1)
-		go pool.healthCheckLoop()
-	}
+	// Start health monitoring
+	go pool.startHealthMonitoring()
 
 	return pool, nil
 }
 
-// Get acquires a connection from the pool
-func (p *ConnectionPool) Get(ctx context.Context) (Connection, error) {
-	if atomic.LoadInt32(&p.closed) == 1 {
-		return nil, ErrPoolClosed
+// GetDB returns the underlying database connection
+func (cp *ConnectionPool) GetDB() *sql.DB {
+	return cp.db
+}
+
+// Query executes a query with timeout and monitoring
+func (cp *ConnectionPool) Query(ctx context.Context, query string, args ...interface{}) (*sql.Rows, error) {
+	start := time.Now()
+
+	// Add query timeout if not already set
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cp.config.QueryTimeout)
+		defer cancel()
 	}
 
-	atomic.AddInt32(&p.waitCount, 1)
-	defer atomic.AddInt32(&p.waitCount, -1)
+	rows, err := cp.db.QueryContext(ctx, query, args...)
 
-	// Try to get an existing connection
-	select {
-	case pc := <-p.connections:
-		if pc == nil {
-			return nil, ErrInvalidConn
-		}
+	duration := time.Since(start)
+	cp.recordQueryMetrics(query, duration, err)
 
-		// Check if connection is still valid
-		if pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) || !pc.conn.IsAlive() {
-			p.destroyConnection(pc)
-			// Try to create a new one
-			if err := p.createConnection(ctx); err != nil {
-				return nil, err
-			}
-			return p.Get(ctx)
-		}
+	return rows, err
+}
 
-		pc.markUsed()
-		atomic.AddInt32(&p.activeCount, 1)
-		return &WrappedConn{pc: pc, pool: p}, nil
+// QueryRow executes a single-row query with timeout and monitoring
+func (cp *ConnectionPool) QueryRow(ctx context.Context, query string, args ...interface{}) *sql.Row {
+	start := time.Now()
 
-	default:
-		// No connection available, try to create one
-		currentSize := len(p.connections) + int(atomic.LoadInt32(&p.activeCount))
-		if currentSize < p.config.MaxSize {
-			if err := p.createConnection(ctx); err != nil {
-				return nil, err
-			}
-			return p.Get(ctx)
-		}
+	// Add query timeout if not already set
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cp.config.QueryTimeout)
+		defer cancel()
+	}
 
-		// Pool is at max size, wait for a connection
-		select {
-		case pc := <-p.connections:
-			if pc == nil {
-				return nil, ErrInvalidConn
-			}
+	row := cp.db.QueryRowContext(ctx, query, args...)
 
-			if pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) || !pc.conn.IsAlive() {
-				p.destroyConnection(pc)
-				return nil, ErrPoolExhausted
-			}
+	duration := time.Since(start)
+	cp.recordQueryMetrics(query, duration, nil)
 
-			pc.markUsed()
-			atomic.AddInt32(&p.activeCount, 1)
-			return &WrappedConn{pc: pc, pool: p}, nil
+	return row
+}
 
-		case <-ctx.Done():
-			return nil, ctx.Err()
+// Exec executes a command with timeout and monitoring
+func (cp *ConnectionPool) Exec(ctx context.Context, query string, args ...interface{}) (sql.Result, error) {
+	start := time.Now()
+
+	// Add query timeout if not already set
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cp.config.QueryTimeout)
+		defer cancel()
+	}
+
+	result, err := cp.db.ExecContext(ctx, query, args...)
+
+	duration := time.Since(start)
+	cp.recordQueryMetrics(query, duration, err)
+
+	return result, err
+}
+
+// Begin starts a transaction with timeout
+func (cp *ConnectionPool) Begin(ctx context.Context) (*sql.Tx, error) {
+	// Add query timeout if not already set
+	if _, hasDeadline := ctx.Deadline(); !hasDeadline {
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(ctx, cp.config.QueryTimeout)
+		defer cancel()
+	}
+
+	return cp.db.BeginTx(ctx, nil)
+}
+
+// GetStats returns current connection pool statistics
+func (cp *ConnectionPool) GetStats() *PoolStats {
+	cp.mu.RLock()
+	defer cp.mu.RUnlock()
+
+	stats := cp.db.Stats()
+
+	cp.stats.TotalConns = stats.MaxOpenConnections
+	cp.stats.OpenConns = stats.OpenConnections
+	cp.stats.InUseConns = stats.InUse
+	cp.stats.IdleConns = stats.Idle
+	cp.stats.WaitCount = stats.WaitCount
+	cp.stats.WaitDuration = stats.WaitDuration
+	cp.stats.MaxIdleClosed = stats.MaxIdleClosed
+	cp.stats.MaxIdleTimeClosed = stats.MaxIdleTimeClosed
+	cp.stats.MaxLifetimeClosed = stats.MaxLifetimeClosed
+
+	return cp.stats
+}
+
+// IsHealthy returns the current health status
+func (cp *ConnectionPool) IsHealthy() bool {
+	return cp.healthChecker.IsHealthy()
+}
+
+// GetHealthStatus returns detailed health information
+func (cp *ConnectionPool) GetHealthStatus() map[string]interface{} {
+	return cp.healthChecker.GetStatus()
+}
+
+// recordQueryMetrics records query execution metrics
+func (cp *ConnectionPool) recordQueryMetrics(query string, duration time.Duration, err error) {
+	// Log slow queries if enabled
+	if cp.config.EnableQueryLogging && duration > cp.config.SlowQueryThreshold {
+		fmt.Printf("SLOW QUERY [%v]: %s\n", duration, query)
+	}
+
+	// Record metrics if enabled
+	if cp.config.EnableMetrics {
+		// TODO: Integrate with metrics system (Prometheus, etc.)
+		// For now, just log to stdout in debug mode
+		if duration > cp.config.SlowQueryThreshold {
+			fmt.Printf("METRICS: query_duration=%v query_error=%v\n", duration, err != nil)
 		}
 	}
 }
 
-// Put returns a connection to the pool
-func (p *ConnectionPool) Put(conn Connection) error {
-	// Unwrap the connection first to check if it's already closed
-	wc, ok := conn.(*WrappedConn)
-	if !ok {
-		return ErrInvalidConn
-	}
-
-	// If pool is closed, close the underlying connection directly
-	if atomic.LoadInt32(&p.closed) == 1 {
-		// Don't call wc.Close() to avoid infinite recursion
-		if wc.pc != nil && wc.pc.conn != nil {
-			_ = wc.pc.conn.Close() // Ignore close error
-		}
-		return ErrPoolClosed
-	}
-
-	atomic.AddInt32(&p.activeCount, -1)
-
-	// Reset the connection
-	if err := wc.pc.conn.Reset(); err != nil {
-		p.destroyConnection(wc.pc)
-		return nil
-	}
-
-	// Check if we should keep this connection
-	currentSize := len(p.connections) + int(atomic.LoadInt32(&p.activeCount))
-	if currentSize > p.config.MaxSize {
-		p.destroyConnection(wc.pc)
-		return nil
-	}
-
-	// Return to pool
-	select {
-	case p.connections <- wc.pc:
-		return nil
-	default:
-		// Pool is full, destroy the connection
-		p.destroyConnection(wc.pc)
-		return nil
-	}
+// startHealthMonitoring starts the health checker goroutine
+func (cp *ConnectionPool) startHealthMonitoring() {
+	cp.healthChecker.Start(cp.db)
 }
 
-// Close closes the pool and all connections
-func (p *ConnectionPool) Close() error {
-	if !atomic.CompareAndSwapInt32(&p.closed, 0, 1) {
-		return nil // Already closed
-	}
-
-	// Stop health check and wait for it to complete
-	if p.healthTicker != nil {
-		p.healthTicker.Stop()
-		close(p.healthDone)
-		// Wait for health check goroutine to exit
-		p.healthWg.Wait()
-	}
-
-	// Close all connections
-	close(p.connections)
-	var lastErr error
-	for pc := range p.connections {
-		if err := pc.conn.Close(); err != nil {
-			lastErr = err
-		}
-	}
-
-	return lastErr
+// Close closes the connection pool and stops health monitoring
+func (cp *ConnectionPool) Close() error {
+	cp.healthChecker.Stop()
+	return cp.db.Close()
 }
 
-// Stats returns pool statistics
-func (p *ConnectionPool) Stats() PoolStats {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
-
-	return PoolStats{
-		MaxSize:        p.config.MaxSize,
-		CurrentSize:    len(p.connections) + int(atomic.LoadInt32(&p.activeCount)),
-		IdleCount:      len(p.connections),
-		ActiveCount:    int(atomic.LoadInt32(&p.activeCount)),
-		WaitCount:      int(atomic.LoadInt32(&p.waitCount)),
-		TotalCreated:   atomic.LoadInt64(&p.totalCreated),
-		TotalDestroyed: atomic.LoadInt64(&p.totalDestroyed),
-		TotalErrors:    atomic.LoadInt64(&p.totalErrors),
-	}
+// IsHealthy returns whether the health checker considers the pool healthy
+func (hc *HealthChecker) IsHealthy() bool {
+	hc.mu.RLock()
+	defer hc.mu.RUnlock()
+	return hc.isHealthy
 }
 
-// createConnection creates a new connection and adds it to the pool
-func (p *ConnectionPool) createConnection(ctx context.Context) error {
-	conn, err := p.factory(ctx)
-	if err != nil {
-		atomic.AddInt64(&p.totalErrors, 1)
-		return fmt.Errorf("failed to create connection: %w", err)
+// GetStatus returns detailed health status information
+func (hc *HealthChecker) GetStatus() map[string]interface{} {
+	hc.mu.RLock()
+	defer hc.mu.RUnlock()
+
+	status := map[string]interface{}{
+		"healthy":       hc.isHealthy,
+		"failure_count": hc.failureCount,
+		"max_failures":  hc.maxFailures,
+		"last_check":    hc.lastCheck,
 	}
 
-	pc := &pooledConn{
-		conn:       conn,
-		createdAt:  time.Now(),
-		lastUsedAt: time.Now(),
+	if hc.lastError != nil {
+		status["last_error"] = hc.lastError.Error()
 	}
 
-	select {
-	case p.connections <- pc:
-		atomic.AddInt64(&p.totalCreated, 1)
-		return nil
-	default:
-		// Pool is full, destroy the connection
-		_ = conn.Close()
-		return ErrPoolExhausted
-	}
+	return status
 }
 
-// destroyConnection destroys a connection
-func (p *ConnectionPool) destroyConnection(pc *pooledConn) {
-	if pc == nil || pc.conn == nil {
+// Start begins health checking
+func (hc *HealthChecker) Start(db *sql.DB) {
+	hc.mu.Lock()
+	if hc.isRunning {
+		hc.mu.Unlock()
+		return
+	}
+	hc.isRunning = true
+	hc.mu.Unlock()
+
+	go hc.healthCheckLoop(db)
+}
+
+// Stop stops health checking
+func (hc *HealthChecker) Stop() {
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+
+	if !hc.isRunning {
 		return
 	}
 
-	if err := pc.conn.Close(); err != nil {
-		atomic.AddInt64(&p.totalErrors, 1)
-	}
-	atomic.AddInt64(&p.totalDestroyed, 1)
+	close(hc.stopCh)
+	hc.isRunning = false
 }
 
-// healthCheckLoop performs periodic health checks
-func (p *ConnectionPool) healthCheckLoop() {
-	defer p.healthWg.Done()
+// healthCheckLoop runs the health check periodically
+func (hc *HealthChecker) healthCheckLoop(db *sql.DB) {
+	ticker := time.NewTicker(hc.interval)
+	defer ticker.Stop()
+
 	for {
 		select {
-		case <-p.healthTicker.C:
-			p.performHealthCheck()
-		case <-p.healthDone:
+		case <-ticker.C:
+			hc.performHealthCheck(db)
+		case <-hc.stopCh:
 			return
 		}
 	}
 }
 
-// performHealthCheck checks and maintains pool health
-func (p *ConnectionPool) performHealthCheck() {
-	// Remove expired connections
-	var toCheck []*pooledConn
-	for {
-		select {
-		case pc := <-p.connections:
-			if pc == nil {
-				continue
-			}
-			toCheck = append(toCheck, pc)
-		default:
-			goto checkConnections
+// performHealthCheck executes a health check
+func (hc *HealthChecker) performHealthCheck(db *sql.DB) {
+	ctx, cancel := context.WithTimeout(context.Background(), hc.timeout)
+	defer cancel()
+
+	err := db.PingContext(ctx)
+
+	hc.mu.Lock()
+	defer hc.mu.Unlock()
+
+	hc.lastCheck = time.Now()
+
+	if err != nil {
+		hc.failureCount++
+		hc.lastError = err
+
+		if hc.failureCount >= hc.maxFailures {
+			hc.isHealthy = false
 		}
+	} else {
+		hc.failureCount = 0
+		hc.lastError = nil
+		hc.isHealthy = true
 	}
-
-checkConnections:
-	for _, pc := range toCheck {
-		// Check if connection should be destroyed
-		shouldDestroy := pc.isExpired(p.config.MaxLifetime, p.config.MaxIdleTime) ||
-			!pc.conn.IsAlive() ||
-			atomic.LoadInt32(&p.closed) == 1
-
-		if shouldDestroy {
-			p.destroyConnection(pc)
-			continue
-		}
-
-		// Try to put back healthy connection
-		select {
-		case p.connections <- pc:
-			// Successfully returned to pool
-		default:
-			// Pool is full, destroy connection
-			p.destroyConnection(pc)
-		}
-	}
-
-	// Ensure minimum connections (only if pool is not closed)
-	if atomic.LoadInt32(&p.closed) == 0 {
-		currentSize := len(p.connections) + int(atomic.LoadInt32(&p.activeCount))
-		for currentSize < p.config.MinSize {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			if err := p.createConnection(ctx); err != nil {
-				cancel()
-				break
-			}
-			cancel()
-			currentSize++
-		}
-	}
-}
-
-// WrappedConn wraps a pooled connection for safe return to pool
-type WrappedConn struct {
-	pc     *pooledConn
-	pool   *ConnectionPool
-	mu     sync.Mutex
-	closed bool
-}
-
-func (wc *WrappedConn) IsAlive() bool {
-	wc.mu.Lock()
-	defer wc.mu.Unlock()
-	if wc.closed {
-		return false
-	}
-	return wc.pc.conn.IsAlive()
-}
-
-func (wc *WrappedConn) Close() error {
-	wc.mu.Lock()
-	if wc.closed {
-		wc.mu.Unlock()
-		return nil
-	}
-	wc.closed = true
-	wc.mu.Unlock()
-
-	// Call Put without holding the lock to avoid deadlock
-	return wc.pool.Put(wc)
-}
-
-func (wc *WrappedConn) Reset() error {
-	return wc.pc.conn.Reset()
-}
-
-// Unwrap returns the underlying connection
-func (wc *WrappedConn) Unwrap() Connection {
-	return wc.pc.conn
-}
-
-// PoolStats contains pool statistics
-type PoolStats struct {
-	MaxSize        int
-	CurrentSize    int
-	IdleCount      int
-	ActiveCount    int
-	WaitCount      int
-	TotalCreated   int64
-	TotalDestroyed int64
-	TotalErrors    int64
 }

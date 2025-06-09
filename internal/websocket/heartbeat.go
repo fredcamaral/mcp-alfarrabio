@@ -23,15 +23,15 @@ type HeartbeatManager struct {
 
 // ClientHealth tracks health status of a WebSocket client
 type ClientHealth struct {
-	Client          *Client
-	LastPingSent    time.Time
+	Client           *Client
+	LastPingSent     time.Time
 	LastPongReceived time.Time
 	ConsecutiveFails int
-	IsHealthy       bool
-	TotalPings      int64
-	TotalPongs      int64
-	AverageLatency  time.Duration
-	LastLatency     time.Duration
+	IsHealthy        bool
+	TotalPings       int64
+	TotalPongs       int64
+	AverageLatency   time.Duration
+	LastLatency      time.Duration
 }
 
 // HeartbeatMetrics tracks heartbeat system performance
@@ -51,7 +51,7 @@ type HeartbeatMetrics struct {
 // NewHeartbeatManager creates a new heartbeat manager
 func NewHeartbeatManager(pingInterval, pongTimeout time.Duration) *HeartbeatManager {
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	return &HeartbeatManager{
 		clients:      make(map[string]*ClientHealth),
 		pingInterval: pingInterval,
@@ -67,7 +67,7 @@ func NewHeartbeatManager(pingInterval, pongTimeout time.Duration) *HeartbeatMana
 
 // Start begins the heartbeat monitoring process
 func (hm *HeartbeatManager) Start(ctx context.Context) {
-	log.Printf("Starting heartbeat manager with interval: %v, timeout: %v", 
+	log.Printf("Starting heartbeat manager with interval: %v, timeout: %v",
 		hm.pingInterval, hm.pongTimeout)
 
 	ticker := time.NewTicker(hm.pingInterval)
@@ -216,7 +216,7 @@ func (hm *HeartbeatManager) handlePong(clientID string) {
 	// Update global metrics
 	hm.metrics.mu.Lock()
 	hm.metrics.TotalPongsReceived++
-	
+
 	// Update latency metrics
 	if latency > hm.metrics.MaxLatency {
 		hm.metrics.MaxLatency = latency
@@ -224,7 +224,7 @@ func (hm *HeartbeatManager) handlePong(clientID string) {
 	if latency < hm.metrics.MinLatency {
 		hm.metrics.MinLatency = latency
 	}
-	
+
 	// Update average latency
 	if hm.metrics.AverageLatency == 0 {
 		hm.metrics.AverageLatency = latency
@@ -233,7 +233,7 @@ func (hm *HeartbeatManager) handlePong(clientID string) {
 			int64(hm.metrics.AverageLatency)*9/10 + int64(latency)/10,
 		)
 	}
-	
+
 	hm.metrics.mu.Unlock()
 }
 
@@ -248,12 +248,12 @@ func (hm *HeartbeatManager) markClientUnhealthy(clientID string, err error) {
 	}
 
 	health.ConsecutiveFails++
-	
+
 	// Check if client should be marked unhealthy
 	if health.ConsecutiveFails >= 3 || websocket.IsCloseError(err) {
 		if health.IsHealthy {
 			health.IsHealthy = false
-			log.Printf("Client %s marked as unhealthy (consecutive fails: %d, error: %v)", 
+			log.Printf("Client %s marked as unhealthy (consecutive fails: %d, error: %v)",
 				clientID, health.ConsecutiveFails, err)
 		}
 	}

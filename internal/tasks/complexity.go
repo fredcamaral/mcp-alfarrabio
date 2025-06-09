@@ -20,8 +20,8 @@ type ComplexityConfig struct {
 	TechnicalWeights   ComplexityWeights `json:"technical_weights"`
 	IntegrationWeights ComplexityWeights `json:"integration_weights"`
 	BusinessWeights    ComplexityWeights `json:"business_weights"`
-	DefaultRiskLevel   types.RiskLevel   `json:"default_risk_level"`
-	DefaultImpactLevel types.ImpactLevel `json:"default_impact_level"`
+	DefaultRiskLevel   types.RiskLevelEnum   `json:"default_risk_level"`
+	DefaultImpactLevel types.ImpactLevelEnum `json:"default_impact_level"`
 }
 
 // ComplexityWeights represents weights for different complexity factors
@@ -54,7 +54,7 @@ func DefaultComplexityConfig() ComplexityConfig {
 		IntegrationWeights: weights,
 		BusinessWeights:    weights,
 		DefaultRiskLevel:   types.RiskLevelMedium,
-		DefaultImpactLevel: types.ImpactMedium,
+		DefaultImpactLevel: types.ImpactLevelMedium,
 	}
 }
 
@@ -91,7 +91,8 @@ func (ca *ComplexityAnalyzer) AnalyzeComplexity(ctx context.Context, task *types
 	technicalRisk := ca.assessTechnicalRisk(task, factors, projectContext)
 
 	// Assess business impact
-	businessImpact := ca.assessBusinessImpact(task, projectContext)
+	businessImpactLegacy := ca.assessBusinessImpact(task, projectContext)
+	businessImpact := types.ImpactLevelEnum(businessImpactLegacy)
 
 	// Extract required skills
 	requiredSkills := ca.extractRequiredSkills(task, projectContext)
@@ -128,19 +129,19 @@ func (ca *ComplexityAnalyzer) calculateTechnicalComplexity(task *types.Task, con
 
 	// Task type influences technical complexity
 	switch task.Type {
-	case types.TaskTypeArchitecture:
+	case types.TaskTypeLegacyArchitecture:
 		score += 0.8
-	case types.TaskTypeImplementation:
+	case types.TaskTypeLegacyImplementation:
 		score += 0.6
-	case types.TaskTypeIntegration:
+	case types.TaskTypeLegacyIntegration:
 		score += 0.7
-	case types.TaskTypeRefactoring:
+	case types.TaskTypeLegacyRefactoring:
 		score += 0.5
-	case types.TaskTypeDesign:
+	case types.TaskTypeLegacyDesign:
 		score += 0.4
-	case types.TaskTypeTesting:
+	case types.TaskTypeLegacyTesting:
 		score += 0.3
-	case types.TaskTypeDocumentation:
+	case types.TaskTypeLegacyDocumentation:
 		score += 0.2
 	default:
 		score += 0.4
@@ -186,7 +187,7 @@ func (ca *ComplexityAnalyzer) calculateIntegrationComplexity(task *types.Task, c
 	score := 0.0
 
 	// Task type influences integration complexity
-	if task.Type == types.TaskTypeIntegration {
+	if task.Type == types.TaskTypeLegacyIntegration {
 		score += 0.8
 	}
 
@@ -307,7 +308,7 @@ func (ca *ComplexityAnalyzer) calculateUIComplexity(task *types.Task, context ty
 	score := 0.0
 
 	// UI-related task types
-	if task.Type == types.TaskTypeDesign {
+	if task.Type == types.TaskTypeLegacyDesign {
 		score += 0.5
 	}
 
@@ -347,7 +348,7 @@ func (ca *ComplexityAnalyzer) calculateTestingComplexity(task *types.Task, conte
 	score := 0.0
 
 	// Testing task type
-	if task.Type == types.TaskTypeTesting {
+	if task.Type == types.TaskTypeLegacyTesting {
 		score += 0.6
 	}
 
@@ -412,7 +413,7 @@ func (ca *ComplexityAnalyzer) determineComplexityLevel(score float64) types.Comp
 }
 
 // assessTechnicalRisk assesses technical risk level
-func (ca *ComplexityAnalyzer) assessTechnicalRisk(task *types.Task, factors types.ComplexityFactors, context types.TaskGenerationContext) types.RiskLevel {
+func (ca *ComplexityAnalyzer) assessTechnicalRisk(task *types.Task, factors types.ComplexityFactors, context types.TaskGenerationContext) types.RiskLevelEnum {
 	riskScore := 0.0
 
 	// High technical complexity increases risk
@@ -452,13 +453,13 @@ func (ca *ComplexityAnalyzer) assessBusinessImpact(task *types.Task, context typ
 
 	// Priority influences business impact
 	switch task.Priority {
-	case types.TaskPriorityCritical, types.TaskPriorityBlocking:
+	case types.TaskPriorityLegacyCritical, types.TaskPriorityLegacyBlocking:
 		impactScore += 0.8
-	case types.TaskPriorityHigh:
+	case types.TaskPriorityLegacyHigh:
 		impactScore += 0.6
-	case types.TaskPriorityMedium:
+	case types.TaskPriorityLegacyMedium:
 		impactScore += 0.4
-	case types.TaskPriorityLow:
+	case types.TaskPriorityLegacyLow:
 		impactScore += 0.2
 	}
 
@@ -479,13 +480,13 @@ func (ca *ComplexityAnalyzer) assessBusinessImpact(task *types.Task, context typ
 	// Determine impact level
 	switch {
 	case impactScore >= 0.7:
-		return types.ImpactCritical
+		return types.ImpactLegacyCritical
 	case impactScore >= 0.5:
-		return types.ImpactHigh
+		return types.ImpactLegacyHigh
 	case impactScore >= 0.3:
-		return types.ImpactMedium
+		return types.ImpactLegacyMedium
 	default:
-		return types.ImpactLow
+		return types.ImpactLegacyLow
 	}
 }
 

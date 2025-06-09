@@ -20,9 +20,9 @@ import (
 
 // Compiled regexes for performance
 var (
-	bulletPointRegex = regexp.MustCompile(`^[-*•]\s+`)
+	bulletPointRegex  = regexp.MustCompile(`^[-*•]\s+`)
 	numberedListRegex = regexp.MustCompile(`^\d+\.\s+`)
-	headerRegex = regexp.MustCompile(`^#+\s*`)
+	headerRegex       = regexp.MustCompile(`^#+\s*`)
 )
 
 // Processor handles document parsing and processing

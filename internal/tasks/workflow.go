@@ -98,7 +98,7 @@ func NewWorkflowManagerWithConfig(config WorkflowConfig) *WorkflowManager {
 func (wm *WorkflowManager) ValidateTransition(fromStatus, toStatus types.TaskStatus, userID string) error {
 	// Allow creation (empty fromStatus)
 	if fromStatus == "" {
-		if toStatus == types.TaskStatusTodo || toStatus == types.TaskStatusInProgress {
+		if toStatus == types.TaskStatusLegacyTodo || toStatus == types.TaskStatusLegacyInProgress {
 			return nil
 		}
 		return fmt.Errorf("new tasks can only be created as 'todo' or 'in_progress', got '%s'", toStatus)
@@ -239,34 +239,34 @@ func (wm *WorkflowManager) GetWorkflowInfo() map[string]interface{} {
 
 func (wm *WorkflowManager) setupDefaultTransitions() {
 	// Todo transitions
-	wm.AddTransition(types.TaskStatusTodo, types.TaskStatusInProgress)
-	wm.AddTransition(types.TaskStatusTodo, types.TaskStatusBlocked)
-	wm.AddTransition(types.TaskStatusTodo, types.TaskStatusCancelled)
+	wm.AddTransition(types.TaskStatusLegacyTodo, types.TaskStatusLegacyInProgress)
+	wm.AddTransition(types.TaskStatusLegacyTodo, types.TaskStatusLegacyBlocked)
+	wm.AddTransition(types.TaskStatusLegacyTodo, types.TaskStatusLegacyCancelled)
 
 	// In Progress transitions
-	wm.AddTransition(types.TaskStatusInProgress, types.TaskStatusCompleted)
-	wm.AddTransition(types.TaskStatusInProgress, types.TaskStatusBlocked)
-	wm.AddTransition(types.TaskStatusInProgress, types.TaskStatusTodo)
-	wm.AddTransition(types.TaskStatusInProgress, types.TaskStatusCancelled)
+	wm.AddTransition(types.TaskStatusLegacyInProgress, types.TaskStatusLegacyCompleted)
+	wm.AddTransition(types.TaskStatusLegacyInProgress, types.TaskStatusLegacyBlocked)
+	wm.AddTransition(types.TaskStatusLegacyInProgress, types.TaskStatusLegacyTodo)
+	wm.AddTransition(types.TaskStatusLegacyInProgress, types.TaskStatusLegacyCancelled)
 
 	// Blocked transitions
-	wm.AddTransition(types.TaskStatusBlocked, types.TaskStatusTodo)
-	wm.AddTransition(types.TaskStatusBlocked, types.TaskStatusInProgress)
-	wm.AddTransition(types.TaskStatusBlocked, types.TaskStatusCancelled)
+	wm.AddTransition(types.TaskStatusLegacyBlocked, types.TaskStatusLegacyTodo)
+	wm.AddTransition(types.TaskStatusLegacyBlocked, types.TaskStatusLegacyInProgress)
+	wm.AddTransition(types.TaskStatusLegacyBlocked, types.TaskStatusLegacyCancelled)
 
 	// Completed transitions (limited)
-	wm.AddTransition(types.TaskStatusCompleted, types.TaskStatusTodo) // Reopen
+	wm.AddTransition(types.TaskStatusLegacyCompleted, types.TaskStatusLegacyTodo) // Reopen
 
 	// Cancelled transitions (limited)
-	wm.AddTransition(types.TaskStatusCancelled, types.TaskStatusTodo) // Reopen
+	wm.AddTransition(types.TaskStatusLegacyCancelled, types.TaskStatusLegacyTodo) // Reopen
 }
 
 func (wm *WorkflowManager) setupDefaultRules() {
 	// Rule: Starting work requires assignment
 	wm.AddRule(WorkflowRule{
 		Name:       "start_work_requires_assignment",
-		FromStatus: types.TaskStatusTodo,
-		ToStatus:   types.TaskStatusInProgress,
+		FromStatus: types.TaskStatusLegacyTodo,
+		ToStatus:   types.TaskStatusLegacyInProgress,
 		Conditions: []WorkflowCondition{
 			{
 				Type:  "field_not_empty",
@@ -287,8 +287,8 @@ func (wm *WorkflowManager) setupDefaultRules() {
 	// Rule: Completing work requires acceptance criteria validation
 	wm.AddRule(WorkflowRule{
 		Name:       "complete_requires_acceptance_criteria",
-		FromStatus: types.TaskStatusInProgress,
-		ToStatus:   types.TaskStatusCompleted,
+		FromStatus: types.TaskStatusLegacyInProgress,
+		ToStatus:   types.TaskStatusLegacyCompleted,
 		Conditions: []WorkflowCondition{
 			{
 				Type:  "field_not_empty",
@@ -410,12 +410,12 @@ func (wm *WorkflowManager) executeAutomaticActions(fromStatus, toStatus types.Ta
 	now := time.Now()
 
 	switch toStatus {
-	case types.TaskStatusInProgress:
+	case types.TaskStatusLegacyInProgress:
 		if task.Timestamps.Started == nil {
 			task.Timestamps.Started = &now
 			result.ActionsRun = append(result.ActionsRun, "auto_set_started_timestamp")
 		}
-	case types.TaskStatusCompleted:
+	case types.TaskStatusLegacyCompleted:
 		if task.Timestamps.Completed == nil {
 			task.Timestamps.Completed = &now
 			result.ActionsRun = append(result.ActionsRun, "auto_set_completed_timestamp")

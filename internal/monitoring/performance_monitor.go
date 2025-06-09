@@ -139,7 +139,7 @@ type PerformanceAlertRule struct {
 	Condition       string                 `json:"condition"`
 	Threshold       float64                `json:"threshold"`
 	Duration        time.Duration          `json:"duration"`
-	Severity        AlertSeverity          `json:"severity"`
+	Severity        Severity               `json:"severity"`
 	Tags            map[string]string      `json:"tags"`
 	Metadata        map[string]interface{} `json:"metadata"`
 	Enabled         bool                   `json:"enabled"`
@@ -371,7 +371,7 @@ type PerformanceAlert struct {
 	ID              string                 `json:"id"`
 	RuleID          string                 `json:"rule_id"`
 	MetricName      string                 `json:"metric_name"`
-	Severity        AlertSeverity          `json:"severity"`
+	Severity        Severity               `json:"severity"`
 	Status          AlertStatus            `json:"status"`
 	Message         string                 `json:"message"`
 	Description     string                 `json:"description"`
@@ -389,23 +389,7 @@ type PerformanceAlert struct {
 	Context         map[string]interface{} `json:"context"`
 }
 
-// AlertSeverity represents the severity level of an alert
-type AlertSeverity string
-
-const (
-	SeverityInfo     AlertSeverity = "info"
-	SeverityWarning  AlertSeverity = "warning"
-	SeverityCritical AlertSeverity = "critical"
-)
-
-type AlertStatus string
-
-const (
-	StatusActive       AlertStatus = "active"
-	StatusAcknowledged AlertStatus = "acknowledged"
-	StatusResolved     AlertStatus = "resolved"
-	StatusSuppressed   AlertStatus = "suppressed"
-)
+// Note: AlertSeverity and AlertStatus types are defined in connection_alerts.go
 
 type AlertCallback func(*PerformanceAlert)
 

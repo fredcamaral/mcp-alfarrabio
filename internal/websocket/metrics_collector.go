@@ -21,110 +21,110 @@ type MetricsCollector struct {
 
 // MetricsConfig configures metrics collection behavior
 type MetricsConfig struct {
-	CollectionInterval  time.Duration `json:"collection_interval" yaml:"collection_interval"`
-	RetentionPeriod     time.Duration `json:"retention_period" yaml:"retention_period"`
-	TimeSeriesResolution time.Duration `json:"time_series_resolution" yaml:"time_series_resolution"`
-	MaxDataPoints       int           `json:"max_data_points" yaml:"max_data_points"`
-	EnableDetailedMetrics bool        `json:"enable_detailed_metrics" yaml:"enable_detailed_metrics"`
-	TrackBandwidth      bool          `json:"track_bandwidth" yaml:"track_bandwidth"`
-	TrackMessageTypes   bool          `json:"track_message_types" yaml:"track_message_types"`
+	CollectionInterval    time.Duration `json:"collection_interval" yaml:"collection_interval"`
+	RetentionPeriod       time.Duration `json:"retention_period" yaml:"retention_period"`
+	TimeSeriesResolution  time.Duration `json:"time_series_resolution" yaml:"time_series_resolution"`
+	MaxDataPoints         int           `json:"max_data_points" yaml:"max_data_points"`
+	EnableDetailedMetrics bool          `json:"enable_detailed_metrics" yaml:"enable_detailed_metrics"`
+	TrackBandwidth        bool          `json:"track_bandwidth" yaml:"track_bandwidth"`
+	TrackMessageTypes     bool          `json:"track_message_types" yaml:"track_message_types"`
 }
 
 // ConnectionMetrics tracks metrics for a single connection
 type ConnectionMetrics struct {
-	mu                    sync.RWMutex
-	ID                    string
-	StartTime             time.Time
-	LastActivity          time.Time
-	
+	mu           sync.RWMutex
+	ID           string
+	StartTime    time.Time
+	LastActivity time.Time
+
 	// Message metrics
-	MessagesReceived      int64            `json:"messages_received"`
-	MessagesSent          int64            `json:"messages_sent"`
-	BytesReceived         int64            `json:"bytes_received"`
-	BytesSent             int64            `json:"bytes_sent"`
-	MessageTypes          map[string]int64 `json:"message_types"`
-	
+	MessagesReceived int64            `json:"messages_received"`
+	MessagesSent     int64            `json:"messages_sent"`
+	BytesReceived    int64            `json:"bytes_received"`
+	BytesSent        int64            `json:"bytes_sent"`
+	MessageTypes     map[string]int64 `json:"message_types"`
+
 	// Performance metrics
-	AverageLatency        time.Duration    `json:"average_latency"`
-	MinLatency            time.Duration    `json:"min_latency"`
-	MaxLatency            time.Duration    `json:"max_latency"`
-	LatencySamples        []time.Duration  `json:"-"`
-	
+	AverageLatency time.Duration   `json:"average_latency"`
+	MinLatency     time.Duration   `json:"min_latency"`
+	MaxLatency     time.Duration   `json:"max_latency"`
+	LatencySamples []time.Duration `json:"-"`
+
 	// Bandwidth metrics
-	InboundBandwidth      float64          `json:"inbound_bandwidth_bps"`
-	OutboundBandwidth     float64          `json:"outbound_bandwidth_bps"`
-	PeakInboundBandwidth  float64          `json:"peak_inbound_bandwidth_bps"`
-	PeakOutboundBandwidth float64          `json:"peak_outbound_bandwidth_bps"`
-	
+	InboundBandwidth      float64 `json:"inbound_bandwidth_bps"`
+	OutboundBandwidth     float64 `json:"outbound_bandwidth_bps"`
+	PeakInboundBandwidth  float64 `json:"peak_inbound_bandwidth_bps"`
+	PeakOutboundBandwidth float64 `json:"peak_outbound_bandwidth_bps"`
+
 	// Error metrics
-	Errors                int64            `json:"errors"`
-	Reconnections         int64            `json:"reconnections"`
-	LastError             string           `json:"last_error,omitempty"`
-	LastErrorTime         time.Time        `json:"last_error_time,omitempty"`
-	
+	Errors        int64     `json:"errors"`
+	Reconnections int64     `json:"reconnections"`
+	LastError     string    `json:"last_error,omitempty"`
+	LastErrorTime time.Time `json:"last_error_time,omitempty"`
+
 	// Connection quality
-	QualityScore          float64          `json:"quality_score"`
-	Stability             float64          `json:"stability"`
-	
+	QualityScore float64 `json:"quality_score"`
+	Stability    float64 `json:"stability"`
+
 	// Time series data
-	hourlyStats           [24]*HourlyStats
-	minutelyStats         [60]*MinutelyStats
-	lastStatUpdate        time.Time
+	hourlyStats    [24]*HourlyStats
+	minutelyStats  [60]*MinutelyStats
+	lastStatUpdate time.Time
 }
 
 // SystemMetrics tracks overall system metrics
 type SystemMetrics struct {
-	mu                    sync.RWMutex
-	TotalConnections      int64     `json:"total_connections"`
-	ActiveConnections     int64     `json:"active_connections"`
-	TotalMessages         int64     `json:"total_messages"`
-	TotalBytes            int64     `json:"total_bytes"`
-	TotalErrors           int64     `json:"total_errors"`
-	AverageLatency        time.Duration `json:"average_latency"`
-	SystemThroughput      float64   `json:"system_throughput_msg_per_sec"`
-	SystemBandwidth       float64   `json:"system_bandwidth_bps"`
-	UptimeSeconds         int64     `json:"uptime_seconds"`
-	StartTime             time.Time `json:"start_time"`
-	LastUpdated           time.Time `json:"last_updated"`
+	mu                sync.RWMutex
+	TotalConnections  int64         `json:"total_connections"`
+	ActiveConnections int64         `json:"active_connections"`
+	TotalMessages     int64         `json:"total_messages"`
+	TotalBytes        int64         `json:"total_bytes"`
+	TotalErrors       int64         `json:"total_errors"`
+	AverageLatency    time.Duration `json:"average_latency"`
+	SystemThroughput  float64       `json:"system_throughput_msg_per_sec"`
+	SystemBandwidth   float64       `json:"system_bandwidth_bps"`
+	UptimeSeconds     int64         `json:"uptime_seconds"`
+	StartTime         time.Time     `json:"start_time"`
+	LastUpdated       time.Time     `json:"last_updated"`
 }
 
 // TimeSeriesMetrics stores time-series data
 type TimeSeriesMetrics struct {
-	mu              sync.RWMutex
-	dataPoints      []*TimeSeriesPoint
-	maxDataPoints   int
-	resolution      time.Duration
-	lastCollection  time.Time
+	mu             sync.RWMutex
+	dataPoints     []*TimeSeriesPoint
+	maxDataPoints  int
+	resolution     time.Duration
+	lastCollection time.Time
 }
 
 // TimeSeriesPoint represents a single time series data point
 type TimeSeriesPoint struct {
-	Timestamp        time.Time `json:"timestamp"`
-	ActiveConnections int      `json:"active_connections"`
-	MessagesPerSecond float64  `json:"messages_per_second"`
-	BytesPerSecond   float64  `json:"bytes_per_second"`
-	AverageLatency   time.Duration `json:"average_latency"`
-	ErrorRate        float64  `json:"error_rate"`
+	Timestamp         time.Time     `json:"timestamp"`
+	ActiveConnections int           `json:"active_connections"`
+	MessagesPerSecond float64       `json:"messages_per_second"`
+	BytesPerSecond    float64       `json:"bytes_per_second"`
+	AverageLatency    time.Duration `json:"average_latency"`
+	ErrorRate         float64       `json:"error_rate"`
 }
 
 // HourlyStats tracks hourly statistics
 type HourlyStats struct {
-	Hour              int   `json:"hour"`
-	Messages          int64 `json:"messages"`
-	Bytes             int64 `json:"bytes"`
-	Errors            int64 `json:"errors"`
-	AverageLatency    time.Duration `json:"average_latency"`
-	Timestamp         time.Time `json:"timestamp"`
+	Hour           int           `json:"hour"`
+	Messages       int64         `json:"messages"`
+	Bytes          int64         `json:"bytes"`
+	Errors         int64         `json:"errors"`
+	AverageLatency time.Duration `json:"average_latency"`
+	Timestamp      time.Time     `json:"timestamp"`
 }
 
 // MinutelyStats tracks minutely statistics
 type MinutelyStats struct {
-	Minute            int   `json:"minute"`
-	Messages          int64 `json:"messages"`
-	Bytes             int64 `json:"bytes"`
-	Errors            int64 `json:"errors"`
-	AverageLatency    time.Duration `json:"average_latency"`
-	Timestamp         time.Time `json:"timestamp"`
+	Minute         int           `json:"minute"`
+	Messages       int64         `json:"messages"`
+	Bytes          int64         `json:"bytes"`
+	Errors         int64         `json:"errors"`
+	AverageLatency time.Duration `json:"average_latency"`
+	Timestamp      time.Time     `json:"timestamp"`
 }
 
 // NewMetricsCollector creates a new metrics collector
@@ -177,11 +177,11 @@ func (mc *MetricsCollector) RegisterConnection(id string) error {
 	defer mc.mu.Unlock()
 
 	metrics := &ConnectionMetrics{
-		ID:           id,
-		StartTime:    time.Now(),
-		LastActivity: time.Now(),
-		MessageTypes: make(map[string]int64),
-		hourlyStats:  [24]*HourlyStats{},
+		ID:            id,
+		StartTime:     time.Now(),
+		LastActivity:  time.Now(),
+		MessageTypes:  make(map[string]int64),
+		hourlyStats:   [24]*HourlyStats{},
 		minutelyStats: [60]*MinutelyStats{},
 	}
 
@@ -397,7 +397,7 @@ func (mc *MetricsCollector) updateQualityScore(conn *ConnectionMetrics) {
 	// Calculate stability (time connected / total time)
 	uptime := time.Since(conn.StartTime)
 	if uptime > 0 {
-		conn.Stability = 1.0 - (float64(conn.Reconnections)/uptime.Hours())
+		conn.Stability = 1.0 - (float64(conn.Reconnections) / uptime.Hours())
 		if conn.Stability < 0 {
 			conn.Stability = 0
 		}
@@ -503,10 +503,10 @@ func (mc *MetricsCollector) collectTimeSeriesData() {
 	defer mc.timeSeries.mu.Unlock()
 
 	now := time.Now()
-	
+
 	// Calculate current metrics
 	activeConnections := int(atomic.LoadInt64(&mc.systemMetrics.ActiveConnections))
-	
+
 	var messagesPerSecond, bytesPerSecond, errorRate float64
 	var avgLatency time.Duration
 
@@ -524,7 +524,7 @@ func (mc *MetricsCollector) collectTimeSeriesData() {
 		// Calculate rates (simplified - in real implementation you'd track deltas)
 		messagesPerSecond = float64(totalMessages) / timeDiff
 		bytesPerSecond = float64(totalBytes) / timeDiff
-		
+
 		if totalMessages > 0 {
 			errorRate = float64(totalErrors) / float64(totalMessages)
 		}

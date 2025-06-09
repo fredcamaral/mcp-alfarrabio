@@ -4,6 +4,7 @@ package events
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -12,155 +13,155 @@ import (
 
 // MetricsCollector collects and aggregates event metrics
 type MetricsCollector struct {
-	metrics        *EventMetrics
-	config         *MetricsConfig
-	eventStats     map[EventType]*EventTypeStats
-	sourceStats    map[string]*SourceStats
+	metrics         *EventMetrics
+	config          *MetricsConfig
+	eventStats      map[EventType]*EventTypeStats
+	sourceStats     map[string]*SourceStats
 	subscriberStats map[string]*SubscriberStats
-	timeWindows    map[string]*TimeWindowStats
-	ctx            context.Context
-	cancel         context.CancelFunc
-	mu             sync.RWMutex
-	running        bool
-	wg             sync.WaitGroup
+	timeWindows     map[string]*TimeWindowStats
+	ctx             context.Context
+	cancel          context.CancelFunc
+	mu              sync.RWMutex
+	running         bool
+	wg              sync.WaitGroup
 }
 
 // EventMetrics represents comprehensive event system metrics
 type EventMetrics struct {
 	// Overall statistics
-	TotalEvents        int64         `json:"total_events"`
-	EventsPerSecond    float64       `json:"events_per_second"`
-	AverageLatency     time.Duration `json:"average_latency"`
-	P95Latency         time.Duration `json:"p95_latency"`
-	P99Latency         time.Duration `json:"p99_latency"`
-	ErrorRate          float64       `json:"error_rate"`
-	
+	TotalEvents     int64         `json:"total_events"`
+	EventsPerSecond float64       `json:"events_per_second"`
+	AverageLatency  time.Duration `json:"average_latency"`
+	P95Latency      time.Duration `json:"p95_latency"`
+	P99Latency      time.Duration `json:"p99_latency"`
+	ErrorRate       float64       `json:"error_rate"`
+
 	// Bus metrics
-	ActiveSubscribers  int           `json:"active_subscribers"`
-	SuccessfulDeliveries int64       `json:"successful_deliveries"`
-	FailedDeliveries   int64         `json:"failed_deliveries"`
-	DroppedEvents      int64         `json:"dropped_events"`
-	DuplicateEvents    int64         `json:"duplicate_events"`
-	
+	ActiveSubscribers    int   `json:"active_subscribers"`
+	SuccessfulDeliveries int64 `json:"successful_deliveries"`
+	FailedDeliveries     int64 `json:"failed_deliveries"`
+	DroppedEvents        int64 `json:"dropped_events"`
+	DuplicateEvents      int64 `json:"duplicate_events"`
+
 	// Performance metrics
-	MemoryUsage        int64         `json:"memory_usage_bytes"`
-	CPUUsage           float64       `json:"cpu_usage_percent"`
-	QueueDepth         int           `json:"queue_depth"`
-	BufferUtilization  float64       `json:"buffer_utilization_percent"`
-	
+	MemoryUsage       int64   `json:"memory_usage_bytes"`
+	CPUUsage          float64 `json:"cpu_usage_percent"`
+	QueueDepth        int     `json:"queue_depth"`
+	BufferUtilization float64 `json:"buffer_utilization_percent"`
+
 	// Time-based metrics
-	LastEventTime      time.Time     `json:"last_event_time"`
-	UptimeSeconds      int64         `json:"uptime_seconds"`
-	StartTime          time.Time     `json:"start_time"`
-	
-	mu                 sync.RWMutex
+	LastEventTime time.Time `json:"last_event_time"`
+	UptimeSeconds int64     `json:"uptime_seconds"`
+	StartTime     time.Time `json:"start_time"`
+
+	mu sync.RWMutex
 }
 
 // EventTypeStats tracks metrics for specific event types
 type EventTypeStats struct {
-	EventType          EventType     `json:"event_type"`
-	Count              int64         `json:"count"`
-	AverageSize        int           `json:"average_size_bytes"`
-	AverageLatency     time.Duration `json:"average_latency"`
-	ErrorCount         int64         `json:"error_count"`
-	LastSeen           time.Time     `json:"last_seen"`
-	PeakRate           float64       `json:"peak_rate_per_second"`
-	mu                 sync.RWMutex
+	EventType      EventType     `json:"event_type"`
+	Count          int64         `json:"count"`
+	AverageSize    int           `json:"average_size_bytes"`
+	AverageLatency time.Duration `json:"average_latency"`
+	ErrorCount     int64         `json:"error_count"`
+	LastSeen       time.Time     `json:"last_seen"`
+	PeakRate       float64       `json:"peak_rate_per_second"`
+	mu             sync.RWMutex
 }
 
 // SourceStats tracks metrics for event sources
 type SourceStats struct {
-	Source             string        `json:"source"`
-	EventCount         int64         `json:"event_count"`
-	AverageLatency     time.Duration `json:"average_latency"`
-	ErrorCount         int64         `json:"error_count"`
-	LastActivity       time.Time     `json:"last_activity"`
-	Reliability        float64       `json:"reliability_percent"`
-	mu                 sync.RWMutex
+	Source         string        `json:"source"`
+	EventCount     int64         `json:"event_count"`
+	AverageLatency time.Duration `json:"average_latency"`
+	ErrorCount     int64         `json:"error_count"`
+	LastActivity   time.Time     `json:"last_activity"`
+	Reliability    float64       `json:"reliability_percent"`
+	mu             sync.RWMutex
 }
 
 // SubscriberStats tracks metrics for subscribers
 type SubscriberStats struct {
-	SubscriberID       string        `json:"subscriber_id"`
-	EventsReceived     int64         `json:"events_received"`
-	EventsProcessed    int64         `json:"events_processed"`
-	EventsFailed       int64         `json:"events_failed"`
+	SubscriberID          string        `json:"subscriber_id"`
+	EventsReceived        int64         `json:"events_received"`
+	EventsProcessed       int64         `json:"events_processed"`
+	EventsFailed          int64         `json:"events_failed"`
 	AverageProcessingTime time.Duration `json:"average_processing_time"`
-	LastActivity       time.Time     `json:"last_activity"`
-	HealthScore        float64       `json:"health_score"`
-	mu                 sync.RWMutex
+	LastActivity          time.Time     `json:"last_activity"`
+	HealthScore           float64       `json:"health_score"`
+	mu                    sync.RWMutex
 }
 
 // TimeWindowStats tracks metrics within time windows
 type TimeWindowStats struct {
-	Window             string        `json:"window"`
-	StartTime          time.Time     `json:"start_time"`
-	EndTime            time.Time     `json:"end_time"`
-	EventCount         int64         `json:"event_count"`
-	PeakRate           float64       `json:"peak_rate"`
-	AverageRate        float64       `json:"average_rate"`
-	ErrorCount         int64         `json:"error_count"`
-	EventTypes         map[EventType]int64 `json:"event_types"`
-	mu                 sync.RWMutex
+	Window      string              `json:"window"`
+	StartTime   time.Time           `json:"start_time"`
+	EndTime     time.Time           `json:"end_time"`
+	EventCount  int64               `json:"event_count"`
+	PeakRate    float64             `json:"peak_rate"`
+	AverageRate float64             `json:"average_rate"`
+	ErrorCount  int64               `json:"error_count"`
+	EventTypes  map[EventType]int64 `json:"event_types"`
+	mu          sync.RWMutex
 }
 
 // MetricsConfig configures the metrics collector
 type MetricsConfig struct {
-	CollectionInterval   time.Duration `json:"collection_interval"`
-	RetentionPeriod      time.Duration `json:"retention_period"`
-	TimeWindowSizes      []time.Duration `json:"time_window_sizes"`
-	EnableDetailedStats  bool          `json:"enable_detailed_stats"`
-	EnablePerformanceMetrics bool      `json:"enable_performance_metrics"`
-	MaxEventTypes        int           `json:"max_event_types"`
-	MaxSources           int           `json:"max_sources"`
-	MaxSubscribers       int           `json:"max_subscribers"`
-	EnableAlerting       bool          `json:"enable_alerting"`
-	AlertThresholds      *AlertThresholds `json:"alert_thresholds"`
+	CollectionInterval       time.Duration    `json:"collection_interval"`
+	RetentionPeriod          time.Duration    `json:"retention_period"`
+	TimeWindowSizes          []time.Duration  `json:"time_window_sizes"`
+	EnableDetailedStats      bool             `json:"enable_detailed_stats"`
+	EnablePerformanceMetrics bool             `json:"enable_performance_metrics"`
+	MaxEventTypes            int              `json:"max_event_types"`
+	MaxSources               int              `json:"max_sources"`
+	MaxSubscribers           int              `json:"max_subscribers"`
+	EnableAlerting           bool             `json:"enable_alerting"`
+	AlertThresholds          *AlertThresholds `json:"alert_thresholds"`
 }
 
 // AlertThresholds defines thresholds for alerting
 type AlertThresholds struct {
-	MaxErrorRate         float64       `json:"max_error_rate"`
-	MaxLatency           time.Duration `json:"max_latency"`
-	MinThroughput        float64       `json:"min_throughput"`
-	MaxMemoryUsage       int64         `json:"max_memory_usage_bytes"`
-	MaxCPUUsage          float64       `json:"max_cpu_usage_percent"`
-	MaxQueueDepth        int           `json:"max_queue_depth"`
+	MaxErrorRate   float64       `json:"max_error_rate"`
+	MaxLatency     time.Duration `json:"max_latency"`
+	MinThroughput  float64       `json:"min_throughput"`
+	MaxMemoryUsage int64         `json:"max_memory_usage_bytes"`
+	MaxCPUUsage    float64       `json:"max_cpu_usage_percent"`
+	MaxQueueDepth  int           `json:"max_queue_depth"`
 }
 
 // MetricsSnapshot represents a point-in-time snapshot of metrics
 type MetricsSnapshot struct {
-	Timestamp           time.Time                    `json:"timestamp"`
-	Overall             *EventMetrics                `json:"overall"`
-	EventTypes          map[EventType]*EventTypeStats `json:"event_types"`
-	Sources             map[string]*SourceStats      `json:"sources"`
-	Subscribers         map[string]*SubscriberStats  `json:"subscribers"`
-	TimeWindows         map[string]*TimeWindowStats  `json:"time_windows"`
+	Timestamp   time.Time                     `json:"timestamp"`
+	Overall     *EventMetrics                 `json:"overall"`
+	EventTypes  map[EventType]*EventTypeStats `json:"event_types"`
+	Sources     map[string]*SourceStats       `json:"sources"`
+	Subscribers map[string]*SubscriberStats   `json:"subscribers"`
+	TimeWindows map[string]*TimeWindowStats   `json:"time_windows"`
 }
 
 // Alert represents a metrics alert
 type Alert struct {
-	ID          string      `json:"id"`
-	Type        AlertType   `json:"type"`
+	ID          string        `json:"id"`
+	Type        AlertType     `json:"type"`
 	Severity    AlertSeverity `json:"severity"`
-	Message     string      `json:"message"`
-	Threshold   interface{} `json:"threshold"`
-	ActualValue interface{} `json:"actual_value"`
-	Timestamp   time.Time   `json:"timestamp"`
-	Resolved    bool        `json:"resolved"`
-	ResolvedAt  *time.Time  `json:"resolved_at,omitempty"`
+	Message     string        `json:"message"`
+	Threshold   interface{}   `json:"threshold"`
+	ActualValue interface{}   `json:"actual_value"`
+	Timestamp   time.Time     `json:"timestamp"`
+	Resolved    bool          `json:"resolved"`
+	ResolvedAt  *time.Time    `json:"resolved_at,omitempty"`
 }
 
 // AlertType defines types of alerts
 type AlertType string
 
 const (
-	AlertTypeErrorRate     AlertType = "error_rate"
-	AlertTypeLatency       AlertType = "latency"
-	AlertTypeThroughput    AlertType = "throughput"
-	AlertTypeMemoryUsage   AlertType = "memory_usage"
-	AlertTypeCPUUsage      AlertType = "cpu_usage"
-	AlertTypeQueueDepth    AlertType = "queue_depth"
+	AlertTypeErrorRate        AlertType = "error_rate"
+	AlertTypeLatency          AlertType = "latency"
+	AlertTypeThroughput       AlertType = "throughput"
+	AlertTypeMemoryUsage      AlertType = "memory_usage"
+	AlertTypeCPUUsage         AlertType = "cpu_usage"
+	AlertTypeQueueDepth       AlertType = "queue_depth"
 	AlertTypeSubscriberHealth AlertType = "subscriber_health"
 )
 
@@ -177,22 +178,22 @@ const (
 // DefaultMetricsConfig returns default metrics configuration
 func DefaultMetricsConfig() *MetricsConfig {
 	return &MetricsConfig{
-		CollectionInterval:   10 * time.Second,
-		RetentionPeriod:      24 * time.Hour,
-		TimeWindowSizes:      []time.Duration{time.Minute, 5 * time.Minute, time.Hour},
-		EnableDetailedStats:  true,
+		CollectionInterval:       10 * time.Second,
+		RetentionPeriod:          24 * time.Hour,
+		TimeWindowSizes:          []time.Duration{time.Minute, 5 * time.Minute, time.Hour},
+		EnableDetailedStats:      true,
 		EnablePerformanceMetrics: true,
-		MaxEventTypes:        100,
-		MaxSources:           50,
-		MaxSubscribers:       200,
-		EnableAlerting:       true,
+		MaxEventTypes:            100,
+		MaxSources:               50,
+		MaxSubscribers:           200,
+		EnableAlerting:           true,
 		AlertThresholds: &AlertThresholds{
-			MaxErrorRate:    5.0,  // 5%
-			MaxLatency:      500 * time.Millisecond,
-			MinThroughput:   10.0, // 10 events/sec
-			MaxMemoryUsage:  1024 * 1024 * 1024, // 1GB
-			MaxCPUUsage:     80.0, // 80%
-			MaxQueueDepth:   10000,
+			MaxErrorRate:   5.0, // 5%
+			MaxLatency:     500 * time.Millisecond,
+			MinThroughput:  10.0,               // 10 events/sec
+			MaxMemoryUsage: 1024 * 1024 * 1024, // 1GB
+			MaxCPUUsage:    80.0,               // 80%
+			MaxQueueDepth:  10000,
 		},
 	}
 }
@@ -224,7 +225,7 @@ func (mc *MetricsCollector) Start() error {
 	defer mc.mu.Unlock()
 
 	if mc.running {
-		return fmt.Errorf("metrics collector already running")
+		return errors.New("metrics collector already running")
 	}
 
 	log.Println("Starting event metrics collector...")
@@ -251,7 +252,7 @@ func (mc *MetricsCollector) Stop() error {
 	mc.mu.Lock()
 	if !mc.running {
 		mc.mu.Unlock()
-		return fmt.Errorf("metrics collector not running")
+		return errors.New("metrics collector not running")
 	}
 	mc.running = false
 	mc.mu.Unlock()
@@ -593,7 +594,7 @@ func (mc *MetricsCollector) updateTimeWindowStats(event *Event) {
 	for _, windowSize := range mc.config.TimeWindowSizes {
 		windowKey := fmt.Sprintf("%v", windowSize)
 		stats, exists := mc.timeWindows[windowKey]
-		
+
 		if !exists || now.Sub(stats.StartTime) >= windowSize {
 			// Create new window
 			stats = &TimeWindowStats{
@@ -608,7 +609,7 @@ func (mc *MetricsCollector) updateTimeWindowStats(event *Event) {
 		stats.mu.Lock()
 		stats.EventCount++
 		stats.EventTypes[event.Type]++
-		
+
 		// Calculate rates
 		elapsed := now.Sub(stats.StartTime).Seconds()
 		if elapsed > 0 {
@@ -625,7 +626,7 @@ func (mc *MetricsCollector) updateTimeWindowStats(event *Event) {
 // initializeTimeWindows initializes time window tracking
 func (mc *MetricsCollector) initializeTimeWindows() {
 	now := time.Now()
-	
+
 	for _, windowSize := range mc.config.TimeWindowSizes {
 		windowKey := fmt.Sprintf("%v", windowSize)
 		mc.timeWindows[windowKey] = &TimeWindowStats{
@@ -660,17 +661,17 @@ func (mc *MetricsCollector) collectionRoutine() {
 // performCollection performs metrics collection and calculations
 func (mc *MetricsCollector) performCollection(lastEventCount *int64, lastCollectionTime *time.Time) {
 	now := time.Now()
-	
+
 	mc.metrics.mu.Lock()
-	
+
 	// Calculate events per second
 	timeDiff := now.Sub(*lastCollectionTime).Seconds()
 	eventDiff := mc.metrics.TotalEvents - *lastEventCount
-	
+
 	if timeDiff > 0 {
 		mc.metrics.EventsPerSecond = float64(eventDiff) / timeDiff
 	}
-	
+
 	// Calculate error rate
 	totalDeliveries := mc.metrics.SuccessfulDeliveries + mc.metrics.FailedDeliveries
 	if totalDeliveries > 0 {
@@ -806,13 +807,13 @@ func (mc *MetricsCollector) triggerAlert(alertType AlertType, severity AlertSeve
 	}
 
 	// In a real implementation, you would send this alert to an alerting system
-	log.Printf("ALERT [%s/%s]: %s", severity, alertType, message)
+	log.Printf("ALERT [%s/%s]: %s (threshold: %v, actual: %v)", severity, alertType, message, alert.Threshold, alert.ActualValue)
 }
 
 // GetHealthStatus returns the overall health status of the event system
 func (mc *MetricsCollector) GetHealthStatus() map[string]interface{} {
 	metrics := mc.GetMetrics()
-	
+
 	health := "healthy"
 	if metrics.ErrorRate > 10 {
 		health = "degraded"
@@ -822,14 +823,14 @@ func (mc *MetricsCollector) GetHealthStatus() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"status":               health,
-		"uptime_seconds":       metrics.UptimeSeconds,
-		"total_events":         metrics.TotalEvents,
-		"events_per_second":    metrics.EventsPerSecond,
-		"error_rate":           metrics.ErrorRate,
-		"average_latency":      metrics.AverageLatency.String(),
-		"active_subscribers":   metrics.ActiveSubscribers,
-		"buffer_utilization":   metrics.BufferUtilization,
-		"last_event_time":      metrics.LastEventTime,
+		"status":             health,
+		"uptime_seconds":     metrics.UptimeSeconds,
+		"total_events":       metrics.TotalEvents,
+		"events_per_second":  metrics.EventsPerSecond,
+		"error_rate":         metrics.ErrorRate,
+		"average_latency":    metrics.AverageLatency.String(),
+		"active_subscribers": metrics.ActiveSubscribers,
+		"buffer_utilization": metrics.BufferUtilization,
+		"last_event_time":    metrics.LastEventTime,
 	}
 }

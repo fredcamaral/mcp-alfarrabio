@@ -30,17 +30,17 @@ type Window struct {
 
 // WindowStats represents statistics for a sliding window
 type WindowStats struct {
-	Key            string        `json:"key"`
-	RequestCount   int           `json:"request_count"`
-	Limit          int           `json:"limit"`
-	Window         time.Duration `json:"window"`
-	Burst          int           `json:"burst"`
-	OldestRequest  *time.Time    `json:"oldest_request,omitempty"`
-	NewestRequest  *time.Time    `json:"newest_request,omitempty"`
-	LastCleanup    time.Time     `json:"last_cleanup"`
-	WindowStart    time.Time     `json:"window_start"`
-	WindowEnd      time.Time     `json:"window_end"`
-	RequestRate    float64       `json:"request_rate"` // requests per second
+	Key           string        `json:"key"`
+	RequestCount  int           `json:"request_count"`
+	Limit         int           `json:"limit"`
+	Window        time.Duration `json:"window"`
+	Burst         int           `json:"burst"`
+	OldestRequest *time.Time    `json:"oldest_request,omitempty"`
+	NewestRequest *time.Time    `json:"newest_request,omitempty"`
+	LastCleanup   time.Time     `json:"last_cleanup"`
+	WindowStart   time.Time     `json:"window_start"`
+	WindowEnd     time.Time     `json:"window_end"`
+	RequestRate   float64       `json:"request_rate"` // requests per second
 }
 
 // NewSlidingWindow creates a new sliding window rate limiter
@@ -69,7 +69,7 @@ func (sw *SlidingWindow) Check(ctx context.Context, key string, limit *EndpointL
 	}
 
 	now := time.Now()
-	
+
 	sw.mu.Lock()
 	window, exists := sw.windows[key]
 	if !exists {
@@ -161,7 +161,7 @@ func (sw *SlidingWindow) checkWindow(window *Window, key string, now time.Time, 
 	// Count current requests in window
 	windowStart := now.Add(-window.window)
 	currentCount := 0
-	
+
 	for _, reqTime := range window.requests {
 		if reqTime.After(windowStart) {
 			currentCount++
@@ -184,7 +184,7 @@ func (sw *SlidingWindow) checkWindow(window *Window, key string, now time.Time, 
 		// Add current request
 		window.requests = append(window.requests, now)
 		currentCount++
-		
+
 		// Calculate next reset time
 		if len(window.requests) > 0 {
 			oldestInWindow := window.requests[0]
@@ -305,11 +305,11 @@ func (sw *SlidingWindow) getWindowStats(window *Window, key string) map[string]i
 
 	now := time.Now()
 	windowStart := now.Add(-window.window)
-	
+
 	// Count current requests and find oldest/newest
 	currentCount := 0
 	var oldest, newest *time.Time
-	
+
 	for _, reqTime := range window.requests {
 		if reqTime.After(windowStart) {
 			currentCount++
@@ -382,23 +382,23 @@ func (sw *SlidingWindow) cleanupRoutine() {
 // performCleanup removes expired requests and empty windows
 func (sw *SlidingWindow) performCleanup() {
 	now := time.Now()
-	
+
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
 
 	keysToDelete := make([]string, 0)
-	
+
 	for key, window := range sw.windows {
 		window.mu.Lock()
-		
+
 		// Clean expired requests
 		sw.cleanExpiredRequests(window, now)
-		
+
 		// Remove window if no recent activity
 		if len(window.requests) == 0 && now.Sub(window.lastClean) > window.window*2 {
 			keysToDelete = append(keysToDelete, key)
 		}
-		
+
 		window.mu.Unlock()
 	}
 
@@ -411,7 +411,7 @@ func (sw *SlidingWindow) performCleanup() {
 // cleanExpiredRequests removes requests outside the window
 func (sw *SlidingWindow) cleanExpiredRequests(window *Window, now time.Time) {
 	windowStart := now.Add(-window.window)
-	
+
 	// Find first request within window
 	validStart := 0
 	for i, reqTime := range window.requests {
@@ -435,13 +435,13 @@ func (sw *SlidingWindow) cleanExpiredRequests(window *Window, now time.Time) {
 // Close stops the sliding window limiter
 func (sw *SlidingWindow) Close() error {
 	close(sw.done)
-	
+
 	sw.mu.Lock()
 	defer sw.mu.Unlock()
-	
+
 	// Clear all windows
 	sw.windows = make(map[string]*Window)
-	
+
 	return nil
 }
 
@@ -457,8 +457,8 @@ func (sw *SlidingWindow) GetInfo(ctx context.Context) (map[string]interface{}, e
 	defer sw.mu.RUnlock()
 
 	info := map[string]interface{}{
-		"type":          "sliding_window",
-		"window_count":  len(sw.windows),
+		"type":         "sliding_window",
+		"window_count": len(sw.windows),
 		"config": map[string]interface{}{
 			"default_limit":    sw.config.DefaultLimit,
 			"default_window":   sw.config.DefaultWindow.String(),
@@ -473,7 +473,7 @@ func (sw *SlidingWindow) GetInfo(ctx context.Context) (map[string]interface{}, e
 		totalRequests += len(window.requests)
 		window.mu.RUnlock()
 	}
-	
+
 	// Rough memory estimation (time.Time is ~24 bytes)
 	estimatedMemory := totalRequests * 24
 	info["estimated_memory_bytes"] = estimatedMemory

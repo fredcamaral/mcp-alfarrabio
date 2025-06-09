@@ -28,44 +28,44 @@ type Task struct {
 	Timestamps         TaskTimestamps `json:"timestamps"`
 }
 
-// TaskType represents the type of task
+// TaskType represents the type of task (legacy - use TaskTypeEnum for new code)
 type TaskType string
 
 const (
-	TaskTypeImplementation TaskType = "implementation"
-	TaskTypeDesign         TaskType = "design"
-	TaskTypeTesting        TaskType = "testing"
-	TaskTypeDocumentation  TaskType = "documentation"
-	TaskTypeResearch       TaskType = "research"
-	TaskTypeReview         TaskType = "review"
-	TaskTypeDeployment     TaskType = "deployment"
-	TaskTypeArchitecture   TaskType = "architecture"
-	TaskTypeBugFix         TaskType = "bugfix"
-	TaskTypeRefactoring    TaskType = "refactoring"
-	TaskTypeIntegration    TaskType = "integration"
-	TaskTypeAnalysis       TaskType = "analysis"
+	TaskTypeLegacyImplementation TaskType = "implementation"
+	TaskTypeLegacyDesign         TaskType = "design"
+	TaskTypeLegacyTesting        TaskType = "testing"
+	TaskTypeLegacyDocumentation  TaskType = "documentation"
+	TaskTypeLegacyResearch       TaskType = "research"
+	TaskTypeLegacyReview         TaskType = "review"
+	TaskTypeLegacyDeployment     TaskType = "deployment"
+	TaskTypeLegacyArchitecture   TaskType = "architecture"
+	TaskTypeLegacyBugFix         TaskType = "bugfix"
+	TaskTypeLegacyRefactoring    TaskType = "refactoring"
+	TaskTypeLegacyIntegration    TaskType = "integration"
+	TaskTypeLegacyAnalysis       TaskType = "analysis"
 )
 
-// TaskPriority represents task priority levels
+// TaskPriority represents task priority levels (legacy - use TaskPriorityEnum for new code)
 type TaskPriority string
 
 const (
-	TaskPriorityLow      TaskPriority = "low"
-	TaskPriorityMedium   TaskPriority = "medium"
-	TaskPriorityHigh     TaskPriority = "high"
-	TaskPriorityCritical TaskPriority = "critical"
-	TaskPriorityBlocking TaskPriority = "blocking"
+	TaskPriorityLegacyLow      TaskPriority = "low"
+	TaskPriorityLegacyMedium   TaskPriority = "medium"
+	TaskPriorityLegacyHigh     TaskPriority = "high"
+	TaskPriorityLegacyCritical TaskPriority = "critical"
+	TaskPriorityLegacyBlocking TaskPriority = "blocking"
 )
 
-// TaskStatus represents task status levels
+// TaskStatus represents task status levels (legacy - use TaskStatusEnum for new code)
 type TaskStatus string
 
 const (
-	TaskStatusTodo       TaskStatus = "todo"
-	TaskStatusInProgress TaskStatus = "in_progress"
-	TaskStatusCompleted  TaskStatus = "completed"
-	TaskStatusBlocked    TaskStatus = "blocked"
-	TaskStatusCancelled  TaskStatus = "cancelled"
+	TaskStatusLegacyTodo       TaskStatus = "todo"
+	TaskStatusLegacyInProgress TaskStatus = "in_progress"
+	TaskStatusLegacyCompleted  TaskStatus = "completed"
+	TaskStatusLegacyBlocked    TaskStatus = "blocked"
+	TaskStatusLegacyCancelled  TaskStatus = "cancelled"
 )
 
 // TaskComplexity represents task complexity analysis
@@ -73,8 +73,8 @@ type TaskComplexity struct {
 	Level                ComplexityLevel   `json:"level"`
 	Score                float64           `json:"score"` // 0.0-1.0
 	Factors              ComplexityFactors `json:"factors"`
-	TechnicalRisk        RiskLevel         `json:"technical_risk"`
-	BusinessImpact       ImpactLevel       `json:"business_impact"`
+	TechnicalRisk        RiskLevelEnum     `json:"technical_risk"`
+	BusinessImpact       ImpactLevelEnum   `json:"business_impact"`
 	RequiredSkills       []string          `json:"required_skills"`
 	ExternalDependencies []string          `json:"external_dependencies"`
 }
@@ -104,10 +104,10 @@ type ComplexityFactors struct {
 type ImpactLevel string
 
 const (
-	ImpactLow      ImpactLevel = "low"
-	ImpactMedium   ImpactLevel = "medium"
-	ImpactHigh     ImpactLevel = "high"
-	ImpactCritical ImpactLevel = "critical"
+	ImpactLegacyLow      ImpactLevel = "low"
+	ImpactLegacyMedium   ImpactLevel = "medium"
+	ImpactLegacyHigh     ImpactLevel = "high"
+	ImpactLegacyCritical ImpactLevel = "critical"
 )
 
 // EffortEstimate represents effort estimation
@@ -374,26 +374,7 @@ const (
 	DependencyTypeRelated     DependencyType = "related"     // Related but not dependent
 )
 
-// TaskTemplate represents a reusable task template
-type TaskTemplate struct {
-	ID                 string                `json:"id"`
-	Name               string                `json:"name"`
-	Description        string                `json:"description"`
-	Category           string                `json:"category"`
-	Type               TaskType              `json:"type"`
-	DefaultPriority    TaskPriority          `json:"default_priority"`
-	DefaultComplexity  ComplexityLevel       `json:"default_complexity"`
-	EstimatedEffort    EffortEstimate        `json:"estimated_effort"`
-	AcceptanceCriteria []string              `json:"acceptance_criteria"`
-	RequiredSkills     []string              `json:"required_skills"`
-	Tags               []string              `json:"tags"`
-	Applicability      TemplateApplicability `json:"applicability"`
-	Variables          []TemplateVariable    `json:"variables"`
-	CreatedAt          time.Time             `json:"created_at"`
-	UpdatedAt          time.Time             `json:"updated_at"`
-	UsageCount         int                   `json:"usage_count"`
-	SuccessRate        float64               `json:"success_rate"` // 0.0-1.0
-}
+// Note: TaskTemplate is defined in prd_types.go to avoid conflicts
 
 // TemplateApplicability defines when a template is applicable
 type TemplateApplicability struct {
@@ -415,29 +396,4 @@ type TemplateVariable struct {
 	Options      []string `json:"options,omitempty"` // For enum-type variables
 }
 
-// TaskValidationResult represents the result of task validation
-type TaskValidationResult struct {
-	IsValid     bool                `json:"is_valid"`
-	Errors      []ValidationError   `json:"errors,omitempty"`
-	Warnings    []ValidationWarning `json:"warnings,omitempty"`
-	Suggestions []string            `json:"suggestions,omitempty"`
-	Score       float64             `json:"score"` // Overall validation score 0.0-1.0
-}
-
-// ValidationError represents a validation error
-type ValidationError struct {
-	Field    string `json:"field"`
-	Type     string `json:"type"`
-	Message  string `json:"message"`
-	Severity string `json:"severity"`
-	Code     string `json:"code"`
-}
-
-// ValidationWarning represents a validation warning
-type ValidationWarning struct {
-	Field      string `json:"field"`
-	Type       string `json:"type"`
-	Message    string `json:"message"`
-	Suggestion string `json:"suggestion"`
-	Code       string `json:"code"`
-}
+// Note: TaskValidationResult, ValidationError, and ValidationWarning are defined in prd_types.go to avoid conflicts

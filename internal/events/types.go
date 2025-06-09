@@ -10,38 +10,38 @@ import (
 // Event represents a system event with metadata and payload
 type Event struct {
 	// Core event information
-	ID          string      `json:"id"`
-	Type        EventType   `json:"type"`
-	Action      string      `json:"action"`
-	Version     string      `json:"version"`
-	Timestamp   time.Time   `json:"timestamp"`
-	Source      string      `json:"source"`
-	
+	ID        string    `json:"id"`
+	Type      EventType `json:"type"`
+	Action    string    `json:"action"`
+	Version   string    `json:"version"`
+	Timestamp time.Time `json:"timestamp"`
+	Source    string    `json:"source"`
+
 	// Event routing and filtering
-	Repository  string      `json:"repository,omitempty"`
-	SessionID   string      `json:"session_id,omitempty"`
-	UserID      string      `json:"user_id,omitempty"`
-	ClientID    string      `json:"client_id,omitempty"`
-	Tags        []string    `json:"tags,omitempty"`
-	
+	Repository string   `json:"repository,omitempty"`
+	SessionID  string   `json:"session_id,omitempty"`
+	UserID     string   `json:"user_id,omitempty"`
+	ClientID   string   `json:"client_id,omitempty"`
+	Tags       []string `json:"tags,omitempty"`
+
 	// Event payload and metadata
-	Payload     interface{} `json:"payload"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	
+	Payload  interface{}            `json:"payload"`
+	Metadata map[string]interface{} `json:"metadata,omitempty"`
+
 	// Event lifecycle
-	TTL         time.Duration `json:"ttl,omitempty"`
-	ExpiresAt   *time.Time   `json:"expires_at,omitempty"`
-	Retry       *RetryConfig `json:"retry,omitempty"`
-	
+	TTL       time.Duration `json:"ttl,omitempty"`
+	ExpiresAt *time.Time    `json:"expires_at,omitempty"`
+	Retry     *RetryConfig  `json:"retry,omitempty"`
+
 	// Event ordering and relationships
-	SequenceNumber int64    `json:"sequence_number,omitempty"`
-	CorrelationID  string   `json:"correlation_id,omitempty"`
-	CausationID    string   `json:"causation_id,omitempty"`
-	ParentID       string   `json:"parent_id,omitempty"`
-	
+	SequenceNumber int64  `json:"sequence_number,omitempty"`
+	CorrelationID  string `json:"correlation_id,omitempty"`
+	CausationID    string `json:"causation_id,omitempty"`
+	ParentID       string `json:"parent_id,omitempty"`
+
 	// Processing information
-	ProcessedAt   *time.Time `json:"processed_at,omitempty"`
-	DeliveredAt   *time.Time `json:"delivered_at,omitempty"`
+	ProcessedAt    *time.Time `json:"processed_at,omitempty"`
+	DeliveredAt    *time.Time `json:"delivered_at,omitempty"`
 	AcknowledgedAt *time.Time `json:"acknowledged_at,omitempty"`
 }
 
@@ -55,44 +55,44 @@ const (
 	EventTypeMemoryDeleted   EventType = "memory.deleted"
 	EventTypeChunkProcessed  EventType = "chunk.processed"
 	EventTypeSearchPerformed EventType = "search.performed"
-	
+
 	// Task and workflow events
-	EventTypeTaskCreated    EventType = "task.created"
-	EventTypeTaskUpdated    EventType = "task.updated"
-	EventTypeTaskCompleted  EventType = "task.completed"
-	EventTypeTaskDeleted    EventType = "task.deleted"
-	EventTypeWorkflowStarted EventType = "workflow.started"
+	EventTypeTaskCreated       EventType = "task.created"
+	EventTypeTaskUpdated       EventType = "task.updated"
+	EventTypeTaskCompleted     EventType = "task.completed"
+	EventTypeTaskDeleted       EventType = "task.deleted"
+	EventTypeWorkflowStarted   EventType = "workflow.started"
 	EventTypeWorkflowCompleted EventType = "workflow.completed"
-	
+
 	// Connection and session events
-	EventTypeConnectionOpened  EventType = "connection.opened"
-	EventTypeConnectionClosed  EventType = "connection.closed"
-	EventTypeSessionStarted    EventType = "session.started"
-	EventTypeSessionEnded      EventType = "session.ended"
-	EventTypeClientRegistered  EventType = "client.registered"
+	EventTypeConnectionOpened   EventType = "connection.opened"
+	EventTypeConnectionClosed   EventType = "connection.closed"
+	EventTypeSessionStarted     EventType = "session.started"
+	EventTypeSessionEnded       EventType = "session.ended"
+	EventTypeClientRegistered   EventType = "client.registered"
 	EventTypeClientDeregistered EventType = "client.deregistered"
-	
+
 	// System and monitoring events
-	EventTypeSystemAlert       EventType = "system.alert"
-	EventTypeHealthCheck       EventType = "system.health_check"
-	EventTypePerformanceMetric EventType = "system.performance_metric"
-	EventTypeErrorOccurred     EventType = "system.error"
+	EventTypeSystemAlert          EventType = "system.alert"
+	EventTypeHealthCheck          EventType = "system.health_check"
+	EventTypePerformanceMetric    EventType = "system.performance_metric"
+	EventTypeErrorOccurred        EventType = "system.error"
 	EventTypeConfigurationChanged EventType = "system.config_changed"
-	
+
 	// Security events
-	EventTypeSecurityThreat    EventType = "security.threat_detected"
+	EventTypeSecurityThreat       EventType = "security.threat_detected"
 	EventTypeAuthenticationFailed EventType = "security.auth_failed"
-	EventTypeAccessDenied      EventType = "security.access_denied"
-	EventTypeAuditLog          EventType = "security.audit_log"
-	
+	EventTypeAccessDenied         EventType = "security.access_denied"
+	EventTypeAuditLog             EventType = "security.audit_log"
+
 	// Notification events
-	EventTypeNotificationSent     EventType = "notification.sent"
+	EventTypeNotificationSent      EventType = "notification.sent"
 	EventTypeNotificationDelivered EventType = "notification.delivered"
-	EventTypeNotificationFailed   EventType = "notification.failed"
-	
+	EventTypeNotificationFailed    EventType = "notification.failed"
+
 	// Custom and extension events
-	EventTypeCustom     EventType = "custom"
-	EventTypeExtension  EventType = "extension"
+	EventTypeCustom    EventType = "custom"
+	EventTypeExtension EventType = "extension"
 )
 
 // RetryConfig defines retry behavior for event processing
@@ -124,11 +124,11 @@ type EventFilter struct {
 	UserIDs      []string    `json:"user_ids,omitempty"`
 	ClientIDs    []string    `json:"client_ids,omitempty"`
 	Tags         []string    `json:"tags,omitempty"`
-	
+
 	// Time-based filtering
 	After  *time.Time `json:"after,omitempty"`
 	Before *time.Time `json:"before,omitempty"`
-	
+
 	// Advanced filtering
 	Metadata     map[string]interface{} `json:"metadata,omitempty"`
 	CustomFilter func(*Event) bool      `json:"-"`
@@ -136,13 +136,13 @@ type EventFilter struct {
 
 // EventSubscription represents a subscription to events
 type EventSubscription struct {
-	ID          string       `json:"id"`
-	SubscriberID string      `json:"subscriber_id"`
-	Filter      EventFilter  `json:"filter"`
-	DeliveryMode DeliveryMode `json:"delivery_mode"`
-	CreatedAt   time.Time    `json:"created_at"`
-	LastDelivery *time.Time  `json:"last_delivery,omitempty"`
-	Statistics  SubscriptionStats `json:"statistics"`
+	ID           string            `json:"id"`
+	SubscriberID string            `json:"subscriber_id"`
+	Filter       EventFilter       `json:"filter"`
+	DeliveryMode DeliveryMode      `json:"delivery_mode"`
+	CreatedAt    time.Time         `json:"created_at"`
+	LastDelivery *time.Time        `json:"last_delivery,omitempty"`
+	Statistics   SubscriptionStats `json:"statistics"`
 }
 
 // DeliveryMode defines how events are delivered to subscribers
@@ -159,34 +159,34 @@ const (
 
 // SubscriptionStats tracks subscription performance
 type SubscriptionStats struct {
-	EventsReceived    int64     `json:"events_received"`
-	EventsDelivered   int64     `json:"events_delivered"`
-	EventsFailed      int64     `json:"events_failed"`
-	LastEventTime     *time.Time `json:"last_event_time"`
-	AverageLatency    time.Duration `json:"average_latency"`
-	DeliverySuccess   float64   `json:"delivery_success_rate"`
+	EventsReceived  int64         `json:"events_received"`
+	EventsDelivered int64         `json:"events_delivered"`
+	EventsFailed    int64         `json:"events_failed"`
+	LastEventTime   *time.Time    `json:"last_event_time"`
+	AverageLatency  time.Duration `json:"average_latency"`
+	DeliverySuccess float64       `json:"delivery_success_rate"`
 }
 
 // EventMetadata provides additional context for events
 type EventMetadata struct {
 	// Request context
-	RequestID   string `json:"request_id,omitempty"`
-	TraceID     string `json:"trace_id,omitempty"`
-	SpanID      string `json:"span_id,omitempty"`
-	
+	RequestID string `json:"request_id,omitempty"`
+	TraceID   string `json:"trace_id,omitempty"`
+	SpanID    string `json:"span_id,omitempty"`
+
 	// User context
-	UserAgent   string `json:"user_agent,omitempty"`
-	IPAddress   string `json:"ip_address,omitempty"`
-	
+	UserAgent string `json:"user_agent,omitempty"`
+	IPAddress string `json:"ip_address,omitempty"`
+
 	// Performance metrics
 	ProcessingTime time.Duration `json:"processing_time,omitempty"`
 	QueueTime      time.Duration `json:"queue_time,omitempty"`
-	
+
 	// Business context
-	EntityID       string `json:"entity_id,omitempty"`
-	EntityType     string `json:"entity_type,omitempty"`
-	EntityVersion  string `json:"entity_version,omitempty"`
-	
+	EntityID      string `json:"entity_id,omitempty"`
+	EntityType    string `json:"entity_type,omitempty"`
+	EntityVersion string `json:"entity_version,omitempty"`
+
 	// Custom fields
 	Custom map[string]interface{} `json:"custom,omitempty"`
 }
@@ -206,18 +206,18 @@ const (
 
 // EventBatch represents a collection of related events
 type EventBatch struct {
-	ID          string    `json:"id"`
-	Events      []*Event  `json:"events"`
-	CreatedAt   time.Time `json:"created_at"`
-	ProcessedAt *time.Time `json:"processed_at,omitempty"`
-	Size        int       `json:"size"`
+	ID          string                 `json:"id"`
+	Events      []*Event               `json:"events"`
+	CreatedAt   time.Time              `json:"created_at"`
+	ProcessedAt *time.Time             `json:"processed_at,omitempty"`
+	Size        int                    `json:"size"`
 	Metadata    map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // NewEvent creates a new event with default values
 func NewEvent(eventType EventType, action string, payload interface{}) *Event {
 	now := time.Now()
-	
+
 	return &Event{
 		ID:        generateEventID(),
 		Type:      eventType,
@@ -236,11 +236,11 @@ func NewMemoryUpdateEvent(chunkID, repository, sessionID string, content interfa
 		"chunk_id": chunkID,
 		"content":  content,
 	})
-	
+
 	event.Repository = repository
 	event.SessionID = sessionID
 	event.Tags = []string{"memory", "update"}
-	
+
 	return event
 }
 
@@ -250,9 +250,9 @@ func NewTaskEvent(eventType EventType, action, taskID string, taskData interface
 		"task_id": taskID,
 		"data":    taskData,
 	})
-	
+
 	event.Tags = []string{"task", action}
-	
+
 	return event
 }
 
@@ -263,9 +263,9 @@ func NewSystemEvent(action string, severity string, message string, details inte
 		"message":  message,
 		"details":  details,
 	})
-	
+
 	event.Tags = []string{"system", severity}
-	
+
 	return event
 }
 
@@ -275,11 +275,11 @@ func NewConnectionEvent(eventType EventType, clientID, sessionID string, metadat
 		"client_id": clientID,
 		"metadata":  metadata,
 	})
-	
+
 	event.ClientID = clientID
 	event.SessionID = sessionID
 	event.Tags = []string{"connection"}
-	
+
 	return event
 }
 
@@ -348,7 +348,7 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check actions
 	if len(filter.Actions) > 0 {
 		matched := false
@@ -362,7 +362,7 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check sources
 	if len(filter.Sources) > 0 {
 		matched := false
@@ -376,7 +376,7 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check repositories
 	if len(filter.Repositories) > 0 && e.Repository != "" {
 		matched := false
@@ -390,7 +390,7 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check session IDs
 	if len(filter.SessionIDs) > 0 && e.SessionID != "" {
 		matched := false
@@ -404,7 +404,7 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check user IDs
 	if len(filter.UserIDs) > 0 && e.UserID != "" {
 		matched := false
@@ -418,7 +418,7 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check client IDs
 	if len(filter.ClientIDs) > 0 && e.ClientID != "" {
 		matched := false
@@ -432,7 +432,7 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check tags
 	if len(filter.Tags) > 0 && len(e.Tags) > 0 {
 		matched := false
@@ -451,16 +451,16 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			return false
 		}
 	}
-	
+
 	// Check time range
 	if filter.After != nil && e.Timestamp.Before(*filter.After) {
 		return false
 	}
-	
+
 	if filter.Before != nil && e.Timestamp.After(*filter.Before) {
 		return false
 	}
-	
+
 	// Check metadata filters
 	if len(filter.Metadata) > 0 {
 		for key, expectedValue := range filter.Metadata {
@@ -469,12 +469,12 @@ func (e *Event) Matches(filter *EventFilter) bool {
 			}
 		}
 	}
-	
+
 	// Check custom filter
 	if filter.CustomFilter != nil {
 		return filter.CustomFilter(e)
 	}
-	
+
 	return true
 }
 
@@ -495,25 +495,25 @@ func FromJSON(data []byte) (*Event, error) {
 // Clone creates a deep copy of the event
 func (e *Event) Clone() *Event {
 	clone := *e
-	
+
 	// Deep copy slices and maps
 	if e.Tags != nil {
 		clone.Tags = make([]string, len(e.Tags))
 		copy(clone.Tags, e.Tags)
 	}
-	
+
 	if e.Metadata != nil {
 		clone.Metadata = make(map[string]interface{})
 		for k, v := range e.Metadata {
 			clone.Metadata[k] = v
 		}
 	}
-	
+
 	if e.Retry != nil {
 		retryClone := *e.Retry
 		clone.Retry = &retryClone
 	}
-	
+
 	return &clone
 }
 

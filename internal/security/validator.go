@@ -18,70 +18,70 @@ type Validator struct {
 // ValidationConfig configures security validation rules
 type ValidationConfig struct {
 	// String validation
-	MaxStringLength     int      `json:"max_string_length"`
-	MinStringLength     int      `json:"min_string_length"`
-	AllowedCharsets     []string `json:"allowed_charsets"`
-	DisallowedPatterns  []string `json:"disallowed_patterns"`
-	RequiredPatterns    []string `json:"required_patterns"`
-	
+	MaxStringLength    int      `json:"max_string_length"`
+	MinStringLength    int      `json:"min_string_length"`
+	AllowedCharsets    []string `json:"allowed_charsets"`
+	DisallowedPatterns []string `json:"disallowed_patterns"`
+	RequiredPatterns   []string `json:"required_patterns"`
+
 	// Numeric validation
-	MaxNumericValue     float64 `json:"max_numeric_value"`
-	MinNumericValue     float64 `json:"min_numeric_value"`
-	AllowNegativeNumbers bool   `json:"allow_negative_numbers"`
-	AllowFloatingPoint  bool    `json:"allow_floating_point"`
-	
+	MaxNumericValue      float64 `json:"max_numeric_value"`
+	MinNumericValue      float64 `json:"min_numeric_value"`
+	AllowNegativeNumbers bool    `json:"allow_negative_numbers"`
+	AllowFloatingPoint   bool    `json:"allow_floating_point"`
+
 	// URL validation
-	AllowedSchemes      []string `json:"allowed_schemes"`
-	AllowedDomains      []string `json:"allowed_domains"`
-	DisallowedDomains   []string `json:"disallowed_domains"`
-	RequireHTTPS        bool     `json:"require_https"`
-	AllowIPAddresses    bool     `json:"allow_ip_addresses"`
-	AllowLocalhost      bool     `json:"allow_localhost"`
-	
+	AllowedSchemes    []string `json:"allowed_schemes"`
+	AllowedDomains    []string `json:"allowed_domains"`
+	DisallowedDomains []string `json:"disallowed_domains"`
+	RequireHTTPS      bool     `json:"require_https"`
+	AllowIPAddresses  bool     `json:"allow_ip_addresses"`
+	AllowLocalhost    bool     `json:"allow_localhost"`
+
 	// Email validation
-	AllowedEmailDomains []string `json:"allowed_email_domains"`
-	RequireEmailVerification bool `json:"require_email_verification"`
-	
+	AllowedEmailDomains      []string `json:"allowed_email_domains"`
+	RequireEmailVerification bool     `json:"require_email_verification"`
+
 	// File validation
-	AllowedFileExtensions []string `json:"allowed_file_extensions"`
+	AllowedFileExtensions    []string `json:"allowed_file_extensions"`
 	DisallowedFileExtensions []string `json:"disallowed_file_extensions"`
-	MaxFileSize          int64    `json:"max_file_size"`
-	
+	MaxFileSize              int64    `json:"max_file_size"`
+
 	// Security patterns
-	CheckForSQLInjection    bool `json:"check_for_sql_injection"`
-	CheckForXSS             bool `json:"check_for_xss"`
-	CheckForPathTraversal   bool `json:"check_for_path_traversal"`
+	CheckForSQLInjection     bool `json:"check_for_sql_injection"`
+	CheckForXSS              bool `json:"check_for_xss"`
+	CheckForPathTraversal    bool `json:"check_for_path_traversal"`
 	CheckForCommandInjection bool `json:"check_for_command_injection"`
-	
+
 	// Custom validation rules
 	CustomRules map[string]ValidationRule `json:"custom_rules"`
 }
 
 // ValidationRule represents a custom validation rule
 type ValidationRule struct {
-	Pattern     string `json:"pattern"`
-	Required    bool   `json:"required"`
-	Description string `json:"description"`
+	Pattern      string `json:"pattern"`
+	Required     bool   `json:"required"`
+	Description  string `json:"description"`
 	ErrorMessage string `json:"error_message"`
 }
 
 // ValidationResult represents the result of validation
 type ValidationResult struct {
-	Valid       bool                `json:"valid"`
-	Errors      []ValidationError   `json:"errors"`
-	Warnings    []ValidationWarning `json:"warnings"`
-	Sanitized   interface{}         `json:"sanitized"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	Valid     bool                   `json:"valid"`
+	Errors    []ValidationError      `json:"errors"`
+	Warnings  []ValidationWarning    `json:"warnings"`
+	Sanitized interface{}            `json:"sanitized"`
+	Metadata  map[string]interface{} `json:"metadata"`
 }
 
 // ValidationError represents a validation error
 type ValidationError struct {
-	Field       string `json:"field"`
-	Value       string `json:"value"`
-	Rule        string `json:"rule"`
-	Message     string `json:"message"`
-	Severity    string `json:"severity"`
-	Code        string `json:"code"`
+	Field    string `json:"field"`
+	Value    string `json:"value"`
+	Rule     string `json:"rule"`
+	Message  string `json:"message"`
+	Severity string `json:"severity"`
+	Code     string `json:"code"`
 }
 
 // ValidationWarning represents a validation warning
@@ -95,50 +95,50 @@ type ValidationWarning struct {
 // DefaultValidationConfig returns secure validation defaults
 func DefaultValidationConfig() ValidationConfig {
 	return ValidationConfig{
-		MaxStringLength:    10000,
-		MinStringLength:    0,
-		AllowedCharsets:    []string{"utf-8", "ascii"},
+		MaxStringLength: 10000,
+		MinStringLength: 0,
+		AllowedCharsets: []string{"utf-8", "ascii"},
 		DisallowedPatterns: []string{
 			// SQL injection patterns
 			`(?i)(union|select|insert|update|delete|drop|create|alter)\s+`,
 			`(?i)'.*or.*'`,
 			`(?i);.*--`,
-			
+
 			// XSS patterns
 			`<script[^>]*>`,
 			`javascript:`,
 			`on\w+\s*=`,
-			
+
 			// Path traversal
 			`\.\.\/`,
 			`\.\.\\`,
-			
+
 			// Command injection
 			`[;&|]`,
 			`\$\(`,
 			` \|\| `,
 			` && `,
 		},
-		MaxNumericValue:        1e10,
-		MinNumericValue:        -1e10,
-		AllowNegativeNumbers:   true,
-		AllowFloatingPoint:     true,
-		AllowedSchemes:        []string{"https", "http"},
-		AllowedDomains:        []string{},
-		DisallowedDomains:     []string{"localhost", "127.0.0.1", "0.0.0.0"},
-		RequireHTTPS:          false,
-		AllowIPAddresses:      false,
-		AllowLocalhost:        true,
-		AllowedEmailDomains:   []string{},
+		MaxNumericValue:          1e10,
+		MinNumericValue:          -1e10,
+		AllowNegativeNumbers:     true,
+		AllowFloatingPoint:       true,
+		AllowedSchemes:           []string{"https", "http"},
+		AllowedDomains:           []string{},
+		DisallowedDomains:        []string{"localhost", "127.0.0.1", "0.0.0.0"},
+		RequireHTTPS:             false,
+		AllowIPAddresses:         false,
+		AllowLocalhost:           true,
+		AllowedEmailDomains:      []string{},
 		RequireEmailVerification: false,
-		AllowedFileExtensions: []string{".txt", ".md", ".json", ".yaml", ".yml"},
+		AllowedFileExtensions:    []string{".txt", ".md", ".json", ".yaml", ".yml"},
 		DisallowedFileExtensions: []string{".exe", ".bat", ".sh", ".ps1", ".php", ".jsp"},
-		MaxFileSize:           10 * 1024 * 1024, // 10MB
-		CheckForSQLInjection:  true,
-		CheckForXSS:           true,
-		CheckForPathTraversal: true,
+		MaxFileSize:              10 * 1024 * 1024, // 10MB
+		CheckForSQLInjection:     true,
+		CheckForXSS:              true,
+		CheckForPathTraversal:    true,
 		CheckForCommandInjection: true,
-		CustomRules:           make(map[string]ValidationRule),
+		CustomRules:              make(map[string]ValidationRule),
 	}
 }
 
@@ -162,7 +162,7 @@ func (v *Validator) ValidateString(field, value string) ValidationResult {
 		Warnings: []ValidationWarning{},
 		Metadata: make(map[string]interface{}),
 	}
-	
+
 	// Length validation
 	if len(value) > v.config.MaxStringLength {
 		result.Valid = false
@@ -175,7 +175,7 @@ func (v *Validator) ValidateString(field, value string) ValidationResult {
 			Code:     "STRING_TOO_LONG",
 		})
 	}
-	
+
 	if len(value) < v.config.MinStringLength {
 		result.Valid = false
 		result.Errors = append(result.Errors, ValidationError{
@@ -187,7 +187,7 @@ func (v *Validator) ValidateString(field, value string) ValidationResult {
 			Code:     "STRING_TOO_SHORT",
 		})
 	}
-	
+
 	// Character validation
 	if !v.isValidCharset(value) {
 		result.Valid = false
@@ -200,16 +200,16 @@ func (v *Validator) ValidateString(field, value string) ValidationResult {
 			Code:     "INVALID_CHARSET",
 		})
 	}
-	
+
 	// Security pattern validation
 	v.checkSecurityPatterns(field, value, &result)
-	
+
 	// Custom pattern validation
 	v.checkCustomPatterns(field, value, &result)
-	
+
 	// Sanitize value
 	result.Sanitized = v.sanitizeString(value)
-	
+
 	return result
 }
 
@@ -221,7 +221,7 @@ func (v *Validator) ValidateURL(field, urlStr string) ValidationResult {
 		Warnings: []ValidationWarning{},
 		Metadata: make(map[string]interface{}),
 	}
-	
+
 	// Parse URL
 	parsedURL, err := url.Parse(urlStr)
 	if err != nil {
@@ -236,7 +236,7 @@ func (v *Validator) ValidateURL(field, urlStr string) ValidationResult {
 		})
 		return result
 	}
-	
+
 	// Validate scheme
 	if !v.isAllowedScheme(parsedURL.Scheme) {
 		result.Valid = false
@@ -249,7 +249,7 @@ func (v *Validator) ValidateURL(field, urlStr string) ValidationResult {
 			Code:     "DISALLOWED_SCHEME",
 		})
 	}
-	
+
 	// HTTPS requirement
 	if v.config.RequireHTTPS && parsedURL.Scheme != "https" {
 		result.Valid = false
@@ -262,20 +262,20 @@ func (v *Validator) ValidateURL(field, urlStr string) ValidationResult {
 			Code:     "HTTPS_REQUIRED",
 		})
 	}
-	
+
 	// Validate host
 	v.validateHost(field, parsedURL.Host, urlStr, &result)
-	
+
 	// Check for dangerous URL patterns
 	v.checkURLPatterns(field, urlStr, &result)
-	
+
 	result.Sanitized = parsedURL.String()
 	result.Metadata["parsed_url"] = map[string]string{
 		"scheme": parsedURL.Scheme,
 		"host":   parsedURL.Host,
 		"path":   parsedURL.Path,
 	}
-	
+
 	return result
 }
 
@@ -287,7 +287,7 @@ func (v *Validator) ValidateEmail(field, email string) ValidationResult {
 		Warnings: []ValidationWarning{},
 		Metadata: make(map[string]interface{}),
 	}
-	
+
 	// Basic email format validation
 	emailRegex := regexp.MustCompile(`^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$`)
 	if !emailRegex.MatchString(email) {
@@ -302,7 +302,7 @@ func (v *Validator) ValidateEmail(field, email string) ValidationResult {
 		})
 		return result
 	}
-	
+
 	// Extract domain
 	parts := strings.Split(email, "@")
 	if len(parts) != 2 {
@@ -317,9 +317,9 @@ func (v *Validator) ValidateEmail(field, email string) ValidationResult {
 		})
 		return result
 	}
-	
+
 	domain := parts[1]
-	
+
 	// Domain whitelist validation
 	if len(v.config.AllowedEmailDomains) > 0 {
 		allowed := false
@@ -341,10 +341,10 @@ func (v *Validator) ValidateEmail(field, email string) ValidationResult {
 			})
 		}
 	}
-	
+
 	result.Sanitized = strings.ToLower(email)
 	result.Metadata["domain"] = domain
-	
+
 	return result
 }
 
@@ -356,7 +356,7 @@ func (v *Validator) ValidateFilename(field, filename string) ValidationResult {
 		Warnings: []ValidationWarning{},
 		Metadata: make(map[string]interface{}),
 	}
-	
+
 	// Check for path traversal in filename
 	if strings.Contains(filename, "..") || strings.Contains(filename, "/") || strings.Contains(filename, "\\") {
 		result.Valid = false
@@ -369,10 +369,10 @@ func (v *Validator) ValidateFilename(field, filename string) ValidationResult {
 			Code:     "PATH_TRAVERSAL",
 		})
 	}
-	
+
 	// Extract file extension
 	ext := strings.ToLower(filename[strings.LastIndex(filename, "."):])
-	
+
 	// Check allowed extensions
 	if len(v.config.AllowedFileExtensions) > 0 {
 		allowed := false
@@ -394,7 +394,7 @@ func (v *Validator) ValidateFilename(field, filename string) ValidationResult {
 			})
 		}
 	}
-	
+
 	// Check disallowed extensions
 	for _, disallowedExt := range v.config.DisallowedFileExtensions {
 		if ext == disallowedExt {
@@ -410,7 +410,7 @@ func (v *Validator) ValidateFilename(field, filename string) ValidationResult {
 			break
 		}
 	}
-	
+
 	// Check for dangerous filenames
 	dangerousNames := []string{"con", "prn", "aux", "nul", "com1", "com2", "lpt1", "lpt2"}
 	baseFilename := strings.ToLower(filename[:strings.LastIndex(filename, ".")])
@@ -428,11 +428,11 @@ func (v *Validator) ValidateFilename(field, filename string) ValidationResult {
 			break
 		}
 	}
-	
+
 	result.Sanitized = filename
 	result.Metadata["extension"] = ext
 	result.Metadata["base_name"] = baseFilename
-	
+
 	return result
 }
 
@@ -441,7 +441,7 @@ func (v *Validator) isValidCharset(value string) bool {
 	if len(v.config.AllowedCharsets) == 0 {
 		return true // No restrictions
 	}
-	
+
 	for _, charset := range v.config.AllowedCharsets {
 		switch charset {
 		case "ascii":
@@ -454,7 +454,7 @@ func (v *Validator) isValidCharset(value string) bool {
 			}
 		}
 	}
-	
+
 	return false
 }
 
@@ -483,13 +483,13 @@ func (v *Validator) isAllowedScheme(scheme string) bool {
 	if len(v.config.AllowedSchemes) == 0 {
 		return true
 	}
-	
+
 	for _, allowed := range v.config.AllowedSchemes {
 		if strings.EqualFold(scheme, allowed) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -508,7 +508,7 @@ func (v *Validator) validateHost(field, host, fullURL string, result *Validation
 				Code:     "IP_ADDRESS_FORBIDDEN",
 			})
 		}
-		
+
 		// Check for localhost IP
 		if !v.config.AllowLocalhost && (ip.IsLoopback() || ip.IsPrivate()) {
 			result.Valid = false
@@ -523,7 +523,7 @@ func (v *Validator) validateHost(field, host, fullURL string, result *Validation
 		}
 		return
 	}
-	
+
 	// Check localhost domain
 	if !v.config.AllowLocalhost && (strings.EqualFold(host, "localhost") || strings.HasSuffix(host, ".local")) {
 		result.Valid = false
@@ -536,7 +536,7 @@ func (v *Validator) validateHost(field, host, fullURL string, result *Validation
 			Code:     "LOCALHOST_DOMAIN_FORBIDDEN",
 		})
 	}
-	
+
 	// Check domain whitelist
 	if len(v.config.AllowedDomains) > 0 {
 		allowed := false
@@ -558,7 +558,7 @@ func (v *Validator) validateHost(field, host, fullURL string, result *Validation
 			})
 		}
 	}
-	
+
 	// Check domain blacklist
 	for _, disallowed := range v.config.DisallowedDomains {
 		if strings.EqualFold(host, disallowed) || strings.HasSuffix(host, "."+disallowed) {
@@ -587,7 +587,7 @@ func (v *Validator) checkSecurityPatterns(field, value string, result *Validatio
 			`(?i);.*--`,
 			`(?i)/\*.*\*/`,
 		}
-		
+
 		for _, pattern := range sqlPatterns {
 			if matched, _ := regexp.MatchString(pattern, value); matched {
 				result.Valid = false
@@ -603,7 +603,7 @@ func (v *Validator) checkSecurityPatterns(field, value string, result *Validatio
 			}
 		}
 	}
-	
+
 	// XSS check
 	if v.config.CheckForXSS {
 		xssPatterns := []string{
@@ -614,7 +614,7 @@ func (v *Validator) checkSecurityPatterns(field, value string, result *Validatio
 			`<object[^>]*>`,
 			`<embed[^>]*>`,
 		}
-		
+
 		for _, pattern := range xssPatterns {
 			if matched, _ := regexp.MatchString(`(?i)`+pattern, value); matched {
 				result.Valid = false
@@ -630,11 +630,11 @@ func (v *Validator) checkSecurityPatterns(field, value string, result *Validatio
 			}
 		}
 	}
-	
+
 	// Path traversal check
 	if v.config.CheckForPathTraversal {
 		pathPatterns := []string{`\.\.\/`, `\.\.\\`, `%2e%2e%2f`, `%2e%2e%5c`}
-		
+
 		for _, pattern := range pathPatterns {
 			if matched, _ := regexp.MatchString(`(?i)`+pattern, value); matched {
 				result.Valid = false
@@ -650,11 +650,11 @@ func (v *Validator) checkSecurityPatterns(field, value string, result *Validatio
 			}
 		}
 	}
-	
+
 	// Command injection check
 	if v.config.CheckForCommandInjection {
 		cmdPatterns := []string{`[;&|]`, `\$\(`, ` \|\| `, ` && `, "`"}
-		
+
 		for _, pattern := range cmdPatterns {
 			if matched, _ := regexp.MatchString(pattern, value); matched {
 				result.Valid = false
@@ -688,7 +688,7 @@ func (v *Validator) checkCustomPatterns(field, value string, result *ValidationR
 			})
 		}
 	}
-	
+
 	// Check required patterns
 	for _, pattern := range v.config.RequiredPatterns {
 		if matched, _ := regexp.MatchString(`(?i)`+pattern, value); !matched {
@@ -703,7 +703,7 @@ func (v *Validator) checkCustomPatterns(field, value string, result *ValidationR
 			})
 		}
 	}
-	
+
 	// Check custom rules
 	for ruleName, rule := range v.config.CustomRules {
 		if matched, _ := regexp.MatchString(`(?i)`+rule.Pattern, value); rule.Required && !matched {
@@ -747,7 +747,7 @@ func (v *Validator) checkURLPatterns(field, urlStr string, result *ValidationRes
 		`vbscript:`,
 		`javascript:`,
 	}
-	
+
 	for _, pattern := range dangerousPatterns {
 		if matched, _ := regexp.MatchString(`(?i)`+pattern, urlStr); matched {
 			result.Valid = false
@@ -768,10 +768,10 @@ func (v *Validator) checkURLPatterns(field, urlStr string, result *ValidationRes
 func (v *Validator) sanitizeString(value string) string {
 	// Remove null bytes
 	value = strings.ReplaceAll(value, "\x00", "")
-	
+
 	// Normalize whitespace
 	value = strings.TrimSpace(value)
-	
+
 	// Remove control characters except tab, newline, carriage return
 	var result strings.Builder
 	for _, r := range value {
@@ -779,6 +779,6 @@ func (v *Validator) sanitizeString(value string) string {
 			result.WriteRune(r)
 		}
 	}
-	
+
 	return result.String()
 }

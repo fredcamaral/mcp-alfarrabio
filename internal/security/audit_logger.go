@@ -20,45 +20,45 @@ type AuditLogger struct {
 // AuditLoggerConfig configures the audit logger
 type AuditLoggerConfig struct {
 	// Logging settings
-	LogLevel     string `json:"log_level"`     // "debug", "info", "warn", "error"
-	BufferSize   int    `json:"buffer_size"`   // Number of events to buffer
+	LogLevel      string        `json:"log_level"`      // "debug", "info", "warn", "error"
+	BufferSize    int           `json:"buffer_size"`    // Number of events to buffer
 	FlushInterval time.Duration `json:"flush_interval"` // How often to flush buffer
-	
+
 	// Event filtering
-	EnabledEvents   []string `json:"enabled_events"`   // Which events to log
-	DisabledEvents  []string `json:"disabled_events"`  // Which events to skip
-	
+	EnabledEvents  []string `json:"enabled_events"`  // Which events to log
+	DisabledEvents []string `json:"disabled_events"` // Which events to skip
+
 	// Output configuration
-	OutputFormat    string `json:"output_format"`    // "json", "text"
-	IncludePayload  bool   `json:"include_payload"`  // Include request/response data
-	MaxPayloadSize  int    `json:"max_payload_size"` // Max payload size to log
-	
+	OutputFormat   string `json:"output_format"`    // "json", "text"
+	IncludePayload bool   `json:"include_payload"`  // Include request/response data
+	MaxPayloadSize int    `json:"max_payload_size"` // Max payload size to log
+
 	// Sensitive data handling
 	SensitiveFields []string `json:"sensitive_fields"` // Fields to redact
 	RedactPasswords bool     `json:"redact_passwords"` // Redact password fields
 	RedactTokens    bool     `json:"redact_tokens"`    // Redact auth tokens
-	
+
 	// Performance
-	AsyncLogging    bool `json:"async_logging"`    // Log asynchronously
-	MaxQueueSize    int  `json:"max_queue_size"`   // Max async queue size
+	AsyncLogging bool `json:"async_logging"`  // Log asynchronously
+	MaxQueueSize int  `json:"max_queue_size"` // Max async queue size
 }
 
 // AuditEvent represents a security audit event
 type AuditEvent struct {
-	ID          string                 `json:"id"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Type        EventType              `json:"type"`
-	Action      string                 `json:"action"`
-	Result      EventResult            `json:"result"`
-	Severity    EventSeverity          `json:"severity"`
-	Actor       Actor                  `json:"actor"`
-	Resource    Resource               `json:"resource"`
-	Request     *RequestInfo           `json:"request,omitempty"`
-	Response    *ResponseInfo          `json:"response,omitempty"`
-	Threats     []ThreatInfo           `json:"threats,omitempty"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
-	Duration    time.Duration          `json:"duration,omitempty"`
-	ErrorInfo   *ErrorInfo             `json:"error,omitempty"`
+	ID        string                 `json:"id"`
+	Timestamp time.Time              `json:"timestamp"`
+	Type      EventType              `json:"type"`
+	Action    string                 `json:"action"`
+	Result    EventResult            `json:"result"`
+	Severity  EventSeverity          `json:"severity"`
+	Actor     Actor                  `json:"actor"`
+	Resource  Resource               `json:"resource"`
+	Request   *RequestInfo           `json:"request,omitempty"`
+	Response  *ResponseInfo          `json:"response,omitempty"`
+	Threats   []ThreatInfo           `json:"threats,omitempty"`
+	Metadata  map[string]interface{} `json:"metadata,omitempty"`
+	Duration  time.Duration          `json:"duration,omitempty"`
+	ErrorInfo *ErrorInfo             `json:"error,omitempty"`
 }
 
 // EventType represents the type of audit event
@@ -106,11 +106,11 @@ type Actor struct {
 
 // Resource represents the resource being accessed
 type Resource struct {
-	Type       string `json:"type"`        // "api", "file", "database", etc.
-	ID         string `json:"id"`          // Resource identifier
-	Name       string `json:"name"`        // Resource name
-	Path       string `json:"path"`        // Resource path/URL
-	Operation  string `json:"operation"`   // Operation being performed
+	Type       string                 `json:"type"`      // "api", "file", "database", etc.
+	ID         string                 `json:"id"`        // Resource identifier
+	Name       string                 `json:"name"`      // Resource name
+	Path       string                 `json:"path"`      // Resource path/URL
+	Operation  string                 `json:"operation"` // Operation being performed
 	Attributes map[string]interface{} `json:"attributes,omitempty"`
 }
 
@@ -162,10 +162,10 @@ func DefaultAuditLoggerConfig() AuditLoggerConfig {
 			string(EventTypeSecurity),
 			string(EventTypeError),
 		},
-		DisabledEvents:  []string{},
-		OutputFormat:    "json",
-		IncludePayload:  true,
-		MaxPayloadSize:  10000, // 10KB
+		DisabledEvents: []string{},
+		OutputFormat:   "json",
+		IncludePayload: true,
+		MaxPayloadSize: 10000, // 10KB
 		SensitiveFields: []string{
 			"password", "secret", "token", "key", "authorization",
 			"x-api-key", "cookie", "session", "credential",
@@ -183,12 +183,12 @@ func NewAuditLogger(config AuditLoggerConfig) *AuditLogger {
 		config: config,
 		buffer: make([]AuditEvent, 0, config.BufferSize),
 	}
-	
+
 	// Start background processing if async logging is enabled
 	if config.AsyncLogging {
 		go logger.backgroundProcessor()
 	}
-	
+
 	return logger
 }
 
@@ -203,10 +203,10 @@ func (al *AuditLogger) LogSecurityEvent(ctx context.Context, eventType EventType
 		Severity:  severity,
 		Metadata:  make(map[string]interface{}),
 	}
-	
+
 	// Extract context information
 	al.enrichEventFromContext(ctx, &event)
-	
+
 	al.logEvent(event)
 }
 
@@ -215,7 +215,7 @@ func (al *AuditLogger) LogHTTPRequest(r *http.Request, result EventResult, durat
 	if !al.shouldLogEvent(EventTypeAccess) {
 		return
 	}
-	
+
 	event := AuditEvent{
 		ID:        generateEventID(),
 		Timestamp: time.Now(),
@@ -229,14 +229,14 @@ func (al *AuditLogger) LogHTTPRequest(r *http.Request, result EventResult, durat
 		Request:   al.extractRequestInfo(r),
 		Metadata:  make(map[string]interface{}),
 	}
-	
+
 	// Add threats if available in context
 	if threats := r.Context().Value("security_threats"); threats != nil {
 		if threatList, ok := threats.([]interface{}); ok {
 			event.Threats = al.convertThreats(threatList)
 		}
 	}
-	
+
 	al.logEvent(event)
 }
 
@@ -245,7 +245,7 @@ func (al *AuditLogger) LogAuthenticationEvent(actor Actor, action string, result
 	if !al.shouldLogEvent(EventTypeAuthentication) {
 		return
 	}
-	
+
 	event := AuditEvent{
 		ID:        generateEventID(),
 		Timestamp: time.Now(),
@@ -256,13 +256,13 @@ func (al *AuditLogger) LogAuthenticationEvent(actor Actor, action string, result
 		Actor:     actor,
 		Metadata:  make(map[string]interface{}),
 	}
-	
+
 	if errorMsg != "" {
 		event.ErrorInfo = &ErrorInfo{
 			Message: errorMsg,
 		}
 	}
-	
+
 	al.logEvent(event)
 }
 
@@ -271,7 +271,7 @@ func (al *AuditLogger) LogThreatDetection(r *http.Request, threats []ThreatInfo)
 	if !al.shouldLogEvent(EventTypeSecurity) || len(threats) == 0 {
 		return
 	}
-	
+
 	event := AuditEvent{
 		ID:        generateEventID(),
 		Timestamp: time.Now(),
@@ -285,7 +285,7 @@ func (al *AuditLogger) LogThreatDetection(r *http.Request, threats []ThreatInfo)
 		Threats:   threats,
 		Metadata:  make(map[string]interface{}),
 	}
-	
+
 	al.logEvent(event)
 }
 
@@ -293,7 +293,7 @@ func (al *AuditLogger) LogThreatDetection(r *http.Request, threats []ThreatInfo)
 func (al *AuditLogger) logEvent(event AuditEvent) {
 	// Sanitize sensitive data
 	al.sanitizeEvent(&event)
-	
+
 	if al.config.AsyncLogging {
 		al.asyncLogEvent(event)
 	} else {
@@ -305,10 +305,10 @@ func (al *AuditLogger) logEvent(event AuditEvent) {
 func (al *AuditLogger) syncLogEvent(event AuditEvent) {
 	al.mu.Lock()
 	defer al.mu.Unlock()
-	
+
 	// Add to buffer
 	al.buffer = append(al.buffer, event)
-	
+
 	// Flush if buffer is full
 	if len(al.buffer) >= al.config.BufferSize {
 		al.flushBuffer()
@@ -327,12 +327,12 @@ func (al *AuditLogger) flushBuffer() {
 	if len(al.buffer) == 0 {
 		return
 	}
-	
+
 	// Output events
 	for _, event := range al.buffer {
 		al.outputEvent(event)
 	}
-	
+
 	// Clear buffer
 	al.buffer = al.buffer[:0]
 }
@@ -356,7 +356,7 @@ func (al *AuditLogger) outputJSON(event AuditEvent) {
 		fmt.Printf("Error marshaling audit event: %v\n", err)
 		return
 	}
-	
+
 	// In a real implementation, this would go to proper logging infrastructure
 	fmt.Printf("AUDIT: %s\n", string(data))
 }
@@ -378,7 +378,7 @@ func (al *AuditLogger) outputText(event AuditEvent) {
 func (al *AuditLogger) backgroundProcessor() {
 	ticker := time.NewTicker(al.config.FlushInterval)
 	defer ticker.Stop()
-	
+
 	for range ticker.C {
 		al.mu.Lock()
 		al.flushBuffer()
@@ -389,14 +389,14 @@ func (al *AuditLogger) backgroundProcessor() {
 // shouldLogEvent checks if an event type should be logged
 func (al *AuditLogger) shouldLogEvent(eventType EventType) bool {
 	eventTypeStr := string(eventType)
-	
+
 	// Check disabled events first
 	for _, disabled := range al.config.DisabledEvents {
 		if disabled == eventTypeStr {
 			return false
 		}
 	}
-	
+
 	// If enabled events are specified, check inclusion
 	if len(al.config.EnabledEvents) > 0 {
 		for _, enabled := range al.config.EnabledEvents {
@@ -406,7 +406,7 @@ func (al *AuditLogger) shouldLogEvent(eventType EventType) bool {
 		}
 		return false
 	}
-	
+
 	// Default to logging if no restrictions
 	return true
 }
@@ -418,7 +418,7 @@ func (al *AuditLogger) extractActorFromRequest(r *http.Request) Actor {
 		IPAddress: r.RemoteAddr,
 		UserAgent: r.Header.Get("User-Agent"),
 	}
-	
+
 	// Extract user information from context if available
 	if userID := r.Context().Value("user_id"); userID != nil {
 		if uid, ok := userID.(string); ok {
@@ -426,14 +426,14 @@ func (al *AuditLogger) extractActorFromRequest(r *http.Request) Actor {
 			actor.ID = uid
 		}
 	}
-	
+
 	// Extract session information
 	if sessionID := r.Context().Value("session_id"); sessionID != nil {
 		if sid, ok := sessionID.(string); ok {
 			actor.Session = sid
 		}
 	}
-	
+
 	return actor
 }
 
@@ -458,25 +458,25 @@ func (al *AuditLogger) extractRequestInfo(r *http.Request) *RequestInfo {
 			Size:   r.ContentLength,
 		}
 	}
-	
+
 	headers := make(map[string]string)
 	for name, values := range r.Header {
 		if len(values) > 0 {
 			headers[name] = values[0] // Take first value
 		}
 	}
-	
+
 	queryParams := make(map[string]string)
 	for name, values := range r.URL.Query() {
 		if len(values) > 0 {
 			queryParams[name] = values[0] // Take first value
 		}
 	}
-	
+
 	// Sanitize sensitive headers
 	al.sanitizeHeaders(headers)
 	al.sanitizeQueryParams(queryParams)
-	
+
 	return &RequestInfo{
 		Method:      r.Method,
 		URL:         r.URL.String(),
@@ -494,7 +494,7 @@ func (al *AuditLogger) enrichEventFromContext(ctx context.Context, event *AuditE
 			event.Metadata["request_id"] = rid
 		}
 	}
-	
+
 	// Extract trace ID
 	if traceID := ctx.Value("trace_id"); traceID != nil {
 		if tid, ok := traceID.(string); ok {
@@ -509,7 +509,7 @@ func (al *AuditLogger) sanitizeEvent(event *AuditEvent) {
 		al.sanitizeHeaders(event.Request.Headers)
 		al.sanitizeQueryParams(event.Request.QueryParams)
 	}
-	
+
 	if event.Response != nil {
 		al.sanitizeHeaders(event.Response.Headers)
 	}
@@ -535,14 +535,14 @@ func (al *AuditLogger) sanitizeQueryParams(params map[string]string) {
 
 // isSensitiveField checks if a field name is sensitive
 func (al *AuditLogger) isSensitiveField(fieldName string) bool {
-	fieldLower := fmt.Sprintf("%s", fieldName) // Convert to lowercase for comparison
-	
+	fieldLower := fieldName // No need for conversion, already a string
+
 	for _, sensitive := range al.config.SensitiveFields {
 		if fieldLower == sensitive {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -563,7 +563,7 @@ func (al *AuditLogger) determineSeverity(result EventResult) EventSeverity {
 // determineThreatSeverity determines severity based on detected threats
 func (al *AuditLogger) determineThreatSeverity(threats []ThreatInfo) EventSeverity {
 	maxSeverity := SeverityLow
-	
+
 	for _, threat := range threats {
 		switch threat.Severity {
 		case "critical":
@@ -578,18 +578,18 @@ func (al *AuditLogger) determineThreatSeverity(threats []ThreatInfo) EventSeveri
 			}
 		}
 	}
-	
+
 	return maxSeverity
 }
 
 // convertThreats converts interface threats to ThreatInfo
 func (al *AuditLogger) convertThreats(threats []interface{}) []ThreatInfo {
 	var result []ThreatInfo
-	
+
 	for _, threat := range threats {
 		if threatMap, ok := threat.(map[string]interface{}); ok {
 			info := ThreatInfo{}
-			
+
 			if t, ok := threatMap["type"].(string); ok {
 				info.Type = t
 			}
@@ -608,11 +608,11 @@ func (al *AuditLogger) convertThreats(threats []interface{}) []ThreatInfo {
 			if v, ok := threatMap["value"].(string); ok {
 				info.Value = v
 			}
-			
+
 			result = append(result, info)
 		}
 	}
-	
+
 	return result
 }
 

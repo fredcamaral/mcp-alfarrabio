@@ -13,8 +13,10 @@ require (
 	github.com/gorilla/mux v1.8.1
 	github.com/gorilla/websocket v1.5.3
 	github.com/joho/godotenv v1.5.1
+	github.com/lib/pq v1.10.9
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/qdrant/go-client v1.14.0
+	github.com/redis/go-redis/v9 v9.10.0
 	github.com/sashabaranov/go-openai v1.40.0
 	github.com/stretchr/testify v1.10.0
 	github.com/yuin/goldmark v1.7.12
@@ -38,7 +40,6 @@ require (
 	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
-	github.com/redis/go-redis/v9 v9.10.0 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	golang.org/x/net v0.40.0 // indirect

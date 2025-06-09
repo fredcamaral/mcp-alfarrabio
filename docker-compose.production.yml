@@ -1,0 +1,368 @@
+# Production Docker Compose configuration for MCP Memory Server
+# This configuration includes all services with production-grade settings
+version: '3.8'
+
+services:
+  # Main MCP Memory Server
+  mcp-memory-server:
+    image: ghcr.io/lerianstudio/lerian-mcp-memory:latest
+    container_name: mcp-memory-server
+    restart: unless-stopped
+    ports:
+      - "${MCP_HOST_PORT:-9080}:9080"
+    environment:
+      # Server Configuration
+      - MCP_MEMORY_LOG_LEVEL=${MCP_MEMORY_LOG_LEVEL:-info}
+      - MCP_MEMORY_ENV=production
+      - MCP_HOST_PORT=9080
+      - MCP_MEMORY_HOST=${MCP_MEMORY_HOST:-0.0.0.0}
+      
+      # Database Configuration
+      - DATABASE_URL=postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=require
+      - DB_MAX_CONNECTIONS=${DB_MAX_CONNECTIONS:-25}
+      - DB_MAX_IDLE_CONNECTIONS=${DB_MAX_IDLE_CONNECTIONS:-5}
+      - DB_CONNECTION_MAX_LIFETIME=${DB_CONNECTION_MAX_LIFETIME:-5m}
+      - DB_CONNECTION_MAX_IDLE_TIME=${DB_CONNECTION_MAX_IDLE_TIME:-1m}
+      
+      # Vector Database Configuration  
+      - QDRANT_URL=http://qdrant:6333
+      - QDRANT_API_KEY=${QDRANT_API_KEY}
+      - MCP_MEMORY_VECTOR_DIM=${MCP_MEMORY_VECTOR_DIM:-1536}
+      
+      # AI Service Configuration
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENAI_MODEL=${OPENAI_MODEL:-text-embedding-ada-002}
+      - OPENAI_MAX_RETRIES=${OPENAI_MAX_RETRIES:-3}
+      - OPENAI_TIMEOUT=${OPENAI_TIMEOUT:-30s}
+      
+      # Security Configuration
+      - JWT_SECRET=${JWT_SECRET}
+      - API_KEY_SALT=${API_KEY_SALT}
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      
+      # Performance Configuration
+      - MEMORY_CHUNK_SIZE=${MEMORY_CHUNK_SIZE:-2048}
+      - SIMILARITY_THRESHOLD=${SIMILARITY_THRESHOLD:-0.7}
+      - CACHE_TTL=${CACHE_TTL:-300s}
+      - MAX_CONCURRENT_REQUESTS=${MAX_CONCURRENT_REQUESTS:-100}
+      
+      # Monitoring Configuration
+      - ENABLE_METRICS=${ENABLE_METRICS:-true}
+      - METRICS_PORT=9090
+      - HEALTH_CHECK_INTERVAL=${HEALTH_CHECK_INTERVAL:-30s}
+      
+    volumes:
+      - ./configs/production:/app/configs/production:ro
+      - ./logs:/app/logs
+      - mcp-memory-data:/app/data
+      
+    networks:
+      - mcp-network
+      - monitoring-network
+      
+    depends_on:
+      postgres:
+        condition: service_healthy
+      qdrant:
+        condition: service_healthy
+        
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:9080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 4G
+        reservations:
+          cpus: '1.0'
+          memory: 2G
+      restart_policy:
+        condition: on-failure
+        delay: 10s
+        max_attempts: 3
+        window: 60s
+        
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "5"
+        
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:size=100M,noexec,nosuid,nodev
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: mcp-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-mcp_memory}
+      - POSTGRES_USER=${POSTGRES_USER:-mcp_user}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_INITDB_ARGS=--auth-host=md5
+      - PGDATA=/var/lib/postgresql/data/pgdata
+      
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - ./configs/production/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      
+    networks:
+      - mcp-network
+      
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mcp_user} -d ${POSTGRES_DB:-mcp_memory}"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+      
+    deploy:
+      resources:
+        limits:
+          cpus: '1.5'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+          
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        
+    security_opt:
+      - no-new-privileges:true
+    command: >
+      postgres 
+      -c config_file=/etc/postgresql/postgresql.conf
+      -c log_statement=all
+      -c log_min_duration_statement=1000
+      -c shared_preload_libraries=pg_stat_statements
+
+  # Qdrant Vector Database
+  qdrant:
+    image: qdrant/qdrant:v1.7.4
+    container_name: mcp-qdrant
+    restart: unless-stopped
+    ports:
+      - "${QDRANT_HOST_PORT:-6333}:6333"
+      - "${QDRANT_GRPC_PORT:-6334}:6334"
+      
+    environment:
+      - QDRANT__SERVICE__HTTP_PORT=6333
+      - QDRANT__SERVICE__GRPC_PORT=6334
+      - QDRANT__LOG_LEVEL=${QDRANT_LOG_LEVEL:-INFO}
+      - QDRANT__STORAGE__OPTIMIZERS__MEMMAP_THRESHOLD_KB=65536
+      - QDRANT__STORAGE__OPTIMIZERS__MAX_OPTIMIZATION_THREADS=2
+      - QDRANT__STORAGE__WAL__WAL_CAPACITY_MB=32
+      - QDRANT__STORAGE__WAL__WAL_SEGMENTS_AHEAD=5
+      - QDRANT__SERVICE__MAX_REQUEST_SIZE_MB=32
+      - QDRANT__SERVICE__MAX_WORKERS=4
+      - QDRANT__CLUSTER__ENABLED=false
+      
+    volumes:
+      - qdrant-data:/qdrant/storage
+      - ./configs/production/qdrant.yaml:/qdrant/config/production.yaml:ro
+      
+    networks:
+      - mcp-network
+      - monitoring-network
+      
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:6333/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+      
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 2G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+          
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        
+    security_opt:
+      - no-new-privileges:true
+
+  # Redis for Caching (Optional but recommended for production)
+  redis:
+    image: redis:7-alpine
+    container_name: mcp-redis
+    restart: unless-stopped
+    command: >
+      redis-server 
+      --appendonly yes 
+      --appendfsync everysec
+      --auto-aof-rewrite-percentage 100
+      --auto-aof-rewrite-min-size 64mb
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+      --timeout 0
+      
+    volumes:
+      - redis-data:/data
+      - ./configs/production/redis.conf:/usr/local/etc/redis/redis.conf:ro
+      
+    networks:
+      - mcp-network
+      
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 512M
+        reservations:
+          cpus: '0.1'
+          memory: 256M
+          
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "25m"
+        max-file: "2"
+        
+    security_opt:
+      - no-new-privileges:true
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:1.25-alpine
+    container_name: mcp-nginx
+    restart: unless-stopped
+    ports:
+      - "${NGINX_HTTP_PORT:-80}:80"
+      - "${NGINX_HTTPS_PORT:-443}:443"
+      
+    volumes:
+      - ./configs/production/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./configs/production/nginx-sites:/etc/nginx/conf.d:ro
+      - ./ssl:/etc/nginx/ssl:ro
+      - ./logs/nginx:/var/log/nginx
+      - nginx-cache:/var/cache/nginx
+      
+    networks:
+      - mcp-network
+      - monitoring-network
+      
+    depends_on:
+      - mcp-memory-server
+      
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+      
+    deploy:
+      resources:
+        limits:
+          cpus: '0.5'
+          memory: 256M
+        reservations:
+          cpus: '0.1'
+          memory: 128M
+          
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "50m"
+        max-file: "3"
+        
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  mcp-network:
+    driver: bridge
+    internal: false
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16
+          gateway: 172.20.0.1
+    driver_opts:
+      com.docker.network.bridge.name: br-mcp-prod
+      com.docker.network.bridge.enable_ip_masquerade: 'true'
+      com.docker.network.bridge.enable_icc: 'true'
+      com.docker.network.driver.mtu: 1500
+      
+  monitoring-network:
+    driver: bridge
+    internal: false
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.21.0.0/16
+          gateway: 172.21.0.1
+    driver_opts:
+      com.docker.network.bridge.name: br-mcp-monitor
+      com.docker.network.bridge.enable_ip_masquerade: 'true'
+      com.docker.network.bridge.enable_icc: 'true'
+      com.docker.network.driver.mtu: 1500
+
+volumes:
+  # Application data volumes
+  mcp-memory-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH:-./data}/mcp-memory
+      
+  postgres-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH:-./data}/postgres
+      
+  qdrant-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH:-./data}/qdrant
+      
+  redis-data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${DATA_PATH:-./data}/redis
+      
+  # Cache and temporary volumes
+  nginx-cache:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+      o: size=200m,uid=101,gid=101

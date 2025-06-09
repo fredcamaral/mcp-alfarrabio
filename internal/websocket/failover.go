@@ -24,86 +24,86 @@ type FailoverManager struct {
 
 // FailoverConfig configures failover behavior
 type FailoverConfig struct {
-	EnableFailover          bool          `json:"enable_failover" yaml:"enable_failover"`
-	FailureThreshold        int           `json:"failure_threshold" yaml:"failure_threshold"`
-	HealthCheckInterval     time.Duration `json:"health_check_interval" yaml:"health_check_interval"`
-	FailoverTimeout         time.Duration `json:"failover_timeout" yaml:"failover_timeout"`
-	FallbackMethods         []FallbackMethod `json:"fallback_methods" yaml:"fallback_methods"`
-	MaxFailoverAttempts     int           `json:"max_failover_attempts" yaml:"max_failover_attempts"`
-	EnableGracefulDegradation bool        `json:"enable_graceful_degradation" yaml:"enable_graceful_degradation"`
-	MonitoringEnabled       bool          `json:"monitoring_enabled" yaml:"monitoring_enabled"`
-	AutoRecovery            bool          `json:"auto_recovery" yaml:"auto_recovery"`
-	RecoveryCheckInterval   time.Duration `json:"recovery_check_interval" yaml:"recovery_check_interval"`
+	EnableFailover            bool             `json:"enable_failover" yaml:"enable_failover"`
+	FailureThreshold          int              `json:"failure_threshold" yaml:"failure_threshold"`
+	HealthCheckInterval       time.Duration    `json:"health_check_interval" yaml:"health_check_interval"`
+	FailoverTimeout           time.Duration    `json:"failover_timeout" yaml:"failover_timeout"`
+	FallbackMethods           []FallbackMethod `json:"fallback_methods" yaml:"fallback_methods"`
+	MaxFailoverAttempts       int              `json:"max_failover_attempts" yaml:"max_failover_attempts"`
+	EnableGracefulDegradation bool             `json:"enable_graceful_degradation" yaml:"enable_graceful_degradation"`
+	MonitoringEnabled         bool             `json:"monitoring_enabled" yaml:"monitoring_enabled"`
+	AutoRecovery              bool             `json:"auto_recovery" yaml:"auto_recovery"`
+	RecoveryCheckInterval     time.Duration    `json:"recovery_check_interval" yaml:"recovery_check_interval"`
 }
 
 // FailoverConnection represents a connection with failover capabilities
 type FailoverConnection struct {
-	mu                   sync.RWMutex
-	ID                   string
-	PrimaryEndpoint      string
-	FallbackEndpoints    []string
-	CurrentEndpoint      string
-	State                FailoverState
-	FailureCount         int
-	LastFailure          time.Time
-	FailoverAttempts     int
-	ActiveFallback       FallbackMethod
-	FallbackData         interface{}
-	HealthScore          float64
-	LastHealthCheck      time.Time
-	RecoveryInProgress   bool
-	Metadata             map[string]interface{}
-	
+	mu                 sync.RWMutex
+	ID                 string
+	PrimaryEndpoint    string
+	FallbackEndpoints  []string
+	CurrentEndpoint    string
+	State              FailoverState
+	FailureCount       int
+	LastFailure        time.Time
+	FailoverAttempts   int
+	ActiveFallback     FallbackMethod
+	FallbackData       interface{}
+	HealthScore        float64
+	LastHealthCheck    time.Time
+	RecoveryInProgress bool
+	Metadata           map[string]interface{}
+
 	// Connection tracking
-	WSConnection         interface{} // WebSocket connection
-	HTTPFallback         *HTTPFallback
-	PollingFallback      *PollingFallback
-	
+	WSConnection    interface{} // WebSocket connection
+	HTTPFallback    *HTTPFallback
+	PollingFallback *PollingFallback
+
 	// Callbacks
-	OnFailover           func(from, to string) error
-	OnRecovery           func() error
-	OnFallbackActivated  func(method FallbackMethod) error
+	OnFailover          func(from, to string) error
+	OnRecovery          func() error
+	OnFallbackActivated func(method FallbackMethod) error
 }
 
 // FailoverMetrics tracks failover performance
 type FailoverMetrics struct {
-	TotalFailovers       int64 `json:"total_failovers"`
-	SuccessfulFailovers  int64 `json:"successful_failovers"`
-	FailedFailovers      int64 `json:"failed_failovers"`
-	ActiveFallbacks      int64 `json:"active_fallbacks"`
+	TotalFailovers       int64         `json:"total_failovers"`
+	SuccessfulFailovers  int64         `json:"successful_failovers"`
+	FailedFailovers      int64         `json:"failed_failovers"`
+	ActiveFallbacks      int64         `json:"active_fallbacks"`
 	AverageFailoverTime  time.Duration `json:"average_failover_time"`
 	MaxFailoverTime      time.Duration `json:"max_failover_time"`
 	MinFailoverTime      time.Duration `json:"min_failover_time"`
-	RecoveryAttempts     int64 `json:"recovery_attempts"`
-	SuccessfulRecoveries int64 `json:"successful_recoveries"`
-	LastUpdated          time.Time `json:"last_updated"`
+	RecoveryAttempts     int64         `json:"recovery_attempts"`
+	SuccessfulRecoveries int64         `json:"successful_recoveries"`
+	LastUpdated          time.Time     `json:"last_updated"`
 }
 
 // HTTPFallback provides HTTP polling fallback
 type HTTPFallback struct {
-	Client          *http.Client
-	PollURL         string
-	PollInterval    time.Duration
-	MessageQueue    chan []byte
-	Running         bool
-	LastPoll        time.Time
-	PollCount       int64
-	ErrorCount      int64
-	ctx             context.Context
-	cancel          context.CancelFunc
+	Client       *http.Client
+	PollURL      string
+	PollInterval time.Duration
+	MessageQueue chan []byte
+	Running      bool
+	LastPoll     time.Time
+	PollCount    int64
+	ErrorCount   int64
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 // PollingFallback provides server-sent events fallback
 type PollingFallback struct {
-	EventSource     string
-	PollInterval    time.Duration
-	MessageQueue    chan []byte
-	Running         bool
-	LastEvent       time.Time
-	EventCount      int64
-	ErrorCount      int64
-	ctx             context.Context
-	cancel          context.CancelFunc
+	EventSource  string
+	PollInterval time.Duration
+	MessageQueue chan []byte
+	Running      bool
+	LastEvent    time.Time
+	EventCount   int64
+	ErrorCount   int64
+	ctx          context.Context
+	cancel       context.CancelFunc
 }
 
 // FallbackHandler interface for different fallback mechanisms
@@ -129,15 +129,17 @@ type FailoverStrategy interface {
 // Enums and constants
 
 type FailoverState string
+
 const (
-	FailoverStateNormal        FailoverState = "normal"
-	FailoverStateFailedOver    FailoverState = "failed_over"
-	FailoverStateRecovering    FailoverState = "recovering"
-	FailoverStateFailed        FailoverState = "failed"
-	FailoverStateDegraded      FailoverState = "degraded"
+	FailoverStateNormal     FailoverState = "normal"
+	FailoverStateFailedOver FailoverState = "failed_over"
+	FailoverStateRecovering FailoverState = "recovering"
+	FailoverStateFailed     FailoverState = "failed"
+	FailoverStateDegraded   FailoverState = "degraded"
 )
 
 type FallbackMethod string
+
 const (
 	FallbackHTTPPolling FallbackMethod = "http_polling"
 	FallbackSSE         FallbackMethod = "server_sent_events"
@@ -180,16 +182,16 @@ func NewFailoverManager(config *FailoverConfig) *FailoverManager {
 // DefaultFailoverConfig returns default failover configuration
 func DefaultFailoverConfig() *FailoverConfig {
 	return &FailoverConfig{
-		EnableFailover:          true,
-		FailureThreshold:        3,
-		HealthCheckInterval:     30 * time.Second,
-		FailoverTimeout:         10 * time.Second,
-		FallbackMethods:         []FallbackMethod{FallbackHTTPPolling, FallbackSSE},
-		MaxFailoverAttempts:     3,
+		EnableFailover:            true,
+		FailureThreshold:          3,
+		HealthCheckInterval:       30 * time.Second,
+		FailoverTimeout:           10 * time.Second,
+		FallbackMethods:           []FallbackMethod{FallbackHTTPPolling, FallbackSSE},
+		MaxFailoverAttempts:       3,
 		EnableGracefulDegradation: true,
-		MonitoringEnabled:       true,
-		AutoRecovery:            true,
-		RecoveryCheckInterval:   2 * time.Minute,
+		MonitoringEnabled:         true,
+		AutoRecovery:              true,
+		RecoveryCheckInterval:     2 * time.Minute,
 	}
 }
 
@@ -198,11 +200,11 @@ func (fm *FailoverManager) registerDefaultStrategies() {
 	fm.failoverStrategies["threshold"] = &ThresholdStrategy{
 		FailureThreshold: fm.config.FailureThreshold,
 	}
-	
+
 	fm.failoverStrategies["health_based"] = &HealthBasedStrategy{
 		MinHealthScore: 0.5,
 	}
-	
+
 	fm.failoverStrategies["latency_based"] = &LatencyBasedStrategy{
 		MaxLatency: 2 * time.Second,
 	}
@@ -265,7 +267,7 @@ func (fm *FailoverManager) HandleConnectionFailure(connectionID string, err erro
 	connection.LastFailure = time.Now()
 	connection.mu.Unlock()
 
-	log.Printf("Connection failure detected for %s: %v (count: %d)", 
+	log.Printf("Connection failure detected for %s: %v (count: %d)",
 		connectionID, err, connection.FailureCount)
 
 	// Check if failover should be triggered
@@ -295,7 +297,7 @@ func (fm *FailoverManager) executeFailover(connection *FailoverConnection, strat
 	oldEndpoint := connection.CurrentEndpoint
 	connection.mu.Unlock()
 
-	log.Printf("Executing failover for connection %s (attempt %d)", 
+	log.Printf("Executing failover for connection %s (attempt %d)",
 		connection.ID, connection.FailoverAttempts)
 
 	// Select fallback method
@@ -358,7 +360,7 @@ func (fm *FailoverManager) activateHTTPPolling(ctx context.Context, connection *
 
 	// Create HTTP fallback
 	fallbackCtx, cancel := context.WithCancel(context.Background())
-	
+
 	httpFallback := &HTTPFallback{
 		Client: &http.Client{
 			Timeout: 30 * time.Second,
@@ -397,7 +399,7 @@ func (fm *FailoverManager) activateSSE(ctx context.Context, connection *Failover
 
 	// Create SSE fallback
 	fallbackCtx, cancel := context.WithCancel(context.Background())
-	
+
 	pollingFallback := &PollingFallback{
 		EventSource:  fmt.Sprintf("http://localhost:9080/api/v1/sse/%s", connection.ID),
 		PollInterval: 1 * time.Second,
@@ -550,27 +552,27 @@ func (fm *FailoverManager) AttemptRecovery(connectionID string) error {
 
 	// Attempt to reconnect to primary endpoint
 	success := fm.testPrimaryConnection(connection)
-	
+
 	connection.mu.Lock()
 	connection.RecoveryInProgress = false
-	
+
 	if success {
 		// Stop fallbacks
 		fm.stopFallbacks(connection)
-		
+
 		// Reset connection state
 		connection.State = FailoverStateNormal
 		connection.CurrentEndpoint = connection.PrimaryEndpoint
 		connection.FailureCount = 0
 		connection.FailoverAttempts = 0
 		connection.HealthScore = 1.0
-		
+
 		atomic.AddInt64(&fm.metrics.SuccessfulRecoveries, 1)
-		
+
 		// Call recovery callback
 		onRecovery := connection.OnRecovery
 		connection.mu.Unlock()
-		
+
 		if onRecovery != nil {
 			go func() {
 				if err := onRecovery(); err != nil {
@@ -578,7 +580,7 @@ func (fm *FailoverManager) AttemptRecovery(connectionID string) error {
 				}
 			}()
 		}
-		
+
 		log.Printf("Successfully recovered connection %s", connectionID)
 		return nil
 	} else {
@@ -592,20 +594,20 @@ func (fm *FailoverManager) AttemptRecovery(connectionID string) error {
 func (fm *FailoverManager) testPrimaryConnection(connection *FailoverConnection) bool {
 	// Implementation would test the primary WebSocket endpoint
 	// For now, we'll simulate this with a simple check
-	
+
 	connection.mu.RLock()
 	endpoint := connection.PrimaryEndpoint
 	connection.mu.RUnlock()
-	
+
 	// Simulate connection test
 	time.Sleep(100 * time.Millisecond)
-	
+
 	// In a real implementation, you would:
 	// 1. Attempt to establish a WebSocket connection
 	// 2. Send a ping message
 	// 3. Wait for pong response
 	// 4. Return true if successful, false otherwise
-	
+
 	log.Printf("Testing primary connection to %s", endpoint)
 	return true // Simplified for this implementation
 }
@@ -659,7 +661,7 @@ func (fm *FailoverManager) checkConnectionHealth(connection *FailoverConnection)
 
 	// Perform health check (simplified)
 	healthy := fm.isConnectionHealthy(connection)
-	
+
 	connection.mu.Lock()
 	if healthy {
 		connection.HealthScore = 1.0
@@ -756,17 +758,17 @@ func (fm *FailoverManager) GetFailoverStatus(connectionID string) (*FailoverConn
 	defer connection.mu.RUnlock()
 
 	return &FailoverConnection{
-		ID:               connection.ID,
-		PrimaryEndpoint:  connection.PrimaryEndpoint,
-		FallbackEndpoints: connection.FallbackEndpoints,
-		CurrentEndpoint:  connection.CurrentEndpoint,
-		State:            connection.State,
-		FailureCount:     connection.FailureCount,
-		LastFailure:      connection.LastFailure,
-		FailoverAttempts: connection.FailoverAttempts,
-		ActiveFallback:   connection.ActiveFallback,
-		HealthScore:      connection.HealthScore,
-		LastHealthCheck:  connection.LastHealthCheck,
+		ID:                 connection.ID,
+		PrimaryEndpoint:    connection.PrimaryEndpoint,
+		FallbackEndpoints:  connection.FallbackEndpoints,
+		CurrentEndpoint:    connection.CurrentEndpoint,
+		State:              connection.State,
+		FailureCount:       connection.FailureCount,
+		LastFailure:        connection.LastFailure,
+		FailoverAttempts:   connection.FailoverAttempts,
+		ActiveFallback:     connection.ActiveFallback,
+		HealthScore:        connection.HealthScore,
+		LastHealthCheck:    connection.LastHealthCheck,
 		RecoveryInProgress: connection.RecoveryInProgress,
 	}, nil
 }
@@ -844,7 +846,7 @@ func (hbs *HealthBasedStrategy) SelectFallback(connection *FailoverConnection) (
 	// Health-based selection logic
 	connection.mu.RLock()
 	defer connection.mu.RUnlock()
-	
+
 	if connection.HealthScore > 0.3 {
 		return FallbackSSE, nil
 	}

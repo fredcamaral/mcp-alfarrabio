@@ -1,948 +1,432 @@
-// Package performance provides performance optimization and monitoring utilities.
-// It includes caching, metrics collection, query optimization, and resource management.
+// Package performance provides query optimization and database performance monitoring.
 package performance
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
-	"sort"
-	"strconv"
+	"database/sql"
+	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"lerian-mcp-memory/internal/config"
 )
 
-// QueryType represents different types of queries for optimization
-type QueryType string
-
-const (
-	QueryTypeVector      QueryType = "vector"
-	QueryTypeText        QueryType = "text"
-	QueryTypeFilter      QueryType = "filter"
-	QueryTypeAggregation QueryType = "aggregation"
-	QueryTypeJoin        QueryType = "join"
-	QueryTypeHybrid      QueryType = "hybrid"
-)
-
-// QueryPlan represents an optimized execution plan for a query
-type QueryPlan struct {
-	ID              string                 `json:"id"`
-	QueryHash       string                 `json:"query_hash"`
-	QueryType       QueryType              `json:"query_type"`
-	EstimatedCost   float64                `json:"estimated_cost"`
-	Steps           []QueryStep            `json:"steps"`
-	UseCache        bool                   `json:"use_cache"`
-	CacheKey        string                 `json:"cache_key"`
-	CacheTTL        time.Duration          `json:"cache_ttl"`
-	IndexHints      []string               `json:"index_hints"`
-	Parameters      map[string]interface{} `json:"parameters"`
-	CreatedAt       time.Time              `json:"created_at"`
-	LastUsed        time.Time              `json:"last_used"`
-	UsageCount      int64                  `json:"usage_count"`
-	SuccessRate     float64                `json:"success_rate"`
-	AvgLatency      time.Duration          `json:"avg_latency"`
-	OptimizationTag string                 `json:"optimization_tag"`
-}
-
-// QueryStep represents a step in the query execution plan
-type QueryStep struct {
-	ID          string                 `json:"id"`
-	Type        string                 `json:"type"`
-	Operation   string                 `json:"operation"`
-	Cost        float64                `json:"cost"`
-	Parallelism int                    `json:"parallelism"`
-	Parameters  map[string]interface{} `json:"parameters"`
-	DependsOn   []string               `json:"depends_on"`
-	CanCache    bool                   `json:"can_cache"`
-	CacheKey    string                 `json:"cache_key,omitempty"`
-}
-
-// QueryOptimizationRule defines optimization rules for different query patterns
-type QueryOptimizationRule struct {
-	ID             string            `json:"id"`
-	Name           string            `json:"name"`
-	Pattern        string            `json:"pattern"`
-	Condition      string            `json:"condition"`
-	Transformation string            `json:"transformation"`
-	Priority       int               `json:"priority"`
-	Tags           []string          `json:"tags"`
-	Metadata       map[string]string `json:"metadata"`
-	Enabled        bool              `json:"enabled"`
-	SuccessRate    float64           `json:"success_rate"`
-	LastApplied    time.Time         `json:"last_applied"`
-}
-
-// QueryStatistics holds performance statistics for query optimization
-type QueryStatistics struct {
-	QueryHash        string        `json:"query_hash"`
-	TotalExecutions  int64         `json:"total_executions"`
-	SuccessfulRuns   int64         `json:"successful_runs"`
-	FailedRuns       int64         `json:"failed_runs"`
-	TotalLatency     time.Duration `json:"total_latency"`
-	MinLatency       time.Duration `json:"min_latency"`
-	MaxLatency       time.Duration `json:"max_latency"`
-	AvgLatency       time.Duration `json:"avg_latency"`
-	P95Latency       time.Duration `json:"p95_latency"`
-	P99Latency       time.Duration `json:"p99_latency"`
-	LastExecuted     time.Time     `json:"last_executed"`
-	LatencyHistory   []float64     `json:"latency_history"`
-	ErrorPatterns    []string      `json:"error_patterns"`
-	OptimizationHits int64         `json:"optimization_hits"`
-	CacheHits        int64         `json:"cache_hits"`
-	CacheMisses      int64         `json:"cache_misses"`
-}
-
-// QueryOptimizer provides intelligent query optimization with plan caching
+// QueryOptimizer provides query analysis and optimization suggestions
 type QueryOptimizer struct {
-	planCache         *Cache
-	statisticsCache   *Cache
-	optimizationRules map[string]*QueryOptimizationRule
-	queryStats        map[string]*QueryStatistics
-	planStore         map[string]*QueryPlan
-
-	// Synchronization
-	rulesMutex sync.RWMutex
-	statsMutex sync.RWMutex
-	plansMutex sync.RWMutex
-
-	// Configuration
-	enabled                 bool
-	maxPlanCacheSize        int
-	planCacheTTL            time.Duration
-	statisticsRetention     time.Duration
-	costThreshold           float64
-	parallelismThreshold    int
-	optimizationInterval    time.Duration
-	adaptiveLearningEnabled bool
-
-	// Analytics
-	totalOptimizations      int64
-	successfulOptimizations int64
-	avgOptimizationTime     time.Duration
-	lastOptimization        time.Time
+	db     *sql.DB
+	config *config.DatabaseConfig
+	cache  *QueryPlanCache
+	stats  *QueryStats
+	mu     sync.RWMutex
 }
 
-// QueryExecutionContext provides context for query execution
-type QueryExecutionContext struct {
-	QueryID        string                 `json:"query_id"`
-	UserID         string                 `json:"user_id"`
-	SessionID      string                 `json:"session_id"`
-	Repository     string                 `json:"repository"`
-	StartTime      time.Time              `json:"start_time"`
-	Timeout        time.Duration          `json:"timeout"`
-	Priority       int                    `json:"priority"`
-	Tags           []string               `json:"tags"`
-	Metadata       map[string]interface{} `json:"metadata"`
-	TracingEnabled bool                   `json:"tracing_enabled"`
+// QueryPlan represents an analyzed query execution plan
+type QueryPlan struct {
+	Query        string                   `json:"query"`
+	Plan         string                   `json:"plan"`
+	Cost         float64                  `json:"cost"`
+	Duration     time.Duration            `json:"duration"`
+	RowsEstimate int64                    `json:"rows_estimate"`
+	RowsActual   int64                    `json:"rows_actual"`
+	Operations   []string                 `json:"operations"`
+	Indexes      []string                 `json:"indexes"`
+	Suggestions  []OptimizationSuggestion `json:"suggestions"`
+	CreatedAt    time.Time                `json:"created_at"`
 }
 
-// NewQueryOptimizer creates a new query optimizer with enhanced capabilities
-func NewQueryOptimizer(cacheConfig CacheConfig) *QueryOptimizer {
+// OptimizationSuggestion represents a query optimization recommendation
+type OptimizationSuggestion struct {
+	Type        string `json:"type"`
+	Severity    string `json:"severity"`
+	Message     string `json:"message"`
+	Suggestion  string `json:"suggestion"`
+	ImpactLevel string `json:"impact_level"`
+}
+
+// QueryPlanCache caches query execution plans
+type QueryPlanCache struct {
+	plans  map[string]*QueryPlan
+	maxAge time.Duration
+	mu     sync.RWMutex
+}
+
+// QueryStats tracks query performance statistics
+type QueryStats struct {
+	TotalQueries   int64         `json:"total_queries"`
+	SlowQueries    int64         `json:"slow_queries"`
+	OptimizedCount int64         `json:"optimized_count"`
+	AvgDuration    time.Duration `json:"avg_duration"`
+	MaxDuration    time.Duration `json:"max_duration"`
+	MinDuration    time.Duration `json:"min_duration"`
+	P95Duration    time.Duration `json:"p95_duration"`
+	IndexHitRatio  float64       `json:"index_hit_ratio"`
+	TableScans     int64         `json:"table_scans"`
+	IndexScans     int64         `json:"index_scans"`
+	CacheHitRatio  float64       `json:"cache_hit_ratio"`
+}
+
+// NewQueryOptimizer creates a new query optimizer
+func NewQueryOptimizer(db *sql.DB, cfg *config.DatabaseConfig) *QueryOptimizer {
 	return &QueryOptimizer{
-		planCache:         NewCache(cacheConfig),
-		statisticsCache:   NewCache(CacheConfig{MaxSize: 10000, TTL: 24 * time.Hour, EvictionPolicy: "lru", Enabled: true}),
-		optimizationRules: make(map[string]*QueryOptimizationRule),
-		queryStats:        make(map[string]*QueryStatistics),
-		planStore:         make(map[string]*QueryPlan),
-
-		enabled:                 true,
-		maxPlanCacheSize:        getEnvInt("MCP_MEMORY_QUERY_PLAN_CACHE_SIZE", 5000),
-		planCacheTTL:            getEnvDurationMinutes("MCP_MEMORY_QUERY_PLAN_TTL_MINUTES", 60),
-		statisticsRetention:     getEnvDurationMinutes("MCP_MEMORY_QUERY_STATS_RETENTION_MINUTES", 1440), // 24 hours
-		costThreshold:           getEnvFloat("MCP_MEMORY_QUERY_COST_THRESHOLD", 100.0),
-		parallelismThreshold:    getEnvInt("MCP_MEMORY_QUERY_PARALLELISM_THRESHOLD", 4),
-		optimizationInterval:    getEnvDurationMinutes("MCP_MEMORY_OPTIMIZATION_INTERVAL_MINUTES", 10),
-		adaptiveLearningEnabled: getEnvBool("MCP_MEMORY_ADAPTIVE_LEARNING_ENABLED", true),
-
-		totalOptimizations:      0,
-		successfulOptimizations: 0,
-		lastOptimization:        time.Now(),
+		db:     db,
+		config: cfg,
+		cache: &QueryPlanCache{
+			plans:  make(map[string]*QueryPlan),
+			maxAge: time.Hour,
+		},
+		stats: &QueryStats{},
 	}
 }
 
-// OptimizeQuery creates an optimized execution plan for a query
-func (qo *QueryOptimizer) OptimizeQuery(ctx context.Context, query string, queryType QueryType, execCtx *QueryExecutionContext) (*QueryPlan, error) {
-	if !qo.enabled {
-		return qo.createBasicPlan(query, queryType), nil
+// AnalyzeQuery analyzes a query and returns optimization suggestions
+func (qo *QueryOptimizer) AnalyzeQuery(ctx context.Context, query string, args ...interface{}) (*QueryPlan, error) {
+	// Check cache first
+	if plan := qo.cache.Get(query); plan != nil {
+		return plan, nil
 	}
 
-	queryHash := qo.hashQuery(query)
+	start := time.Now()
 
-	// Check for cached plan first
-	if cachedPlan := qo.getCachedPlan(queryHash); cachedPlan != nil {
-		qo.recordPlanUsage(cachedPlan)
-		return cachedPlan, nil
-	}
-
-	// Generate optimized plan
-	plan, err := qo.generateOptimizedPlan(ctx, query, queryType, queryHash, execCtx)
+	// Get query execution plan
+	plan, err := qo.getExecutionPlan(ctx, query, args...)
 	if err != nil {
-		return qo.createBasicPlan(query, queryType), err
+		return nil, fmt.Errorf("failed to get execution plan: %w", err)
 	}
+
+	duration := time.Since(start)
+
+	// Analyze the plan
+	suggestions := qo.analyzePlan(plan, query)
+
+	queryPlan := &QueryPlan{
+		Query:       query,
+		Plan:        plan,
+		Duration:    duration,
+		Operations:  qo.extractOperations(plan),
+		Indexes:     qo.extractIndexes(plan),
+		Suggestions: suggestions,
+		CreatedAt:   time.Now(),
+	}
+
+	// Parse cost and row estimates from plan
+	qo.parsePlanMetrics(queryPlan, plan)
 
 	// Cache the plan
-	qo.cachePlan(plan)
+	qo.cache.Set(query, queryPlan)
 
 	// Update statistics
-	qo.updateOptimizationStats(true)
+	qo.updateStats(queryPlan)
 
-	return plan, nil
+	return queryPlan, nil
 }
 
-// generateOptimizedPlan creates an optimized query plan using rules and heuristics
-func (qo *QueryOptimizer) generateOptimizedPlan(_ context.Context, query string, queryType QueryType, queryHash string, execCtx *QueryExecutionContext) (*QueryPlan, error) {
-	startTime := time.Now()
-	defer func() {
-		qo.avgOptimizationTime = time.Since(startTime)
-	}()
+// getExecutionPlan retrieves the PostgreSQL execution plan
+func (qo *QueryOptimizer) getExecutionPlan(ctx context.Context, query string, args ...interface{}) (string, error) {
+	// Use EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) for detailed analysis
+	explainQuery := fmt.Sprintf("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) %s", query)
 
-	plan := &QueryPlan{
-		ID:              generateID(),
-		QueryHash:       queryHash,
-		QueryType:       queryType,
-		EstimatedCost:   0,
-		Steps:           []QueryStep{},
-		UseCache:        true,
-		CacheKey:        qo.generateCacheKey(query, execCtx),
-		CacheTTL:        qo.determineCacheTTL(queryType),
-		IndexHints:      []string{},
-		Parameters:      make(map[string]interface{}),
-		CreatedAt:       time.Now(),
-		LastUsed:        time.Now(),
-		UsageCount:      1,
-		SuccessRate:     1.0,
-		AvgLatency:      0,
-		OptimizationTag: qo.generateOptimizationTag(queryType, execCtx),
+	rows, err := qo.db.QueryContext(ctx, explainQuery, args...)
+	if err != nil {
+		return "", err
 	}
+	defer rows.Close()
 
-	// Apply optimization rules
-	qo.applyOptimizationRules(plan, query, execCtx)
-
-	// Generate execution steps
-	steps := qo.generateExecutionSteps(query, queryType, execCtx)
-	plan.Steps = steps
-
-	// Calculate estimated cost
-	plan.EstimatedCost = qo.calculatePlanCost(plan)
-
-	// Determine index hints
-	plan.IndexHints = qo.generateIndexHints(query, queryType)
-
-	// Set optimization parameters
-	plan.Parameters = qo.generateOptimizationParameters(queryType, execCtx)
-
-	return plan, nil
-}
-
-// generateExecutionSteps creates optimized execution steps for the query
-func (qo *QueryOptimizer) generateExecutionSteps(query string, queryType QueryType, execCtx *QueryExecutionContext) []QueryStep {
-	var steps []QueryStep
-
-	switch queryType {
-	case QueryTypeVector:
-		steps = qo.generateVectorSearchSteps(query, execCtx)
-	case QueryTypeText:
-		steps = qo.generateTextSearchSteps(query, execCtx)
-	case QueryTypeFilter:
-		steps = qo.generateFilterSteps(query, execCtx)
-	case QueryTypeAggregation:
-		steps = qo.generateAggregationSteps(query, execCtx)
-	case QueryTypeHybrid:
-		steps = qo.generateHybridSearchSteps(query, execCtx)
-	case QueryTypeJoin:
-		steps = qo.generateJoinSteps(query, execCtx)
-	default:
-		steps = qo.generateGenericSteps(query, execCtx)
-	}
-
-	return qo.optimizeStepOrder(steps)
-}
-
-// generateVectorSearchSteps creates optimized steps for vector search queries
-func (qo *QueryOptimizer) generateVectorSearchSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
-	steps := []QueryStep{
-		{
-			ID:          generateID(),
-			Type:        "preprocessing",
-			Operation:   "validate_vector_input",
-			Cost:        1.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"timeout": "5s"},
-			DependsOn:   []string{},
-			CanCache:    false,
-		},
-		{
-			ID:          generateID(),
-			Type:        "embedding",
-			Operation:   "generate_query_embedding",
-			Cost:        10.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"model": "text-embedding-ada-002", "cache_enabled": true},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "embedding:" + qo.hashQuery(query),
-		},
-		{
-			ID:          generateID(),
-			Type:        "search",
-			Operation:   "vector_similarity_search",
-			Cost:        25.0,
-			Parallelism: qo.determineOptimalParallelism(execCtx),
-			Parameters:  map[string]interface{}{"top_k": 50, "ef_search": 128, "use_index": true},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "vector_search:" + qo.hashQuery(query),
-		},
-		{
-			ID:          generateID(),
-			Type:        "postprocessing",
-			Operation:   "rank_and_filter_results",
-			Cost:        5.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"rerank": true, "diversity_threshold": 0.8},
-			DependsOn:   []string{},
-			CanCache:    false,
-		},
-	}
-
-	return steps
-}
-
-// generateTextSearchSteps creates optimized steps for text search queries
-func (qo *QueryOptimizer) generateTextSearchSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
-	steps := []QueryStep{
-		{
-			ID:          generateID(),
-			Type:        "preprocessing",
-			Operation:   "analyze_text_query",
-			Cost:        2.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"tokenize": true, "stemming": true, "stop_words": true},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "text_analysis:" + qo.hashQuery(query),
-		},
-		{
-			ID:          generateID(),
-			Type:        "search",
-			Operation:   "full_text_search",
-			Cost:        15.0,
-			Parallelism: qo.determineOptimalParallelism(execCtx),
-			Parameters:  map[string]interface{}{"fuzzy": true, "boost_fields": []string{"title", "tags"}},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "text_search:" + qo.hashQuery(query),
-		},
-		{
-			ID:          generateID(),
-			Type:        "postprocessing",
-			Operation:   "score_and_rank",
-			Cost:        3.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"tf_idf": true, "semantic_boost": 0.3},
-			DependsOn:   []string{},
-			CanCache:    false,
-		},
-	}
-
-	return steps
-}
-
-// generateFilterSteps creates optimized steps for filter queries
-func (qo *QueryOptimizer) generateFilterSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
-	steps := []QueryStep{
-		{
-			ID:          generateID(),
-			Type:        "preprocessing",
-			Operation:   "parse_filter_conditions",
-			Cost:        1.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"validate": true},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "filter_parse:" + qo.hashQuery(query),
-		},
-		{
-			ID:          generateID(),
-			Type:        "optimization",
-			Operation:   "optimize_filter_order",
-			Cost:        2.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"selectivity_based": true},
-			DependsOn:   []string{},
-			CanCache:    false,
-		},
-		{
-			ID:          generateID(),
-			Type:        "execution",
-			Operation:   "apply_filters",
-			Cost:        8.0,
-			Parallelism: qo.determineOptimalParallelism(execCtx),
-			Parameters:  map[string]interface{}{"batch_size": 1000, "use_index": true},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "filter_result:" + qo.hashQuery(query),
-		},
-	}
-
-	return steps
-}
-
-// generateAggregationSteps creates optimized steps for aggregation queries
-func (qo *QueryOptimizer) generateAggregationSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
-	steps := []QueryStep{
-		{
-			ID:          generateID(),
-			Type:        "preprocessing",
-			Operation:   "parse_aggregation_query",
-			Cost:        2.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"validate_fields": true},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "agg_parse:" + qo.hashQuery(query),
-		},
-		{
-			ID:          generateID(),
-			Type:        "data_access",
-			Operation:   "scan_collection",
-			Cost:        20.0,
-			Parallelism: qo.determineOptimalParallelism(execCtx),
-			Parameters:  map[string]interface{}{"streaming": true, "batch_size": 5000},
-			DependsOn:   []string{},
-			CanCache:    false,
-		},
-		{
-			ID:          generateID(),
-			Type:        "computation",
-			Operation:   "compute_aggregates",
-			Cost:        10.0,
-			Parallelism: qo.parallelismThreshold,
-			Parameters:  map[string]interface{}{"in_memory": true, "spill_to_disk": false},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "agg_result:" + qo.hashQuery(query),
-		},
-	}
-
-	return steps
-}
-
-// generateHybridSearchSteps creates optimized steps for hybrid search queries
-func (qo *QueryOptimizer) generateHybridSearchSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
-	vectorSteps := qo.generateVectorSearchSteps(query, execCtx)
-	textSteps := qo.generateTextSearchSteps(query, execCtx)
-
-	// Add fusion step
-	fusionStep := QueryStep{
-		ID:          generateID(),
-		Type:        "fusion",
-		Operation:   "hybrid_score_fusion",
-		Cost:        8.0,
-		Parallelism: 1,
-		Parameters: map[string]interface{}{
-			"vector_weight": 0.6,
-			"text_weight":   0.4,
-			"fusion_method": "rrf", // Reciprocal Rank Fusion
-		},
-		DependsOn: []string{},
-		CanCache:  false,
-	}
-
-	steps := make([]QueryStep, 0, len(vectorSteps)+len(textSteps)+1)
-	steps = append(steps, vectorSteps...)
-	steps = append(steps, textSteps...)
-	steps = append(steps, fusionStep)
-
-	return steps
-}
-
-// generateJoinSteps creates optimized steps for join queries
-func (qo *QueryOptimizer) generateJoinSteps(query string, execCtx *QueryExecutionContext) []QueryStep {
-	steps := []QueryStep{
-		{
-			ID:          generateID(),
-			Type:        "preprocessing",
-			Operation:   "parse_join_conditions",
-			Cost:        3.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"validate_keys": true},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "join_parse:" + qo.hashQuery(query),
-		},
-		{
-			ID:          generateID(),
-			Type:        "optimization",
-			Operation:   "optimize_join_order",
-			Cost:        5.0,
-			Parallelism: 1,
-			Parameters:  map[string]interface{}{"cost_based": true},
-			DependsOn:   []string{},
-			CanCache:    false,
-		},
-		{
-			ID:          generateID(),
-			Type:        "execution",
-			Operation:   "execute_join",
-			Cost:        25.0,
-			Parallelism: qo.determineOptimalParallelism(execCtx),
-			Parameters:  map[string]interface{}{"algorithm": "hash_join", "batch_size": 1000},
-			DependsOn:   []string{},
-			CanCache:    true,
-			CacheKey:    "join_result:" + qo.hashQuery(query),
-		},
-	}
-
-	return steps
-}
-
-// generateGenericSteps creates basic steps for unknown query types
-func (qo *QueryOptimizer) generateGenericSteps(_ string, execCtx *QueryExecutionContext) []QueryStep {
-	// Use context timeout if available, otherwise default to 30s
-	timeout := "30s"
-	if execCtx.Timeout > 0 {
-		timeout = execCtx.Timeout.String()
-	}
-
-	parameters := map[string]interface{}{
-		"timeout":    timeout,
-		"query_id":   execCtx.QueryID,
-		"session_id": execCtx.SessionID,
-	}
-
-	// Add repository context if available
-	if execCtx.Repository != "" {
-		parameters["repository"] = execCtx.Repository
-	}
-
-	return []QueryStep{
-		{
-			ID:          generateID(),
-			Type:        "execution",
-			Operation:   "generic_query_execution",
-			Cost:        10.0,
-			Parallelism: 1,
-			Parameters:  parameters,
-			DependsOn:   []string{},
-			CanCache:    false,
-		},
-	}
-}
-
-// optimizeStepOrder reorders steps for optimal execution
-func (qo *QueryOptimizer) optimizeStepOrder(steps []QueryStep) []QueryStep {
-	// Sort by cost (execute cheaper operations first)
-	sort.Slice(steps, func(i, j int) bool {
-		// If one step depends on another, respect that ordering
-		for _, dep := range steps[j].DependsOn {
-			if dep == steps[i].ID {
-				return true
-			}
-		}
-		for _, dep := range steps[i].DependsOn {
-			if dep == steps[j].ID {
-				return false
-			}
-		}
-
-		// Otherwise, sort by cost
-		return steps[i].Cost < steps[j].Cost
-	})
-
-	return steps
-}
-
-// applyOptimizationRules applies registered optimization rules to the plan
-func (qo *QueryOptimizer) applyOptimizationRules(plan *QueryPlan, query string, execCtx *QueryExecutionContext) {
-	qo.rulesMutex.RLock()
-	defer qo.rulesMutex.RUnlock()
-
-	for _, rule := range qo.optimizationRules {
-		if !rule.Enabled {
-			continue
-		}
-
-		if qo.ruleMatches(rule, query, plan.QueryType, execCtx) {
-			qo.applyRule(plan, rule)
-			rule.LastApplied = time.Now()
-		}
-	}
-}
-
-// ruleMatches checks if an optimization rule applies to the current query
-func (qo *QueryOptimizer) ruleMatches(rule *QueryOptimizationRule, query string, queryType QueryType, execCtx *QueryExecutionContext) bool {
-	// Simple pattern matching - in production, use more sophisticated matching
-	if rule.Pattern != "" && !strings.Contains(query, rule.Pattern) {
-		return false
-	}
-
-	// Check conditions
-	switch rule.Condition {
-	case "vector_query":
-		return queryType == QueryTypeVector
-	case "high_priority":
-		return execCtx.Priority > 5
-	case "has_repository":
-		return execCtx.Repository != ""
-	default:
-		return true
-	}
-}
-
-// applyRule applies a specific optimization rule to the plan
-func (qo *QueryOptimizer) applyRule(plan *QueryPlan, rule *QueryOptimizationRule) {
-	switch rule.Transformation {
-	case "enable_caching":
-		plan.UseCache = true
-		plan.CacheTTL = 30 * time.Minute
-	case "increase_parallelism":
-		for i := range plan.Steps {
-			if plan.Steps[i].Parallelism < qo.parallelismThreshold {
-				plan.Steps[i].Parallelism = qo.parallelismThreshold
-			}
-		}
-	case "optimize_for_latency":
-		plan.CacheTTL = 5 * time.Minute
-		for i := range plan.Steps {
-			if plan.Steps[i].Type == "preprocessing" {
-				plan.Steps[i].Parameters["fast_mode"] = true
-			}
-		}
-	case "add_index_hint":
-		if hint, exists := rule.Metadata["index_name"]; exists {
-			plan.IndexHints = append(plan.IndexHints, hint)
-		}
-	}
-}
-
-// RecordQueryExecution records statistics for a completed query execution
-func (qo *QueryOptimizer) RecordQueryExecution(queryHash string, duration time.Duration, success bool, errorMsg string) {
-	qo.statsMutex.Lock()
-	defer qo.statsMutex.Unlock()
-
-	stats, exists := qo.queryStats[queryHash]
-	if !exists {
-		stats = &QueryStatistics{
-			QueryHash:      queryHash,
-			LatencyHistory: make([]float64, 0),
-			ErrorPatterns:  make([]string, 0),
-			MinLatency:     duration,
-			MaxLatency:     duration,
-		}
-		qo.queryStats[queryHash] = stats
-	}
-
-	stats.TotalExecutions++
-	stats.LastExecuted = time.Now()
-	stats.TotalLatency += duration
-
-	if success {
-		stats.SuccessfulRuns++
-	} else {
-		stats.FailedRuns++
-		if errorMsg != "" {
-			stats.ErrorPatterns = append(stats.ErrorPatterns, errorMsg)
+	var planJSON string
+	for rows.Next() {
+		if err := rows.Scan(&planJSON); err != nil {
+			return "", err
 		}
 	}
 
-	// Update latency statistics
-	latencyMs := float64(duration) / float64(time.Millisecond)
-	stats.LatencyHistory = append(stats.LatencyHistory, latencyMs)
-
-	// Keep only recent history
-	if len(stats.LatencyHistory) > 1000 {
-		stats.LatencyHistory = stats.LatencyHistory[len(stats.LatencyHistory)-500:]
-	}
-
-	// Update min/max/avg latencies
-	if duration < stats.MinLatency {
-		stats.MinLatency = duration
-	}
-	if duration > stats.MaxLatency {
-		stats.MaxLatency = duration
-	}
-	if stats.TotalExecutions > 0 {
-		stats.AvgLatency = stats.TotalLatency / time.Duration(stats.TotalExecutions)
-	}
-
-	// Calculate percentiles
-	qo.updatePercentiles(stats)
+	return planJSON, rows.Err()
 }
 
-// updatePercentiles calculates P95 and P99 latencies from history
-func (qo *QueryOptimizer) updatePercentiles(stats *QueryStatistics) {
-	if len(stats.LatencyHistory) == 0 {
-		return
+// analyzePlan analyzes the execution plan and generates suggestions
+func (qo *QueryOptimizer) analyzePlan(plan, query string) []OptimizationSuggestion {
+	var suggestions []OptimizationSuggestion
+
+	// Check for sequential scans on large tables
+	if strings.Contains(plan, "Seq Scan") {
+		suggestions = append(suggestions, OptimizationSuggestion{
+			Type:        "index",
+			Severity:    "high",
+			Message:     "Sequential scan detected on table",
+			Suggestion:  "Consider adding appropriate indexes for WHERE clauses",
+			ImpactLevel: "high",
+		})
 	}
 
-	// Sort latency history
-	sorted := make([]float64, len(stats.LatencyHistory))
-	copy(sorted, stats.LatencyHistory)
-	sort.Float64s(sorted)
-
-	// Calculate percentiles
-	p95Index := int(0.95 * float64(len(sorted)))
-	p99Index := int(0.99 * float64(len(sorted)))
-
-	if p95Index < len(sorted) {
-		stats.P95Latency = time.Duration(sorted[p95Index]) * time.Millisecond
-	}
-	if p99Index < len(sorted) {
-		stats.P99Latency = time.Duration(sorted[p99Index]) * time.Millisecond
-	}
-}
-
-// GetQueryStatistics returns performance statistics for all queries
-func (qo *QueryOptimizer) GetQueryStatistics() map[string]*QueryStatistics {
-	qo.statsMutex.RLock()
-	defer qo.statsMutex.RUnlock()
-
-	result := make(map[string]*QueryStatistics)
-	for k, v := range qo.queryStats {
-		result[k] = v
+	// Check for nested loops with high cost
+	if strings.Contains(plan, "Nested Loop") && strings.Contains(plan, "cost=") {
+		suggestions = append(suggestions, OptimizationSuggestion{
+			Type:        "join",
+			Severity:    "medium",
+			Message:     "Nested loop join detected",
+			Suggestion:  "Consider rewriting query to use hash or merge joins",
+			ImpactLevel: "medium",
+		})
 	}
 
-	return result
-}
+	// Check for missing ORDER BY optimization
+	if strings.Contains(strings.ToUpper(query), "ORDER BY") && strings.Contains(plan, "Sort") {
+		suggestions = append(suggestions, OptimizationSuggestion{
+			Type:        "index",
+			Severity:    "medium",
+			Message:     "External sort operation required",
+			Suggestion:  "Add index on ORDER BY columns to avoid sorting",
+			ImpactLevel: "medium",
+		})
+	}
 
-// GetOptimizationSuggestions provides optimization suggestions based on query patterns
-func (qo *QueryOptimizer) GetOptimizationSuggestions() []map[string]interface{} {
-	suggestions := []map[string]interface{}{}
+	// Check for LIMIT without proper optimization
+	if strings.Contains(strings.ToUpper(query), "LIMIT") && !strings.Contains(plan, "Limit") {
+		suggestions = append(suggestions, OptimizationSuggestion{
+			Type:        "query",
+			Severity:    "low",
+			Message:     "LIMIT not pushed down effectively",
+			Suggestion:  "Ensure indexes support early result termination",
+			ImpactLevel: "low",
+		})
+	}
 
-	qo.statsMutex.RLock()
-	defer qo.statsMutex.RUnlock()
+	// Check for full table scans on joins
+	if strings.Contains(plan, "Hash Join") && strings.Contains(plan, "Seq Scan") {
+		suggestions = append(suggestions, OptimizationSuggestion{
+			Type:        "index",
+			Severity:    "high",
+			Message:     "Hash join with sequential scan",
+			Suggestion:  "Add indexes on join columns for better performance",
+			ImpactLevel: "high",
+		})
+	}
 
-	for queryHash, stats := range qo.queryStats {
-		if stats.TotalExecutions < 10 {
-			continue // Need more data for meaningful suggestions
-		}
-
-		// High latency queries
-		if stats.AvgLatency > 5*time.Second {
-			suggestions = append(suggestions, map[string]interface{}{
-				"type":        "high_latency",
-				"query_hash":  queryHash,
-				"avg_latency": stats.AvgLatency.String(),
-				"suggestion":  "Consider adding caching or optimizing query structure",
-				"priority":    "high",
-			})
-		}
-
-		// Low success rate queries
-		successRate := float64(stats.SuccessfulRuns) / float64(stats.TotalExecutions)
-		if successRate < 0.9 {
-			suggestions = append(suggestions, map[string]interface{}{
-				"type":         "low_success_rate",
-				"query_hash":   queryHash,
-				"success_rate": strconv.FormatFloat(successRate*100, 'f', 2, 64) + "%",
-				"suggestion":   "Review error patterns and add error handling",
-				"priority":     "medium",
-			})
-		}
-
-		// Frequently executed queries that could benefit from caching
-		if stats.TotalExecutions > 100 && stats.CacheHits == 0 {
-			suggestions = append(suggestions, map[string]interface{}{
-				"type":       "cache_candidate",
-				"query_hash": queryHash,
-				"executions": stats.TotalExecutions,
-				"suggestion": "Enable caching for this frequently executed query",
-				"priority":   "medium",
-			})
-		}
+	// Check for subquery optimization opportunities
+	if strings.Contains(strings.ToUpper(query), "IN (SELECT") {
+		suggestions = append(suggestions, OptimizationSuggestion{
+			Type:        "query",
+			Severity:    "medium",
+			Message:     "IN subquery detected",
+			Suggestion:  "Consider rewriting as EXISTS or JOIN for better performance",
+			ImpactLevel: "medium",
+		})
 	}
 
 	return suggestions
 }
 
-// Helper methods
+// extractOperations extracts operations from the execution plan
+func (qo *QueryOptimizer) extractOperations(plan string) []string {
+	operations := []string{}
 
-func (qo *QueryOptimizer) hashQuery(query string) string {
-	hash := sha256.Sum256([]byte(query))
-	return hex.EncodeToString(hash[:])
-}
+	// Common PostgreSQL operations
+	opPatterns := []string{
+		"Seq Scan", "Index Scan", "Index Only Scan", "Bitmap Heap Scan",
+		"Nested Loop", "Hash Join", "Merge Join", "Sort", "Hash", "Aggregate",
+		"Limit", "Subquery Scan", "CTE Scan", "Function Scan",
+	}
 
-func (qo *QueryOptimizer) getCachedPlan(queryHash string) *QueryPlan {
-	if plan, exists := qo.planCache.Get(queryHash); exists {
-		if p, ok := plan.(*QueryPlan); ok {
-			return p
+	for _, op := range opPatterns {
+		if strings.Contains(plan, op) {
+			operations = append(operations, op)
 		}
 	}
-	return nil
+
+	return operations
 }
 
-func (qo *QueryOptimizer) cachePlan(plan *QueryPlan) {
-	qo.planCache.Set(plan.QueryHash, plan)
+// extractIndexes extracts index names from the execution plan
+func (qo *QueryOptimizer) extractIndexes(plan string) []string {
+	indexes := []string{}
 
-	qo.plansMutex.Lock()
-	qo.planStore[plan.QueryHash] = plan
-	qo.plansMutex.Unlock()
+	// Use regex to find index names in the plan
+	indexRegex := regexp.MustCompile(`Index.*?"([^"]+)"`)
+	matches := indexRegex.FindAllStringSubmatch(plan, -1)
+
+	for _, match := range matches {
+		if len(match) > 1 {
+			indexes = append(indexes, match[1])
+		}
+	}
+
+	return indexes
 }
 
-func (qo *QueryOptimizer) recordPlanUsage(plan *QueryPlan) {
-	plan.LastUsed = time.Now()
-	plan.UsageCount++
-}
+// parsePlanMetrics extracts cost and row estimates from the plan
+func (qo *QueryOptimizer) parsePlanMetrics(queryPlan *QueryPlan, plan string) {
+	// Parse cost (cost=start..total)
+	costRegex := regexp.MustCompile(`cost=[\d.]+\.\.([\d.]+)`)
+	if matches := costRegex.FindStringSubmatch(plan); len(matches) > 1 {
+		fmt.Sscanf(matches[1], "%f", &queryPlan.Cost)
+	}
 
-func (qo *QueryOptimizer) createBasicPlan(query string, queryType QueryType) *QueryPlan {
-	return &QueryPlan{
-		ID:        generateID(),
-		QueryHash: qo.hashQuery(query),
-		QueryType: queryType,
-		Steps: []QueryStep{
-			{
-				ID:          generateID(),
-				Type:        "execution",
-				Operation:   "basic_execution",
-				Cost:        10.0,
-				Parallelism: 1,
-				Parameters:  make(map[string]interface{}),
-				DependsOn:   []string{},
-				CanCache:    false,
-			},
-		},
-		UseCache:        false,
-		CreatedAt:       time.Now(),
-		LastUsed:        time.Now(),
-		UsageCount:      1,
-		SuccessRate:     1.0,
-		OptimizationTag: "basic",
+	// Parse row estimates (rows=N)
+	rowsRegex := regexp.MustCompile(`rows=(\d+)`)
+	if matches := rowsRegex.FindStringSubmatch(plan); len(matches) > 1 {
+		fmt.Sscanf(matches[1], "%d", &queryPlan.RowsEstimate)
+	}
+
+	// Parse actual rows (actual.*rows=N)
+	actualRowsRegex := regexp.MustCompile(`actual.*rows=(\d+)`)
+	if matches := actualRowsRegex.FindStringSubmatch(plan); len(matches) > 1 {
+		fmt.Sscanf(matches[1], "%d", &queryPlan.RowsActual)
 	}
 }
 
-func (qo *QueryOptimizer) generateCacheKey(query string, execCtx *QueryExecutionContext) string {
-	return "query:" + qo.hashQuery(query) + ":" + execCtx.Repository + ":" + execCtx.UserID
-}
+// updateStats updates query performance statistics
+func (qo *QueryOptimizer) updateStats(plan *QueryPlan) {
+	qo.mu.Lock()
+	defer qo.mu.Unlock()
 
-func (qo *QueryOptimizer) determineCacheTTL(queryType QueryType) time.Duration {
-	switch queryType {
-	case QueryTypeVector:
-		return 30 * time.Minute
-	case QueryTypeText:
-		return 15 * time.Minute
-	case QueryTypeFilter:
-		return 60 * time.Minute
-	case QueryTypeAggregation:
-		return 5 * time.Minute
-	case QueryTypeJoin:
-		return 20 * time.Minute
-	case QueryTypeHybrid:
-		return 25 * time.Minute
-	default:
-		return 10 * time.Minute
+	qo.stats.TotalQueries++
+
+	// Update duration statistics
+	if qo.stats.TotalQueries == 1 {
+		qo.stats.MinDuration = plan.Duration
+		qo.stats.MaxDuration = plan.Duration
+		qo.stats.AvgDuration = plan.Duration
+	} else {
+		if plan.Duration < qo.stats.MinDuration {
+			qo.stats.MinDuration = plan.Duration
+		}
+		if plan.Duration > qo.stats.MaxDuration {
+			qo.stats.MaxDuration = plan.Duration
+		}
+
+		// Update rolling average
+		qo.stats.AvgDuration = time.Duration(
+			(int64(qo.stats.AvgDuration)*(qo.stats.TotalQueries-1) + int64(plan.Duration)) / qo.stats.TotalQueries,
+		)
+	}
+
+	// Check if query is slow
+	if plan.Duration > qo.config.SlowQueryThreshold {
+		qo.stats.SlowQueries++
+	}
+
+	// Update scan statistics
+	for _, op := range plan.Operations {
+		switch op {
+		case "Seq Scan":
+			qo.stats.TableScans++
+		case "Index Scan", "Index Only Scan", "Bitmap Heap Scan":
+			qo.stats.IndexScans++
+		}
+	}
+
+	// Calculate index hit ratio
+	if qo.stats.TableScans+qo.stats.IndexScans > 0 {
+		qo.stats.IndexHitRatio = float64(qo.stats.IndexScans) / float64(qo.stats.TableScans+qo.stats.IndexScans)
 	}
 }
 
-func (qo *QueryOptimizer) determineOptimalParallelism(execCtx *QueryExecutionContext) int {
-	if execCtx.Priority > 8 {
-		return qo.parallelismThreshold * 2
-	} else if execCtx.Priority > 5 {
-		return qo.parallelismThreshold
-	}
-	return 1
+// GetStats returns current query performance statistics
+func (qo *QueryOptimizer) GetStats() *QueryStats {
+	qo.mu.RLock()
+	defer qo.mu.RUnlock()
+
+	// Return a copy to avoid race conditions
+	stats := *qo.stats
+	return &stats
 }
 
-func (qo *QueryOptimizer) calculatePlanCost(plan *QueryPlan) float64 {
-	totalCost := 0.0
-	for _, step := range plan.Steps {
-		totalCost += step.Cost
+// SuggestIndexes analyzes query patterns and suggests new indexes
+func (qo *QueryOptimizer) SuggestIndexes(ctx context.Context) ([]IndexSuggestion, error) {
+	suggestions := []IndexSuggestion{}
+
+	// Analyze missing indexes from pg_stat_user_tables
+	query := `
+		SELECT 
+			schemaname,
+			tablename,
+			seq_scan,
+			seq_tup_read,
+			idx_scan,
+			idx_tup_fetch,
+			n_tup_ins + n_tup_upd + n_tup_del as total_writes
+		FROM pg_stat_user_tables
+		WHERE seq_scan > idx_scan * 2  -- Tables with high sequential scan ratio
+		ORDER BY seq_tup_read DESC
+		LIMIT 10`
+
+	rows, err := qo.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, fmt.Errorf("failed to analyze table statistics: %w", err)
 	}
-	return totalCost
-}
+	defer rows.Close()
 
-func (qo *QueryOptimizer) generateIndexHints(_ string, queryType QueryType) []string {
-	hints := []string{}
+	for rows.Next() {
+		var schema, table string
+		var seqScan, seqTupRead, idxScan, idxTupFetch, totalWrites int64
 
-	switch queryType {
-	case QueryTypeVector:
-		hints = append(hints, "use_vector_index", "hnsw_ef_search_128")
-	case QueryTypeText:
-		hints = append(hints, "use_text_index", "enable_fuzzy_search")
-	case QueryTypeFilter:
-		hints = append(hints, "use_filter_index", "optimize_range_queries")
-	case QueryTypeJoin:
-		hints = append(hints, "use_join_index", "optimize_hash_join")
-	case QueryTypeHybrid:
-		hints = append(hints, "use_hybrid_index", "enable_parallel_search")
-	case QueryTypeAggregation:
-		hints = append(hints, "use_aggregation_index", "enable_columnar_scan")
-	}
+		err := rows.Scan(&schema, &table, &seqScan, &seqTupRead, &idxScan, &idxTupFetch, &totalWrites)
+		if err != nil {
+			continue
+		}
 
-	return hints
-}
+		suggestion := IndexSuggestion{
+			Table:        fmt.Sprintf("%s.%s", schema, table),
+			Reason:       "High sequential scan ratio",
+			SeqScanRatio: float64(seqScan) / float64(seqScan+idxScan),
+			Impact:       "high",
+			Suggestion:   fmt.Sprintf("Analyze queries on %s.%s and add appropriate indexes", schema, table),
+		}
 
-func (qo *QueryOptimizer) generateOptimizationParameters(queryType QueryType, execCtx *QueryExecutionContext) map[string]interface{} {
-	params := make(map[string]interface{})
-
-	params["query_type"] = string(queryType)
-	params["priority"] = execCtx.Priority
-	params["timeout"] = execCtx.Timeout.String()
-	params["parallelism_enabled"] = execCtx.Priority > 5
-	params["caching_enabled"] = true
-
-	return params
-}
-
-func (qo *QueryOptimizer) generateOptimizationTag(queryType QueryType, execCtx *QueryExecutionContext) string {
-	tag := string(queryType)
-
-	if execCtx.Priority > 8 {
-		tag += "_high_priority"
-	}
-	if execCtx.Repository != "" {
-		tag += "_repo_scoped"
+		suggestions = append(suggestions, suggestion)
 	}
 
-	return tag
+	return suggestions, rows.Err()
 }
 
-func (qo *QueryOptimizer) updateOptimizationStats(success bool) {
-	qo.totalOptimizations++
-	if success {
-		qo.successfulOptimizations++
-	}
-	qo.lastOptimization = time.Now()
+// IndexSuggestion represents an index optimization recommendation
+type IndexSuggestion struct {
+	Table        string   `json:"table"`
+	Columns      []string `json:"columns,omitempty"`
+	Reason       string   `json:"reason"`
+	SeqScanRatio float64  `json:"seq_scan_ratio"`
+	Impact       string   `json:"impact"`
+	Suggestion   string   `json:"suggestion"`
 }
 
-func generateID() string {
-	return "opt_" + strconv.FormatInt(time.Now().UnixNano(), 10)
-}
+// Get retrieves a cached query plan
+func (qpc *QueryPlanCache) Get(query string) *QueryPlan {
+	qpc.mu.RLock()
+	defer qpc.mu.RUnlock()
 
-func getEnvBool(key string, defaultValue bool) bool {
-	// Simple implementation - in production, parse environment variable
-	return defaultValue
-}
-
-// AddOptimizationRule adds a new optimization rule
-func (qo *QueryOptimizer) AddOptimizationRule(rule *QueryOptimizationRule) {
-	qo.rulesMutex.Lock()
-	defer qo.rulesMutex.Unlock()
-
-	rule.Enabled = true
-	qo.optimizationRules[rule.ID] = rule
-}
-
-// GetOptimizationReport provides a comprehensive optimization report
-func (qo *QueryOptimizer) GetOptimizationReport() map[string]interface{} {
-	qo.statsMutex.RLock()
-	defer qo.statsMutex.RUnlock()
-
-	report := map[string]interface{}{
-		"total_optimizations":      qo.totalOptimizations,
-		"successful_optimizations": qo.successfulOptimizations,
-		"success_rate":             0.0,
-		"avg_optimization_time":    qo.avgOptimizationTime.String(),
-		"last_optimization":        qo.lastOptimization,
-		"plan_cache_stats":         qo.planCache.GetStats(),
-		"total_queries_tracked":    len(qo.queryStats),
-		"optimization_suggestions": qo.GetOptimizationSuggestions(),
+	plan, exists := qpc.plans[query]
+	if !exists {
+		return nil
 	}
 
-	if qo.totalOptimizations > 0 {
-		report["success_rate"] = float64(qo.successfulOptimizations) / float64(qo.totalOptimizations)
+	// Check if plan is still valid
+	if time.Since(plan.CreatedAt) > qpc.maxAge {
+		delete(qpc.plans, query)
+		return nil
 	}
 
-	return report
+	return plan
+}
+
+// Set stores a query plan in cache
+func (qpc *QueryPlanCache) Set(query string, plan *QueryPlan) {
+	qpc.mu.Lock()
+	defer qpc.mu.Unlock()
+
+	qpc.plans[query] = plan
+
+	// Cleanup old entries periodically
+	if len(qpc.plans) > 1000 {
+		qpc.cleanup()
+	}
+}
+
+// cleanup removes expired plans from cache
+func (qpc *QueryPlanCache) cleanup() {
+	now := time.Now()
+	for query, plan := range qpc.plans {
+		if now.Sub(plan.CreatedAt) > qpc.maxAge {
+			delete(qpc.plans, query)
+		}
+	}
 }

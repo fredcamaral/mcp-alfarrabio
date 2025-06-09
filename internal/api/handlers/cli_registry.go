@@ -23,7 +23,6 @@ func NewCLIRegistryHandler(notificationService *push.NotificationService) *CLIRe
 	}
 }
 
-
 // RegisterEndpoint handles CLI endpoint registration
 func (crh *CLIRegistryHandler) RegisterEndpoint(w http.ResponseWriter, r *http.Request) {
 	if r.Method != "POST" {
@@ -83,10 +82,10 @@ func (crh *CLIRegistryHandler) RegisterEndpoint(w http.ResponseWriter, r *http.R
 		RegisteredAt: time.Now(),
 		Message:      "CLI endpoint registered successfully",
 		Config: CLIConfig{
-			PushEnabled:        true,
-			HeartbeatInterval:  30 * time.Second,
-			RetryPolicy:        endpoint.Preferences,
-			SupportedEvents:    []string{"memory_update", "task_update", "system_alert"},
+			PushEnabled:       true,
+			HeartbeatInterval: 30 * time.Second,
+			RetryPolicy:       endpoint.Preferences,
+			SupportedEvents:   []string{"memory_update", "task_update", "system_alert"},
 		},
 	}
 
@@ -132,10 +131,10 @@ func (crh *CLIRegistryHandler) DeregisterEndpoint(w http.ResponseWriter, r *http
 
 	// Return success response
 	response := map[string]interface{}{
-		"success":       true,
-		"endpoint_id":   endpointID,
+		"success":         true,
+		"endpoint_id":     endpointID,
 		"deregistered_at": time.Now(),
-		"message":       "CLI endpoint deregistered successfully",
+		"message":         "CLI endpoint deregistered successfully",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -356,7 +355,7 @@ func (crh *CLIRegistryHandler) GetServiceStatus(w http.ResponseWriter, r *http.R
 	}
 
 	status := crh.notificationService.GetServiceStatus()
-	
+
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(status); err != nil {
 		log.Printf("Failed to encode JSON response: %v", err)
@@ -393,11 +392,11 @@ func (crh *CLIRegistryHandler) SendTestNotification(w http.ResponseWriter, r *ht
 	}
 
 	response := map[string]interface{}{
-		"success":        true,
-		"endpoint_id":    endpointID,
+		"success":         true,
+		"endpoint_id":     endpointID,
 		"notification_id": notification.ID,
-		"sent_at":        time.Now(),
-		"message":        "Test notification sent successfully",
+		"sent_at":         time.Now(),
+		"message":         "Test notification sent successfully",
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -428,21 +427,21 @@ func (crh *CLIRegistryHandler) validateRegistrationRequest(req *CLIRegistrationR
 
 // CLIRegistrationRequest represents a CLI endpoint registration request
 type CLIRegistrationRequest struct {
-	ID           string                           `json:"id"`
-	URL          string                           `json:"url"`
-	Version      string                           `json:"version"`
-	Capabilities []string                         `json:"capabilities"`
-	Metadata     map[string]string                `json:"metadata"`
-	Preferences  *push.NotificationPreferences    `json:"preferences"`
+	ID           string                        `json:"id"`
+	URL          string                        `json:"url"`
+	Version      string                        `json:"version"`
+	Capabilities []string                      `json:"capabilities"`
+	Metadata     map[string]string             `json:"metadata"`
+	Preferences  *push.NotificationPreferences `json:"preferences"`
 }
 
 // CLIRegistrationResponse represents a successful registration response
 type CLIRegistrationResponse struct {
-	Success      bool                             `json:"success"`
-	EndpointID   string                           `json:"endpoint_id"`
-	RegisteredAt time.Time                        `json:"registered_at"`
-	Message      string                           `json:"message"`
-	Config       CLIConfig                        `json:"config"`
+	Success      bool      `json:"success"`
+	EndpointID   string    `json:"endpoint_id"`
+	RegisteredAt time.Time `json:"registered_at"`
+	Message      string    `json:"message"`
+	Config       CLIConfig `json:"config"`
 }
 
 // CLIConfig provides configuration for the registered CLI endpoint

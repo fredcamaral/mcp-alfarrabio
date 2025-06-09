@@ -16,6 +16,7 @@ import (
 // Config represents the application configuration
 type Config struct {
 	Server   ServerConfig   `json:"server"`
+	Database DatabaseConfig `json:"database"`
 	Qdrant   QdrantConfig   `json:"qdrant"`
 	OpenAI   OpenAIConfig   `json:"openai"`
 	AI       AIConfig       `json:"ai"`
@@ -31,6 +32,31 @@ type ServerConfig struct {
 	Host         string `json:"host"`
 	ReadTimeout  int    `json:"read_timeout_seconds"`
 	WriteTimeout int    `json:"write_timeout_seconds"`
+}
+
+// DatabaseConfig represents PostgreSQL database configuration
+type DatabaseConfig struct {
+	Host            string        `json:"host"`
+	Port            int           `json:"port"`
+	Name            string        `json:"name"`
+	User            string        `json:"user"`
+	Password        string        `json:"-"` // Never serialize password
+	SSLMode         string        `json:"ssl_mode"`
+	MaxOpenConns    int           `json:"max_open_conns"`
+	MaxIdleConns    int           `json:"max_idle_conns"`
+	ConnMaxLifetime time.Duration `json:"conn_max_lifetime"`
+	ConnMaxIdleTime time.Duration `json:"conn_max_idle_time"`
+
+	// Performance settings
+	QueryTimeout       time.Duration `json:"query_timeout"`
+	SlowQueryThreshold time.Duration `json:"slow_query_threshold"`
+	EnableQueryLogging bool          `json:"enable_query_logging"`
+	EnableMetrics      bool          `json:"enable_metrics"`
+
+	// Migration settings
+	MigrationTimeout  time.Duration `json:"migration_timeout"`
+	EnableAutoMigrate bool          `json:"enable_auto_migrate"`
+	MigrationsPath    string        `json:"migrations_path"`
 }
 
 // QdrantConfig represents Qdrant vector database configuration
@@ -170,6 +196,25 @@ func DefaultConfig() *Config {
 			ReadTimeout:  30,
 			WriteTimeout: 30,
 		},
+		Database: DatabaseConfig{
+			Host:               "localhost",
+			Port:               5432,
+			Name:               "mcp_memory",
+			User:               "postgres",
+			Password:           "",
+			SSLMode:            "disable",
+			MaxOpenConns:       25,
+			MaxIdleConns:       5,
+			ConnMaxLifetime:    time.Hour,
+			ConnMaxIdleTime:    time.Minute * 15,
+			QueryTimeout:       time.Second * 30,
+			SlowQueryThreshold: time.Millisecond * 100,
+			EnableQueryLogging: false,
+			EnableMetrics:      true,
+			MigrationTimeout:   time.Minute * 10,
+			EnableAutoMigrate:  false,
+			MigrationsPath:     "./migrations",
+		},
 		Qdrant: QdrantConfig{
 			Host:           "localhost",
 			Port:           6334,
@@ -284,6 +329,7 @@ func LoadConfig() (*Config, error) {
 // loadFromEnv loads configuration from environment variables
 func loadFromEnv(config *Config) {
 	loadServerConfig(config)
+	loadDatabaseConfig(config)
 	loadQdrantConfig(config)
 	loadStorageAndOtherConfig(config)
 	loadOpenAIConfig(config)
@@ -315,6 +361,65 @@ func loadServerConfig(config *Config) {
 			config.Server.WriteTimeout = wt
 		}
 	}
+}
+
+// loadDatabaseConfig loads database configuration from environment
+func loadDatabaseConfig(config *Config) {
+	// Database connection settings
+	config.Database.Host = getStringEnvWithDefault("DB_HOST", config.Database.Host)
+	config.Database.Port = getIntEnvWithDefault("DB_PORT", config.Database.Port)
+	config.Database.Name = getStringEnvWithDefault("DB_NAME", config.Database.Name)
+	config.Database.User = getStringEnvWithDefault("DB_USER", config.Database.User)
+	config.Database.Password = getStringEnvWithDefault("DB_PASSWORD", config.Database.Password)
+	config.Database.SSLMode = getStringEnvWithDefault("DB_SSLMODE", config.Database.SSLMode)
+
+	// Connection pool settings
+	config.Database.MaxOpenConns = getIntEnvWithDefault("DB_MAX_OPEN_CONNS", config.Database.MaxOpenConns)
+	config.Database.MaxIdleConns = getIntEnvWithDefault("DB_MAX_IDLE_CONNS", config.Database.MaxIdleConns)
+
+	// Connection timeouts
+	if connMaxLifetime := os.Getenv("DB_CONN_MAX_LIFETIME"); connMaxLifetime != "" {
+		if duration, err := time.ParseDuration(connMaxLifetime); err == nil {
+			config.Database.ConnMaxLifetime = duration
+		}
+	}
+	if connMaxIdleTime := os.Getenv("DB_CONN_MAX_IDLE_TIME"); connMaxIdleTime != "" {
+		if duration, err := time.ParseDuration(connMaxIdleTime); err == nil {
+			config.Database.ConnMaxIdleTime = duration
+		}
+	}
+
+	// Performance settings
+	if queryTimeout := os.Getenv("DB_QUERY_TIMEOUT"); queryTimeout != "" {
+		if duration, err := time.ParseDuration(queryTimeout); err == nil {
+			config.Database.QueryTimeout = duration
+		}
+	}
+	if slowQueryThreshold := os.Getenv("DB_SLOW_QUERY_THRESHOLD"); slowQueryThreshold != "" {
+		if duration, err := time.ParseDuration(slowQueryThreshold); err == nil {
+			config.Database.SlowQueryThreshold = duration
+		}
+	}
+
+	config.Database.EnableQueryLogging = getBoolEnvWithDefault("DB_ENABLE_QUERY_LOGGING", config.Database.EnableQueryLogging)
+	config.Database.EnableMetrics = getBoolEnvWithDefault("DB_ENABLE_METRICS", config.Database.EnableMetrics)
+
+	// Migration settings
+	if migrationTimeout := os.Getenv("DB_MIGRATION_TIMEOUT"); migrationTimeout != "" {
+		if duration, err := time.ParseDuration(migrationTimeout); err == nil {
+			config.Database.MigrationTimeout = duration
+		}
+	}
+	config.Database.EnableAutoMigrate = getBoolEnvWithDefault("DB_ENABLE_AUTO_MIGRATE", config.Database.EnableAutoMigrate)
+	config.Database.MigrationsPath = getStringEnvWithDefault("DB_MIGRATIONS_PATH", config.Database.MigrationsPath)
+}
+
+// getStringEnvWithDefault gets string environment variable with default value
+func getStringEnvWithDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }
 
 // loadQdrantConfig loads Qdrant configuration from environment
@@ -553,6 +658,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateDatabaseConfig(); err != nil {
+		return err
+	}
+
 	if err := c.validateQdrantConfig(); err != nil {
 		return err
 	}
@@ -579,6 +688,32 @@ func (c *Config) validateServerConfig() error {
 	}
 	if c.Server.Host == "" {
 		return errors.New("server host cannot be empty")
+	}
+	return nil
+}
+
+// validateDatabaseConfig validates database configuration settings
+func (c *Config) validateDatabaseConfig() error {
+	if c.Database.Host == "" {
+		return errors.New("database host cannot be empty")
+	}
+	if c.Database.Port <= 0 || c.Database.Port > 65535 {
+		return fmt.Errorf("invalid database port: %d", c.Database.Port)
+	}
+	if c.Database.Name == "" {
+		return errors.New("database name cannot be empty")
+	}
+	if c.Database.User == "" {
+		return errors.New("database user cannot be empty")
+	}
+	if c.Database.MaxOpenConns <= 0 {
+		return errors.New("max open connections must be positive")
+	}
+	if c.Database.MaxIdleConns < 0 {
+		return errors.New("max idle connections cannot be negative")
+	}
+	if c.Database.MaxIdleConns > c.Database.MaxOpenConns {
+		return errors.New("max idle connections cannot exceed max open connections")
 	}
 	return nil
 }

@@ -67,14 +67,14 @@ type RecoveryRequest struct {
 
 // RecoveryMetrics tracks recovery performance
 type RecoveryMetrics struct {
-	TotalRecoveries    int64 `json:"total_recoveries"`
-	SuccessfulRecoveries int64 `json:"successful_recoveries"`
-	FailedRecoveries   int64 `json:"failed_recoveries"`
-	AverageRecoveryTime time.Duration `json:"average_recovery_time"`
-	MaxRecoveryTime    time.Duration `json:"max_recovery_time"`
-	MinRecoveryTime    time.Duration `json:"min_recovery_time"`
-	ActiveRecoveries   int64 `json:"active_recoveries"`
-	QueueLength        int   `json:"queue_length"`
+	TotalRecoveries      int64         `json:"total_recoveries"`
+	SuccessfulRecoveries int64         `json:"successful_recoveries"`
+	FailedRecoveries     int64         `json:"failed_recoveries"`
+	AverageRecoveryTime  time.Duration `json:"average_recovery_time"`
+	MaxRecoveryTime      time.Duration `json:"max_recovery_time"`
+	MinRecoveryTime      time.Duration `json:"min_recovery_time"`
+	ActiveRecoveries     int64         `json:"active_recoveries"`
+	QueueLength          int           `json:"queue_length"`
 }
 
 // RecoveryClientState represents the state of a recoverable client
@@ -545,13 +545,13 @@ func (rm *RecoveryManager) GetClientStatus() map[string]ClientInfo {
 
 // ClientInfo provides client status information
 type ClientInfo struct {
-	ID              string        `json:"id"`
+	ID              string              `json:"id"`
 	State           RecoveryClientState `json:"state"`
-	HealthScore     float64       `json:"health_score"`
-	LastSeen        time.Time     `json:"last_seen"`
-	RetryCount      int           `json:"retry_count"`
-	RecoveryEnabled bool          `json:"recovery_enabled"`
-	BackoffDuration time.Duration `json:"backoff_duration"`
+	HealthScore     float64             `json:"health_score"`
+	LastSeen        time.Time           `json:"last_seen"`
+	RetryCount      int                 `json:"retry_count"`
+	RecoveryEnabled bool                `json:"recovery_enabled"`
+	BackoffDuration time.Duration       `json:"backoff_duration"`
 }
 
 // String returns string representation of RecoveryClientState

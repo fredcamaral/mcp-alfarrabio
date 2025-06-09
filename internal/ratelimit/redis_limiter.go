@@ -28,17 +28,17 @@ type redisScripts struct {
 
 // LimitResult represents the result of a rate limit check
 type LimitResult struct {
-	Allowed      bool          `json:"allowed"`
-	Count        int           `json:"count"`
-	Limit        int           `json:"limit"`
-	Remaining    int           `json:"remaining"`
-	RetryAfter   time.Duration `json:"retry_after"`
-	ResetTime    time.Time     `json:"reset_time"`
-	Algorithm    Algorithm     `json:"algorithm"`
-	Key          string        `json:"key"`
-	Window       time.Duration `json:"window"`
-	Burst        int           `json:"burst"`
-	
+	Allowed    bool          `json:"allowed"`
+	Count      int           `json:"count"`
+	Limit      int           `json:"limit"`
+	Remaining  int           `json:"remaining"`
+	RetryAfter time.Duration `json:"retry_after"`
+	ResetTime  time.Time     `json:"reset_time"`
+	Algorithm  Algorithm     `json:"algorithm"`
+	Key        string        `json:"key"`
+	Window     time.Duration `json:"window"`
+	Burst      int           `json:"burst"`
+
 	// Additional metadata
 	IsFirstRequest bool                   `json:"is_first_request"`
 	Metadata       map[string]interface{} `json:"metadata"`
@@ -126,7 +126,7 @@ func (rl *RedisLimiter) CheckMultiple(ctx context.Context, keys []string, limits
 	}
 
 	results := make([]*LimitResult, len(keys))
-	
+
 	// Use pipeline for efficiency
 	pipe := rl.client.Pipeline()
 	var commands []*redis.Cmd
@@ -134,7 +134,7 @@ func (rl *RedisLimiter) CheckMultiple(ctx context.Context, keys []string, limits
 	for i, key := range keys {
 		fullKey := rl.buildKey(key)
 		limit := limits[i]
-		
+
 		if limit == nil {
 			results[i] = &LimitResult{
 				Allowed: false,
@@ -147,7 +147,7 @@ func (rl *RedisLimiter) CheckMultiple(ctx context.Context, keys []string, limits
 		var cmd *redis.Cmd
 		switch limit.Algorithm {
 		case AlgorithmSlidingWindow:
-			cmd = pipe.EvalSha(ctx, rl.scripts.slidingWindow.Hash(), []string{fullKey}, 
+			cmd = pipe.EvalSha(ctx, rl.scripts.slidingWindow.Hash(), []string{fullKey},
 				limit.Limit, limit.Window.Milliseconds(), time.Now().UnixMilli(), limit.Burst)
 		case AlgorithmTokenBucket:
 			cmd = pipe.EvalSha(ctx, rl.scripts.tokenBucket.Hash(), []string{fullKey},
@@ -198,14 +198,14 @@ func (rl *RedisLimiter) CheckMultiple(ctx context.Context, keys []string, limits
 // checkSlidingWindow implements sliding window rate limiting
 func (rl *RedisLimiter) checkSlidingWindow(ctx context.Context, key string, limit *EndpointLimit) (*LimitResult, error) {
 	now := time.Now().UnixMilli()
-	
+
 	// Ensure script is loaded
 	if err := rl.loadScript(ctx, rl.scripts.slidingWindow); err != nil {
 		return nil, fmt.Errorf("failed to load sliding window script: %w", err)
 	}
 
 	// Execute script
-	result, err := rl.scripts.slidingWindow.Run(ctx, rl.client, []string{key}, 
+	result, err := rl.scripts.slidingWindow.Run(ctx, rl.client, []string{key},
 		limit.Limit, limit.Window.Milliseconds(), now, limit.Burst).Result()
 	if err != nil {
 		return nil, fmt.Errorf("sliding window script failed: %w", err)
@@ -217,7 +217,7 @@ func (rl *RedisLimiter) checkSlidingWindow(ctx context.Context, key string, limi
 // checkTokenBucket implements token bucket rate limiting
 func (rl *RedisLimiter) checkTokenBucket(ctx context.Context, key string, limit *EndpointLimit) (*LimitResult, error) {
 	now := time.Now().UnixMilli()
-	
+
 	// Ensure script is loaded
 	if err := rl.loadScript(ctx, rl.scripts.tokenBucket); err != nil {
 		return nil, fmt.Errorf("failed to load token bucket script: %w", err)
@@ -236,7 +236,7 @@ func (rl *RedisLimiter) checkTokenBucket(ctx context.Context, key string, limit 
 // checkFixedWindow implements fixed window rate limiting
 func (rl *RedisLimiter) checkFixedWindow(ctx context.Context, key string, limit *EndpointLimit) (*LimitResult, error) {
 	now := time.Now().UnixMilli()
-	
+
 	// Ensure script is loaded
 	if err := rl.loadScript(ctx, rl.scripts.fixedWindow); err != nil {
 		return nil, fmt.Errorf("failed to load fixed window script: %w", err)
@@ -331,12 +331,12 @@ func (rl *RedisLimiter) ResetMultiple(ctx context.Context, keys []string) error 
 // GetStats returns current statistics for a key
 func (rl *RedisLimiter) GetStats(ctx context.Context, key string) (map[string]interface{}, error) {
 	fullKey := rl.buildKey(key)
-	
+
 	// Get current value and TTL
 	pipe := rl.client.Pipeline()
 	getCmd := pipe.Get(ctx, fullKey)
 	ttlCmd := pipe.TTL(ctx, fullKey)
-	
+
 	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
 		return nil, fmt.Errorf("failed to get stats: %w", err)
@@ -345,13 +345,13 @@ func (rl *RedisLimiter) GetStats(ctx context.Context, key string) (map[string]in
 	stats := make(map[string]interface{})
 	stats["key"] = key
 	stats["full_key"] = fullKey
-	
+
 	if getCmd.Err() == nil {
 		stats["current_count"] = getCmd.Val()
 	} else {
 		stats["current_count"] = 0
 	}
-	
+
 	if ttlCmd.Err() == nil {
 		stats["ttl_seconds"] = ttlCmd.Val().Seconds()
 	} else {
@@ -368,7 +368,7 @@ func (rl *RedisLimiter) Cleanup(ctx context.Context) error {
 		return fmt.Errorf("failed to load cleanup script: %w", err)
 	}
 
-	result, err := rl.scripts.cleanup.Run(ctx, rl.client, []string{}, 
+	result, err := rl.scripts.cleanup.Run(ctx, rl.client, []string{},
 		rl.config.KeyPrefix, 1000).Result() // Clean up to 1000 keys at a time
 	if err != nil {
 		return fmt.Errorf("cleanup script failed: %w", err)
@@ -395,23 +395,23 @@ func (rl *RedisLimiter) IsHealthy(ctx context.Context) error {
 // GetInfo returns information about the Redis connection
 func (rl *RedisLimiter) GetInfo(ctx context.Context) (map[string]interface{}, error) {
 	info := make(map[string]interface{})
-	
+
 	// Get Redis info
 	redisInfo, err := rl.client.Info(ctx).Result()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get Redis info: %w", err)
 	}
-	
+
 	info["redis_info"] = redisInfo
 	info["config"] = map[string]interface{}{
-		"redis_addr":      rl.config.RedisAddr,
-		"redis_db":        rl.config.RedisDB,
-		"pool_size":       rl.config.PoolSize,
-		"key_prefix":      rl.config.KeyPrefix,
-		"default_limit":   rl.config.DefaultLimit,
-		"default_window":  rl.config.DefaultWindow.String(),
+		"redis_addr":     rl.config.RedisAddr,
+		"redis_db":       rl.config.RedisDB,
+		"pool_size":      rl.config.PoolSize,
+		"key_prefix":     rl.config.KeyPrefix,
+		"default_limit":  rl.config.DefaultLimit,
+		"default_window": rl.config.DefaultWindow.String(),
 	}
-	
+
 	return info, nil
 }
 
@@ -426,12 +426,12 @@ func (rl *RedisLimiter) loadScript(ctx context.Context, script *redis.Script) er
 	if err != nil {
 		return err
 	}
-	
+
 	if len(exists) == 0 || !exists[0] {
 		_, err := script.Load(ctx, rl.client).Result()
 		return err
 	}
-	
+
 	return nil
 }
 

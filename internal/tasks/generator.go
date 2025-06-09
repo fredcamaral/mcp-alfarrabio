@@ -348,14 +348,14 @@ func (g *Generator) convertRawTask(raw map[string]interface{}, index int) (types
 	if taskType, ok := raw["type"].(string); ok {
 		task.Type = types.TaskType(taskType)
 	} else {
-		task.Type = types.TaskTypeImplementation // default
+		task.Type = types.TaskTypeLegacyImplementation // default
 	}
 
 	// Extract priority
 	if priority, ok := raw["priority"].(string); ok {
 		task.Priority = types.TaskPriority(priority)
 	} else {
-		task.Priority = types.TaskPriorityMedium // default
+		task.Priority = types.TaskPriorityLegacyMedium // default
 	}
 
 	// Extract effort estimate
@@ -410,7 +410,7 @@ func (g *Generator) convertRawTask(raw map[string]interface{}, index int) (types
 	}
 
 	// Set default status
-	task.Status = types.TaskStatusTodo
+	task.Status = types.TaskStatusLegacyTodo
 
 	return task, nil
 }
@@ -494,15 +494,15 @@ func (g *Generator) generateRecommendations(tasks []types.Task, req *types.TaskS
 	}
 
 	// Generate recommendations based on analysis
-	if typeCount[types.TaskTypeTesting] < len(tasks)/4 {
+	if typeCount[types.TaskTypeLegacyTesting] < len(tasks)/4 {
 		recommendations = append(recommendations, "Consider adding more testing tasks to ensure quality")
 	}
 
-	if typeCount[types.TaskTypeDocumentation] < len(tasks)/10 {
+	if typeCount[types.TaskTypeLegacyDocumentation] < len(tasks)/10 {
 		recommendations = append(recommendations, "Documentation tasks may be needed for maintainability")
 	}
 
-	if priorityCount[types.TaskPriorityHigh] > len(tasks)/2 {
+	if priorityCount[types.TaskPriorityLegacyHigh] > len(tasks)/2 {
 		recommendations = append(recommendations, "High number of high-priority tasks - consider prioritization review")
 	}
 

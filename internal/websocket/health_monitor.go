@@ -26,61 +26,61 @@ type HealthMonitor struct {
 
 // HealthConfig configures health monitoring behavior
 type HealthConfig struct {
-	CheckInterval       time.Duration `json:"check_interval" yaml:"check_interval"`
-	PingTimeout         time.Duration `json:"ping_timeout" yaml:"ping_timeout"`
-	HealthThreshold     float64       `json:"health_threshold" yaml:"health_threshold"`
-	UnhealthyThreshold  float64       `json:"unhealthy_threshold" yaml:"unhealthy_threshold"`
-	MaxSampleSize       int           `json:"max_sample_size" yaml:"max_sample_size"`
-	AlertCooldown       time.Duration `json:"alert_cooldown" yaml:"alert_cooldown"`
-	EnableDetailedLogs  bool          `json:"enable_detailed_logs" yaml:"enable_detailed_logs"`
-	TrackPerformance    bool          `json:"track_performance" yaml:"track_performance"`
+	CheckInterval      time.Duration `json:"check_interval" yaml:"check_interval"`
+	PingTimeout        time.Duration `json:"ping_timeout" yaml:"ping_timeout"`
+	HealthThreshold    float64       `json:"health_threshold" yaml:"health_threshold"`
+	UnhealthyThreshold float64       `json:"unhealthy_threshold" yaml:"unhealthy_threshold"`
+	MaxSampleSize      int           `json:"max_sample_size" yaml:"max_sample_size"`
+	AlertCooldown      time.Duration `json:"alert_cooldown" yaml:"alert_cooldown"`
+	EnableDetailedLogs bool          `json:"enable_detailed_logs" yaml:"enable_detailed_logs"`
+	TrackPerformance   bool          `json:"track_performance" yaml:"track_performance"`
 }
 
 // ConnectionHealth tracks health metrics for a single connection
 type ConnectionHealth struct {
-	mu                 sync.RWMutex
-	ID                 string
-	Connection         *websocket.Conn
-	HealthScore        float64
-	LastPing           time.Time
-	LastPong           time.Time
-	PingLatency        time.Duration
-	AverageLatency     time.Duration
-	MinLatency         time.Duration
-	MaxLatency         time.Duration
-	LatencySamples     []time.Duration
-	ErrorCount         int64
-	TotalPings         int64
-	SuccessfulPings    int64
+	mu                  sync.RWMutex
+	ID                  string
+	Connection          *websocket.Conn
+	HealthScore         float64
+	LastPing            time.Time
+	LastPong            time.Time
+	PingLatency         time.Duration
+	AverageLatency      time.Duration
+	MinLatency          time.Duration
+	MaxLatency          time.Duration
+	LatencySamples      []time.Duration
+	ErrorCount          int64
+	TotalPings          int64
+	SuccessfulPings     int64
 	ConsecutiveFailures int
-	State              HealthState
-	CreatedAt          time.Time
-	LastHealthCheck    time.Time
-	Metadata           map[string]interface{}
+	State               HealthState
+	CreatedAt           time.Time
+	LastHealthCheck     time.Time
+	Metadata            map[string]interface{}
 }
 
 // AggregateHealth tracks overall health across all connections
 type AggregateHealth struct {
-	mu                    sync.RWMutex
-	TotalConnections      int     `json:"total_connections"`
-	HealthyConnections    int     `json:"healthy_connections"`
-	UnhealthyConnections  int     `json:"unhealthy_connections"`
-	AverageHealthScore    float64 `json:"average_health_score"`
-	AverageLatency        time.Duration `json:"average_latency"`
-	TotalErrors           int64   `json:"total_errors"`
-	OverallHealthStatus   string  `json:"overall_health_status"`
-	LastUpdated           time.Time `json:"last_updated"`
+	mu                   sync.RWMutex
+	TotalConnections     int           `json:"total_connections"`
+	HealthyConnections   int           `json:"healthy_connections"`
+	UnhealthyConnections int           `json:"unhealthy_connections"`
+	AverageHealthScore   float64       `json:"average_health_score"`
+	AverageLatency       time.Duration `json:"average_latency"`
+	TotalErrors          int64         `json:"total_errors"`
+	OverallHealthStatus  string        `json:"overall_health_status"`
+	LastUpdated          time.Time     `json:"last_updated"`
 }
 
 // HealthAlert represents a health-related alert
 type HealthAlert struct {
-	ID          string                 `json:"id"`
-	Type        HealthAlertType        `json:"type"`
-	Severity    HealthAlertSeverity    `json:"severity"`
-	ConnectionID string                `json:"connection_id,omitempty"`
-	Message     string                 `json:"message"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	ID           string                 `json:"id"`
+	Type         HealthAlertType        `json:"type"`
+	Severity     HealthAlertSeverity    `json:"severity"`
+	ConnectionID string                 `json:"connection_id,omitempty"`
+	Message      string                 `json:"message"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Metadata     map[string]interface{} `json:"metadata"`
 }
 
 // HealthState represents the health state of a connection
@@ -140,14 +140,14 @@ func NewHealthMonitor(config *HealthConfig) *HealthMonitor {
 // DefaultHealthConfig returns default health monitoring configuration
 func DefaultHealthConfig() *HealthConfig {
 	return &HealthConfig{
-		CheckInterval:       30 * time.Second,
-		PingTimeout:         5 * time.Second,
-		HealthThreshold:     0.8,
-		UnhealthyThreshold:  0.5,
-		MaxSampleSize:       100,
-		AlertCooldown:       5 * time.Minute,
-		EnableDetailedLogs:  true,
-		TrackPerformance:    true,
+		CheckInterval:      30 * time.Second,
+		PingTimeout:        5 * time.Second,
+		HealthThreshold:    0.8,
+		UnhealthyThreshold: 0.5,
+		MaxSampleSize:      100,
+		AlertCooldown:      5 * time.Minute,
+		EnableDetailedLogs: true,
+		TrackPerformance:   true,
 	}
 }
 
@@ -286,7 +286,7 @@ func (hm *HealthMonitor) updateHealthMetrics(health *ConnectionHealth, latency t
 				Timestamp:    time.Now(),
 				Metadata: map[string]interface{}{
 					"consecutive_failures": health.ConsecutiveFailures,
-					"error":               err.Error(),
+					"error":                err.Error(),
 				},
 			})
 		}
@@ -354,10 +354,10 @@ func (hm *HealthMonitor) calculateHealthScore(health *ConnectionHealth) {
 
 	// Base score on success rate
 	successRate := float64(health.SuccessfulPings) / float64(health.TotalPings)
-	
+
 	// Penalty for consecutive failures
 	failurePenalty := math.Min(float64(health.ConsecutiveFailures)*0.1, 0.5)
-	
+
 	// Penalty for high latency
 	var latencyPenalty float64
 	if health.AverageLatency > 0 {
@@ -380,7 +380,7 @@ func (hm *HealthMonitor) calculateHealthScore(health *ConnectionHealth) {
 func (hm *HealthMonitor) updateHealthState(health *ConnectionHealth) {
 	health.mu.Lock()
 	oldState := health.State
-	
+
 	switch {
 	case health.HealthScore >= hm.config.HealthThreshold:
 		health.State = HealthStateHealthy
@@ -391,7 +391,7 @@ func (hm *HealthMonitor) updateHealthState(health *ConnectionHealth) {
 	default:
 		health.State = HealthStateCritical
 	}
-	
+
 	newState := health.State
 	health.mu.Unlock()
 

@@ -3,6 +3,7 @@ package monitoring
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -25,59 +26,59 @@ type ConnectionAlerting struct {
 
 // AlertConfig configures connection alerting behavior
 type AlertConfig struct {
-	CheckInterval        time.Duration `json:"check_interval" yaml:"check_interval"`
-	MaxAlertHistory      int           `json:"max_alert_history" yaml:"max_alert_history"`
-	AlertCooldown        time.Duration `json:"alert_cooldown" yaml:"alert_cooldown"`
-	EscalationTimeout    time.Duration `json:"escalation_timeout" yaml:"escalation_timeout"`
-	EnableEscalation     bool          `json:"enable_escalation" yaml:"enable_escalation"`
-	MaxQueueSize         int           `json:"max_queue_size" yaml:"max_queue_size"`
-	EnableSuppression    bool          `json:"enable_suppression" yaml:"enable_suppression"`
-	DefaultSeverity      Severity      `json:"default_severity" yaml:"default_severity"`
+	CheckInterval     time.Duration `json:"check_interval" yaml:"check_interval"`
+	MaxAlertHistory   int           `json:"max_alert_history" yaml:"max_alert_history"`
+	AlertCooldown     time.Duration `json:"alert_cooldown" yaml:"alert_cooldown"`
+	EscalationTimeout time.Duration `json:"escalation_timeout" yaml:"escalation_timeout"`
+	EnableEscalation  bool          `json:"enable_escalation" yaml:"enable_escalation"`
+	MaxQueueSize      int           `json:"max_queue_size" yaml:"max_queue_size"`
+	EnableSuppression bool          `json:"enable_suppression" yaml:"enable_suppression"`
+	DefaultSeverity   Severity      `json:"default_severity" yaml:"default_severity"`
 }
 
 // AlertRule defines conditions for triggering alerts
 type AlertRule struct {
-	ID                   string        `json:"id" yaml:"id"`
-	Name                 string        `json:"name" yaml:"name"`
-	Description          string        `json:"description" yaml:"description"`
-	Metric               MetricType    `json:"metric" yaml:"metric"`
-	Operator             Operator      `json:"operator" yaml:"operator"`
-	Threshold            float64       `json:"threshold" yaml:"threshold"`
-	Duration             time.Duration `json:"duration" yaml:"duration"`
-	Severity             Severity      `json:"severity" yaml:"severity"`
-	Enabled              bool          `json:"enabled" yaml:"enabled"`
-	Conditions           []Condition   `json:"conditions" yaml:"conditions"`
-	NotificationChannels []string      `json:"notification_channels" yaml:"notification_channels"`
+	ID                   string                 `json:"id" yaml:"id"`
+	Name                 string                 `json:"name" yaml:"name"`
+	Description          string                 `json:"description" yaml:"description"`
+	Metric               MetricType             `json:"metric" yaml:"metric"`
+	Operator             Operator               `json:"operator" yaml:"operator"`
+	Threshold            float64                `json:"threshold" yaml:"threshold"`
+	Duration             time.Duration          `json:"duration" yaml:"duration"`
+	Severity             Severity               `json:"severity" yaml:"severity"`
+	Enabled              bool                   `json:"enabled" yaml:"enabled"`
+	Conditions           []Condition            `json:"conditions" yaml:"conditions"`
+	NotificationChannels []string               `json:"notification_channels" yaml:"notification_channels"`
 	Metadata             map[string]interface{} `json:"metadata" yaml:"metadata"`
 }
 
 // Alert represents a triggered alert
 type Alert struct {
-	ID               string                 `json:"id"`
-	RuleID           string                 `json:"rule_id"`
-	RuleName         string                 `json:"rule_name"`
-	ConnectionID     string                 `json:"connection_id,omitempty"`
-	Severity         Severity               `json:"severity"`
-	Status           AlertStatus            `json:"status"`
-	Message          string                 `json:"message"`
-	Description      string                 `json:"description"`
-	Timestamp        time.Time              `json:"timestamp"`
-	ResolvedAt       *time.Time             `json:"resolved_at,omitempty"`
-	AcknowledgedAt   *time.Time             `json:"acknowledged_at,omitempty"`
-	AcknowledgedBy   string                 `json:"acknowledged_by,omitempty"`
-	EscalatedAt      *time.Time             `json:"escalated_at,omitempty"`
-	CurrentValue     float64                `json:"current_value"`
-	ThresholdValue   float64                `json:"threshold_value"`
-	Metadata         map[string]interface{} `json:"metadata"`
-	NotificationsSent []string              `json:"notifications_sent"`
+	ID                string                 `json:"id"`
+	RuleID            string                 `json:"rule_id"`
+	RuleName          string                 `json:"rule_name"`
+	ConnectionID      string                 `json:"connection_id,omitempty"`
+	Severity          Severity               `json:"severity"`
+	Status            AlertStatus            `json:"status"`
+	Message           string                 `json:"message"`
+	Description       string                 `json:"description"`
+	Timestamp         time.Time              `json:"timestamp"`
+	ResolvedAt        *time.Time             `json:"resolved_at,omitempty"`
+	AcknowledgedAt    *time.Time             `json:"acknowledged_at,omitempty"`
+	AcknowledgedBy    string                 `json:"acknowledged_by,omitempty"`
+	EscalatedAt       *time.Time             `json:"escalated_at,omitempty"`
+	CurrentValue      float64                `json:"current_value"`
+	ThresholdValue    float64                `json:"threshold_value"`
+	Metadata          map[string]interface{} `json:"metadata"`
+	NotificationsSent []string               `json:"notifications_sent"`
 }
 
 // Condition represents an alert condition
 type Condition struct {
-	Metric    MetricType `json:"metric" yaml:"metric"`
-	Operator  Operator   `json:"operator" yaml:"operator"`
-	Value     float64    `json:"value" yaml:"value"`
-	Duration  time.Duration `json:"duration" yaml:"duration"`
+	Metric   MetricType    `json:"metric" yaml:"metric"`
+	Operator Operator      `json:"operator" yaml:"operator"`
+	Value    float64       `json:"value" yaml:"value"`
+	Duration time.Duration `json:"duration" yaml:"duration"`
 }
 
 // AlertHandler interface for handling alerts
@@ -91,14 +92,14 @@ type AlertHandler interface {
 type MetricType string
 
 const (
-	MetricLatency          MetricType = "latency"
-	MetricErrorRate        MetricType = "error_rate"
-	MetricConnectionCount  MetricType = "connection_count"
-	MetricMessageRate      MetricType = "message_rate"
-	MetricBandwidth        MetricType = "bandwidth"
-	MetricHealthScore      MetricType = "health_score"
-	MetricReconnections    MetricType = "reconnections"
-	MetricUptime           MetricType = "uptime"
+	MetricLatency         MetricType = "latency"
+	MetricErrorRate       MetricType = "error_rate"
+	MetricConnectionCount MetricType = "connection_count"
+	MetricMessageRate     MetricType = "message_rate"
+	MetricBandwidth       MetricType = "bandwidth"
+	MetricHealthScore     MetricType = "health_score"
+	MetricReconnections   MetricType = "reconnections"
+	MetricUptime          MetricType = "uptime"
 )
 
 // Operator represents comparison operators
@@ -249,7 +250,7 @@ func (ca *ConnectionAlerting) addDefaultRules() {
 			Enabled:     true,
 			Metadata: map[string]interface{}{
 				"default_rule": true,
-				"system_wide": true,
+				"system_wide":  true,
 			},
 		},
 	}
@@ -262,7 +263,7 @@ func (ca *ConnectionAlerting) addDefaultRules() {
 // AddRule adds an alert rule
 func (ca *ConnectionAlerting) AddRule(rule *AlertRule) error {
 	if rule.ID == "" {
-		return fmt.Errorf("rule ID cannot be empty")
+		return errors.New("rule ID cannot be empty")
 	}
 
 	ca.mu.Lock()
@@ -425,22 +426,22 @@ func (ca *ConnectionAlerting) resolveAlert(ruleID, connectionID string) {
 func (ca *ConnectionAlerting) generateAlertMessage(rule *AlertRule, connectionID string, value float64) string {
 	switch rule.Metric {
 	case MetricLatency:
-		return fmt.Sprintf("High latency detected for connection %s: %.2fms (threshold: %.2fms)", 
+		return fmt.Sprintf("High latency detected for connection %s: %.2fms (threshold: %.2fms)",
 			connectionID, value, rule.Threshold)
 	case MetricErrorRate:
-		return fmt.Sprintf("High error rate detected for connection %s: %.2f%% (threshold: %.2f%%)", 
+		return fmt.Sprintf("High error rate detected for connection %s: %.2f%% (threshold: %.2f%%)",
 			connectionID, value*100, rule.Threshold*100)
 	case MetricHealthScore:
-		return fmt.Sprintf("Low health score for connection %s: %.2f (threshold: %.2f)", 
+		return fmt.Sprintf("Low health score for connection %s: %.2f (threshold: %.2f)",
 			connectionID, value, rule.Threshold)
 	case MetricReconnections:
-		return fmt.Sprintf("Frequent reconnections for connection %s: %.0f (threshold: %.0f)", 
+		return fmt.Sprintf("Frequent reconnections for connection %s: %.0f (threshold: %.0f)",
 			connectionID, value, rule.Threshold)
 	case MetricConnectionCount:
-		return fmt.Sprintf("Low connection count: %.0f (threshold: %.0f)", 
+		return fmt.Sprintf("Low connection count: %.0f (threshold: %.0f)",
 			value, rule.Threshold)
 	default:
-		return fmt.Sprintf("Alert triggered for %s: %.2f (threshold: %.2f)", 
+		return fmt.Sprintf("Alert triggered for %s: %.2f (threshold: %.2f)",
 			rule.Metric, value, rule.Threshold)
 	}
 }
@@ -561,7 +562,7 @@ func (ca *ConnectionAlerting) AcknowledgeAlert(alertID, acknowledgedBy string) e
 // SuppressAlert suppresses an alert for a duration
 func (ca *ConnectionAlerting) SuppressAlert(ruleID, connectionID string, duration time.Duration) error {
 	if !ca.config.EnableSuppression {
-		return fmt.Errorf("alert suppression is disabled")
+		return errors.New("alert suppression is disabled")
 	}
 
 	alertKey := fmt.Sprintf("%s:%s", ruleID, connectionID)
@@ -630,12 +631,12 @@ func (ca *ConnectionAlerting) GetAlertStats() map[string]interface{} {
 	defer ca.mu.RUnlock()
 
 	stats := map[string]interface{}{
-		"active_alerts":     len(ca.activeAlerts),
-		"total_rules":       len(ca.rules),
-		"enabled_rules":     0,
-		"alert_queue_size":  len(ca.alertQueue),
-		"history_size":      len(ca.alertHistory),
-		"suppressions":      len(ca.suppressions),
+		"active_alerts":    len(ca.activeAlerts),
+		"total_rules":      len(ca.rules),
+		"enabled_rules":    0,
+		"alert_queue_size": len(ca.alertQueue),
+		"history_size":     len(ca.alertHistory),
+		"suppressions":     len(ca.suppressions),
 	}
 
 	enabledRules := 0

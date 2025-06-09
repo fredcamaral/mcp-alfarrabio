@@ -3,6 +3,7 @@ package events
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -24,15 +25,15 @@ type EventBus struct {
 
 // Subscription represents an event subscription
 type Subscription struct {
-	ID          string
+	ID           string
 	SubscriberID string
-	Filter      *EventFilter
-	Channel     chan *Event
-	CreatedAt   time.Time
-	LastEvent   *time.Time
+	Filter       *EventFilter
+	Channel      chan *Event
+	CreatedAt    time.Time
+	LastEvent    *time.Time
 	DeliveryMode DeliveryMode
-	Statistics  *SubscriptionStats
-	mu          sync.RWMutex
+	Statistics   *SubscriptionStats
+	mu           sync.RWMutex
 }
 
 // BusConfig configures the event bus
@@ -101,7 +102,7 @@ func (eb *EventBus) Start() error {
 	defer eb.mu.Unlock()
 
 	if eb.running {
-		return fmt.Errorf("event bus already running")
+		return errors.New("event bus already running")
 	}
 
 	log.Println("Starting event bus...")
@@ -126,7 +127,7 @@ func (eb *EventBus) Stop() error {
 	eb.mu.Lock()
 	if !eb.running {
 		eb.mu.Unlock()
-		return fmt.Errorf("event bus not running")
+		return errors.New("event bus not running")
 	}
 	eb.running = false
 	eb.mu.Unlock()
@@ -166,7 +167,7 @@ func (eb *EventBus) Subscribe(subscriberID string, filter *EventFilter, delivery
 	defer eb.mu.Unlock()
 
 	if !eb.running {
-		return nil, fmt.Errorf("event bus not running")
+		return nil, errors.New("event bus not running")
 	}
 
 	// Check subscriber limits
@@ -181,13 +182,13 @@ func (eb *EventBus) Subscribe(subscriberID string, filter *EventFilter, delivery
 
 	// Create subscription
 	subscription := &Subscription{
-		ID:          generateSubscriptionID(),
+		ID:           generateSubscriptionID(),
 		SubscriberID: subscriberID,
-		Filter:      filter,
-		Channel:     make(chan *Event, eb.config.ChannelBufferSize),
-		CreatedAt:   time.Now(),
+		Filter:       filter,
+		Channel:      make(chan *Event, eb.config.ChannelBufferSize),
+		CreatedAt:    time.Now(),
 		DeliveryMode: deliveryMode,
-		Statistics:  &SubscriptionStats{},
+		Statistics:   &SubscriptionStats{},
 	}
 
 	// Add to subscribers map
@@ -261,11 +262,11 @@ func (eb *EventBus) UnsubscribeAll(subscriberID string) error {
 // Publish publishes an event to all matching subscribers
 func (eb *EventBus) Publish(event *Event) error {
 	if !eb.IsRunning() {
-		return fmt.Errorf("event bus not running")
+		return errors.New("event bus not running")
 	}
 
 	if event == nil {
-		return fmt.Errorf("event cannot be nil")
+		return errors.New("event cannot be nil")
 	}
 
 	// Check event size
@@ -278,7 +279,7 @@ func (eb *EventBus) Publish(event *Event) error {
 		eb.updateMetrics(func(m *BusMetrics) {
 			m.EventsDropped++
 		})
-		return fmt.Errorf("event expired")
+		return errors.New("event expired")
 	}
 
 	startTime := time.Now()
@@ -334,7 +335,7 @@ func (eb *EventBus) Publish(event *Event) error {
 // PublishBatch publishes multiple events as a batch
 func (eb *EventBus) PublishBatch(events []*Event) error {
 	if !eb.IsRunning() {
-		return fmt.Errorf("event bus not running")
+		return errors.New("event bus not running")
 	}
 
 	if len(events) == 0 {

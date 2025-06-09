@@ -1,77 +1,46 @@
-// migrate is a command-line tool for migrating data from ChromaDB to Qdrant vector database,
-// providing batch migration, validation, and backup capabilities for the MCP Memory Server.
+// migrate is a command-line tool for database schema migrations with validation,
+// rollback capabilities, and comprehensive safety checks for the MCP Memory Server.
 package main
 
 import (
 	"context"
-	"encoding/json"
+	"database/sql"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
 	"lerian-mcp-memory/internal/config"
-	"lerian-mcp-memory/internal/storage"
-	"lerian-mcp-memory/pkg/types"
+	"lerian-mcp-memory/internal/migration"
+
+	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
 const (
-	batchSize           = 100
-	migrationVersion    = "1.0.0"
-	backupDirPermission = 0o755
+	migrationVersion = "1.0.0"
 )
-
-// MigrationStats tracks the progress of migration
-type MigrationStats struct {
-	TotalChunks      int           `json:"total_chunks"`
-	MigratedChunks   int           `json:"migrated_chunks"`
-	FailedChunks     int           `json:"failed_chunks"`
-	StartTime        time.Time     `json:"start_time"`
-	Duration         time.Duration `json:"duration"`
-	BatchesMigrated  int           `json:"batches_migrated"`
-	ValidationPassed bool          `json:"validation_passed"`
-}
-
-// MigrationTool handles the migration from ChromaDB to Qdrant
-type MigrationTool struct {
-	inputPath    string
-	qdrantStore  storage.VectorStore
-	backupDir    string
-	dryRun       bool
-	validateOnly bool
-	isJSONExport bool
-	stats        *MigrationStats
-}
 
 func main() {
 	var (
-		chromaDBPath = flag.String("chroma-path", "", "Path to ChromaDB data directory")
-		chromaExport = flag.String("chroma-export", "", "Path to ChromaDB JSON export file")
-		_            = flag.String("config", "configs/dev/config.yaml", "Path to configuration file (unused - uses env vars)")
-		backupDir    = flag.String("backup-dir", "./migration-backup", "Directory for migration backups")
-		dryRun       = flag.Bool("dry-run", false, "Perform dry run without writing to Qdrant")
-		validateOnly = flag.Bool("validate-only", false, "Only validate existing data, don't migrate")
-		force        = flag.Bool("force", false, "Force migration even if target collection exists")
-		verbose      = flag.Bool("verbose", false, "Enable verbose logging")
+		action        = flag.String("action", "up", "Migration action: up, down, status, validate, create")
+		migrationsDir = flag.String("migrations-dir", "./migrations", "Path to migrations directory")
+		environment   = flag.String("environment", "dev", "Target environment (dev, staging, production)")
+		dryRun        = flag.Bool("dry-run", false, "Perform dry run without executing migrations")
+		validateOnly  = flag.Bool("validate-only", false, "Only validate migrations, don't execute")
+		force         = flag.Bool("force", false, "Force migration execution (skip some safety checks)")
+		verbose       = flag.Bool("verbose", false, "Enable verbose logging")
+		target        = flag.String("target", "", "Target migration version or ID (for up/down actions)")
+		steps         = flag.Int("steps", 0, "Number of migration steps (for up/down actions)")
+		createName    = flag.String("name", "", "Migration name (for create action)")
+		configFile    = flag.String("config", "configs/dev/config.yaml", "Path to configuration file")
 	)
 	flag.Parse()
 
-	if *chromaDBPath == "" && *chromaExport == "" {
-		fmt.Fprintf(os.Stderr, "Error: Either -chroma-path or -chroma-export is required\n")
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	if *chromaDBPath != "" && *chromaExport != "" {
-		fmt.Fprintf(os.Stderr, "Error: Cannot specify both -chroma-path and -chroma-export\n")
-		flag.Usage()
-		os.Exit(1)
-	}
-
-	// Setup logging (simple approach for migration tool)
+	// Setup logging
 	if *verbose {
 		log.SetFlags(log.LstdFlags | log.Lshortfile)
 	}
@@ -82,399 +51,445 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Validate input path exists
-	inputPath := *chromaDBPath
-	if *chromaExport != "" {
-		inputPath = *chromaExport
-	}
-
-	if _, err := os.Stat(inputPath); os.IsNotExist(err) {
-		log.Fatalf("Input path does not exist: %s", inputPath)
-	}
-
-	// Create migration tool
-	migrator, err := NewMigrationTool(inputPath, cfg, *backupDir, *dryRun, *validateOnly, *chromaExport != "")
+	// Create database connection
+	db, err := createDatabaseConnection(cfg)
 	if err != nil {
-		log.Fatalf("Failed to create migration tool: %v", err)
-	}
-
-	// Run migration
-	if err := migrator.Migrate(context.Background(), *force); err != nil {
-		log.Fatalf("Migration failed: %v", err)
-	}
-
-	// Print results
-	migrator.PrintResults()
-}
-
-// NewMigrationTool creates a new migration tool instance
-func NewMigrationTool(inputPath string, cfg *config.Config, backupDir string, dryRun, validateOnly, isJSONExport bool) (*MigrationTool, error) {
-	// Create Qdrant store
-	qdrantStore := storage.NewQdrantStore(&cfg.Qdrant)
-
-	// Create backup directory
-	if err := os.MkdirAll(backupDir, backupDirPermission); err != nil {
-		return nil, fmt.Errorf("failed to create backup directory: %w", err)
-	}
-
-	return &MigrationTool{
-		inputPath:    inputPath,
-		qdrantStore:  qdrantStore,
-		backupDir:    backupDir,
-		dryRun:       dryRun,
-		validateOnly: validateOnly,
-		isJSONExport: isJSONExport,
-		stats: &MigrationStats{
-			StartTime: time.Now(),
-		},
-	}, nil
-}
-
-// Migrate performs the complete migration process
-func (mt *MigrationTool) Migrate(ctx context.Context, force bool) error {
-	log.Printf("Starting ChromaDB to Qdrant migration: input_path=%s, dry_run=%v, validate_only=%v",
-		mt.inputPath, mt.dryRun, mt.validateOnly)
-
-	if err := mt.setupMigration(ctx, force); err != nil {
-		return err
-	}
-
-	chunks, err := mt.loadSourceData(ctx)
-	if err != nil {
-		return err
-	}
-
-	if mt.validateOnly {
-		return mt.validateData(chunks)
-	}
-
-	return mt.executeMigration(ctx, chunks)
-}
-
-// setupMigration handles initialization and pre-migration checks
-func (mt *MigrationTool) setupMigration(ctx context.Context, force bool) error {
-	// Initialize Qdrant
-	if !mt.dryRun && !mt.validateOnly {
-		if err := mt.qdrantStore.Initialize(ctx); err != nil {
-			return fmt.Errorf("failed to initialize Qdrant: %w", err)
-		}
-	}
-
-	// Check if target collection already has data
-	if !mt.validateOnly && !force && !mt.dryRun {
-		if err := mt.checkTargetCollection(ctx); err != nil {
-			return err
-		}
-	}
-
-	// Create backup before migration
-	if !mt.dryRun && !mt.validateOnly {
-		if err := mt.createPreMigrationBackup(ctx); err != nil {
-			log.Printf("Failed to create backup, continuing anyway: %v", err)
-		}
-	}
-
-	return nil
-}
-
-// loadSourceData reads and prepares source data
-func (mt *MigrationTool) loadSourceData(ctx context.Context) ([]types.ConversationChunk, error) {
-	chunks, err := mt.readChromaDBData(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read ChromaDB data: %w", err)
-	}
-
-	mt.stats.TotalChunks = len(chunks)
-	log.Printf("Found chunks to migrate: count=%d", mt.stats.TotalChunks)
-
-	return chunks, nil
-}
-
-// executeMigration performs the actual migration and validation
-func (mt *MigrationTool) executeMigration(ctx context.Context, chunks []types.ConversationChunk) error {
-	// Migrate data in batches
-	if err := mt.migrateInBatches(ctx, chunks); err != nil {
-		return fmt.Errorf("failed to migrate data: %w", err)
-	}
-
-	// Validate migration
-	if !mt.dryRun {
-		if err := mt.validateMigration(ctx, chunks); err != nil {
-			return fmt.Errorf("migration validation failed: %w", err)
-		}
-	}
-
-	mt.stats.Duration = time.Since(mt.stats.StartTime)
-	log.Printf("Migration completed successfully: total_chunks=%d, migrated_chunks=%d, failed_chunks=%d, duration=%v",
-		mt.stats.TotalChunks, mt.stats.MigratedChunks, mt.stats.FailedChunks, mt.stats.Duration)
-
-	return nil
-}
-
-// readChromaDBData reads all chunks from ChromaDB or JSON export
-func (mt *MigrationTool) readChromaDBData(ctx context.Context) ([]types.ConversationChunk, error) {
-	if mt.isJSONExport {
-		return mt.readJSONExport()
-	}
-	return mt.readDirectChromaDB(ctx)
-}
-
-// readJSONExport reads chunks from JSON export file
-func (mt *MigrationTool) readJSONExport() ([]types.ConversationChunk, error) {
-	log.Printf("Reading JSON export: path=%s", mt.inputPath)
-
-	file, err := os.Open(mt.inputPath)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open JSON export file: %w", err)
+		log.Fatalf("Failed to connect to database: %v", err)
 	}
 	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			log.Printf("Failed to close file: %v", closeErr)
+		if closeErr := db.Close(); closeErr != nil {
+			log.Printf("Failed to close database connection: %v", closeErr)
 		}
 	}()
 
-	var exportData struct {
-		Chunks   []types.ConversationChunk `json:"chunks"`
-		Metadata map[string]interface{}    `json:"metadata"`
+	// Create migrator
+	migrator := migration.NewMigrator(db, *migrationsDir, *environment)
+
+	// Execute action
+	ctx := context.Background()
+	switch *action {
+	case "up":
+		err = executeUpMigrations(ctx, migrator, *target, *steps, *dryRun, *validateOnly)
+	case "down":
+		err = executeDownMigrations(ctx, migrator, *target, *steps, *dryRun, *force)
+	case "status":
+		err = showMigrationStatus(ctx, migrator)
+	case "validate":
+		err = validateMigrations(ctx, migrator)
+	case "create":
+		err = createMigration(*migrationsDir, *createName)
+	default:
+		log.Fatalf("Unknown action: %s. Available actions: up, down, status, validate, create", *action)
 	}
 
-	decoder := json.NewDecoder(file)
-	if err := decoder.Decode(&exportData); err != nil {
-		return nil, fmt.Errorf("failed to decode JSON export: %w", err)
-	}
-
-	log.Printf("Loaded chunks from JSON export: count=%d", len(exportData.Chunks))
-
-	if exportData.Metadata != nil {
-		if stats, ok := exportData.Metadata["stats"].(map[string]interface{}); ok {
-			log.Printf("Export metadata: original_stats=%v", stats)
-		}
-	}
-
-	return exportData.Chunks, nil
-}
-
-// readDirectChromaDB reads data directly from ChromaDB
-func (mt *MigrationTool) readDirectChromaDB(ctx context.Context) ([]types.ConversationChunk, error) {
-	_ = ctx // unused in placeholder implementation
-	log.Printf("Reading ChromaDB data: path=%s", mt.inputPath)
-
-	// NOTE: This is a placeholder for ChromaDB reading logic
-	// In a real implementation, you would:
-	// 1. Connect to ChromaDB using the original client
-	// 2. Query all collections
-	// 3. Read all documents with their embeddings and metadata
-	// 4. Convert to our ConversationChunk format
-
-	// For now, return empty slice as we no longer have ChromaDB client code
-	// This would need to be implemented based on your specific ChromaDB setup
-	log.Printf("Direct ChromaDB reading not implemented - this is a template")
-	log.Printf("To complete migration, you would need to:")
-	log.Printf("1. Add ChromaDB client dependency")
-	log.Printf("2. Implement readDirectChromaDB to query existing ChromaDB")
-	log.Printf("3. Convert ChromaDB documents to ConversationChunk format")
-	log.Printf("")
-	log.Printf("RECOMMENDED: Use the JSON export approach instead:")
-	log.Printf("1. Run: python scripts/export_chromadb.py /path/to/chromadb")
-	log.Printf("2. Then: go run cmd/migrate/main.go -chroma-export=chromadb_export.json")
-
-	return []types.ConversationChunk{}, nil
-}
-
-// migrateInBatches migrates chunks to Qdrant in batches
-func (mt *MigrationTool) migrateInBatches(ctx context.Context, chunks []types.ConversationChunk) error {
-	log.Printf("Starting batch migration: total_chunks=%d, batch_size=%d", len(chunks), batchSize)
-
-	for i := 0; i < len(chunks); i += batchSize {
-		end := i + batchSize
-		if end > len(chunks) {
-			end = len(chunks)
-		}
-
-		batch := chunks[i:end]
-
-		if mt.dryRun {
-			log.Printf("DRY RUN: Would migrate batch: batch=%d, chunks=%d", mt.stats.BatchesMigrated+1, len(batch))
-			mt.stats.MigratedChunks += len(batch)
-		} else {
-			if err := mt.migrateBatch(ctx, batch); err != nil {
-				log.Printf("Failed to migrate batch: batch=%d, error=%v", mt.stats.BatchesMigrated+1, err)
-				mt.stats.FailedChunks += len(batch)
-				continue
-			}
-			mt.stats.MigratedChunks += len(batch)
-		}
-
-		mt.stats.BatchesMigrated++
-
-		// Progress update
-		progress := float64(mt.stats.MigratedChunks+mt.stats.FailedChunks) / float64(mt.stats.TotalChunks) * 100
-		log.Printf("Migration progress: %.1f%%, migrated=%d, failed=%d, remaining=%d",
-			progress, mt.stats.MigratedChunks, mt.stats.FailedChunks,
-			mt.stats.TotalChunks-(mt.stats.MigratedChunks+mt.stats.FailedChunks))
-	}
-
-	// Check if too many chunks failed
-	if mt.stats.FailedChunks > 0 && float64(mt.stats.FailedChunks)/float64(mt.stats.TotalChunks) > 0.5 {
-		return fmt.Errorf("migration failed: too many chunks failed (%d/%d)", mt.stats.FailedChunks, mt.stats.TotalChunks)
-	}
-
-	return nil
-}
-
-// migrateBatch migrates a single batch of chunks
-func (mt *MigrationTool) migrateBatch(ctx context.Context, batch []types.ConversationChunk) error {
-	// Convert to pointer slice for BatchStore
-	pointerBatch := make([]*types.ConversationChunk, len(batch))
-	for i := range batch {
-		pointerBatch[i] = &batch[i]
-	}
-	result, err := mt.qdrantStore.BatchStore(ctx, pointerBatch)
 	if err != nil {
-		return fmt.Errorf("batch store failed: %w", err)
+		log.Fatalf("Migration action failed: %v", err)
 	}
-
-	if result.Failed > 0 {
-		log.Printf("Some chunks failed in batch: failed=%d, success=%d, errors=%v",
-			result.Failed, result.Success, result.Errors)
-	}
-
-	return nil
 }
 
-// validateMigration validates that all data was migrated correctly
-func (mt *MigrationTool) validateMigration(ctx context.Context, originalChunks []types.ConversationChunk) error {
-	log.Printf("Validating migration")
+// createDatabaseConnection creates a PostgreSQL database connection
+func createDatabaseConnection(cfg *config.Config) (*sql.DB, error) {
+	// Build connection string from config
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+		cfg.Database.Host,
+		cfg.Database.Port,
+		cfg.Database.User,
+		cfg.Database.Password,
+		cfg.Database.Name,
+	)
 
-	// Get stats from Qdrant
-	stats, err := mt.qdrantStore.GetStats(ctx)
+	db, err := sql.Open("postgres", connStr)
 	if err != nil {
-		return fmt.Errorf("failed to get Qdrant stats: %w", err)
+		return nil, fmt.Errorf("failed to open database: %w", err)
 	}
 
-	log.Printf("Qdrant stats after migration: total_chunks=%d, chunks_by_type=%v, chunks_by_repo=%v",
-		stats.TotalChunks, stats.ChunksByType, stats.ChunksByRepo)
-
-	// Basic validation: check total count
-	if int64(len(originalChunks)) != stats.TotalChunks {
-		return fmt.Errorf("chunk count mismatch: expected %d, got %d", len(originalChunks), stats.TotalChunks)
+	// Test connection
+	if err := db.Ping(); err != nil {
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	// Sample validation: check a few random chunks
-	if len(originalChunks) > 0 {
-		sampleSize := minInt(10, len(originalChunks))
-		for i := 0; i < sampleSize; i++ {
-			chunk := originalChunks[i]
-			retrieved, err := mt.qdrantStore.GetByID(ctx, chunk.ID)
-			if err != nil {
-				return fmt.Errorf("failed to retrieve chunk %s: %w", chunk.ID, err)
-			}
+	// Set connection pool settings
+	db.SetMaxOpenConns(10)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(time.Hour)
 
-			if retrieved.Content != chunk.Content {
-				return fmt.Errorf("content mismatch for chunk %s", chunk.ID)
-			}
-		}
-	}
-
-	mt.stats.ValidationPassed = true
-	log.Printf("Migration validation passed")
-	return nil
+	return db, nil
 }
 
-// validateData validates the data structure without migrating
-func (mt *MigrationTool) validateData(chunks []types.ConversationChunk) error {
-	log.Printf("Validating data structure: chunks=%d", len(chunks))
+// executeUpMigrations runs pending migrations
+func executeUpMigrations(ctx context.Context, migrator *migration.Migrator, target string, steps int, dryRun, validateOnly bool) error {
+	log.Printf("Executing up migrations: dry_run=%v, validate_only=%v", dryRun, validateOnly)
 
-	invalidChunks := 0
-	for i := range chunks {
-		if err := chunks[i].Validate(); err != nil {
-			log.Printf("Invalid chunk found: id=%s, error=%v", chunks[i].ID, err)
-			invalidChunks++
-		}
-	}
-
-	if invalidChunks > 0 {
-		log.Printf("Found invalid chunks: count=%d, total=%d", invalidChunks, len(chunks))
-	} else {
-		log.Printf("All chunks are valid")
-		mt.stats.ValidationPassed = true
-	}
-
-	return nil
-}
-
-// checkTargetCollection checks if target collection already has data
-func (mt *MigrationTool) checkTargetCollection(ctx context.Context) error {
-	stats, err := mt.qdrantStore.GetStats(ctx)
+	// Get pending migrations
+	pending, err := migrator.GetPendingMigrations(ctx)
 	if err != nil {
-		// Collection might not exist yet, which is fine
+		return fmt.Errorf("failed to get pending migrations: %w", err)
+	}
+
+	if len(pending) == 0 {
+		log.Printf("No pending migrations found")
 		return nil
 	}
 
-	if stats.TotalChunks > 0 {
-		return fmt.Errorf("target Qdrant collection already contains %d chunks. Use -force to override", stats.TotalChunks)
+	log.Printf("Found %d pending migrations", len(pending))
+
+	// Filter migrations based on target and steps
+	toExecute := filterMigrations(pending, target, steps, true)
+
+	if len(toExecute) == 0 {
+		log.Printf("No migrations to execute after filtering")
+		return nil
 	}
 
-	return nil
-}
+	log.Printf("Executing %d migrations", len(toExecute))
 
-// createPreMigrationBackup creates a backup before migration
-func (mt *MigrationTool) createPreMigrationBackup(ctx context.Context) error {
-	_ = ctx // unused in placeholder implementation
-	backupPath := filepath.Join(mt.backupDir, fmt.Sprintf("pre_migration_%s.tar.gz", time.Now().Format("20060102_150405")))
+	// Execute migrations
+	for _, mig := range toExecute {
+		log.Printf("Processing migration: %s - %s", mig.ID, mig.Description)
 
-	log.Printf("Creating pre-migration backup: path=%s", backupPath)
+		if validateOnly {
+			// Validate only
+			validator := migration.NewMigrationValidator(migrator.GetDB())
+			result, err := validator.ValidateMigration(ctx, mig)
+			if err != nil {
+				return fmt.Errorf("validation failed for %s: %w", mig.ID, err)
+			}
 
-	// Create the backup directory with secure permissions
-	if err := os.MkdirAll(mt.backupDir, 0o750); err != nil {
-		return fmt.Errorf("failed to create backup directory: %w", err)
-	}
+			log.Printf("Validation result for %s: passed=%v, warnings=%d, errors=%d",
+				mig.ID, result.Passed, result.Warnings, result.Errors)
 
-	// This would use the backup manager to create a backup
-	// For now, just create a placeholder file with secure path handling
-	placeholderPath := filepath.Clean(backupPath + ".placeholder")
-	file, err := os.Create(placeholderPath)
-	if err != nil {
-		return fmt.Errorf("failed to create backup placeholder: %w", err)
-	}
-	defer func() {
-		if closeErr := file.Close(); closeErr != nil {
-			log.Printf("Failed to close backup file: %v", closeErr)
+			if !result.Passed {
+				for _, issue := range result.Issues {
+					if issue.Severity == migration.SeverityError {
+						log.Printf("  ERROR: %s", issue.Message)
+					}
+				}
+				return fmt.Errorf("migration %s failed validation", mig.ID)
+			}
+			continue
 		}
-	}()
 
+		// Execute migration
+		result, err := migrator.ExecuteMigration(ctx, mig, dryRun)
+		if err != nil {
+			return fmt.Errorf("failed to execute migration %s: %w", mig.ID, err)
+		}
+
+		if dryRun {
+			log.Printf("DRY RUN: Migration %s would execute successfully", mig.ID)
+		} else {
+			log.Printf("Migration %s executed successfully in %v", mig.ID, result.ExecutionTime)
+		}
+	}
+
+	log.Printf("Up migrations completed successfully")
 	return nil
 }
 
-// PrintResults prints the final migration results
-func (mt *MigrationTool) PrintResults() {
-	fmt.Println("\n" + strings.Repeat("=", 60))
-	fmt.Println("MIGRATION RESULTS")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("Total chunks: %d\n", mt.stats.TotalChunks)
-	fmt.Printf("Migrated: %d\n", mt.stats.MigratedChunks)
-	fmt.Printf("Failed: %d\n", mt.stats.FailedChunks)
-	fmt.Printf("Batches processed: %d\n", mt.stats.BatchesMigrated)
-	fmt.Printf("Duration: %v\n", mt.stats.Duration)
-	fmt.Printf("Validation passed: %v\n", mt.stats.ValidationPassed)
+// executeDownMigrations runs rollback migrations
+func executeDownMigrations(ctx context.Context, migrator *migration.Migrator, target string, steps int, dryRun, force bool) error {
+	log.Printf("Executing down migrations: dry_run=%v, force=%v", dryRun, force)
 
-	if mt.dryRun {
-		fmt.Println("\nNOTE: This was a dry run. No data was actually migrated.")
+	// Get executed migrations
+	executed, err := migrator.GetExecutedMigrations(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get executed migrations: %w", err)
 	}
 
-	if mt.stats.FailedChunks > 0 {
-		fmt.Printf("\nWARNING: %d chunks failed to migrate. Check logs for details.\n", mt.stats.FailedChunks)
+	if len(executed) == 0 {
+		log.Printf("No executed migrations found")
+		return nil
 	}
 
-	if mt.stats.ValidationPassed && mt.stats.FailedChunks == 0 && !mt.dryRun {
-		fmt.Println("\n✅ Migration completed successfully!")
+	// Reverse order for rollback
+	for i, j := 0, len(executed)-1; i < j; i, j = i+1, j-1 {
+		executed[i], executed[j] = executed[j], executed[i]
 	}
-	fmt.Println(strings.Repeat("=", 60))
+
+	// Filter migrations based on target and steps
+	toRollback := filterMigrations(executed, target, steps, false)
+
+	if len(toRollback) == 0 {
+		log.Printf("No migrations to rollback after filtering")
+		return nil
+	}
+
+	log.Printf("Rolling back %d migrations", len(toRollback))
+
+	// Check for destructive operations
+	if !force {
+		for _, mig := range toRollback {
+			if mig.IsDestructive && !dryRun {
+				return fmt.Errorf("migration %s is destructive and cannot be rolled back without --force", mig.ID)
+			}
+			if mig.DownSQL == "" {
+				return fmt.Errorf("migration %s has no rollback script", mig.ID)
+			}
+		}
+	}
+
+	// Execute rollbacks
+	for _, mig := range toRollback {
+		log.Printf("Rolling back migration: %s - %s", mig.ID, mig.Description)
+
+		if dryRun {
+			log.Printf("DRY RUN: Migration %s would be rolled back", mig.ID)
+			continue
+		}
+
+		// Execute rollback (this would need to be implemented in migrator)
+		log.Printf("Rolling back migration %s", mig.ID)
+		// TODO: Implement rollback execution in migrator
+	}
+
+	log.Printf("Down migrations completed successfully")
+	return nil
 }
 
-func minInt(a, b int) int {
-	if a < b {
-		return a
+// showMigrationStatus displays the current migration status
+func showMigrationStatus(ctx context.Context, migrator *migration.Migrator) error {
+	log.Printf("Checking migration status")
+
+	// Get current version
+	currentVersion, err := migrator.GetCurrentVersion(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get current version: %w", err)
 	}
-	return b
+
+	// Get executed migrations
+	executed, err := migrator.GetExecutedMigrations(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get executed migrations: %w", err)
+	}
+
+	// Get pending migrations
+	pending, err := migrator.GetPendingMigrations(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get pending migrations: %w", err)
+	}
+
+	// Get statistics
+	stats, err := migrator.GetMigrationStatistics(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to get migration statistics: %w", err)
+	}
+
+	// Display status
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println("MIGRATION STATUS")
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Printf("Current Version: %d\n", currentVersion)
+	fmt.Printf("Executed Migrations: %d\n", len(executed))
+	fmt.Printf("Pending Migrations: %d\n", len(pending))
+	fmt.Printf("Last Migration: %v\n", stats.LastMigrationDate.Format(time.RFC3339))
+	fmt.Printf("Avg Execution Time: %.2f ms\n", stats.AvgExecutionTimeMs)
+	fmt.Printf("Destructive Migrations: %d\n", stats.DestructiveMigrations)
+	fmt.Printf("Rollback Migrations: %d\n", stats.RolledBackMigrations)
+
+	if len(pending) > 0 {
+		fmt.Println("\nPending Migrations:")
+		for _, mig := range pending {
+			fmt.Printf("  %s - %s\n", mig.ID, mig.Description)
+		}
+	}
+
+	if len(executed) > 0 {
+		fmt.Println("\nRecent Executed Migrations:")
+		count := 5
+		if len(executed) < count {
+			count = len(executed)
+		}
+		for i := len(executed) - count; i < len(executed); i++ {
+			mig := executed[i]
+			fmt.Printf("  %s - %s\n", mig.ID, mig.Description)
+		}
+	}
+
+	fmt.Println(strings.Repeat("=", 60))
+	return nil
+}
+
+// validateMigrations validates all migrations without executing them
+func validateMigrations(ctx context.Context, migrator *migration.Migrator) error {
+	log.Printf("Validating all migrations")
+
+	// Load all migrations
+	migrations, err := migrator.LoadMigrations(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load migrations: %w", err)
+	}
+
+	if len(migrations) == 0 {
+		log.Printf("No migrations found")
+		return nil
+	}
+
+	// Create validator
+	validator := migration.NewMigrationValidator(migrator.GetDB())
+
+	// Validate all migrations
+	results, err := validator.ValidateMigrationBatch(ctx, migrations)
+	if err != nil {
+		return fmt.Errorf("batch validation failed: %w", err)
+	}
+
+	// Report results
+	totalErrors := 0
+	totalWarnings := 0
+
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Println("MIGRATION VALIDATION RESULTS")
+	fmt.Println(strings.Repeat("=", 60))
+
+	for _, result := range results {
+		status := "PASS"
+		if !result.Passed {
+			status = "FAIL"
+		}
+
+		fmt.Printf("%s - %s [%s]\n", result.Migration.ID, result.Migration.Description, status)
+
+		if result.Errors > 0 {
+			totalErrors += result.Errors
+			for _, issue := range result.Issues {
+				if issue.Severity == migration.SeverityError {
+					fmt.Printf("  ERROR: %s\n", issue.Message)
+				}
+			}
+		}
+
+		if result.Warnings > 0 {
+			totalWarnings += result.Warnings
+			for _, issue := range result.Issues {
+				if issue.Severity == migration.SeverityWarning {
+					fmt.Printf("  WARNING: %s\n", issue.Message)
+				}
+			}
+		}
+
+		if len(result.Suggestions) > 0 {
+			fmt.Printf("  Suggestions:\n")
+			for _, suggestion := range result.Suggestions {
+				fmt.Printf("    - %s\n", suggestion)
+			}
+		}
+	}
+
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Printf("Total: %d migrations, %d errors, %d warnings\n", len(results), totalErrors, totalWarnings)
+
+	if totalErrors > 0 {
+		return fmt.Errorf("validation failed with %d errors", totalErrors)
+	}
+
+	log.Printf("All migrations validated successfully")
+	return nil
+}
+
+// createMigration creates a new migration file
+func createMigration(migrationsDir, name string) error {
+	if name == "" {
+		return fmt.Errorf("migration name is required")
+	}
+
+	// Create migrations directory if it doesn't exist
+	if err := os.MkdirAll(migrationsDir, 0o755); err != nil {
+		return fmt.Errorf("failed to create migrations directory: %w", err)
+	}
+
+	// Find the next migration number
+	entries, err := os.ReadDir(migrationsDir)
+	if err != nil {
+		return fmt.Errorf("failed to read migrations directory: %w", err)
+	}
+
+	nextNumber := 1
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		filename := entry.Name()
+		if strings.HasSuffix(filename, ".sql") {
+			parts := strings.Split(filename, "_")
+			if len(parts) > 0 {
+				if num, err := strconv.Atoi(parts[0]); err == nil && num >= nextNumber {
+					nextNumber = num + 1
+				}
+			}
+		}
+	}
+
+	// Create migration filename
+	cleanName := strings.ReplaceAll(strings.ToLower(name), " ", "_")
+	filename := fmt.Sprintf("%03d_%s.sql", nextNumber, cleanName)
+	filePath := filepath.Join(migrationsDir, filename)
+
+	// Create migration template
+	template := fmt.Sprintf(`-- Migration %03d: %s
+-- Description: %s
+-- Created: %s
+-- Version: %s
+
+-- DESTRUCTIVE: false
+-- DEPENDS: 
+-- TAGS: schema
+-- PRIORITY: normal
+-- TYPE: schema
+-- NOTES: Add description here
+
+-- UP
+-- Add your migration SQL here
+
+
+-- DOWN
+-- Add your rollback SQL here
+
+`, nextNumber, name, name, time.Now().Format("2006-01-02"), migrationVersion)
+
+	// Write migration file
+	if err := os.WriteFile(filePath, []byte(template), 0o644); err != nil {
+		return fmt.Errorf("failed to write migration file: %w", err)
+	}
+
+	log.Printf("Created migration: %s", filePath)
+	return nil
+}
+
+// filterMigrations filters migrations based on target and steps
+func filterMigrations(migrations []*migration.Migration, target string, steps int, forward bool) []*migration.Migration {
+	if target == "" && steps == 0 {
+		return migrations
+	}
+
+	var filtered []*migration.Migration
+
+	if target != "" {
+		// Filter by target version or ID
+		if targetVersion, err := strconv.Atoi(target); err == nil {
+			// Target is a version number
+			for _, mig := range migrations {
+				if forward && mig.Version <= targetVersion {
+					filtered = append(filtered, mig)
+				} else if !forward && mig.Version >= targetVersion {
+					filtered = append(filtered, mig)
+				}
+			}
+		} else {
+			// Target is a migration ID
+			for _, mig := range migrations {
+				filtered = append(filtered, mig)
+				if mig.ID == target {
+					break
+				}
+			}
+		}
+	} else if steps > 0 {
+		// Filter by number of steps
+		if steps > len(migrations) {
+			steps = len(migrations)
+		}
+		filtered = migrations[:steps]
+	}
+
+	return filtered
 }

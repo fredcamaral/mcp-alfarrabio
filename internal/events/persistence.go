@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -31,67 +32,67 @@ type EventStore struct {
 
 // PersistenceConfig configures event persistence
 type PersistenceConfig struct {
-	DatabasePath        string        `json:"database_path"`
-	BufferSize          int           `json:"buffer_size"`
-	BatchSize           int           `json:"batch_size"`
-	FlushInterval       time.Duration `json:"flush_interval"`
-	RetentionPeriod     time.Duration `json:"retention_period"`
-	CleanupInterval     time.Duration `json:"cleanup_interval"`
-	EnableCompression   bool          `json:"enable_compression"`
-	EnableReplication   bool          `json:"enable_replication"`
-	MaxDiskUsage        int64         `json:"max_disk_usage_bytes"`
-	EnableBackup        bool          `json:"enable_backup"`
-	BackupInterval      time.Duration `json:"backup_interval"`
-	VerifyIntegrity     bool          `json:"verify_integrity"`
+	DatabasePath      string        `json:"database_path"`
+	BufferSize        int           `json:"buffer_size"`
+	BatchSize         int           `json:"batch_size"`
+	FlushInterval     time.Duration `json:"flush_interval"`
+	RetentionPeriod   time.Duration `json:"retention_period"`
+	CleanupInterval   time.Duration `json:"cleanup_interval"`
+	EnableCompression bool          `json:"enable_compression"`
+	EnableReplication bool          `json:"enable_replication"`
+	MaxDiskUsage      int64         `json:"max_disk_usage_bytes"`
+	EnableBackup      bool          `json:"enable_backup"`
+	BackupInterval    time.Duration `json:"backup_interval"`
+	VerifyIntegrity   bool          `json:"verify_integrity"`
 }
 
 // PersistenceMetrics tracks persistence performance
 type PersistenceMetrics struct {
-	EventsStored        int64         `json:"events_stored"`
-	EventsRetrieved     int64         `json:"events_retrieved"`
-	EventsDeleted       int64         `json:"events_deleted"`
-	BatchesProcessed    int64         `json:"batches_processed"`
-	AverageWriteTime    time.Duration `json:"average_write_time"`
-	AverageReadTime     time.Duration `json:"average_read_time"`
-	TotalDiskUsage      int64         `json:"total_disk_usage_bytes"`
-	LastCleanup         time.Time     `json:"last_cleanup"`
-	LastBackup          time.Time     `json:"last_backup"`
-	WriteThroughput     float64       `json:"write_throughput_per_sec"`
-	ReadThroughput      float64       `json:"read_throughput_per_sec"`
-	BufferUtilization   float64       `json:"buffer_utilization_percent"`
-	mu                  sync.RWMutex
+	EventsStored      int64         `json:"events_stored"`
+	EventsRetrieved   int64         `json:"events_retrieved"`
+	EventsDeleted     int64         `json:"events_deleted"`
+	BatchesProcessed  int64         `json:"batches_processed"`
+	AverageWriteTime  time.Duration `json:"average_write_time"`
+	AverageReadTime   time.Duration `json:"average_read_time"`
+	TotalDiskUsage    int64         `json:"total_disk_usage_bytes"`
+	LastCleanup       time.Time     `json:"last_cleanup"`
+	LastBackup        time.Time     `json:"last_backup"`
+	WriteThroughput   float64       `json:"write_throughput_per_sec"`
+	ReadThroughput    float64       `json:"read_throughput_per_sec"`
+	BufferUtilization float64       `json:"buffer_utilization_percent"`
+	mu                sync.RWMutex
 }
 
 // EventQuery represents a query for retrieving events
 type EventQuery struct {
-	Types           []EventType   `json:"types,omitempty"`
-	Actions         []string      `json:"actions,omitempty"`
-	Sources         []string      `json:"sources,omitempty"`
-	Repositories    []string      `json:"repositories,omitempty"`
-	SessionIDs      []string      `json:"session_ids,omitempty"`
-	UserIDs         []string      `json:"user_ids,omitempty"`
-	ClientIDs       []string      `json:"client_ids,omitempty"`
-	Tags            []string      `json:"tags,omitempty"`
-	After           *time.Time    `json:"after,omitempty"`
-	Before          *time.Time    `json:"before,omitempty"`
-	Limit           int           `json:"limit,omitempty"`
-	Offset          int           `json:"offset,omitempty"`
-	OrderBy         string        `json:"order_by,omitempty"`
-	OrderDirection  string        `json:"order_direction,omitempty"`
+	Types          []EventType `json:"types,omitempty"`
+	Actions        []string    `json:"actions,omitempty"`
+	Sources        []string    `json:"sources,omitempty"`
+	Repositories   []string    `json:"repositories,omitempty"`
+	SessionIDs     []string    `json:"session_ids,omitempty"`
+	UserIDs        []string    `json:"user_ids,omitempty"`
+	ClientIDs      []string    `json:"client_ids,omitempty"`
+	Tags           []string    `json:"tags,omitempty"`
+	After          *time.Time  `json:"after,omitempty"`
+	Before         *time.Time  `json:"before,omitempty"`
+	Limit          int         `json:"limit,omitempty"`
+	Offset         int         `json:"offset,omitempty"`
+	OrderBy        string      `json:"order_by,omitempty"`
+	OrderDirection string      `json:"order_direction,omitempty"`
 }
 
 // EventReplay provides event replay functionality
 type EventReplay struct {
-	ID           string      `json:"id"`
-	Query        *EventQuery `json:"query"`
-	StartTime    time.Time   `json:"start_time"`
-	EndTime      *time.Time  `json:"end_time,omitempty"`
-	EventCount   int64       `json:"event_count"`
-	ReplaySpeed  float64     `json:"replay_speed"`
+	ID           string       `json:"id"`
+	Query        *EventQuery  `json:"query"`
+	StartTime    time.Time    `json:"start_time"`
+	EndTime      *time.Time   `json:"end_time,omitempty"`
+	EventCount   int64        `json:"event_count"`
+	ReplaySpeed  float64      `json:"replay_speed"`
 	Status       ReplayStatus `json:"status"`
-	Progress     float64     `json:"progress"`
-	CurrentEvent int64       `json:"current_event"`
-	ErrorMessage string      `json:"error_message,omitempty"`
+	Progress     float64      `json:"progress"`
+	CurrentEvent int64        `json:"current_event"`
+	ErrorMessage string       `json:"error_message,omitempty"`
 }
 
 // ReplayStatus represents the status of an event replay
@@ -108,18 +109,18 @@ const (
 // DefaultPersistenceConfig returns default persistence configuration
 func DefaultPersistenceConfig() *PersistenceConfig {
 	return &PersistenceConfig{
-		DatabasePath:        "events.db",
-		BufferSize:          10000,
-		BatchSize:           100,
-		FlushInterval:       5 * time.Second,
-		RetentionPeriod:     30 * 24 * time.Hour, // 30 days
-		CleanupInterval:     time.Hour,
-		EnableCompression:   true,
-		EnableReplication:   false,
-		MaxDiskUsage:        1024 * 1024 * 1024, // 1GB
-		EnableBackup:        true,
-		BackupInterval:      24 * time.Hour,
-		VerifyIntegrity:     true,
+		DatabasePath:      "events.db",
+		BufferSize:        10000,
+		BatchSize:         100,
+		FlushInterval:     5 * time.Second,
+		RetentionPeriod:   30 * 24 * time.Hour, // 30 days
+		CleanupInterval:   time.Hour,
+		EnableCompression: true,
+		EnableReplication: false,
+		MaxDiskUsage:      1024 * 1024 * 1024, // 1GB
+		EnableBackup:      true,
+		BackupInterval:    24 * time.Hour,
+		VerifyIntegrity:   true,
 	}
 }
 
@@ -169,7 +170,7 @@ func (es *EventStore) Start() error {
 	defer es.mu.Unlock()
 
 	if es.running {
-		return fmt.Errorf("event store already running")
+		return errors.New("event store already running")
 	}
 
 	log.Printf("Starting event store with database: %s", es.config.DatabasePath)
@@ -205,7 +206,7 @@ func (es *EventStore) Stop() error {
 	es.mu.Lock()
 	if !es.running {
 		es.mu.Unlock()
-		return fmt.Errorf("event store not running")
+		return errors.New("event store not running")
 	}
 	es.running = false
 	es.mu.Unlock()
@@ -247,11 +248,11 @@ func (es *EventStore) IsRunning() bool {
 // Store stores an event
 func (es *EventStore) Store(event *Event) error {
 	if !es.IsRunning() {
-		return fmt.Errorf("event store not running")
+		return errors.New("event store not running")
 	}
 
 	if event == nil {
-		return fmt.Errorf("event cannot be nil")
+		return errors.New("event cannot be nil")
 	}
 
 	select {
@@ -262,14 +263,14 @@ func (es *EventStore) Store(event *Event) error {
 		es.updateMetrics(func(m *PersistenceMetrics) {
 			// Could track dropped events here
 		})
-		return fmt.Errorf("write buffer full, event dropped")
+		return errors.New("write buffer full, event dropped")
 	}
 }
 
 // StoreBatch stores multiple events
 func (es *EventStore) StoreBatch(events []*Event) error {
 	if !es.IsRunning() {
-		return fmt.Errorf("event store not running")
+		return errors.New("event store not running")
 	}
 
 	for _, event := range events {
@@ -284,7 +285,7 @@ func (es *EventStore) StoreBatch(events []*Event) error {
 // Retrieve retrieves events matching a query
 func (es *EventStore) Retrieve(query *EventQuery) ([]*Event, error) {
 	if !es.IsRunning() {
-		return nil, fmt.Errorf("event store not running")
+		return nil, errors.New("event store not running")
 	}
 
 	startTime := time.Now()
@@ -313,7 +314,7 @@ func (es *EventStore) Retrieve(query *EventQuery) ([]*Event, error) {
 	// Update metrics
 	es.updateMetrics(func(m *PersistenceMetrics) {
 		m.EventsRetrieved += int64(len(events))
-		
+
 		readTime := time.Since(startTime)
 		if m.AverageReadTime == 0 {
 			m.AverageReadTime = readTime
@@ -330,7 +331,7 @@ func (es *EventStore) Retrieve(query *EventQuery) ([]*Event, error) {
 // GetEvent retrieves a single event by ID
 func (es *EventStore) GetEvent(eventID string) (*Event, error) {
 	if !es.IsRunning() {
-		return nil, fmt.Errorf("event store not running")
+		return nil, errors.New("event store not running")
 	}
 
 	sqlQuery := `SELECT id, type, action, version, timestamp, source, repository, session_id, 
@@ -357,7 +358,7 @@ func (es *EventStore) GetEvent(eventID string) (*Event, error) {
 // Delete deletes events matching a query
 func (es *EventStore) Delete(query *EventQuery) (int64, error) {
 	if !es.IsRunning() {
-		return 0, fmt.Errorf("event store not running")
+		return 0, errors.New("event store not running")
 	}
 
 	// Build delete query
@@ -387,7 +388,7 @@ func (es *EventStore) Delete(query *EventQuery) (int64, error) {
 // StartReplay starts event replay based on a query
 func (es *EventStore) StartReplay(query *EventQuery, replaySpeed float64, callback func(*Event) error) (*EventReplay, error) {
 	if !es.IsRunning() {
-		return nil, fmt.Errorf("event store not running")
+		return nil, errors.New("event store not running")
 	}
 
 	replay := &EventReplay{
@@ -414,18 +415,18 @@ func (es *EventStore) GetMetrics() *PersistenceMetrics {
 	bufferUtilization := float64(len(es.writeBuffer)) / float64(cap(es.writeBuffer)) * 100
 
 	return &PersistenceMetrics{
-		EventsStored:        es.metrics.EventsStored,
-		EventsRetrieved:     es.metrics.EventsRetrieved,
-		EventsDeleted:       es.metrics.EventsDeleted,
-		BatchesProcessed:    es.metrics.BatchesProcessed,
-		AverageWriteTime:    es.metrics.AverageWriteTime,
-		AverageReadTime:     es.metrics.AverageReadTime,
-		TotalDiskUsage:      es.metrics.TotalDiskUsage,
-		LastCleanup:         es.metrics.LastCleanup,
-		LastBackup:          es.metrics.LastBackup,
-		WriteThroughput:     es.metrics.WriteThroughput,
-		ReadThroughput:      es.metrics.ReadThroughput,
-		BufferUtilization:   bufferUtilization,
+		EventsStored:      es.metrics.EventsStored,
+		EventsRetrieved:   es.metrics.EventsRetrieved,
+		EventsDeleted:     es.metrics.EventsDeleted,
+		BatchesProcessed:  es.metrics.BatchesProcessed,
+		AverageWriteTime:  es.metrics.AverageWriteTime,
+		AverageReadTime:   es.metrics.AverageReadTime,
+		TotalDiskUsage:    es.metrics.TotalDiskUsage,
+		LastCleanup:       es.metrics.LastCleanup,
+		LastBackup:        es.metrics.LastBackup,
+		WriteThroughput:   es.metrics.WriteThroughput,
+		ReadThroughput:    es.metrics.ReadThroughput,
+		BufferUtilization: bufferUtilization,
 	}
 }
 
@@ -551,7 +552,7 @@ func (es *EventStore) flushBatch() error {
 	es.updateMetrics(func(m *PersistenceMetrics) {
 		m.EventsStored += int64(batchSize)
 		m.BatchesProcessed++
-		
+
 		if m.AverageWriteTime == 0 {
 			m.AverageWriteTime = writeTime
 		} else {
@@ -609,7 +610,7 @@ func (es *EventStore) buildQuery(query *EventQuery) (string, []interface{}) {
 	if query.OrderBy != "" {
 		orderBy = query.OrderBy
 	}
-	
+
 	orderDirection := "ASC"
 	if query.OrderDirection != "" {
 		orderDirection = query.OrderDirection
@@ -851,7 +852,7 @@ func (es *EventStore) replicationProcessor() {
 			if !ok {
 				return
 			}
-			
+
 			// Here you would implement replication logic
 			// For example, send to remote database, message queue, etc.
 			log.Printf("Replicating event %s", event.ID)

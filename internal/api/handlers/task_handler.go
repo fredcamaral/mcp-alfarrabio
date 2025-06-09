@@ -417,11 +417,11 @@ func (h *TaskHandler) generatePRDInsights(prdDoc *types.PRDDocument, tasks []typ
 		typeCount[task.Type]++
 	}
 
-	if typeCount[types.TaskTypeTesting] == 0 {
+	if typeCount[types.TaskTypeLegacyTesting] == 0 {
 		insights = append(insights, "No testing tasks generated - consider adding quality assurance tasks")
 	}
 
-	if typeCount[types.TaskTypeDocumentation] == 0 {
+	if typeCount[types.TaskTypeLegacyDocumentation] == 0 {
 		insights = append(insights, "No documentation tasks generated - consider adding technical documentation")
 	}
 

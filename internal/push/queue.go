@@ -63,12 +63,12 @@ type QueueMetrics struct {
 
 // QueueConfig configures the notification queue
 type QueueConfig struct {
-	BatchSize      int           `json:"batch_size"`
-	BatchTimeout   time.Duration `json:"batch_timeout"`
-	MaxQueueSize   int           `json:"max_queue_size"`
-	MaxRetrySize   int           `json:"max_retry_size"`
-	RetryInterval  time.Duration `json:"retry_interval"`
-	MaxRetries     int           `json:"max_retries"`
+	BatchSize     int           `json:"batch_size"`
+	BatchTimeout  time.Duration `json:"batch_timeout"`
+	MaxQueueSize  int           `json:"max_queue_size"`
+	MaxRetrySize  int           `json:"max_retry_size"`
+	RetryInterval time.Duration `json:"retry_interval"`
+	MaxRetries    int           `json:"max_retries"`
 }
 
 // DefaultQueueConfig returns default queue configuration
@@ -92,18 +92,18 @@ func NewNotificationQueue(dispatcher *Dispatcher, registry *Registry, config *Qu
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &NotificationQueue{
-		dispatcher:     dispatcher,
-		registry:       registry,
-		batchSize:      config.BatchSize,
-		batchTimeout:   config.BatchTimeout,
-		maxQueueSize:   config.MaxQueueSize,
-		retryQueue:     NewRetryQueue(config.MaxRetrySize),
-		pendingBatch:   make([]*Notification, 0, config.BatchSize),
-		queuedNotifs:   make(chan *Notification, config.MaxQueueSize),
-		ctx:            ctx,
-		cancel:         cancel,
-		running:        false,
-		metrics:        &QueueMetrics{},
+		dispatcher:   dispatcher,
+		registry:     registry,
+		batchSize:    config.BatchSize,
+		batchTimeout: config.BatchTimeout,
+		maxQueueSize: config.MaxQueueSize,
+		retryQueue:   NewRetryQueue(config.MaxRetrySize),
+		pendingBatch: make([]*Notification, 0, config.BatchSize),
+		queuedNotifs: make(chan *Notification, config.MaxQueueSize),
+		ctx:          ctx,
+		cancel:       cancel,
+		running:      false,
+		metrics:      &QueueMetrics{},
 	}
 }
 
@@ -124,7 +124,7 @@ func (nq *NotificationQueue) Start() error {
 		return fmt.Errorf("notification queue already running")
 	}
 
-	log.Printf("Starting notification queue (batch size: %d, timeout: %v)", 
+	log.Printf("Starting notification queue (batch size: %d, timeout: %v)",
 		nq.batchSize, nq.batchTimeout)
 
 	// Start batch processor
@@ -201,11 +201,11 @@ func (nq *NotificationQueue) Enqueue(notification *Notification) error {
 // EnqueueBatch adds multiple notifications to the queue
 func (nq *NotificationQueue) EnqueueBatch(notifications []*Notification) []error {
 	errors := make([]error, len(notifications))
-	
+
 	for i, notif := range notifications {
 		errors[i] = nq.Enqueue(notif)
 	}
-	
+
 	return errors
 }
 
@@ -241,7 +241,7 @@ func (nq *NotificationQueue) batchProcessor() {
 			if len(nq.pendingBatch) >= nq.batchSize {
 				nq.processBatch(nq.pendingBatch)
 				nq.pendingBatch = nq.pendingBatch[:0] // Reset slice
-				
+
 				// Reset timer
 				if !batchTimer.Stop() {
 					<-batchTimer.C
@@ -275,7 +275,7 @@ func (nq *NotificationQueue) processBatch(batch []*Notification) {
 	}
 
 	startTime := time.Now()
-	
+
 	log.Printf("Processing notification batch of %d notifications", len(batch))
 
 	// Group notifications by priority for processing order
@@ -283,7 +283,7 @@ func (nq *NotificationQueue) processBatch(batch []*Notification) {
 
 	// Process each priority group in order (critical first)
 	priorities := []NotificationPriority{PriorityCritical, PriorityHigh, PriorityNormal, PriorityLow}
-	
+
 	for _, priority := range priorities {
 		notifications, exists := priorityGroups[priority]
 		if !exists {
@@ -294,7 +294,7 @@ func (nq *NotificationQueue) processBatch(batch []*Notification) {
 		for _, notification := range notifications {
 			if err := nq.dispatcher.Dispatch(notification); err != nil {
 				log.Printf("Failed to dispatch notification %s: %v", notification.ID, err)
-				
+
 				// Add to retry queue if dispatcher is not running or other recoverable error
 				nq.addToRetryQueue(notification, err.Error(), "")
 			}
@@ -308,7 +308,7 @@ func (nq *NotificationQueue) processBatch(batch []*Notification) {
 		m.BatchesProcessed++
 		m.LastProcessed = time.Now()
 		m.CurrentBatchSize = 0
-		
+
 		// Update average process time
 		if m.AverageProcessTime == 0 {
 			m.AverageProcessTime = processTime
@@ -326,16 +326,16 @@ func (nq *NotificationQueue) processBatch(batch []*Notification) {
 // groupNotificationsByPriority groups notifications by their priority
 func (nq *NotificationQueue) groupNotificationsByPriority(notifications []*Notification) map[NotificationPriority][]*Notification {
 	groups := make(map[NotificationPriority][]*Notification)
-	
+
 	for _, notif := range notifications {
 		priority := notif.Priority
 		if priority == "" {
 			priority = PriorityNormal
 		}
-		
+
 		groups[priority] = append(groups[priority], notif)
 	}
-	
+
 	return groups
 }
 
@@ -375,7 +375,7 @@ func (nq *NotificationQueue) processRetryQueue() {
 		// Check if endpoint is still registered and healthy
 		endpoint, exists := nq.registry.Get(item.EndpointID)
 		if !exists {
-			log.Printf("Endpoint %s no longer exists, removing notification %s from retry queue", 
+			log.Printf("Endpoint %s no longer exists, removing notification %s from retry queue",
 				item.EndpointID, item.Notification.ID)
 			nq.retryQueue.RemoveItem(item)
 			continue
@@ -383,7 +383,7 @@ func (nq *NotificationQueue) processRetryQueue() {
 
 		// Skip if endpoint is not healthy and has too many consecutive failures
 		if !endpoint.Health.IsHealthy && endpoint.Health.ConsecutiveFailures > 5 {
-			log.Printf("Endpoint %s is unhealthy (failures: %d), skipping retry for notification %s", 
+			log.Printf("Endpoint %s is unhealthy (failures: %d), skipping retry for notification %s",
 				item.EndpointID, endpoint.Health.ConsecutiveFailures, item.Notification.ID)
 			continue
 		}
@@ -393,10 +393,10 @@ func (nq *NotificationQueue) processRetryQueue() {
 			// Retry failed, update retry item
 			item.Attempts++
 			item.LastError = err.Error()
-			
+
 			if item.Attempts >= item.Notification.MaxAttempts {
 				// Max attempts reached, remove from retry queue
-				log.Printf("Max retry attempts reached for notification %s to endpoint %s", 
+				log.Printf("Max retry attempts reached for notification %s to endpoint %s",
 					item.Notification.ID, item.EndpointID)
 				nq.retryQueue.RemoveItem(item)
 			} else {
@@ -406,16 +406,16 @@ func (nq *NotificationQueue) processRetryQueue() {
 					backoffDelay = 5 * time.Minute
 				}
 				item.RetryAt = now.Add(backoffDelay)
-				
-				log.Printf("Rescheduled retry for notification %s to endpoint %s (attempt %d, delay: %v)", 
+
+				log.Printf("Rescheduled retry for notification %s to endpoint %s (attempt %d, delay: %v)",
 					item.Notification.ID, item.EndpointID, item.Attempts, backoffDelay)
 			}
 		} else {
 			// Retry successful, remove from retry queue
-			log.Printf("Retry successful for notification %s to endpoint %s", 
+			log.Printf("Retry successful for notification %s to endpoint %s",
 				item.Notification.ID, item.EndpointID)
 			nq.retryQueue.RemoveItem(item)
-			
+
 			nq.updateMetrics(func(m *QueueMetrics) {
 				m.TotalRetried++
 			})
@@ -447,10 +447,10 @@ func (nq *NotificationQueue) addRetryItem(notification *Notification, error stri
 	}
 
 	if nq.retryQueue.AddItem(item) {
-		log.Printf("Added notification %s to retry queue for endpoint %s", 
+		log.Printf("Added notification %s to retry queue for endpoint %s",
 			notification.ID, endpointID)
 	} else {
-		log.Printf("Retry queue full, dropping notification %s for endpoint %s", 
+		log.Printf("Retry queue full, dropping notification %s for endpoint %s",
 			notification.ID, endpointID)
 	}
 }
@@ -550,7 +550,7 @@ func (nq *NotificationQueue) GetMetrics() *QueueMetrics {
 // GetQueueStatus returns the current status of the queue
 func (nq *NotificationQueue) GetQueueStatus() map[string]interface{} {
 	metrics := nq.GetMetrics()
-	
+
 	return map[string]interface{}{
 		"running":              nq.IsRunning(),
 		"batch_size":           nq.batchSize,

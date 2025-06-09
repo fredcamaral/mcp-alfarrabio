@@ -25,12 +25,12 @@ type NotificationService struct {
 
 // ServiceConfig configures the notification service
 type ServiceConfig struct {
-	Registry      *RegistryConfig      `json:"registry"`
-	Dispatcher    *DispatcherConfig    `json:"dispatcher"`
-	HealthChecker *HealthCheckConfig   `json:"health_checker"`
-	Queue         *QueueConfig         `json:"queue"`
-	AutoStart     bool                 `json:"auto_start"`
-	MetricsPort   int                  `json:"metrics_port"`
+	Registry      *RegistryConfig    `json:"registry"`
+	Dispatcher    *DispatcherConfig  `json:"dispatcher"`
+	HealthChecker *HealthCheckConfig `json:"health_checker"`
+	Queue         *QueueConfig       `json:"queue"`
+	AutoStart     bool               `json:"auto_start"`
+	MetricsPort   int                `json:"metrics_port"`
 }
 
 // RegistryConfig is an alias for convenience
@@ -40,14 +40,14 @@ type RegistryConfig struct {
 
 // ServiceMetrics tracks overall service performance
 type ServiceMetrics struct {
-	StartTime         time.Time `json:"start_time"`
-	Uptime            time.Duration `json:"uptime"`
-	TotalNotifications int64    `json:"total_notifications"`
-	SuccessfulDeliveries int64  `json:"successful_deliveries"`
-	FailedDeliveries    int64   `json:"failed_deliveries"`
-	ActiveEndpoints     int      `json:"active_endpoints"`
-	HealthyEndpoints    int      `json:"healthy_endpoints"`
-	mu                  sync.RWMutex
+	StartTime            time.Time     `json:"start_time"`
+	Uptime               time.Duration `json:"uptime"`
+	TotalNotifications   int64         `json:"total_notifications"`
+	SuccessfulDeliveries int64         `json:"successful_deliveries"`
+	FailedDeliveries     int64         `json:"failed_deliveries"`
+	ActiveEndpoints      int           `json:"active_endpoints"`
+	HealthyEndpoints     int           `json:"healthy_endpoints"`
+	mu                   sync.RWMutex
 }
 
 // DefaultServiceConfig returns default service configuration
@@ -300,16 +300,16 @@ func (ns *NotificationService) GetServiceStatus() map[string]interface{} {
 		"start_time": metrics.StartTime,
 		"components": map[string]interface{}{
 			"registry": map[string]interface{}{
-				"total_endpoints":   registryMetrics.TotalEndpoints,
-				"active_endpoints":  registryMetrics.ActiveEndpoints,
+				"total_endpoints":    registryMetrics.TotalEndpoints,
+				"active_endpoints":   registryMetrics.ActiveEndpoints,
 				"registration_count": registryMetrics.RegistrationCount,
 			},
 			"dispatcher": map[string]interface{}{
-				"running":              ns.dispatcher.IsRunning(),
-				"total_deliveries":     dispatcherAnalytics.TotalDeliveries,
+				"running":               ns.dispatcher.IsRunning(),
+				"total_deliveries":      dispatcherAnalytics.TotalDeliveries,
 				"successful_deliveries": dispatcherAnalytics.SuccessfulDeliveries,
-				"error_rate":           dispatcherAnalytics.ErrorRate,
-				"average_latency":      dispatcherAnalytics.AverageLatency.String(),
+				"error_rate":            dispatcherAnalytics.ErrorRate,
+				"average_latency":       dispatcherAnalytics.AverageLatency.String(),
 			},
 			"health_checker": map[string]interface{}{
 				"running":           ns.healthChecker.IsRunning(),
@@ -318,10 +318,10 @@ func (ns *NotificationService) GetServiceStatus() map[string]interface{} {
 				"error_rate":        healthMetrics.ErrorRate,
 			},
 			"queue": map[string]interface{}{
-				"running":             ns.queue.IsRunning(),
-				"current_queue_size":  queueMetrics.CurrentQueueSize,
-				"total_processed":     queueMetrics.TotalProcessed,
-				"retry_queue_size":    queueMetrics.RetryQueueSize,
+				"running":            ns.queue.IsRunning(),
+				"current_queue_size": queueMetrics.CurrentQueueSize,
+				"total_processed":    queueMetrics.TotalProcessed,
+				"retry_queue_size":   queueMetrics.RetryQueueSize,
 			},
 		},
 		"metrics": metrics,
@@ -346,7 +346,7 @@ func (ns *NotificationService) GetMetrics() *ServiceMetrics {
 	// Return a copy with updated values
 	return &ServiceMetrics{
 		StartTime:            ns.metrics.StartTime,
-		Uptime:              uptime,
+		Uptime:               uptime,
 		TotalNotifications:   ns.metrics.TotalNotifications,
 		SuccessfulDeliveries: ns.metrics.SuccessfulDeliveries,
 		FailedDeliveries:     ns.metrics.FailedDeliveries,
@@ -365,11 +365,11 @@ func (ns *NotificationService) updateMetrics(updateFunc func(*ServiceMetrics)) {
 // CreateMemoryUpdateNotification creates a notification for memory updates
 func (ns *NotificationService) CreateMemoryUpdateNotification(chunkID, repository, sessionID string, content interface{}) *Notification {
 	return CreateNotification("memory_update", map[string]interface{}{
-		"chunk_id":    chunkID,
-		"repository":  repository,
-		"session_id":  sessionID,
-		"content":     content,
-		"timestamp":   time.Now(),
+		"chunk_id":   chunkID,
+		"repository": repository,
+		"session_id": sessionID,
+		"content":    content,
+		"timestamp":  time.Now(),
 	})
 }
 
@@ -380,7 +380,7 @@ func (ns *NotificationService) CreateTaskUpdateNotification(taskID, status strin
 		"status":    status,
 		"timestamp": time.Now(),
 	}
-	
+
 	// Add metadata if provided
 	if metadata != nil {
 		for key, value := range metadata {
