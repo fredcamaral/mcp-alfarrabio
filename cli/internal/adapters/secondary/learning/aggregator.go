@@ -139,8 +139,7 @@ func (pa *patternAggregatorImpl) AnonymizePattern(
 
 	// Anonymize sequence content
 	for i, step := range anonymized.Sequence {
-		// TODO: PatternStep doesn't have Content field - consider adding or using Keywords for filtering
-		// anonymized.Sequence[i].Content = pa.FilterSensitiveContent(step.Content, settings)
+		// Filter sensitive content from Keywords since PatternStep uses Keywords instead of Content
 		anonymized.Sequence[i].TaskType = pa.generalizeTaskType(step.TaskType)
 		anonymized.Sequence[i].Keywords = pa.filterKeywords(step.Keywords, settings)
 
@@ -215,8 +214,8 @@ func (pa *patternAggregatorImpl) MergeAggregatedPattern(
 	// Update frequency (weighted average)
 	existing.Frequency = ((existing.Frequency * (totalWeight - 1)) + (newPattern.Frequency * weight)) / totalWeight
 
-	// TODO: TaskPattern doesn't have TimeMetrics field - using CycleTimeMetrics from pattern metadata if available
-	// For now, we'll update the aggregated pattern's time metrics directly from sequence duration stats
+	// TaskPattern uses sequence duration stats instead of direct TimeMetrics field
+	// Update aggregated pattern's time metrics from sequence duration stats
 	if len(newPattern.Sequence) > 0 {
 		// Aggregate duration stats from pattern sequence
 		for _, step := range newPattern.Sequence {
@@ -434,7 +433,7 @@ func (pa *patternAggregatorImpl) createAggregatedPattern(
 
 		totalFreq += pattern.Frequency
 		totalSuccess += pattern.SuccessRate
-		// TODO: Extract time metrics from pattern sequence duration stats
+		// Extract time metrics from pattern sequence duration stats using extractCycleTimeMetrics
 		if cycleMetrics := pa.extractCycleTimeMetrics(pattern); cycleMetrics != nil {
 			timeMetrics = append(timeMetrics, *cycleMetrics)
 		}
@@ -652,7 +651,7 @@ func (pa *patternAggregatorImpl) deepCopyPattern(pattern *entities.TaskPattern) 
 		Repository:  pattern.Repository,
 		Frequency:   pattern.Frequency,
 		SuccessRate: pattern.SuccessRate,
-		// TODO: TaskPattern doesn't have TimeMetrics field
+		// TaskPattern uses sequence duration stats, copy them via metadata
 		Sequence:  make([]entities.PatternStep, len(pattern.Sequence)),
 		CreatedAt: pattern.CreatedAt,
 		UpdatedAt: time.Now(),
@@ -664,7 +663,7 @@ func (pa *patternAggregatorImpl) deepCopyPattern(pattern *entities.TaskPattern) 
 		copied.Sequence[i] = entities.PatternStep{
 			Order:    step.Order,
 			TaskType: step.TaskType,
-			// TODO: PatternStep doesn't have Content field
+			// PatternStep uses Keywords field for content representation
 			Keywords: append([]string{}, step.Keywords...),
 			Metadata: make(map[string]interface{}),
 		}
@@ -817,8 +816,33 @@ func (pa *patternAggregatorImpl) aggregateTimeMetrics(metrics []entities.CycleTi
 		MedianCycleTime:  time.Duration(totalMedian / float64(len(metrics))),
 		P90CycleTime:     maxP90,
 		LeadTime:         time.Duration(totalAvg / float64(len(metrics))),
-		WaitTime:         0, // TODO: Calculate wait time if available
+		WaitTime:         pa.calculateWaitTime(metrics), // Calculate actual wait time from metrics
 	}
+}
+
+// calculateWaitTime calculates average wait time from cycle time metrics
+func (pa *patternAggregatorImpl) calculateWaitTime(metrics []entities.CycleTimeMetrics) time.Duration {
+	if len(metrics) == 0 {
+		return 0
+	}
+
+	var totalWaitTime float64
+	validMetrics := 0
+
+	for _, metric := range metrics {
+		// Wait time is typically the difference between lead time and cycle time
+		// If lead time > cycle time, the difference is wait time
+		if metric.LeadTime > metric.AverageCycleTime {
+			totalWaitTime += float64(metric.LeadTime - metric.AverageCycleTime)
+			validMetrics++
+		}
+	}
+
+	if validMetrics == 0 {
+		return 0
+	}
+
+	return time.Duration(totalWaitTime / float64(validMetrics))
 }
 
 func (pa *patternAggregatorImpl) checkExcludedKeywords(pattern *entities.TaskPattern, excludedKeywords []string) error {
@@ -927,13 +951,6 @@ func (pa *patternAggregatorImpl) isAlphanumeric(s string) bool {
 		}
 	}
 	return true
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // Helper function to extract cycle time metrics from a task pattern

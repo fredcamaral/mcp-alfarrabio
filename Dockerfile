@@ -2,7 +2,7 @@
 # Optimized Go backend providing persistent memory capabilities for AI assistants
 
 # Stage 1: Build the Go backend
-FROM golang:1.24-alpine AS builder
+FROM golang:1.23-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -131,7 +131,7 @@ ENTRYPOINT ["/app/lerian-mcp-memory-server"]
 CMD ["-mode=http", "-addr=:9080"]
 
 # Stage 3: Development environment with hot reload
-FROM golang:1.24-alpine AS dev
+FROM golang:1.23-alpine AS dev
 
 # Install dependencies including Air for hot reload
 RUN apk add --no-cache \
@@ -146,8 +146,8 @@ RUN apk add --no-cache \
     npm \
     && update-ca-certificates
 
-# Install Air for hot reload
-RUN go install github.com/air-verse/air@latest
+# Install Air for hot reload (specific version for Go 1.23 compatibility)
+RUN go install github.com/air-verse/air@v1.61.3
 
 # Create non-root user for development
 RUN addgroup -g 1001 -S mcpuser && \

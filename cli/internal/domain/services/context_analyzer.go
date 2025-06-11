@@ -993,14 +993,16 @@ func (ca *contextAnalyzerImpl) getOverdueTasks(ctx context.Context, repository s
 
 	var overdueTasks []*entities.Task
 	for _, task := range tasks {
-		// TODO: Task entity doesn't have DueDate field yet
-		// For now, we'll use a simpler approach based on creation time and estimated duration
-		if (task.Status == entities.StatusPending || task.Status == entities.StatusInProgress) &&
-			task.EstimatedMins > 0 {
-			// Consider a task overdue if it's been around longer than its estimated time
-			estimatedDuration := time.Duration(task.EstimatedMins) * time.Minute
-			if time.Since(task.CreatedAt) > estimatedDuration {
+		if task.Status == entities.StatusPending || task.Status == entities.StatusInProgress {
+			// Check if task has a due date and is overdue
+			if task.DueDate != nil && time.Now().After(*task.DueDate) {
 				overdueTasks = append(overdueTasks, task)
+			} else if task.EstimatedMins > 0 {
+				// Fallback: consider a task overdue if it's been around longer than its estimated time
+				estimatedDuration := time.Duration(task.EstimatedMins) * time.Minute
+				if time.Since(task.CreatedAt) > estimatedDuration {
+					overdueTasks = append(overdueTasks, task)
+				}
 			}
 		}
 	}

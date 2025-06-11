@@ -1,0 +1,94 @@
+# Alertmanager configuration for Lerian MCP Memory Server
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alerts@lerian-mcp-memory.local'
+  smtp_auth_username: ''
+  smtp_auth_password: ''
+  smtp_auth_secret: ''
+
+# The directory from which notification templates are read.
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# The root route on which each incoming alert enters.
+route:
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'default-receiver'
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-alerts'
+      group_wait: 5s
+      group_interval: 5s
+      repeat_interval: 30m
+
+    # Warning alerts - less frequent notification
+    - match:
+        severity: warning
+      receiver: 'warning-alerts'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 2h
+
+    # Service-specific routing
+    - match:
+        service: mcp-memory-server
+      receiver: 'mcp-memory-alerts'
+
+    - match:
+        service: qdrant
+      receiver: 'qdrant-alerts'
+
+# Inhibition rules allow to mute a set of alerts given that another alert is firing.
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'cluster', 'service']
+
+receivers:
+  - name: 'default-receiver'
+    # Add your default notification method here
+    # webhook_configs:
+    #   - url: 'http://your-webhook-url'
+
+  - name: 'critical-alerts'
+    # Critical alerts configuration
+    # email_configs:
+    #   - to: 'critical-alerts@yourcompany.com'
+    #     subject: 'CRITICAL: {{ .GroupLabels.alertname }} on {{ .GroupLabels.instance }}'
+    #     body: |
+    #       {{ range .Alerts }}
+    #       Alert: {{ .Annotations.summary }}
+    #       Description: {{ .Annotations.description }}
+    #       {{ end }}
+    
+    # Slack integration example
+    # slack_configs:
+    #   - api_url: 'YOUR_SLACK_WEBHOOK_URL'
+    #     channel: '#critical-alerts'
+    #     title: 'Critical Alert: {{ .GroupLabels.alertname }}'
+    #     text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+
+  - name: 'warning-alerts'
+    # Warning alerts configuration
+    # email_configs:
+    #   - to: 'warnings@yourcompany.com'
+    #     subject: 'Warning: {{ .GroupLabels.alertname }}'
+
+  - name: 'mcp-memory-alerts'
+    # MCP Memory Server specific alerts
+    # webhook_configs:
+    #   - url: 'http://your-mcp-monitoring-webhook'
+    #     send_resolved: true
+
+  - name: 'qdrant-alerts'
+    # Qdrant specific alerts
+    # webhook_configs:
+    #   - url: 'http://your-qdrant-monitoring-webhook'
+    #     send_resolved: true

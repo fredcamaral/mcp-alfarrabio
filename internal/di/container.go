@@ -3,20 +3,29 @@ package di
 
 import (
 	"context"
+	"database/sql"
 	"fmt"
 	"lerian-mcp-memory/internal/analytics"
+	"lerian-mcp-memory/internal/api/handlers"
 	"lerian-mcp-memory/internal/audit"
 	"lerian-mcp-memory/internal/chains"
 	"lerian-mcp-memory/internal/chunking"
 	"lerian-mcp-memory/internal/config"
 	"lerian-mcp-memory/internal/embeddings"
 	"lerian-mcp-memory/internal/intelligence"
+	"lerian-mcp-memory/internal/logging"
 	"lerian-mcp-memory/internal/persistence"
 	"lerian-mcp-memory/internal/relationships"
 	"lerian-mcp-memory/internal/storage"
+	"lerian-mcp-memory/internal/sync"
 	"lerian-mcp-memory/internal/threading"
 	"lerian-mcp-memory/internal/workflow"
+	sharedai "lerian-mcp-memory/pkg/ai"
+	"log/slog"
 	"os"
+	"time"
+
+	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
 const envValueTrue = "true"
@@ -24,6 +33,7 @@ const envValueTrue = "true"
 // Container holds all application dependencies
 type Container struct {
 	Config              *config.Config
+	DB                  *sql.DB
 	VectorStore         storage.VectorStore
 	EmbeddingService    embeddings.EmbeddingService
 	ChunkingService     *chunking.Service
@@ -34,6 +44,7 @@ type Container struct {
 	TodoTracker         *workflow.TodoTracker
 	FlowDetector        *workflow.FlowDetector
 	PatternEngine       *intelligence.PatternEngine
+	PatternStorage      intelligence.PatternStorage
 	GraphBuilder        *intelligence.GraphBuilder
 	MultiRepoEngine     *intelligence.MultiRepoEngine
 	ChainBuilder        *chains.ChainBuilder
@@ -43,6 +54,10 @@ type Container struct {
 	ThreadStore         threading.ThreadStore
 	MemoryAnalytics     *analytics.MemoryAnalytics
 	AuditLogger         *audit.Logger
+	AIService           sharedai.AIService
+	Logger              logging.Logger
+	WebSocketHandler    *handlers.WebSocketHandler
+	RealtimeSyncCoord   *sync.RealtimeSyncCoordinator
 }
 
 // NewContainer creates a new dependency injection container
@@ -51,14 +66,144 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 		Config: cfg,
 	}
 
+	// Initialize logger
+	logLevel := logging.ParseLogLevel(os.Getenv("MCP_MEMORY_LOG_LEVEL"))
+	container.Logger = logging.NewLogger(logLevel)
+
+	// Initialize database if PostgreSQL is configured
+	if err := container.initializeDatabase(); err != nil {
+		// Log error but continue - database is optional for now
+		container.Logger.Warn("Failed to initialize database", "error", err)
+	}
+
+	// Initialize AI service
+	if err := container.initializeAIService(cfg); err != nil {
+		// Log error but continue - AI service may fallback to mock
+		container.Logger.Warn("Failed to initialize AI service", "error", err)
+	}
+
 	// Initialize in dependency order
 	container.initializeStorage()
 
 	container.initializeServices()
 	container.initializeIntelligence()
 	container.initializeWorkflow()
+	container.initializeRealTimeSync()
 
 	return container, nil
+}
+
+// initializeDatabase sets up PostgreSQL connection if configured
+func (c *Container) initializeDatabase() error {
+	// Get database URL from environment
+	dbURL := os.Getenv("DATABASE_URL")
+	if dbURL == "" {
+		// Try to construct from individual components
+		host := os.Getenv("POSTGRES_HOST")
+		if host == "" {
+			host = "localhost"
+		}
+		port := os.Getenv("POSTGRES_PORT")
+		if port == "" {
+			port = "5432"
+		}
+		user := os.Getenv("POSTGRES_USER")
+		if user == "" {
+			user = "postgres"
+		}
+		password := os.Getenv("POSTGRES_PASSWORD")
+		if password == "" {
+			password = "postgres"
+		}
+		dbname := os.Getenv("POSTGRES_DB")
+		if dbname == "" {
+			dbname = "mcp_memory"
+		}
+		sslmode := os.Getenv("POSTGRES_SSLMODE")
+		if sslmode == "" {
+			sslmode = "disable"
+		}
+
+		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+			user, password, host, port, dbname, sslmode)
+	}
+
+	// Open database connection
+	db, err := sql.Open("postgres", dbURL)
+	if err != nil {
+		return fmt.Errorf("failed to open database: %w", err)
+	}
+
+	// Test connection
+	if err := db.Ping(); err != nil {
+		db.Close()
+		return fmt.Errorf("failed to ping database: %w", err)
+	}
+
+	// Set connection pool settings
+	db.SetMaxOpenConns(25)
+	db.SetMaxIdleConns(5)
+	db.SetConnMaxLifetime(5 * time.Minute)
+
+	c.DB = db
+	c.Logger.Info("Database connection established")
+	return nil
+}
+
+// initializeAIService sets up the AI service with all configured providers
+func (c *Container) initializeAIService(cfg *config.Config) error {
+	// Determine primary AI provider based on configuration
+	var provider, apiKey, baseURL, model string
+	var timeout time.Duration
+
+	// Check which provider is enabled and configured
+	if cfg.AI.Claude.Enabled && cfg.AI.Claude.APIKey != "" {
+		provider = "claude"
+		apiKey = cfg.AI.Claude.APIKey
+		baseURL = cfg.AI.Claude.BaseURL
+		model = cfg.AI.Claude.Model
+		timeout = cfg.AI.Claude.Timeout
+	} else if cfg.AI.OpenAI.Enabled && cfg.AI.OpenAI.APIKey != "" {
+		provider = "openai"
+		apiKey = cfg.AI.OpenAI.APIKey
+		baseURL = cfg.AI.OpenAI.BaseURL
+		model = cfg.AI.OpenAI.Model
+		timeout = cfg.AI.OpenAI.Timeout
+	} else if cfg.AI.Perplexity.Enabled && cfg.AI.Perplexity.APIKey != "" {
+		provider = "perplexity"
+		apiKey = cfg.AI.Perplexity.APIKey
+		baseURL = cfg.AI.Perplexity.BaseURL
+		model = cfg.AI.Perplexity.Model
+		timeout = cfg.AI.Perplexity.Timeout
+	} else {
+		// Fallback to mock provider if no real provider is configured
+		provider = "mock"
+		c.Logger.Warn("No AI provider configured or enabled, using mock provider")
+	}
+
+	// Create shared AI service configuration
+	aiConfig := &sharedai.Config{
+		Provider:   provider,
+		APIKey:     apiKey,
+		BaseURL:    baseURL,
+		Model:      model,
+		Timeout:    timeout,
+		MaxRetries: 3,
+		RetryDelay: time.Second,
+	}
+
+	// Create logger adapter for shared AI service (convert server logger to slog)
+	aiLogger := c.createSlogAdapter()
+
+	// Create AI service with configuration
+	aiService, err := sharedai.NewService(aiConfig, aiLogger)
+	if err != nil {
+		return fmt.Errorf("failed to create AI service: %w", err)
+	}
+
+	c.AIService = aiService
+	c.Logger.Info("AI service initialized", "provider", aiConfig.Provider, "model", aiConfig.Model)
+	return nil
 }
 
 // initializeStorage sets up storage layer
@@ -140,9 +285,34 @@ func (c *Container) initializeServices() {
 
 // initializeIntelligence sets up intelligence layer
 func (c *Container) initializeIntelligence() {
-	// Initialize pattern engine with adapter
-	patternStorage := storage.NewPatternStorageAdapter(c.VectorStore)
-	c.PatternEngine = intelligence.NewPatternEngine(patternStorage)
+	// Initialize pattern storage - use SQL if database is available, otherwise use adapter
+	if c.DB != nil {
+		c.PatternStorage = storage.NewPatternSQLStorage(c.DB, c.Logger)
+		c.Logger.Info("Using SQL-based pattern storage")
+	} else {
+		c.PatternStorage = storage.NewPatternStorageAdapter(c.VectorStore)
+		c.Logger.Info("Using vector store adapter for pattern storage")
+	}
+
+	// Initialize pattern engine with full dependencies including AI
+	if c.DB != nil && c.AIService != nil && c.EmbeddingService != nil {
+		// Create pattern engine with full AI integration using adapter
+		config := intelligence.DefaultPatternEngineConfig()
+		aiAdapter := intelligence.NewAIServiceAdapter(c.AIService)
+		c.PatternEngine = intelligence.NewPatternEngineWithDependencies(
+			c.DB,
+			c.PatternStorage,
+			aiAdapter,
+			c.EmbeddingService,
+			c.Logger,
+			config,
+		)
+		c.Logger.Info("Pattern engine initialized with full AI integration")
+	} else {
+		// Fall back to basic pattern engine without AI
+		c.PatternEngine = intelligence.NewPatternEngine(c.PatternStorage)
+		c.Logger.Info("Pattern engine initialized in basic mode (missing dependencies)")
+	}
 
 	// Initialize graph builder
 	c.GraphBuilder = intelligence.NewGraphBuilder(c.PatternEngine)
@@ -186,6 +356,52 @@ func (c *Container) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// createSlogAdapter creates an slog.Logger that forwards to the server's logger
+func (c *Container) createSlogAdapter() *slog.Logger {
+	return slog.New(&loggerAdapter{logger: c.Logger})
+}
+
+// loggerAdapter adapts the server's Logger interface to slog.Handler
+type loggerAdapter struct {
+	logger logging.Logger
+}
+
+func (a *loggerAdapter) Enabled(ctx context.Context, level slog.Level) bool {
+	return true // Enable all levels, let the underlying logger filter
+}
+
+func (a *loggerAdapter) Handle(ctx context.Context, record slog.Record) error {
+	// Convert slog attributes to key-value pairs
+	fields := make([]interface{}, 0, record.NumAttrs()*2)
+	record.Attrs(func(attr slog.Attr) bool {
+		fields = append(fields, attr.Key, attr.Value.Any())
+		return true
+	})
+
+	// Forward to the server's logger based on level
+	switch record.Level {
+	case slog.LevelDebug:
+		a.logger.Debug(record.Message, fields...)
+	case slog.LevelInfo:
+		a.logger.Info(record.Message, fields...)
+	case slog.LevelWarn:
+		a.logger.Warn(record.Message, fields...)
+	case slog.LevelError:
+		a.logger.Error(record.Message, fields...)
+	default:
+		a.logger.Info(record.Message, fields...)
+	}
+	return nil
+}
+
+func (a *loggerAdapter) WithAttrs(attrs []slog.Attr) slog.Handler {
+	return a // For simplicity, we don't track persistent attributes
+}
+
+func (a *loggerAdapter) WithGroup(name string) slog.Handler {
+	return a // For simplicity, we don't support groups
+}
+
 // Shutdown gracefully shuts down all services
 func (c *Container) Shutdown() error {
 	// Stop analytics first to flush any pending data
@@ -196,6 +412,20 @@ func (c *Container) Shutdown() error {
 	// Stop audit logger to flush pending logs
 	if c.AuditLogger != nil {
 		c.AuditLogger.Stop()
+	}
+
+	// Close pattern engine if it has batch processing
+	if c.PatternEngine != nil {
+		if err := c.PatternEngine.Close(); err != nil {
+			c.Logger.Error("Failed to close pattern engine", "error", err)
+		}
+	}
+
+	// Close database connection
+	if c.DB != nil {
+		if err := c.DB.Close(); err != nil {
+			c.Logger.Error("Failed to close database", "error", err)
+		}
 	}
 
 	if c.VectorStore != nil {
@@ -281,4 +511,50 @@ func (c *Container) GetThreadStore() threading.ThreadStore {
 // GetMultiRepoEngine returns the multi-repository engine instance
 func (c *Container) GetMultiRepoEngine() *intelligence.MultiRepoEngine {
 	return c.MultiRepoEngine
+}
+
+// GetPatternStorage returns the pattern storage instance
+func (c *Container) GetPatternStorage() intelligence.PatternStorage {
+	return c.PatternStorage
+}
+
+// GetPatternEngine returns the pattern engine instance
+func (c *Container) GetPatternEngine() *intelligence.PatternEngine {
+	return c.PatternEngine
+}
+
+// GetAIService returns the AI service instance
+func (c *Container) GetAIService() sharedai.AIService {
+	return c.AIService
+}
+
+// GetDB returns the database connection
+func (c *Container) GetDB() *sql.DB {
+	return c.DB
+}
+
+// GetLogger returns the logger instance
+func (c *Container) GetLogger() logging.Logger {
+	return c.Logger
+}
+
+// initializeRealTimeSync sets up WebSocket handler and real-time sync coordinator
+func (c *Container) initializeRealTimeSync() {
+	// Initialize WebSocket handler
+	c.WebSocketHandler = handlers.NewWebSocketHandler(c.Config, nil)
+	
+	// Initialize real-time sync coordinator
+	c.RealtimeSyncCoord = sync.NewRealtimeSyncCoordinator(c.WebSocketHandler)
+	
+	c.Logger.Info("Real-time sync components initialized")
+}
+
+// GetWebSocketHandler returns the WebSocket handler instance
+func (c *Container) GetWebSocketHandler() *handlers.WebSocketHandler {
+	return c.WebSocketHandler
+}
+
+// GetRealtimeSyncCoordinator returns the real-time sync coordinator instance
+func (c *Container) GetRealtimeSyncCoordinator() *sync.RealtimeSyncCoordinator {
+	return c.RealtimeSyncCoord
 }

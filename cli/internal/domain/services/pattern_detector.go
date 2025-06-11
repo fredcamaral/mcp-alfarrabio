@@ -314,10 +314,9 @@ func (pd *patternDetectorImpl) UpdatePatternStatistics(
 	}
 
 	// Update pattern in repository
-	// TODO: Add Update method to PatternRepository interface
-	// if err := pd.patternRepo.Update(ctx, pattern); err != nil {
-	//     return fmt.Errorf("failed to update pattern: %w", err)
-	// }
+	if err := pd.patternRepo.Update(ctx, pattern); err != nil {
+		return fmt.Errorf("failed to update pattern: %w", err)
+	}
 
 	return nil
 }

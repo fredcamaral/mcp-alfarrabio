@@ -360,10 +360,13 @@ func (ts *templateServiceImpl) InstantiateTemplate(
 					dependsOn = append(dependsOn, depTask.ID)
 				}
 			}
-			// TODO: Add metadata support to Task entity
-			// Once metadata is supported, dependencies can be stored as:
-			// task.Metadata["depends_on"] = dependsOn
-			_ = dependsOn // Prevent unused variable warning
+			// Store dependencies in current task metadata
+			if currentTask, exists := taskMap[tmplTask.Order]; exists {
+				if currentTask.Metadata == nil {
+					currentTask.Metadata = make(map[string]interface{})
+				}
+				currentTask.Metadata["depends_on"] = dependsOn
+			}
 		}
 	}
 

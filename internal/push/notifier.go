@@ -1,4 +1,4 @@
-// Package push provides the main push notification service
+// Package push provides the main push notification service with multiple notification providers
 package push
 
 import (
@@ -7,6 +7,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"lerian-mcp-memory/internal/websocket"
 )
 
 // NotificationService provides the main push notification service interface
@@ -459,4 +461,453 @@ func (ns *NotificationService) GetComponentHealth() map[string]interface{} {
 		"queue":          ns.queue.IsRunning(),
 		"registry":       true, // Registry doesn't have a running state
 	}
+}
+
+// Notifier interface defines the contract for notification providers
+type Notifier interface {
+	// Send sends a notification and returns the result
+	Send(ctx context.Context, notification *Notification, endpoint *CLIEndpoint) (*DeliveryResult, error)
+
+	// GetType returns the notifier type
+	GetType() string
+
+	// IsHealthy checks if the notifier is healthy
+	IsHealthy() bool
+
+	// GetMetrics returns notifier-specific metrics
+	GetMetrics() map[string]interface{}
+}
+
+// InMemoryNotifier provides in-memory notification for development/testing
+type InMemoryNotifier struct {
+	mu            sync.RWMutex
+	notifications []NotificationRecord
+	maxRecords    int
+	metrics       NotifierMetrics
+}
+
+// NotificationRecord stores a notification with delivery status
+type NotificationRecord struct {
+	Notification *Notification   `json:"notification"`
+	Endpoint     *CLIEndpoint    `json:"endpoint"`
+	DeliveryTime time.Time       `json:"delivery_time"`
+	Success      bool            `json:"success"`
+	Error        string          `json:"error,omitempty"`
+	Result       *DeliveryResult `json:"result"`
+}
+
+// NotifierMetrics tracks notifier performance
+type NotifierMetrics struct {
+	TotalSent    int64         `json:"total_sent"`
+	SuccessCount int64         `json:"success_count"`
+	FailureCount int64         `json:"failure_count"`
+	AverageTime  time.Duration `json:"average_time"`
+	LastSent     time.Time     `json:"last_sent"`
+	Healthy      bool          `json:"healthy"`
+}
+
+// NewInMemoryNotifier creates a new in-memory notifier
+func NewInMemoryNotifier(maxRecords int) *InMemoryNotifier {
+	if maxRecords <= 0 {
+		maxRecords = 1000
+	}
+	return &InMemoryNotifier{
+		notifications: make([]NotificationRecord, 0, maxRecords),
+		maxRecords:    maxRecords,
+		metrics: NotifierMetrics{
+			Healthy: true,
+		},
+	}
+}
+
+// Send sends a notification to the in-memory store
+func (n *InMemoryNotifier) Send(ctx context.Context, notification *Notification, endpoint *CLIEndpoint) (*DeliveryResult, error) {
+	startTime := time.Now()
+
+	// Simulate processing time
+	select {
+	case <-time.After(10 * time.Millisecond):
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+
+	n.mu.Lock()
+	defer n.mu.Unlock()
+
+	// Create delivery result
+	result := &DeliveryResult{
+		NotificationID: notification.ID,
+		EndpointID:     endpoint.ID,
+		Success:        true,
+		StatusCode:     200,
+		Response:       "Notification stored in memory",
+		Duration:       time.Since(startTime),
+		Timestamp:      time.Now(),
+		Attempt:        notification.Attempts,
+	}
+
+	// Store notification record
+	record := NotificationRecord{
+		Notification: notification,
+		Endpoint:     endpoint,
+		DeliveryTime: time.Now(),
+		Success:      true,
+		Result:       result,
+	}
+
+	// Maintain max records limit
+	if len(n.notifications) >= n.maxRecords {
+		n.notifications = n.notifications[1:]
+	}
+	n.notifications = append(n.notifications, record)
+
+	// Update metrics
+	n.metrics.TotalSent++
+	n.metrics.SuccessCount++
+	n.metrics.LastSent = time.Now()
+	n.updateAverageTime(result.Duration)
+
+	log.Printf("InMemoryNotifier: Stored notification %s for endpoint %s", notification.ID, endpoint.ID)
+
+	return result, nil
+}
+
+// GetType returns the notifier type
+func (n *InMemoryNotifier) GetType() string {
+	return "in-memory"
+}
+
+// IsHealthy checks if the notifier is healthy
+func (n *InMemoryNotifier) IsHealthy() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.metrics.Healthy
+}
+
+// GetMetrics returns notifier metrics
+func (n *InMemoryNotifier) GetMetrics() map[string]interface{} {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	return map[string]interface{}{
+		"type":          n.GetType(),
+		"total_sent":    n.metrics.TotalSent,
+		"success_count": n.metrics.SuccessCount,
+		"failure_count": n.metrics.FailureCount,
+		"average_time":  n.metrics.AverageTime.String(),
+		"last_sent":     n.metrics.LastSent,
+		"healthy":       n.metrics.Healthy,
+		"stored_count":  len(n.notifications),
+		"max_records":   n.maxRecords,
+	}
+}
+
+// GetNotifications returns stored notifications (for testing/debugging)
+func (n *InMemoryNotifier) GetNotifications() []NotificationRecord {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	records := make([]NotificationRecord, len(n.notifications))
+	copy(records, n.notifications)
+	return records
+}
+
+// updateAverageTime updates the average processing time
+func (n *InMemoryNotifier) updateAverageTime(duration time.Duration) {
+	if n.metrics.AverageTime == 0 {
+		n.metrics.AverageTime = duration
+	} else {
+		// Weighted average with 90% weight on previous average
+		n.metrics.AverageTime = time.Duration(
+			int64(n.metrics.AverageTime)*9/10 + int64(duration)/10,
+		)
+	}
+}
+
+// WebSocketNotifier sends notifications via WebSocket
+type WebSocketNotifier struct {
+	server  *websocket.Server
+	metrics NotifierMetrics
+	mu      sync.RWMutex
+}
+
+// NewWebSocketNotifier creates a new WebSocket notifier
+func NewWebSocketNotifier(server *websocket.Server) *WebSocketNotifier {
+	return &WebSocketNotifier{
+		server: server,
+		metrics: NotifierMetrics{
+			Healthy: true,
+		},
+	}
+}
+
+// Send sends a notification via WebSocket
+func (n *WebSocketNotifier) Send(ctx context.Context, notification *Notification, endpoint *CLIEndpoint) (*DeliveryResult, error) {
+	startTime := time.Now()
+
+	// Check if server is running
+	if !n.server.IsRunning() {
+		return nil, fmt.Errorf("WebSocket server not running")
+	}
+
+	// Convert notification to memory event
+	event := &websocket.MemoryEvent{
+		Type:      "push_notification",
+		Action:    notification.Type,
+		Timestamp: notification.CreatedAt,
+		Data: map[string]interface{}{
+			"notification_id": notification.ID,
+			"priority":        notification.Priority,
+			"payload":         notification.Payload,
+			"metadata":        notification.Metadata,
+			"target_id":       notification.TargetID,
+		},
+	}
+
+	// Extract repository and session from notification metadata
+	if repo, ok := notification.Metadata["repository"]; ok {
+		event.Repository = repo
+	}
+	if session, ok := notification.Metadata["session_id"]; ok {
+		event.SessionID = session
+	}
+
+	// Broadcast event
+	n.server.BroadcastEvent(event)
+
+	duration := time.Since(startTime)
+
+	// Update metrics
+	n.mu.Lock()
+	n.metrics.TotalSent++
+	n.metrics.SuccessCount++
+	n.metrics.LastSent = time.Now()
+	n.updateAverageTime(duration)
+	n.mu.Unlock()
+
+	// Create delivery result
+	result := &DeliveryResult{
+		NotificationID: notification.ID,
+		EndpointID:     endpoint.ID,
+		Success:        true,
+		StatusCode:     200,
+		Response:       "Notification sent via WebSocket",
+		Duration:       duration,
+		Timestamp:      time.Now(),
+		Attempt:        notification.Attempts,
+	}
+
+	log.Printf("WebSocketNotifier: Sent notification %s via WebSocket", notification.ID)
+
+	return result, nil
+}
+
+// GetType returns the notifier type
+func (n *WebSocketNotifier) GetType() string {
+	return "websocket"
+}
+
+// IsHealthy checks if the notifier is healthy
+func (n *WebSocketNotifier) IsHealthy() bool {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+	return n.metrics.Healthy && n.server.IsRunning()
+}
+
+// GetMetrics returns notifier metrics
+func (n *WebSocketNotifier) GetMetrics() map[string]interface{} {
+	n.mu.RLock()
+	defer n.mu.RUnlock()
+
+	return map[string]interface{}{
+		"type":              n.GetType(),
+		"total_sent":        n.metrics.TotalSent,
+		"success_count":     n.metrics.SuccessCount,
+		"failure_count":     n.metrics.FailureCount,
+		"average_time":      n.metrics.AverageTime.String(),
+		"last_sent":         n.metrics.LastSent,
+		"healthy":           n.metrics.Healthy,
+		"server_running":    n.server.IsRunning(),
+		"connected_clients": n.server.GetConnectionCount(),
+	}
+}
+
+// updateAverageTime updates the average processing time
+func (n *WebSocketNotifier) updateAverageTime(duration time.Duration) {
+	if n.metrics.AverageTime == 0 {
+		n.metrics.AverageTime = duration
+	} else {
+		n.metrics.AverageTime = time.Duration(
+			int64(n.metrics.AverageTime)*9/10 + int64(duration)/10,
+		)
+	}
+}
+
+// MultiNotifier sends notifications to multiple providers
+type MultiNotifier struct {
+	notifiers []Notifier
+	mu        sync.RWMutex
+	metrics   MultiNotifierMetrics
+}
+
+// MultiNotifierMetrics tracks multi-notifier performance
+type MultiNotifierMetrics struct {
+	TotalNotifiers int                               `json:"total_notifiers"`
+	HealthyCount   int                               `json:"healthy_count"`
+	MetricsByType  map[string]map[string]interface{} `json:"metrics_by_type"`
+}
+
+// NewMultiNotifier creates a new multi-notifier
+func NewMultiNotifier(notifiers ...Notifier) *MultiNotifier {
+	return &MultiNotifier{
+		notifiers: notifiers,
+		metrics: MultiNotifierMetrics{
+			MetricsByType: make(map[string]map[string]interface{}),
+		},
+	}
+}
+
+// Send sends a notification to all configured notifiers
+func (m *MultiNotifier) Send(ctx context.Context, notification *Notification, endpoint *CLIEndpoint) (*DeliveryResult, error) {
+	startTime := time.Now()
+
+	m.mu.RLock()
+	notifiers := make([]Notifier, len(m.notifiers))
+	copy(notifiers, m.notifiers)
+	m.mu.RUnlock()
+
+	if len(notifiers) == 0 {
+		return nil, fmt.Errorf("no notifiers configured")
+	}
+
+	var successCount int
+	var lastError error
+	var results []*DeliveryResult
+
+	// Send to all notifiers concurrently
+	resultChan := make(chan *DeliveryResult, len(notifiers))
+	errorChan := make(chan error, len(notifiers))
+
+	for _, notifier := range notifiers {
+		go func(n Notifier) {
+			result, err := n.Send(ctx, notification, endpoint)
+			if err != nil {
+				errorChan <- err
+			} else {
+				resultChan <- result
+			}
+		}(notifier)
+	}
+
+	// Wait for all results
+	for i := 0; i < len(notifiers); i++ {
+		select {
+		case result := <-resultChan:
+			results = append(results, result)
+			if result.Success {
+				successCount++
+			}
+		case err := <-errorChan:
+			lastError = err
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+	}
+
+	// Create aggregated result
+	successful := successCount > 0
+	response := fmt.Sprintf("Sent to %d/%d notifiers", successCount, len(notifiers))
+	if lastError != nil {
+		response += fmt.Sprintf(" (last error: %v)", lastError)
+	}
+
+	result := &DeliveryResult{
+		NotificationID: notification.ID,
+		EndpointID:     endpoint.ID,
+		Success:        successful,
+		StatusCode:     200,
+		Response:       response,
+		Duration:       time.Since(startTime),
+		Timestamp:      time.Now(),
+		Attempt:        notification.Attempts,
+	}
+
+	return result, nil
+}
+
+// GetType returns the notifier type
+func (m *MultiNotifier) GetType() string {
+	return "multi"
+}
+
+// IsHealthy checks if any notifier is healthy
+func (m *MultiNotifier) IsHealthy() bool {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	for _, notifier := range m.notifiers {
+		if notifier.IsHealthy() {
+			return true
+		}
+	}
+	return false
+}
+
+// GetMetrics returns aggregated metrics from all notifiers
+func (m *MultiNotifier) GetMetrics() map[string]interface{} {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	healthyCount := 0
+	metricsByType := make(map[string]map[string]interface{})
+
+	for _, notifier := range m.notifiers {
+		if notifier.IsHealthy() {
+			healthyCount++
+		}
+		metricsByType[notifier.GetType()] = notifier.GetMetrics()
+	}
+
+	return map[string]interface{}{
+		"type":            m.GetType(),
+		"total_notifiers": len(m.notifiers),
+		"healthy_count":   healthyCount,
+		"metrics_by_type": metricsByType,
+	}
+}
+
+// AddNotifier adds a notifier to the multi-notifier
+func (m *MultiNotifier) AddNotifier(notifier Notifier) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.notifiers = append(m.notifiers, notifier)
+}
+
+// RemoveNotifier removes a notifier by type
+func (m *MultiNotifier) RemoveNotifier(notifierType string) bool {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for i, notifier := range m.notifiers {
+		if notifier.GetType() == notifierType {
+			m.notifiers = append(m.notifiers[:i], m.notifiers[i+1:]...)
+			return true
+		}
+	}
+	return false
+}
+
+// HTTPNotifier sends notifications via HTTP POST (placeholder for future implementation)
+type HTTPNotifier struct {
+	// TODO: Implement HTTP-based notification delivery
+}
+
+// EmailNotifier sends notifications via email (placeholder for future implementation)
+type EmailNotifier struct {
+	// TODO: Implement email-based notification delivery
+}
+
+// WebhookNotifier sends notifications via webhooks (placeholder for future implementation)
+type WebhookNotifier struct {
+	// TODO: Implement webhook-based notification delivery
 }

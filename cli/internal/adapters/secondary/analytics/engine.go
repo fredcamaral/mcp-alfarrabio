@@ -1159,7 +1159,10 @@ func (ae *analyticsEngineImpl) CalculateVelocityMetrics(
 	for weekKey, weekTasks := range weeklyTasks {
 		// Parse week key to get year and week number
 		var year, week int
-		fmt.Sscanf(weekKey, "%d-W%d", &year, &week)
+		if _, err := fmt.Sscanf(weekKey, "%d-W%d", &year, &week); err != nil {
+			ae.logger.Warn("failed to parse week key", slog.String("key", weekKey), slog.Any("error", err))
+			continue
+		}
 
 		// Calculate start of week
 		startOfWeek := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)

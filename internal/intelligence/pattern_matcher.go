@@ -47,7 +47,7 @@ func (bpm *BasicPatternMatcher) MatchPattern(chunks []types.ConversationChunk, p
 	// Calculate different matching scores
 	keywordScore := bpm.calculateKeywordMatch(features, pattern)
 	sequenceScore := bpm.calculateSequenceMatch(sequence, pattern.Steps)
-	contextScore := bpm.calculateContextMatch(features, pattern.Context)
+	contextScore := bpm.calculateContextMatch(features, pattern.Metadata)
 	typeScore := bpm.calculateTypeMatch(features, pattern.Type)
 
 	// Weighted combination
@@ -156,6 +156,10 @@ func (bpm *BasicPatternMatcher) calculateContextMatch(currentFeatures, patternCo
 		return 0.5 // Neutral score for patterns without context
 	}
 
+	if patternContext == nil {
+		return 0.5
+	}
+
 	matches := 0
 	total := len(patternContext)
 
@@ -171,22 +175,17 @@ func (bpm *BasicPatternMatcher) calculateContextMatch(currentFeatures, patternCo
 }
 
 func (bpm *BasicPatternMatcher) calculateTypeMatch(features map[string]any, patternType PatternType) float64 {
-	hasCode := features["has_code"].(bool)
-	hasErrors := features["has_errors"].(bool)
-	hasCommands := features["has_commands"].(bool)
+	hasCode, _ := features["has_code"].(bool)
+	hasErrors, _ := features["has_errors"].(bool)
+	hasCommands, _ := features["has_commands"].(bool)
 
 	switch patternType {
-	case PatternTypeProblemSolution:
-		if hasErrors {
-			return 0.8
-		}
-		return 0.4
-	case PatternTypeErrorResolution:
+	case PatternTypeError:
 		if hasErrors {
 			return 0.9
 		}
 		return 0.2
-	case PatternTypeCodeEvolution:
+	case PatternTypeCode:
 		if hasCode {
 			return 0.8
 		}
@@ -196,15 +195,24 @@ func (bpm *BasicPatternMatcher) calculateTypeMatch(features map[string]any, patt
 			return 0.7
 		}
 		return 0.5
-	case PatternTypeDebugging:
-		// Debugging patterns have moderate match score by default
-		if hasErrors || hasCode {
+	case PatternTypeArchitectural:
+		// Architectural patterns get moderate baseline
+		return 0.5
+	case PatternTypeBehavioral:
+		// Behavioral patterns based on interaction
+		return 0.5
+	case PatternTypeOptimization:
+		// Optimization patterns
+		if hasCode {
 			return 0.6
 		}
 		return 0.4
-	case PatternTypeDecisionMaking, PatternTypeArchitectural, PatternTypeConfiguration, PatternTypeTesting, PatternTypeRefactoring:
-		// These pattern types get a moderate baseline score
-		return 0.5
+	case PatternTypeRefactoring:
+		// Refactoring patterns
+		if hasCode {
+			return 0.7
+		}
+		return 0.4
 	default:
 		// Unknown pattern types get a baseline score
 		return 0.5

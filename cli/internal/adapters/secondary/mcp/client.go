@@ -162,6 +162,41 @@ func (c *HTTPMCPClient) UpdateTaskStatus(ctx context.Context, taskID string, sta
 	})
 }
 
+// QueryIntelligence queries the server's intelligence capabilities
+func (c *HTTPMCPClient) QueryIntelligence(ctx context.Context, operation string, options map[string]interface{}) (map[string]interface{}, error) {
+	if !c.IsOnline() {
+		return nil, ErrMCPOffline
+	}
+
+	request := MCPRequest{
+		JSONRPC: "2.0",
+		Method:  "memory_intelligence",
+		Params: map[string]interface{}{
+			"operation": operation,
+			"options":   options,
+		},
+		ID: 4,
+	}
+
+	var response MCPResponse
+	err := c.executeWithRetry(ctx, func() error {
+		return c.sendMCPRequest(ctx, request, &response)
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Return the result as a map
+	if result, ok := response.Result.(map[string]interface{}); ok {
+		return result, nil
+	}
+
+	return map[string]interface{}{
+		"result": response.Result,
+	}, nil
+}
+
 // TestConnection tests the connection to the MCP server
 func (c *HTTPMCPClient) TestConnection(ctx context.Context) error {
 	request := MCPRequest{

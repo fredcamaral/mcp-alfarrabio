@@ -18,6 +18,9 @@ type MCPClient interface {
 	// UpdateTaskStatus updates a task's status on the MCP server
 	UpdateTaskStatus(ctx context.Context, taskID string, status entities.Status) error
 
+	// QueryIntelligence queries the server's intelligence capabilities (patterns, suggestions, etc.)
+	QueryIntelligence(ctx context.Context, operation string, options map[string]interface{}) (map[string]interface{}, error)
+
 	// TestConnection tests the connection to the MCP server
 	TestConnection(ctx context.Context) error
 

@@ -39,6 +39,10 @@ type CLI struct {
 	repositoryDetector ports.RepositoryDetector
 	batchSyncService   *services.BatchSyncService
 
+	// Auto sync management
+	autoSyncCancel context.CancelFunc
+	autoSyncActive bool
+
 	// Intelligence services (optional)
 	intelligence *IntelligenceDependencies
 }
@@ -153,13 +157,21 @@ func (c *CLI) setupCommands() {
 		c.createTRDCommand(),
 		c.createTaskGenCommand(),
 		c.createWorkflowCommand(),
-		c.createREPLCommand(),
+		c.createREPLCommand(), // TUI with comprehensive dashboards
 		c.createSyncCommand(),
+		c.createCompletionCommand(), // Shell completion support
+		c.createVersionCommand(),    // Version information
+		c.createUpdateCommand(),     // Self-update mechanism
+		c.createDocsCommand(),       // OpenAPI documentation generation
+		c.createExportCommand(),     // Multi-format export capabilities
 	}
 
 	// Add intelligence-based commands if available
 	if c.intelligence != nil && c.intelligence.AnalyticsService != nil {
 		commands = append(commands, c.createAnalyticsCommand())
+	}
+	if c.intelligence != nil && c.intelligence.SuggestionService != nil {
+		commands = append(commands, c.createSuggestCommand())
 	}
 
 	c.RootCmd.AddCommand(commands...)

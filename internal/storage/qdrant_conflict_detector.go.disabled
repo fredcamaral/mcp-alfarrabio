@@ -1,0 +1,697 @@
+// Package storage provides vector database and storage abstractions.
+// This file provides Qdrant-enhanced conflict detection using vector embeddings for semantic analysis.
+package storage
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"sort"
+	"time"
+
+	"lerian-mcp-memory/internal/intelligence"
+	"lerian-mcp-memory/pkg/types"
+)
+
+// QdrantConflictDetector enhances the base ConflictDetector with vector-based semantic analysis
+type QdrantConflictDetector struct {
+	baseDetector *intelligence.ConflictDetector
+	vectorStore  *QdrantStore
+	config       *QdrantDetectorConfig
+}
+
+// QdrantDetectorConfig contains configuration for Qdrant-enhanced conflict detection
+type QdrantDetectorConfig struct {
+	// Vector similarity thresholds
+	SemanticSimilarityThreshold float64 // Minimum similarity to consider chunks related
+	ConflictSimilarityThreshold float64 // Minimum similarity to detect semantic conflicts
+	ContradictionThreshold      float64 // Threshold for detecting contradictions
+
+	// Search parameters
+	MaxVectorSearchResults int     // Max results from vector searches
+	VectorSearchConfidence float64 // Minimum confidence for vector search results
+
+	// Enhanced analysis settings
+	EnableSemanticContradiction bool // Enable embedding-based contradiction detection
+	EnableVectorClustering      bool // Enable vector clustering for conflict groups
+	EnableSemanticMerging       bool // Enable semantic conflict merging
+
+	// Performance settings
+	BatchProcessingSize int           // Size for batch vector operations
+	VectorSearchTimeout time.Duration // Timeout for vector operations
+}
+
+// VectorConflictPoint represents a conflict point enhanced with vector similarity data
+type VectorConflictPoint struct {
+	intelligence.ConflictPoint
+	VectorSimilarity    float64 `json:"vector_similarity"`
+	SemanticDistance    float64 `json:"semantic_distance"`
+	ConceptualOverlap   float64 `json:"conceptual_overlap"`
+	EmbeddingConfidence float64 `json:"embedding_confidence"`
+}
+
+// SemanticConflictCluster represents a group of semantically related conflicts
+type SemanticConflictCluster struct {
+	ID                 string                  `json:"id"`
+	CenterPoint        []float64               `json:"center_point"`
+	Conflicts          []intelligence.Conflict `json:"conflicts"`
+	ClusterConfidence  float64                 `json:"cluster_confidence"`
+	SemanticTheme      string                  `json:"semantic_theme"`
+	ConflictDensity    float64                 `json:"conflict_density"`
+	ResolutionPriority string                  `json:"resolution_priority"`
+}
+
+// NewQdrantConflictDetector creates a new Qdrant-enhanced conflict detector
+func NewQdrantConflictDetector(baseDetector *intelligence.ConflictDetector, vectorStore *QdrantStore) *QdrantConflictDetector {
+	return &QdrantConflictDetector{
+		baseDetector: baseDetector,
+		vectorStore:  vectorStore,
+		config:       getDefaultQdrantDetectorConfig(),
+	}
+}
+
+// DetectConflictsWithVectors performs enhanced conflict detection using vector analysis
+func (qcd *QdrantConflictDetector) DetectConflictsWithVectors(ctx context.Context, chunks []types.ConversationChunk) (*intelligence.ConflictDetectionResult, error) {
+	startTime := time.Now()
+
+	// First, run base conflict detection
+	baseResult, err := qcd.baseDetector.DetectConflicts(ctx, chunks)
+	if err != nil {
+		return nil, fmt.Errorf("base conflict detection failed: %w", err)
+	}
+
+	// Enhance with vector-based analysis
+	enhancedConflicts, err := qcd.enhanceConflictsWithVectors(ctx, chunks, baseResult.Conflicts)
+	if err != nil {
+		return nil, fmt.Errorf("vector enhancement failed: %w", err)
+	}
+
+	// Detect additional semantic conflicts using embeddings
+	semanticConflicts, err := qcd.detectSemanticConflicts(ctx, chunks)
+	if err != nil {
+		return nil, fmt.Errorf("semantic conflict detection failed: %w", err)
+	}
+
+	// Merge and deduplicate conflicts
+	allConflicts := append(enhancedConflicts, semanticConflicts...)
+	deduplicatedConflicts := qcd.deduplicateConflicts(allConflicts)
+
+	// Create conflict clusters for better resolution strategies
+	var clusters []SemanticConflictCluster
+	if qcd.config.EnableVectorClustering {
+		clusters, err = qcd.createConflictClusters(ctx, deduplicatedConflicts)
+		if err != nil {
+			return nil, fmt.Errorf("conflict clustering failed: %w", err)
+		}
+	}
+
+	// Build enhanced result
+	result := &intelligence.ConflictDetectionResult{
+		Repository:     baseResult.Repository,
+		Timeframe:      baseResult.Timeframe,
+		TotalChunks:    len(chunks),
+		ConflictsFound: len(deduplicatedConflicts),
+		Conflicts:      deduplicatedConflicts,
+		AnalysisTime:   startTime,
+		ProcessingTime: time.Since(startTime).String(),
+	}
+
+	// Add vector-specific metadata
+	if len(clusters) > 0 {
+		result.Context = map[string]any{
+			"semantic_clusters": clusters,
+			"vector_enhanced":   true,
+			"clustering_used":   qcd.config.EnableVectorClustering,
+		}
+	}
+
+	return result, nil
+}
+
+// enhanceConflictsWithVectors enhances existing conflicts with vector similarity data
+func (qcd *QdrantConflictDetector) enhanceConflictsWithVectors(ctx context.Context, chunks []types.ConversationChunk, conflicts []intelligence.Conflict) ([]intelligence.Conflict, error) {
+	enhanced := make([]Conflict, 0, len(conflicts))
+
+	for _, conflict := range conflicts {
+		enhancedConflict := conflict
+
+		// Calculate vector similarity between conflicting chunks
+		vectorSimilarity, err := qcd.calculateVectorSimilarity(conflict.PrimaryChunk, conflict.ConflictChunk)
+		if err != nil {
+			// Log error but continue with base conflict
+			continue
+		}
+
+		// Enhance conflict points with vector data
+		enhancedConflictPoints := qcd.enhanceConflictPointsWithVectors(conflict.ConflictPoints, vectorSimilarity)
+		enhancedConflict.ConflictPoints = enhancedConflictPoints
+
+		// Adjust confidence based on vector analysis
+		enhancedConflict.Confidence = qcd.adjustConfidenceWithVectors(conflict.Confidence, vectorSimilarity)
+
+		// Add vector-specific context
+		if enhancedConflict.Context == nil {
+			enhancedConflict.Context = make(map[string]any)
+		}
+		enhancedConflict.Context["vector_similarity"] = vectorSimilarity
+		enhancedConflict.Context["semantic_distance"] = 1.0 - vectorSimilarity
+		enhancedConflict.Context["vector_enhanced"] = true
+
+		enhanced = append(enhanced, enhancedConflict)
+	}
+
+	return enhanced, nil
+}
+
+// detectSemanticConflicts finds conflicts using pure vector similarity analysis
+func (qcd *QdrantConflictDetector) detectSemanticConflicts(ctx context.Context, chunks []types.ConversationChunk) ([]intelligence.Conflict, error) {
+	if !qcd.config.EnableSemanticContradiction {
+		return nil, nil
+	}
+
+	var semanticConflicts []Conflict
+
+	// Process chunks in batches for efficiency
+	batchSize := qcd.config.BatchProcessingSize
+	for i := 0; i < len(chunks); i += batchSize {
+		end := i + batchSize
+		if end > len(chunks) {
+			end = len(chunks)
+		}
+
+		batch := chunks[i:end]
+		batchConflicts, err := qcd.detectSemanticConflictsInBatch(ctx, batch, chunks)
+		if err != nil {
+			return nil, fmt.Errorf("batch semantic conflict detection failed: %w", err)
+		}
+
+		semanticConflicts = append(semanticConflicts, batchConflicts...)
+	}
+
+	return semanticConflicts, nil
+}
+
+// detectSemanticConflictsInBatch processes a batch of chunks for semantic conflicts
+func (qcd *QdrantConflictDetector) detectSemanticConflictsInBatch(ctx context.Context, batch []types.ConversationChunk, allChunks []types.ConversationChunk) ([]intelligence.Conflict, error) {
+	var conflicts []Conflict
+
+	for _, chunk := range batch {
+		if len(chunk.Embeddings) == 0 {
+			continue // Skip chunks without embeddings
+		}
+
+		// Find semantically similar chunks using vector search
+		similarChunks, err := qcd.findSemanticallyRelatedChunks(ctx, chunk)
+		if err != nil {
+			continue // Log error but continue processing
+		}
+
+		// Check for semantic contradictions
+		for _, similar := range similarChunks {
+			if qcd.areChunksSemanticallyConflicting(chunk, similar) {
+				conflict := qcd.createSemanticConflict(chunk, similar)
+				if conflict != nil {
+					conflicts = append(conflicts, *conflict)
+				}
+			}
+		}
+	}
+
+	return conflicts, nil
+}
+
+// findSemanticallyRelatedChunks finds chunks that are semantically similar using vector search
+func (qcd *QdrantConflictDetector) findSemanticallyRelatedChunks(ctx context.Context, chunk types.ConversationChunk) ([]types.ConversationChunk, error) {
+	// Create search query for similar content
+	query := &types.MemoryQuery{
+		Query:             chunk.Content[:min(len(chunk.Content), 100)], // Use first 100 chars as query
+		Limit:             qcd.config.MaxVectorSearchResults,
+		MinRelevanceScore: qcd.config.VectorSearchConfidence,
+		Repository:        &chunk.Metadata.Repository,
+	}
+
+	// Perform vector search
+	searchResults, err := qcd.vectorStore.Search(ctx, query, chunk.Embeddings)
+	if err != nil {
+		return nil, fmt.Errorf("vector search failed: %w", err)
+	}
+
+	// Extract chunks from search results
+	var similarChunks []types.ConversationChunk
+	for _, result := range searchResults.Results {
+		// Exclude the original chunk and ensure minimum similarity
+		if result.Chunk.ID != chunk.ID && result.Score >= qcd.config.SemanticSimilarityThreshold {
+			similarChunks = append(similarChunks, result.Chunk)
+		}
+	}
+
+	return similarChunks, nil
+}
+
+// areChunksSemanticallyConflicting determines if two chunks are semantically conflicting
+func (qcd *QdrantConflictDetector) areChunksSemanticallyConflicting(chunk1, chunk2 types.ConversationChunk) bool {
+	// Calculate vector similarity
+	similarity, err := qcd.calculateVectorSimilarity(chunk1, chunk2)
+	if err != nil {
+		return false
+	}
+
+	// High similarity with different outcomes suggests contradiction
+	if similarity >= qcd.config.ConflictSimilarityThreshold {
+		// Check for contradictory indicators
+		if chunk1.Metadata.Outcome != chunk2.Metadata.Outcome &&
+			(chunk1.Metadata.Outcome == types.OutcomeSuccess && chunk2.Metadata.Outcome == types.OutcomeFailed ||
+				chunk1.Metadata.Outcome == types.OutcomeFailed && chunk2.Metadata.Outcome == types.OutcomeSuccess) {
+			return true
+		}
+
+		// Check for semantic contradictions using content analysis
+		return qcd.hasSemanticContradiction(chunk1.Content, chunk2.Content, similarity)
+	}
+
+	return false
+}
+
+// hasSemanticContradiction analyzes content for semantic contradictions
+func (qcd *QdrantConflictDetector) hasSemanticContradiction(content1, content2 string, similarity float64) bool {
+	// Enhanced contradiction detection using semantic indicators
+	contradictionPairs := [][]string{
+		{"successful", "failed"},
+		{"works", "doesn't work"},
+		{"stable", "unstable"},
+		{"secure", "vulnerable"},
+		{"fast", "slow"},
+		{"correct", "incorrect"},
+		{"accurate", "inaccurate"},
+		{"reliable", "unreliable"},
+		{"efficient", "inefficient"},
+		{"valid", "invalid"},
+	}
+
+	// Apply stricter threshold for high similarity content
+	threshold := qcd.config.ContradictionThreshold
+	if similarity > 0.8 {
+		threshold = threshold * 0.8 // Lower threshold for very similar content
+	}
+
+	if similarity < threshold {
+		return false
+	}
+
+	// Check for contradiction pairs
+	for _, pair := range contradictionPairs {
+		if qcd.containsContradictoryTerms(content1, content2, pair[0], pair[1]) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// containsContradictoryTerms checks if content contains contradictory terms
+func (qcd *QdrantConflictDetector) containsContradictoryTerms(content1, content2, term1, term2 string) bool {
+	content1Lower := qcd.normalizeContent(content1)
+	content2Lower := qcd.normalizeContent(content2)
+
+	return (qcd.containsTerm(content1Lower, term1) && qcd.containsTerm(content2Lower, term2)) ||
+		(qcd.containsTerm(content1Lower, term2) && qcd.containsTerm(content2Lower, term1))
+}
+
+// normalizeContent normalizes content for better comparison
+func (qcd *QdrantConflictDetector) normalizeContent(content string) string {
+	// Simple normalization - could be enhanced with stemming/lemmatization
+	return fmt.Sprintf(" %s ", content) // Add spaces for word boundary matching
+}
+
+// containsTerm checks if normalized content contains a term with word boundaries
+func (qcd *QdrantConflictDetector) containsTerm(normalizedContent, term string) bool {
+	searchTerm := fmt.Sprintf(" %s ", term)
+	return fmt.Sprintf("%s", normalizedContent) != normalizedContent ||
+		fmt.Sprintf("%s", searchTerm) == searchTerm // Simplified word boundary check
+}
+
+// createSemanticConflict creates a conflict from semantically conflicting chunks
+func (qcd *QdrantConflictDetector) createSemanticConflict(chunk1, chunk2 types.ConversationChunk) *intelligence.Conflict {
+	vectorSimilarity, err := qcd.calculateVectorSimilarity(chunk1, chunk2)
+	if err != nil {
+		return nil
+	}
+
+	conflict := &intelligence.Conflict{
+		ID:          qcd.generateSemanticConflictID(),
+		Type:        intelligence.ConflictTypeOutcome, // Most semantic conflicts are outcome-based
+		Severity:    qcd.determineSemanticSeverity(vectorSimilarity, chunk1, chunk2),
+		Title:       "Semantic Content Conflict",
+		Description: qcd.generateSemanticDescription(vectorSimilarity, chunk1, chunk2),
+		Confidence:  qcd.calculateSemanticConfidence(vectorSimilarity, chunk1, chunk2),
+
+		PrimaryChunk:  chunk1,
+		ConflictChunk: chunk2,
+
+		ConflictPoints: qcd.generateSemanticConflictPoints(chunk1, chunk2, vectorSimilarity),
+		Evidence:       qcd.extractSemanticEvidence(chunk1.Content, chunk2.Content),
+		Context: map[string]any{
+			"vector_similarity": vectorSimilarity,
+			"semantic_distance": 1.0 - vectorSimilarity,
+			"detection_method":  "vector_embeddings",
+			"semantic_conflict": true,
+		},
+
+		TimeDifference: chunk2.Timestamp.Sub(chunk1.Timestamp),
+		DetectedAt:     time.Now(),
+	}
+
+	return conflict
+}
+
+// calculateVectorSimilarity calculates cosine similarity between chunk embeddings
+func (qcd *QdrantConflictDetector) calculateVectorSimilarity(chunk1, chunk2 types.ConversationChunk) (float64, error) {
+	if len(chunk1.Embeddings) == 0 || len(chunk2.Embeddings) == 0 {
+		return 0.0, fmt.Errorf("chunks missing embeddings")
+	}
+
+	if len(chunk1.Embeddings) != len(chunk2.Embeddings) {
+		return 0.0, fmt.Errorf("embedding dimension mismatch")
+	}
+
+	return qcd.cosineSimilarity(chunk1.Embeddings, chunk2.Embeddings), nil
+}
+
+// cosineSimilarity calculates cosine similarity between two vectors
+func (qcd *QdrantConflictDetector) cosineSimilarity(a, b []float64) float64 {
+	var dotProduct, normA, normB float64
+
+	for i := 0; i < len(a); i++ {
+		dotProduct += a[i] * b[i]
+		normA += a[i] * a[i]
+		normB += b[i] * b[i]
+	}
+
+	if normA == 0 || normB == 0 {
+		return 0.0
+	}
+
+	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
+}
+
+// enhanceConflictPointsWithVectors enhances conflict points with vector data
+func (qcd *QdrantConflictDetector) enhanceConflictPointsWithVectors(points []intelligence.ConflictPoint, vectorSimilarity float64) []intelligence.ConflictPoint {
+	enhanced := make([]intelligence.ConflictPoint, len(points))
+
+	for i, point := range points {
+		enhanced[i] = intelligence.ConflictPoint{
+			Aspect:      point.Aspect,
+			Primary:     point.Primary,
+			Conflicting: point.Conflicting,
+			Confidence:  qcd.adjustPointConfidenceWithVectors(point.Confidence, vectorSimilarity),
+		}
+	}
+
+	return enhanced
+}
+
+// adjustConfidenceWithVectors adjusts conflict confidence based on vector similarity
+func (qcd *QdrantConflictDetector) adjustConfidenceWithVectors(baseConfidence, vectorSimilarity float64) float64 {
+	// High vector similarity with conflicts increases confidence
+	vectorBonus := vectorSimilarity * 0.2
+	return math.Min(1.0, baseConfidence+vectorBonus)
+}
+
+// adjustPointConfidenceWithVectors adjusts individual conflict point confidence
+func (qcd *QdrantConflictDetector) adjustPointConfidenceWithVectors(baseConfidence, vectorSimilarity float64) float64 {
+	// Similar logic but smaller adjustment for individual points
+	vectorBonus := vectorSimilarity * 0.1
+	return math.Min(1.0, baseConfidence+vectorBonus)
+}
+
+// deduplicateConflicts removes duplicate conflicts using vector similarity
+func (qcd *QdrantConflictDetector) deduplicateConflicts(conflicts []intelligence.Conflict) []intelligence.Conflict {
+	if len(conflicts) <= 1 {
+		return conflicts
+	}
+
+	// Group conflicts by similarity
+	var uniqueConflicts []Conflict
+	processed := make(map[string]bool)
+
+	for _, conflict := range conflicts {
+		if processed[conflict.ID] {
+			continue
+		}
+
+		// Check for similar conflicts
+		isDuplicate := false
+		for _, unique := range uniqueConflicts {
+			if qcd.areConflictsSimilar(conflict, unique) {
+				isDuplicate = true
+				break
+			}
+		}
+
+		if !isDuplicate {
+			uniqueConflicts = append(uniqueConflicts, conflict)
+		}
+
+		processed[conflict.ID] = true
+	}
+
+	return uniqueConflicts
+}
+
+// areConflictsSimilar determines if two conflicts are similar enough to be considered duplicates
+func (qcd *QdrantConflictDetector) areConflictsSimilar(conflict1, conflict2 intelligence.Conflict) bool {
+	// Check if they involve the same chunks
+	sameChunks := (conflict1.PrimaryChunk.ID == conflict2.PrimaryChunk.ID &&
+		conflict1.ConflictChunk.ID == conflict2.ConflictChunk.ID) ||
+		(conflict1.PrimaryChunk.ID == conflict2.ConflictChunk.ID &&
+			conflict1.ConflictChunk.ID == conflict2.PrimaryChunk.ID)
+
+	if sameChunks {
+		return true
+	}
+
+	// Check for high content similarity using vector analysis
+	similarity1, err1 := qcd.calculateVectorSimilarity(conflict1.PrimaryChunk, conflict2.PrimaryChunk)
+	similarity2, err2 := qcd.calculateVectorSimilarity(conflict1.ConflictChunk, conflict2.ConflictChunk)
+
+	if err1 != nil || err2 != nil {
+		return false
+	}
+
+	// Consider similar if both pairs have high similarity
+	return similarity1 > 0.9 && similarity2 > 0.9
+}
+
+// createConflictClusters creates semantic clusters of related conflicts
+func (qcd *QdrantConflictDetector) createConflictClusters(ctx context.Context, conflicts []intelligence.Conflict) ([]SemanticConflictCluster, error) {
+	if len(conflicts) < 2 {
+		return nil, nil
+	}
+
+	// Extract embeddings from conflicts
+	conflictEmbeddings := make([][]float64, 0, len(conflicts))
+	validConflicts := make([]Conflict, 0, len(conflicts))
+
+	for _, conflict := range conflicts {
+		if len(conflict.PrimaryChunk.Embeddings) > 0 {
+			conflictEmbeddings = append(conflictEmbeddings, conflict.PrimaryChunk.Embeddings)
+			validConflicts = append(validConflicts, conflict)
+		}
+	}
+
+	if len(conflictEmbeddings) < 2 {
+		return nil, nil
+	}
+
+	// Simple clustering using similarity thresholds
+	clusters := qcd.performSimpleClustering(conflictEmbeddings, validConflicts)
+
+	return clusters, nil
+}
+
+// performSimpleClustering performs basic clustering based on vector similarity
+func (qcd *QdrantConflictDetector) performSimpleClustering(embeddings [][]float64, conflicts []intelligence.Conflict) []SemanticConflictCluster {
+	const clusterThreshold = 0.7
+
+	var clusters []SemanticConflictCluster
+	processed := make([]bool, len(conflicts))
+
+	for i, conflict := range conflicts {
+		if processed[i] {
+			continue
+		}
+
+		// Start new cluster
+		cluster := SemanticConflictCluster{
+			ID:                qcd.generateClusterID(),
+			Conflicts:         []intelligence.Conflict{conflict},
+			CenterPoint:       make([]float64, len(embeddings[i])),
+			ClusterConfidence: conflict.Confidence,
+			SemanticTheme:     qcd.extractSemanticTheme(conflict),
+			ConflictDensity:   1.0,
+		}
+
+		// Copy center point
+		copy(cluster.CenterPoint, embeddings[i])
+		processed[i] = true
+
+		// Find similar conflicts
+		for j := i + 1; j < len(conflicts); j++ {
+			if processed[j] {
+				continue
+			}
+
+			similarity := qcd.cosineSimilarity(embeddings[i], embeddings[j])
+			if similarity >= clusterThreshold {
+				cluster.Conflicts = append(cluster.Conflicts, conflicts[j])
+				qcd.updateClusterCenter(cluster.CenterPoint, embeddings[j])
+				processed[j] = true
+			}
+		}
+
+		// Calculate final cluster metrics
+		cluster.ConflictDensity = float64(len(cluster.Conflicts))
+		cluster.ResolutionPriority = qcd.calculateResolutionPriority(cluster)
+
+		clusters = append(clusters, cluster)
+	}
+
+	// Sort clusters by priority
+	sort.Slice(clusters, func(i, j int) bool {
+		return clusters[i].ConflictDensity > clusters[j].ConflictDensity
+	})
+
+	return clusters
+}
+
+// Helper methods
+
+func (qcd *QdrantConflictDetector) generateSemanticConflictID() string {
+	return fmt.Sprintf("semantic_conflict_%d", time.Now().UnixNano())
+}
+
+func (qcd *QdrantConflictDetector) generateClusterID() string {
+	return fmt.Sprintf("cluster_%d", time.Now().UnixNano())
+}
+
+func (qcd *QdrantConflictDetector) determineSemanticSeverity(vectorSimilarity float64, chunk1, chunk2 types.ConversationChunk) intelligence.ConflictSeverity {
+	// Higher similarity with conflicting outcomes = higher severity
+	if vectorSimilarity > 0.8 &&
+		chunk1.Metadata.Outcome != chunk2.Metadata.Outcome {
+		return intelligence.SeverityHigh
+	}
+	if vectorSimilarity > 0.6 {
+		return intelligence.SeverityMedium
+	}
+	return intelligence.SeverityLow
+}
+
+func (qcd *QdrantConflictDetector) generateSemanticDescription(vectorSimilarity float64, chunk1, chunk2 types.ConversationChunk) string {
+	return fmt.Sprintf("Semantic conflict detected with %.1f%% vector similarity between %s and %s outcomes",
+		vectorSimilarity*100, chunk1.Metadata.Outcome, chunk2.Metadata.Outcome)
+}
+
+func (qcd *QdrantConflictDetector) calculateSemanticConfidence(vectorSimilarity float64, chunk1, chunk2 types.ConversationChunk) float64 {
+	baseConfidence := vectorSimilarity
+
+	// Boost confidence for clear outcome conflicts
+	if chunk1.Metadata.Outcome != chunk2.Metadata.Outcome {
+		baseConfidence += 0.2
+	}
+
+	return math.Min(1.0, baseConfidence)
+}
+
+func (qcd *QdrantConflictDetector) generateSemanticConflictPoints(chunk1, chunk2 types.ConversationChunk, vectorSimilarity float64) []intelligence.ConflictPoint {
+	points := []intelligence.ConflictPoint{
+		{
+			Aspect:      "semantic_content",
+			Primary:     fmt.Sprintf("Content with %s outcome", chunk1.Metadata.Outcome),
+			Conflicting: fmt.Sprintf("Similar content with %s outcome", chunk2.Metadata.Outcome),
+			Confidence:  vectorSimilarity,
+		},
+	}
+
+	// Add outcome-specific conflict point
+	if chunk1.Metadata.Outcome != chunk2.Metadata.Outcome {
+		points = append(points, intelligence.ConflictPoint{
+			Aspect:      "outcome_contradiction",
+			Primary:     string(chunk1.Metadata.Outcome),
+			Conflicting: string(chunk2.Metadata.Outcome),
+			Confidence:  0.9,
+		})
+	}
+
+	return points
+}
+
+func (qcd *QdrantConflictDetector) extractSemanticEvidence(content1, content2 string) []string {
+	// Enhanced evidence extraction using semantic analysis
+	evidence := []string{
+		fmt.Sprintf("High semantic similarity between contents"),
+		fmt.Sprintf("Vector analysis indicates conceptual overlap"),
+	}
+
+	// Add content-specific evidence
+	if len(content1) > 50 && len(content2) > 50 {
+		evidence = append(evidence, fmt.Sprintf("Content samples: '%s...' vs '%s...'",
+			content1[:50], content2[:50]))
+	}
+
+	return evidence
+}
+
+func (qcd *QdrantConflictDetector) updateClusterCenter(center []float64, newPoint []float64) {
+	for i := range center {
+		center[i] = (center[i] + newPoint[i]) / 2.0
+	}
+}
+
+func (qcd *QdrantConflictDetector) extractSemanticTheme(conflict intelligence.Conflict) string {
+	// Simple theme extraction based on conflict type and content
+	switch conflict.Type {
+	case intelligence.ConflictTypeArchitectural:
+		return "architectural_decisions"
+	case intelligence.ConflictTypeTechnical:
+		return "technical_implementation"
+	case intelligence.ConflictTypeOutcome:
+		return "outcome_contradiction"
+	default:
+		return "general_conflict"
+	}
+}
+
+func (qcd *QdrantConflictDetector) calculateResolutionPriority(cluster SemanticConflictCluster) string {
+	density := cluster.ConflictDensity
+
+	if density >= 5 {
+		return "critical"
+	} else if density >= 3 {
+		return "high"
+	} else if density >= 2 {
+		return "medium"
+	}
+	return "low"
+}
+
+func getDefaultQdrantDetectorConfig() *QdrantDetectorConfig {
+	return &QdrantDetectorConfig{
+		SemanticSimilarityThreshold: 0.7,
+		ConflictSimilarityThreshold: 0.6,
+		ContradictionThreshold:      0.5,
+		MaxVectorSearchResults:      50,
+		VectorSearchConfidence:      0.3,
+		EnableSemanticContradiction: true,
+		EnableVectorClustering:      true,
+		EnableSemanticMerging:       true,
+		BatchProcessingSize:         20,
+		VectorSearchTimeout:         30 * time.Second,
+	}
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}

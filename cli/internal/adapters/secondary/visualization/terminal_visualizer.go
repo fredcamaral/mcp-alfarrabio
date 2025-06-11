@@ -5,60 +5,49 @@ import (
 )
 
 // TerminalVisualizer implements visualization for terminal output
-type TerminalVisualizer struct{}
+// This is a simple wrapper around the full terminal visualizer implementation
+type TerminalVisualizer struct {
+	impl Visualizer
+}
 
 // NewSimpleTerminalVisualizer creates a new simple terminal visualizer
 func NewSimpleTerminalVisualizer() Visualizer {
-	return &TerminalVisualizer{}
+	return &TerminalVisualizer{
+		impl: NewTerminalVisualizer(DefaultTerminalVisualizerConfig()),
+	}
 }
 
 // GenerateVisualization creates terminal-based visualization
 func (v *TerminalVisualizer) GenerateVisualization(metrics *entities.WorkflowMetrics, format entities.VisFormat) ([]byte, error) {
-	// TODO: Implement terminal visualization
-	switch format {
-	case entities.VisFormatTerminal:
-		return []byte("Terminal visualization placeholder"), nil
-	case entities.VisFormatHTML:
-		return []byte("<html>HTML visualization placeholder</html>"), nil
-	case "json":
-		return []byte(`{"visualization": "JSON placeholder"}`), nil
-	default:
-		return []byte("Unsupported format"), nil
-	}
+	return v.impl.GenerateVisualization(metrics, format)
 }
 
 // RenderProductivityChart renders productivity chart
 func (v *TerminalVisualizer) RenderProductivityChart(metrics entities.ProductivityMetrics) string {
-	// TODO: Implement ASCII chart rendering
-	return "Productivity Chart Placeholder"
+	return v.impl.RenderProductivityChart(metrics)
 }
 
 // RenderVelocityChart renders velocity chart
 func (v *TerminalVisualizer) RenderVelocityChart(metrics entities.VelocityMetrics) string {
-	// TODO: Implement ASCII chart rendering
-	return "Velocity Chart Placeholder"
+	return v.impl.RenderVelocityChart(metrics)
 }
 
 // RenderBottlenecks renders bottleneck visualization
 func (v *TerminalVisualizer) RenderBottlenecks(bottlenecks []*entities.Bottleneck) string {
-	// TODO: Implement bottleneck visualization
-	return "Bottlenecks Visualization Placeholder"
+	return v.impl.RenderBottlenecks(bottlenecks)
 }
 
 // RenderCycleTimeChart renders cycle time chart
 func (v *TerminalVisualizer) RenderCycleTimeChart(metrics entities.CycleTimeMetrics) string {
-	// TODO: Implement cycle time chart rendering
-	return "Cycle Time Chart Placeholder"
+	return v.impl.RenderCycleTimeChart(metrics)
 }
 
 // RenderCompletionChart renders completion chart
 func (v *TerminalVisualizer) RenderCompletionChart(metrics entities.CompletionMetrics) string {
-	// TODO: Implement completion chart rendering
-	return "Completion Chart Placeholder"
+	return v.impl.RenderCompletionChart(metrics)
 }
 
 // RenderTrends renders trends visualization
 func (v *TerminalVisualizer) RenderTrends(trends entities.TrendAnalysis) string {
-	// TODO: Implement trends rendering
-	return "Trends Visualization Placeholder"
+	return v.impl.RenderTrends(trends)
 }

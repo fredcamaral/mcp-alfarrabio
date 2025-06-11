@@ -94,18 +94,17 @@ func (bsr *BasicSequenceRecognizer) LearnFromSequence(chunks []types.Conversatio
 
 	// Create or update pattern based on the sequence
 	pattern := Pattern{
-		ID:          generatePatternID(),
-		Type:        sequenceType,
-		Name:        bsr.generateSequenceName(sequenceType, actions),
-		Description: bsr.generateSequenceDescription(sequenceType, outcome),
-		Confidence:  bsr.calculateSequenceConfidence(chunks, outcome),
-		Frequency:   1,
-		SuccessRate: bsr.calculateSuccessRateFromOutcome(outcome),
-		Keywords:    bsr.extractSequenceKeywords(chunks),
-		Triggers:    bsr.extractSequenceTriggers(chunks),
-		Outcomes:    bsr.extractSequenceOutcomes(chunks, outcome),
-		Steps:       bsr.convertActionsToSteps(actions, chunks),
-		Context:     bsr.extractSequenceContext(chunks),
+		ID:               generatePatternID(),
+		Type:             sequenceType,
+		Name:             bsr.generateSequenceName(sequenceType, actions),
+		Description:      bsr.generateSequenceDescription(sequenceType, outcome),
+		ConfidenceScore:  bsr.calculateSequenceConfidence(chunks, outcome),
+		OccurrenceCount:  1,
+		Keywords:         bsr.extractSequenceKeywords(chunks),
+		Steps:            bsr.convertActionsToSteps(actions, chunks),
+		Metadata:         bsr.extractSequenceContext(chunks),
+		ValidationStatus: ValidationUnvalidated,
+		Version:          1,
 		Examples: []PatternExample{{
 			ID:           generatePatternID() + "_example_" + strconv.FormatInt(time.Now().Unix(), 10),
 			ChunkIDs:     extractChunkIDs(chunks),
@@ -116,7 +115,6 @@ func (bsr *BasicSequenceRecognizer) LearnFromSequence(chunks []types.Conversatio
 		}},
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-		LastUsed:  time.Now(),
 	}
 
 	// For now, we'll just store this pattern - in a full implementation,
@@ -191,16 +189,18 @@ func (bsr *BasicSequenceRecognizer) matchProblemSolutionSequence(chunks []types.
 
 	if similarity > 0.6 {
 		return &Pattern{
-			ID:          generatePatternID(),
-			Type:        PatternTypeProblemSolution,
-			Name:        "Problem-Solution Pattern",
-			Description: "A conversation pattern where a problem is identified and systematically solved",
-			Confidence:  similarity,
-			Keywords:    bsr.extractSequenceKeywords(chunks),
-			Steps:       bsr.convertActionsToSteps(actions, chunks),
-			Context:     bsr.extractSequenceContext(chunks),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:               generatePatternID(),
+			Type:             PatternTypeError,
+			Name:             "Problem-Solution Pattern",
+			Description:      "A conversation pattern where a problem is identified and systematically solved",
+			ConfidenceScore:  similarity,
+			Keywords:         bsr.extractSequenceKeywords(chunks),
+			Steps:            bsr.convertActionsToSteps(actions, chunks),
+			Metadata:         bsr.extractSequenceContext(chunks),
+			ValidationStatus: ValidationUnvalidated,
+			Version:          1,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
 		}
 	}
 
@@ -212,16 +212,18 @@ func (bsr *BasicSequenceRecognizer) matchDebuggingSequence(chunks []types.Conver
 
 	if similarity > 0.6 {
 		return &Pattern{
-			ID:          generatePatternID(),
-			Type:        PatternTypeDebugging,
-			Name:        "Debugging Pattern",
-			Description: "A systematic debugging and error resolution pattern",
-			Confidence:  similarity,
-			Keywords:    bsr.extractSequenceKeywords(chunks),
-			Steps:       bsr.convertActionsToSteps(actions, chunks),
-			Context:     bsr.extractSequenceContext(chunks),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:               generatePatternID(),
+			Type:             PatternTypeError,
+			Name:             "Debugging Pattern",
+			Description:      "A systematic debugging and error resolution pattern",
+			ConfidenceScore:  similarity,
+			Keywords:         bsr.extractSequenceKeywords(chunks),
+			Steps:            bsr.convertActionsToSteps(actions, chunks),
+			Metadata:         bsr.extractSequenceContext(chunks),
+			ValidationStatus: ValidationUnvalidated,
+			Version:          1,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
 		}
 	}
 
@@ -233,16 +235,18 @@ func (bsr *BasicSequenceRecognizer) matchWorkflowSequence(chunks []types.Convers
 
 	if similarity > 0.6 {
 		return &Pattern{
-			ID:          generatePatternID(),
-			Type:        PatternTypeWorkflow,
-			Name:        "Workflow Pattern",
-			Description: "A structured workflow pattern for completing tasks",
-			Confidence:  similarity,
-			Keywords:    bsr.extractSequenceKeywords(chunks),
-			Steps:       bsr.convertActionsToSteps(actions, chunks),
-			Context:     bsr.extractSequenceContext(chunks),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:               generatePatternID(),
+			Type:             PatternTypeWorkflow,
+			Name:             "Workflow Pattern",
+			Description:      "A structured workflow pattern for completing tasks",
+			ConfidenceScore:  similarity,
+			Keywords:         bsr.extractSequenceKeywords(chunks),
+			Steps:            bsr.convertActionsToSteps(actions, chunks),
+			Metadata:         bsr.extractSequenceContext(chunks),
+			ValidationStatus: ValidationUnvalidated,
+			Version:          1,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
 		}
 	}
 
@@ -258,16 +262,18 @@ func (bsr *BasicSequenceRecognizer) identifyCustomSequence(chunks []types.Conver
 	// Look for repeated or structured patterns
 	if bsr.hasStructuredPattern(actions) {
 		return &Pattern{
-			ID:          generatePatternID(),
-			Type:        PatternTypeWorkflow,
-			Name:        "Custom Workflow Pattern",
-			Description: "A custom conversation pattern identified from user interactions",
-			Confidence:  0.7,
-			Keywords:    bsr.extractSequenceKeywords(chunks),
-			Steps:       bsr.convertActionsToSteps(actions, chunks),
-			Context:     bsr.extractSequenceContext(chunks),
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			ID:               generatePatternID(),
+			Type:             PatternTypeWorkflow,
+			Name:             "Custom Workflow Pattern",
+			Description:      "A custom conversation pattern identified from user interactions",
+			ConfidenceScore:  0.7,
+			Keywords:         bsr.extractSequenceKeywords(chunks),
+			Steps:            bsr.convertActionsToSteps(actions, chunks),
+			Metadata:         bsr.extractSequenceContext(chunks),
+			ValidationStatus: ValidationUnvalidated,
+			Version:          1,
+			CreatedAt:        time.Now(),
+			UpdatedAt:        time.Now(),
 		}
 	}
 
@@ -381,10 +387,10 @@ func (bsr *BasicSequenceRecognizer) classifySequence(actions []string) PatternTy
 	text := strings.Join(actions, " ")
 
 	if strings.Contains(text, "problem") || strings.Contains(text, "error") {
-		return PatternTypeProblemSolution
+		return PatternTypeError
 	}
 	if strings.Contains(text, "debug") || strings.Contains(text, "investigate") {
-		return PatternTypeDebugging
+		return PatternTypeError
 	}
 
 	return PatternTypeWorkflow
@@ -392,24 +398,18 @@ func (bsr *BasicSequenceRecognizer) classifySequence(actions []string) PatternTy
 
 func (bsr *BasicSequenceRecognizer) generateSequenceName(sequenceType PatternType, _ []string) string {
 	switch sequenceType {
-	case PatternTypeProblemSolution:
-		return "Problem Resolution Sequence"
-	case PatternTypeDebugging:
-		return "Debugging Sequence"
+	case PatternTypeError:
+		return "Error Resolution Sequence"
 	case PatternTypeWorkflow:
 		return "Task Workflow Sequence"
-	case PatternTypeErrorResolution:
-		return "Error Resolution Sequence"
-	case PatternTypeCodeEvolution:
-		return "Code Evolution Sequence"
-	case PatternTypeDecisionMaking:
-		return "Decision Making Sequence"
+	case PatternTypeCode:
+		return "Code Development Sequence"
 	case PatternTypeArchitectural:
 		return "Architectural Design Sequence"
-	case PatternTypeConfiguration:
-		return "Configuration Sequence"
-	case PatternTypeTesting:
-		return "Testing Sequence"
+	case PatternTypeBehavioral:
+		return "Behavioral Pattern Sequence"
+	case PatternTypeOptimization:
+		return "Optimization Sequence"
 	case PatternTypeRefactoring:
 		return "Refactoring Sequence"
 	default:

@@ -90,6 +90,32 @@ func (m *MockMCPClient) UpdateTaskStatus(ctx context.Context, taskID string, sta
 	return nil
 }
 
+// QueryIntelligence mocks intelligence queries (returns empty suggestions when offline)
+func (m *MockMCPClient) QueryIntelligence(ctx context.Context, operation string, options map[string]interface{}) (map[string]interface{}, error) {
+	if !m.online {
+		return nil, ErrMCPOffline
+	}
+
+	// Return mock intelligence response based on operation
+	switch operation {
+	case "suggest_related":
+		return map[string]interface{}{
+			"suggestions": []map[string]interface{}{
+				{
+					"name":        "Mock server suggestion",
+					"description": "This is a mock suggestion from the pattern engine",
+					"type":        "workflow",
+					"confidence":  0.75,
+				},
+			},
+		}, nil
+	default:
+		return map[string]interface{}{
+			"result": "mock response",
+		}, nil
+	}
+}
+
 // TestConnection mocks testing the connection
 func (m *MockMCPClient) TestConnection(ctx context.Context) error {
 	if !m.online {

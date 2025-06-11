@@ -10,6 +10,9 @@ import (
 // Repository interfaces for services
 type PatternRepository interface {
 	Create(ctx context.Context, pattern *entities.TaskPattern) error
+	Update(ctx context.Context, pattern *entities.TaskPattern) error
+	Delete(ctx context.Context, id string) error
+	GetByID(ctx context.Context, id string) (*entities.TaskPattern, error)
 	GetByRepository(ctx context.Context, repository string) ([]*entities.TaskPattern, error)
 	GetByType(ctx context.Context, patternType entities.PatternType) ([]*entities.TaskPattern, error)
 	FindByRepository(ctx context.Context, repository string) ([]*entities.TaskPattern, error)

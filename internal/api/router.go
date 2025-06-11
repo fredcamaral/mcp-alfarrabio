@@ -5,7 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 
@@ -22,22 +24,33 @@ import (
 
 // Router represents the main API router
 type Router struct {
-	config     *config.Config
-	mux        *chi.Mux
-	version    string
-	aiService  *ai.Service
-	prdStorage handlers.PRDStorage
+	config        *config.Config
+	mux           *chi.Mux
+	version       string
+	aiService     *ai.Service
+	prdStorage    handlers.PRDStorage
+	wsHandler     *handlers.WebSocketHandler
+	shutdownFuncs []func(context.Context) error
 }
 
 // NewRouter creates a new API router with middleware and routes
 func NewRouter(cfg *config.Config, aiService *ai.Service, prdStorage handlers.PRDStorage) *Router {
 	r := &Router{
-		config:     cfg,
-		mux:        chi.NewRouter(),
-		version:    "1.0.0",
-		aiService:  aiService,
-		prdStorage: prdStorage,
+		config:        cfg,
+		mux:           chi.NewRouter(),
+		version:       "1.0.0",
+		aiService:     aiService,
+		prdStorage:    prdStorage,
+		shutdownFuncs: make([]func(context.Context) error, 0),
 	}
+
+	// Create WebSocket handler
+	// Use standard logger for now - in production, inject a proper logger
+	logger := log.New(os.Stdout, "[WebSocket] ", log.LstdFlags|log.Lshortfile)
+	r.wsHandler = handlers.NewWebSocketHandler(cfg, logger)
+
+	// Register shutdown function for WebSocket handler
+	r.shutdownFuncs = append(r.shutdownFuncs, r.wsHandler.Shutdown)
 
 	r.setupMiddleware()
 	r.setupRoutes()
@@ -105,14 +118,40 @@ func (r *Router) isDevEnvironment() bool {
 
 // setupRoutes configures API routes
 func (r *Router) setupRoutes() {
-	// Health check endpoint (no version prefix for load balancers)
+	// Health check endpoints (no version prefix for load balancers)
 	healthHandler := handlers.NewHealthHandler(r.config)
 	r.mux.Get("/health", healthHandler.Handle)
+	r.mux.Get("/readiness", healthHandler.HandleReadiness)
+	r.mux.Get("/liveness", healthHandler.HandleLiveness)
 
 	// API v1 routes
 	r.mux.Route("/api/v1", func(rtr chi.Router) {
-		// Health check with version prefix
+		// Health check endpoints with version prefix
 		rtr.Get("/health", healthHandler.Handle)
+		rtr.Get("/readiness", healthHandler.HandleReadiness)
+		rtr.Get("/liveness", healthHandler.HandleLiveness)
+
+		// AI endpoints for document generation - REMOVED
+		// These HTTP endpoints are no longer needed as CLI now uses shared AI package directly
+		// This eliminates the HTTP dependency and improves performance
+		// Server AI functionality is still available through MCP protocol
+		/* REMOVED: AI HTTP endpoints
+		if r.aiService != nil {
+			aiHandler := handlers.NewAIHandler(r.aiService)
+			rtr.Route("/ai", func(aiRouter chi.Router) {
+				aiRouter.Post("/generate/prd", aiHandler.GeneratePRD)
+				aiRouter.Post("/generate/trd", aiHandler.GenerateTRD)
+				aiRouter.Post("/generate/main-tasks", aiHandler.GenerateMainTasks)
+				aiRouter.Post("/generate/sub-tasks", aiHandler.GenerateSubTasks)
+				aiRouter.Post("/analyze/content", aiHandler.AnalyzeContent)
+				aiRouter.Post("/analyze/complexity", aiHandler.EstimateComplexity)
+				aiRouter.Post("/session/start", aiHandler.StartInteractiveSession)
+				aiRouter.Post("/session/{id}/continue", aiHandler.ContinueSession)
+				aiRouter.Post("/session/{id}/end", aiHandler.EndSession)
+				aiRouter.Get("/models", aiHandler.GetAvailableModels)
+			})
+		}
+		*/
 
 		// PRD endpoints (from ST-006-03)
 		if r.prdStorage != nil {
@@ -178,6 +217,19 @@ func (r *Router) setupRoutes() {
 		}
 	})
 
+	// WebSocket routes
+	r.mux.Route("/ws", func(wsRouter chi.Router) {
+		// WebSocket upgrade endpoint - must be at /ws root
+		wsRouter.HandleFunc("/", r.wsHandler.HandleUpgrade)
+
+		// WebSocket management endpoints
+		wsRouter.Get("/status", r.wsHandler.HandleStatus)
+		wsRouter.Get("/metrics", r.wsHandler.HandleMetrics)
+		wsRouter.Post("/broadcast", r.wsHandler.HandleBroadcast)
+		wsRouter.Get("/health", r.wsHandler.HandleHealthCheck)
+		wsRouter.Get("/connections", r.wsHandler.HandleConnectionInfo)
+	})
+
 	// Root endpoint with server info
 	r.mux.Get("/", r.handleRoot)
 
@@ -191,10 +243,13 @@ func (r *Router) setupRoutes() {
 // handleRoot handles requests to the root endpoint
 func (r *Router) handleRoot(w http.ResponseWriter, req *http.Request) {
 	endpoints := map[string]string{
-		"health":  "/health",
-		"api":     "/api/v1",
-		"docs":    "/docs",
-		"openapi": "/api/v1/openapi.json",
+		"health":    "/health",
+		"readiness": "/readiness",
+		"liveness":  "/liveness",
+		"api":       "/api/v1",
+		"docs":      "/docs",
+		"openapi":   "/api/v1/openapi.json",
+		"websocket": "/ws",
 	}
 
 	// Add available endpoints based on configured services
@@ -221,6 +276,19 @@ func (r *Router) handleRoot(w http.ResponseWriter, req *http.Request) {
 			"ai_task_generation": r.aiService != nil,
 			"prd_processing":     r.prdStorage != nil,
 			"task_suggestions":   r.aiService != nil && r.prdStorage != nil,
+			"websocket":          r.wsHandler != nil,
+			"ai_http_endpoints":  false, // HTTP AI endpoints removed - use shared AI package
+		},
+		"websocket": map[string]interface{}{
+			"available": r.wsHandler != nil,
+			"endpoints": map[string]string{
+				"upgrade":     "/ws",
+				"status":      "/ws/status",
+				"metrics":     "/ws/metrics",
+				"broadcast":   "/ws/broadcast",
+				"health":      "/ws/health",
+				"connections": "/ws/connections",
+			},
 		},
 	}
 
@@ -287,6 +355,30 @@ func (r *Router) GetServerConfig() *config.Config {
 func (r *Router) WithContext(ctx context.Context) *Router {
 	// Future enhancement: add context for request-scoped dependencies
 	return r
+}
+
+// Stop gracefully shuts down all router components
+func (r *Router) Stop(ctx context.Context) error {
+	var errs []error
+
+	// Execute all shutdown functions
+	for _, shutdownFunc := range r.shutdownFuncs {
+		if err := shutdownFunc(ctx); err != nil {
+			errs = append(errs, err)
+		}
+	}
+
+	// Return combined error if any
+	if len(errs) > 0 {
+		return fmt.Errorf("router shutdown errors: %v", errs)
+	}
+
+	return nil
+}
+
+// GetWebSocketHandler returns the WebSocket handler for external access
+func (r *Router) GetWebSocketHandler() *handlers.WebSocketHandler {
+	return r.wsHandler
 }
 
 // createMockTaskService creates a mock task service for development/testing

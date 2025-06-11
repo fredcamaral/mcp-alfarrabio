@@ -4,21 +4,41 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
-// TaskFilters defines criteria for filtering tasks
+// TaskFilters defines criteria for filtering tasks (maintains backward compatibility)
 type TaskFilters struct {
-	Status        *entities.Status
-	Priority      *entities.Priority
-	Repository    string
-	Tags          []string
-	ParentID      string
-	SessionID     string
-	CreatedAfter  *string // ISO date string
-	CreatedBefore *string // ISO date string
-	Search        string  // Content search
+	Status          *entities.Status
+	Priority        *entities.Priority
+	Repository      string
+	Tags            []string
+	ParentID        string
+	SessionID       string
+	CreatedAfter    *string // ISO date string
+	CreatedBefore   *string // ISO date string
+	UpdatedAfter    *string // ISO date string
+	UpdatedBefore   *string // ISO date string
+	DueAfter        *string // ISO date string
+	DueBefore       *string // ISO date string
+	CompletedAfter  *string // ISO date string
+	CompletedBefore *string // ISO date string
+	OverdueOnly     bool    // Filter to only overdue tasks
+	DueSoon         *int    // Tasks due within X hours
+	HasDueDate      *bool   // Filter by presence of due date
+	Search          string  // Content search
+
+	// Extended fields for advanced search
+	ExcludeTags      []string       // Tags to exclude
+	SearchFields     []string       // Specific fields to search (content, tags, metadata)
+	FuzzySearch      bool           // Enable fuzzy matching
+	FuzzyThreshold   float64        // Fuzzy match threshold (0.0-1.0)
+	CaseSensitive    bool           // Case-sensitive search
+	ExactMatch       bool           // Exact phrase matching
+	EstimatedTimeMin *time.Duration // Minimum estimated time
+	EstimatedTimeMax *time.Duration // Maximum estimated time
 }
 
 // TaskSortOptions defines sorting criteria for task lists

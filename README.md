@@ -4,10 +4,19 @@
 
 ## 🚀 Quick Start (2 minutes)
 
+### Prerequisites
+- Docker installed and running
+- OpenAI API key (for embeddings) - [Get one here](https://platform.openai.com/api-keys)
+
 ```bash
 # 1. Clone and start the server
 git clone https://github.com/LerianStudio/lerian-mcp-memory.git
 cd lerian-mcp-memory
+
+# If you don't have OPENAI_API_KEY in your environment:
+cp .env.example .env
+# Edit .env and add your OpenAI API key
+
 make docker-up
 
 # 2. Add to your AI client config:
@@ -68,16 +77,17 @@ make dev-docker-up
 
 ## 🔧 Configuration
 
-### Basic Setup (Optional)
-The server works out-of-the-box, but you can customize it:
+### Basic Setup
+The server requires an OpenAI API key for embeddings:
 
 ```bash
+# If not already done in quick start:
 cp .env.example .env
-# Edit .env to set your OPENAI_API_KEY (defaults to global env variable)
+# Edit .env to set your OPENAI_API_KEY
 ```
 
 ### Key Settings in `.env`:
-- `OPENAI_API_KEY` - For AI-powered search (uses your global key by default)
+- `OPENAI_API_KEY` - **Required** for embeddings (defaults to your global `OPENAI_API_KEY` env variable)
 - `MCP_MEMORY_LOG_LEVEL` - Set to `debug` for troubleshooting
 - `MCP_HOST_PORT` - Change from default 9080 if needed
 

@@ -236,6 +236,7 @@ func (s *TaskService) applyTaskUpdates(task *entities.Task, updates *TaskUpdates
 	}
 
 	s.applyTagUpdates(task, updates)
+	s.applyMetadataUpdates(task, updates)
 
 	return nil
 }
@@ -251,6 +252,12 @@ func (s *TaskService) applyBasicUpdates(task *entities.Task, updates *TaskUpdate
 	if updates.Priority != nil {
 		if err := task.SetPriority(*updates.Priority); err != nil {
 			return fmt.Errorf("failed to update priority: %w", err)
+		}
+	}
+
+	if updates.DueDate != nil {
+		if err := task.SetDueDate(updates.DueDate); err != nil {
+			return fmt.Errorf("failed to update due date: %w", err)
 		}
 	}
 
@@ -277,6 +284,17 @@ func (s *TaskService) applyTagUpdates(task *entities.Task, updates *TaskUpdates)
 
 	for _, tag := range updates.RemoveTags {
 		task.RemoveTag(tag)
+	}
+}
+
+// applyMetadataUpdates applies metadata additions and removals
+func (s *TaskService) applyMetadataUpdates(task *entities.Task, updates *TaskUpdates) {
+	for key, value := range updates.SetMetadata {
+		task.SetMetadata(key, value)
+	}
+
+	for _, key := range updates.RemoveMetadata {
+		task.RemoveMetadata(key)
 	}
 }
 
@@ -328,6 +346,53 @@ func (s *TaskService) SearchTasks(ctx context.Context, query string, filters *po
 	return tasks, nil
 }
 
+// SearchAllRepositories searches for tasks across all repositories
+func (s *TaskService) SearchAllRepositories(ctx context.Context, filters *ports.TaskFilters) ([]*entities.Task, error) {
+	if filters == nil {
+		filters = &ports.TaskFilters{}
+	}
+
+	// Clear repository filter to search all repositories
+	originalRepo := filters.Repository
+	filters.Repository = ""
+
+	// Get all repositories first
+	repositories, err := s.storage.ListRepositories(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get repositories: %w", err)
+	}
+
+	var allTasks []*entities.Task
+
+	// Search each repository
+	for _, repo := range repositories {
+		filters.Repository = repo
+		tasks, err := s.storage.SearchTasks(ctx, filters.Search, filters)
+		if err != nil {
+			s.logger.Warn("failed to search repository",
+				slog.String("repository", repo),
+				slog.String("error", err.Error()))
+			continue
+		}
+		allTasks = append(allTasks, tasks...)
+	}
+
+	// Restore original repository filter
+	filters.Repository = originalRepo
+
+	// Sort by relevance/creation date
+	sort.Slice(allTasks, func(i, j int) bool {
+		return allTasks[i].CreatedAt.After(allTasks[j].CreatedAt)
+	})
+
+	s.logger.Debug("searched all repositories",
+		slog.String("query", filters.Search),
+		slog.Int("repositories", len(repositories)),
+		slog.Int("total_results", len(allTasks)))
+
+	return allTasks, nil
+}
+
 // GetRepositoryStats returns statistics for a repository
 func (s *TaskService) GetRepositoryStats(ctx context.Context, repository string) (ports.RepositoryStats, error) {
 	if repository == "" {
@@ -349,12 +414,15 @@ func (s *TaskService) ListRepositories(ctx context.Context) ([]string, error) {
 
 // TaskUpdates represents the updates that can be applied to a task
 type TaskUpdates struct {
-	Content       *string
-	Priority      *entities.Priority
-	EstimatedMins *int
-	ActualMins    *int
-	AddTags       []string
-	RemoveTags    []string
+	Content        *string
+	Priority       *entities.Priority
+	DueDate        *time.Time
+	EstimatedMins  *int
+	ActualMins     *int
+	AddTags        []string
+	RemoveTags     []string
+	SetMetadata    map[string]interface{}
+	RemoveMetadata []string
 }
 
 // Functional options for task creation
@@ -403,7 +471,41 @@ func WithAISuggested() TaskOption {
 	}
 }
 
+// WithDueDate sets task due date
+func WithDueDate(dueDate time.Time) TaskOption {
+	return func(t *entities.Task) {
+		t.DueDate = &dueDate
+	}
+}
+
+// WithMetadata sets task metadata
+func WithMetadata(metadata map[string]interface{}) TaskOption {
+	return func(t *entities.Task) {
+		if t.Metadata == nil {
+			t.Metadata = make(map[string]interface{})
+		}
+		for k, v := range metadata {
+			t.Metadata[k] = v
+		}
+	}
+}
+
 // Helper methods
+
+func (s *TaskService) isEmptyFilter(filters *ports.TaskFilters) bool {
+	return filters.Search == "" &&
+		filters.CreatedAfter == nil &&
+		filters.CreatedBefore == nil &&
+		filters.UpdatedAfter == nil &&
+		filters.UpdatedBefore == nil &&
+		filters.DueAfter == nil &&
+		filters.DueBefore == nil &&
+		filters.CompletedAfter == nil &&
+		filters.CompletedBefore == nil &&
+		!filters.OverdueOnly &&
+		filters.DueSoon == nil &&
+		filters.HasDueDate == nil
+}
 
 func (s *TaskService) validateStatusTransition(current, newStatus entities.Status) error {
 	// Business rules for status transitions
@@ -427,7 +529,7 @@ func (s *TaskService) validateStatusTransition(current, newStatus entities.Statu
 }
 
 func (s *TaskService) applyAdvancedFilters(tasks []*entities.Task, filters *ports.TaskFilters) []*entities.Task {
-	if filters == nil || (filters.Search == "" && filters.CreatedAfter == nil && filters.CreatedBefore == nil) {
+	if filters == nil || s.isEmptyFilter(filters) {
 		return tasks
 	}
 
@@ -454,17 +556,93 @@ func (s *TaskService) matchesAdvancedFilters(task *entities.Task, filters *ports
 		}
 	}
 
-	// Date filters (simplified - would need proper date parsing in production)
+	// Creation date filters
 	if filters.CreatedAfter != nil {
-		// Would implement proper date parsing here
-		// For now, just a placeholder
-		_ = filters.CreatedAfter // TODO: implement date comparison
+		if after, err := time.Parse(time.RFC3339, *filters.CreatedAfter); err == nil {
+			if task.CreatedAt.Before(after) {
+				return false
+			}
+		}
 	}
 
 	if filters.CreatedBefore != nil {
-		// Would implement proper date parsing here
-		// For now, just a placeholder
-		_ = filters.CreatedBefore // TODO: implement date comparison
+		if before, err := time.Parse(time.RFC3339, *filters.CreatedBefore); err == nil {
+			if task.CreatedAt.After(before) {
+				return false
+			}
+		}
+	}
+
+	// Update date filters
+	if filters.UpdatedAfter != nil {
+		if after, err := time.Parse(time.RFC3339, *filters.UpdatedAfter); err == nil {
+			if task.UpdatedAt.Before(after) {
+				return false
+			}
+		}
+	}
+
+	if filters.UpdatedBefore != nil {
+		if before, err := time.Parse(time.RFC3339, *filters.UpdatedBefore); err == nil {
+			if task.UpdatedAt.After(before) {
+				return false
+			}
+		}
+	}
+
+	// Due date filters
+	if filters.DueAfter != nil {
+		if after, err := time.Parse(time.RFC3339, *filters.DueAfter); err == nil {
+			if task.DueDate == nil || task.DueDate.Before(after) {
+				return false
+			}
+		}
+	}
+
+	if filters.DueBefore != nil {
+		if before, err := time.Parse(time.RFC3339, *filters.DueBefore); err == nil {
+			if task.DueDate == nil || task.DueDate.After(before) {
+				return false
+			}
+		}
+	}
+
+	// Completion date filters
+	if filters.CompletedAfter != nil {
+		if after, err := time.Parse(time.RFC3339, *filters.CompletedAfter); err == nil {
+			if task.CompletedAt == nil || task.CompletedAt.Before(after) {
+				return false
+			}
+		}
+	}
+
+	if filters.CompletedBefore != nil {
+		if before, err := time.Parse(time.RFC3339, *filters.CompletedBefore); err == nil {
+			if task.CompletedAt == nil || task.CompletedAt.After(before) {
+				return false
+			}
+		}
+	}
+
+	// Overdue filter
+	if filters.OverdueOnly && !task.IsOverdue() {
+		return false
+	}
+
+	// Due soon filter
+	if filters.DueSoon != nil {
+		duration := time.Duration(*filters.DueSoon) * time.Hour
+		if !task.IsDueSoon(duration) {
+			return false
+		}
+	}
+
+	// Has due date filter
+	if filters.HasDueDate != nil {
+		hasDueDate := task.DueDate != nil
+		if *filters.HasDueDate != hasDueDate {
+			return false
+		}
 	}
 
 	return true

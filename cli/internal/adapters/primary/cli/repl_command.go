@@ -1,10 +1,11 @@
 package cli
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"lerian-mcp-memory-cli/internal/adapters/secondary/tui"
 )
 
 // createREPLCommand creates the 'repl' command
@@ -15,33 +16,50 @@ func (c *CLI) createREPLCommand() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "repl",
-		Short: "Start interactive REPL for document generation",
-		Long: `Start an interactive Read-Eval-Print Loop (REPL) for AI-powered document generation.
+		Use:   "tui",
+		Short: "Start interactive TUI dashboard for multi-repository intelligence",
+		Long: `Start an interactive Terminal User Interface (TUI) with comprehensive dashboards.
 		
-The REPL provides an interactive environment for:
-- Creating PRDs and TRDs with AI assistance
-- Importing and analyzing existing documents
-- Generating development tasks
-- Managing document generation workflows`,
+The TUI provides:
+- 📊 Real-time multi-repository dashboard
+- 📈 Advanced analytics with interactive charts  
+- 🔄 Pattern detection and workflow analysis
+- 💡 Cross-repository insights and recommendations
+- 📋 Interactive task management
+- 🎯 AI-powered document generation (PRD/TRD)
+
+Navigation:
+- F1-F6: Switch between views (Command, Dashboard, Analytics, Tasks, Patterns, Insights)
+- Tab/hjkl: Navigate within views
+- Type 'help' in command mode for full instructions`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate mode
-			if mode != "" {
-				switch mode {
-				case "interactive", "workflow", "debug":
-					// Mode is valid
-				default:
-					return fmt.Errorf("invalid mode: %s (valid: interactive, workflow, debug)", mode)
-				}
+			replMode := tui.Interactive
+			switch mode {
+			case "interactive":
+				replMode = tui.Interactive
+			case "dashboard":
+				replMode = tui.Dashboard
+			case "analytics":
+				replMode = tui.Analytics
+			case "workflow":
+				replMode = tui.Workflow
+			case "debug":
+				replMode = tui.Debug
+			case "":
+				replMode = tui.Interactive
+			default:
+				return fmt.Errorf("invalid mode: %s (valid: interactive, dashboard, analytics, workflow, debug)", mode)
 			}
 
-			return errors.New("REPL functionality not yet implemented in standalone CLI - coming soon")
+			// Start the TUI
+			return tui.StartREPL(replMode, httpPort)
 		},
 	}
 
 	// Add flags
 	cmd.Flags().IntVarP(&httpPort, "port", "p", 0, "HTTP port for push notifications (0 to disable)")
-	cmd.Flags().StringVarP(&mode, "mode", "m", "interactive", "REPL mode (interactive, workflow, debug)")
+	cmd.Flags().StringVarP(&mode, "mode", "m", "interactive", "TUI mode (interactive, dashboard, analytics, workflow, debug)")
 
 	return cmd
 }

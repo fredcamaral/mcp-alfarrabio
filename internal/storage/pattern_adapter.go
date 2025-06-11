@@ -112,3 +112,42 @@ func (p *PatternStorageAdapter) SearchPatterns(ctx context.Context, query string
 	// This would need embedding generation and proper vector search
 	return []intelligence.Pattern{}, nil
 }
+
+// StoreOccurrence stores a pattern occurrence (not implemented in adapter)
+func (p *PatternStorageAdapter) StoreOccurrence(ctx context.Context, occurrence *intelligence.PatternOccurrence) error {
+	// Pattern occurrences are not supported in the vector store adapter
+	return nil
+}
+
+// GetOccurrences retrieves occurrences for a pattern (not implemented in adapter)
+func (p *PatternStorageAdapter) GetOccurrences(ctx context.Context, patternID string, limit int) ([]intelligence.PatternOccurrence, error) {
+	// Pattern occurrences are not supported in the vector store adapter
+	return []intelligence.PatternOccurrence{}, nil
+}
+
+// StoreRelationship stores a pattern relationship (not implemented in adapter)
+func (p *PatternStorageAdapter) StoreRelationship(ctx context.Context, relationship *intelligence.PatternRelationship) error {
+	// Pattern relationships are not supported in the vector store adapter
+	return nil
+}
+
+// GetRelationships retrieves relationships for a pattern (not implemented in adapter)
+func (p *PatternStorageAdapter) GetRelationships(ctx context.Context, patternID string) ([]intelligence.PatternRelationship, error) {
+	// Pattern relationships are not supported in the vector store adapter
+	return []intelligence.PatternRelationship{}, nil
+}
+
+// UpdateConfidence updates pattern confidence based on feedback (not implemented in adapter)
+func (p *PatternStorageAdapter) UpdateConfidence(ctx context.Context, patternID string, isPositive bool) error {
+	// Confidence updates are not supported in the vector store adapter
+	return nil
+}
+
+// GetPatternStatistics retrieves pattern statistics (not implemented in adapter)
+func (p *PatternStorageAdapter) GetPatternStatistics(ctx context.Context) (map[string]interface{}, error) {
+	// Statistics are not supported in the vector store adapter
+	return map[string]interface{}{
+		"total_patterns": 0,
+		"message":        "Pattern statistics not available in vector store adapter",
+	}, nil
+}

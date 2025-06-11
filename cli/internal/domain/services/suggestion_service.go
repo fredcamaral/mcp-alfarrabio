@@ -646,15 +646,20 @@ func (ss *suggestionServiceImpl) getPriorityScore(priority string) float64 {
 }
 
 func (ss *suggestionServiceImpl) getUrgencyScore(task *entities.Task) float64 {
-	// TODO: Add DueDate field to Task entity
-	// if task.DueDate.IsZero() {
-	//	return 0.5 // No due date
-	// }
+	if task.DueDate == nil {
+		return 0.5 // No due date
+	}
 
-	// timeUntilDue := time.Until(task.DueDate)
-	// if timeUntilDue < 0 {
-	//	return 1.0 // Overdue
-	// }
+	timeUntilDue := time.Until(*task.DueDate)
+	if timeUntilDue < 0 {
+		return 1.0 // Overdue
+	}
+	if timeUntilDue < 24*time.Hour {
+		return 0.9 // Due soon
+	}
+	if timeUntilDue < 3*24*time.Hour {
+		return 0.7 // Due within 3 days
+	}
 
 	return 0.5 // Default urgency score
 }
@@ -748,13 +753,12 @@ func (ss *suggestionServiceImpl) generateTaskReasoning(task *entities.Task, work
 		reasons = append(reasons, "Good fit for current context and priorities")
 	}
 
-	// TODO: Add DueDate support to Task entity
-	// if !task.DueDate.IsZero() {
-	//	timeUntilDue := time.Until(task.DueDate)
-	//	if timeUntilDue < 24*time.Hour {
-	//		reasons = append(reasons, "Due soon - high urgency")
-	//	}
-	// }
+	if task.DueDate != nil {
+		timeUntilDue := time.Until(*task.DueDate)
+		if timeUntilDue < 24*time.Hour {
+			reasons = append(reasons, "Due soon - high urgency")
+		}
+	}
 
 	optimalType := ss.contextAnalyzer.PredictOptimalTaskType(workContext)
 	if task.Type == optimalType {

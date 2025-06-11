@@ -248,6 +248,26 @@ func (r *Registry) GetByFilter(filters map[string]string) []*CLIEndpoint {
 	return filtered
 }
 
+// GetByRepository returns all endpoints subscribed to a specific repository
+func (r *Registry) GetByRepository(repository string) []*CLIEndpoint {
+	return r.GetByFilter(map[string]string{"repository": repository})
+}
+
+// GetBySession returns all endpoints subscribed to a specific session
+func (r *Registry) GetBySession(sessionID string) []*CLIEndpoint {
+	return r.GetByFilter(map[string]string{"session_id": sessionID})
+}
+
+// GetByCapability returns all endpoints with a specific capability
+func (r *Registry) GetByCapability(capability string) []*CLIEndpoint {
+	return r.GetByFilter(map[string]string{"capability": capability})
+}
+
+// GetByVersion returns all endpoints with a specific CLI version
+func (r *Registry) GetByVersion(version string) []*CLIEndpoint {
+	return r.GetByFilter(map[string]string{"version": version})
+}
+
 // UpdateHealth updates the health status of an endpoint
 func (r *Registry) UpdateHealth(endpointID string, health *EndpointHealth) error {
 	r.mu.Lock()

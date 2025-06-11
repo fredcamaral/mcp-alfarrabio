@@ -111,6 +111,15 @@ func (fr *FallbackRouter) ProcessWithFallback(ctx context.Context, req *Request)
 func (fr *FallbackRouter) getFallbackChain(preferredModel Model) []Model {
 	var chain []Model
 
+	// Handle mock models
+	if preferredModel == Model("mock-model-1.0") || len(fr.clients) == 1 {
+		// If only mock models are available, return them
+		for model := range fr.clients {
+			chain = append(chain, model)
+		}
+		return chain
+	}
+
 	switch fr.strategy {
 	case StrategyClaudeFirst:
 		chain = fr.getClaudeFirstChain(preferredModel)

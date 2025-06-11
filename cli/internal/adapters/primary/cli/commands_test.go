@@ -376,7 +376,7 @@ func TestSearchCommandStructure(t *testing.T) {
 
 	// Test command properties
 	assert.Equal(t, "search", cmd.Name())
-	assert.Contains(t, cmd.Short, "Search")
+	assert.Contains(t, cmd.Short, "Advanced search")
 
 	// Test flags
 	statusFlag := cmd.Flags().Lookup("status")
@@ -431,8 +431,8 @@ func TestCommandArgsValidation(t *testing.T) {
 		{"delete without ID", cli.createDeleteCommand(), []string{}, true},
 
 		{"search with query", cli.createSearchCommand(), []string{"test"}, false},
-		{"search without query", cli.createSearchCommand(), []string{}, true},
-		{"search with multiple words", cli.createSearchCommand(), []string{"test", "query"}, false},
+		{"search without query", cli.createSearchCommand(), []string{}, false}, // Advanced search allows no args for interactive mode
+		{"search with multiple words", cli.createSearchCommand(), []string{"test", "query"}, true}, // MaximumNArgs(1)
 	}
 
 	for _, tt := range tests {

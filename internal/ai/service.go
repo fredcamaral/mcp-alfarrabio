@@ -107,7 +107,7 @@ type RateLimits struct {
 type Service struct {
 	clients      map[Model]Client
 	fallback     *FallbackRouter
-	cache        *Cache
+	cache        *CacheManager
 	metrics      *Metrics
 	config       *config.Config
 	primaryModel Model
@@ -135,12 +135,12 @@ func NewService(cfg *config.Config, logger logging.Logger) (*Service, error) {
 	// Initialize fallback router
 	service.fallback = NewFallbackRouter(service.clients)
 
-	// Initialize cache
-	cache, err := NewCache(cfg)
+	// Initialize cache manager
+	cacheManager, err := NewCacheManager(cfg, logger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to initialize cache: %w", err)
+		return nil, fmt.Errorf("failed to initialize cache manager: %w", err)
 	}
-	service.cache = cache
+	service.cache = cacheManager
 
 	// Initialize metrics
 	service.metrics = NewMetrics()
@@ -161,29 +161,29 @@ func (s *Service) initializeClients() error {
 
 	// Initialize Claude client
 	if s.config.AI.Claude.Enabled {
-		claudeClient, err := NewClaudeClient(&s.config.AI.Claude)
+		claudeAdapter, err := NewClaudeAdapter(&s.config.AI.Claude)
 		if err != nil {
-			return fmt.Errorf("failed to create Claude client: %w", err)
+			return fmt.Errorf("failed to create Claude adapter: %w", err)
 		}
-		s.clients[ModelClaude] = claudeClient
+		s.clients[ModelClaude] = claudeAdapter
 	}
 
 	// Initialize Perplexity client
 	if s.config.AI.Perplexity.Enabled {
-		perplexityClient, err := NewPerplexityClient(&s.config.AI.Perplexity)
+		perplexityAdapter, err := NewPerplexityAdapter(&s.config.AI.Perplexity)
 		if err != nil {
-			return fmt.Errorf("failed to create Perplexity client: %w", err)
+			return fmt.Errorf("failed to create Perplexity adapter: %w", err)
 		}
-		s.clients[ModelPerplexity] = perplexityClient
+		s.clients[ModelPerplexity] = perplexityAdapter
 	}
 
 	// Initialize OpenAI client
 	if s.config.AI.OpenAI.Enabled {
-		openaiClient, err := NewOpenAIClient(&s.config.AI.OpenAI)
+		openaiAdapter, err := NewOpenAIAdapter(&s.config.AI.OpenAI)
 		if err != nil {
-			return fmt.Errorf("failed to create OpenAI client: %w", err)
+			return fmt.Errorf("failed to create OpenAI adapter: %w", err)
 		}
-		s.clients[ModelOpenAI] = openaiClient
+		s.clients[ModelOpenAI] = openaiAdapter
 	}
 
 	if len(s.clients) == 0 {

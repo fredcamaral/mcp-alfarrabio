@@ -1,0 +1,822 @@
+// Package storage provides vector database and storage abstractions.
+// This file provides Qdrant-enhanced conflict resolution using vector embeddings for semantic analysis.
+package storage
+
+import (
+	"context"
+	"fmt"
+	"math"
+	"sort"
+	"time"
+
+	"lerian-mcp-memory/internal/intelligence"
+	"lerian-mcp-memory/pkg/types"
+)
+
+// QdrantConflictResolver enhances the base ConflictResolver with vector-based semantic resolution
+type QdrantConflictResolver struct {
+	baseResolver *intelligence.ConflictResolver
+	vectorStore  *QdrantStore
+	config       *QdrantResolverConfig
+}
+
+// QdrantResolverConfig contains configuration for Qdrant-enhanced conflict resolution
+type QdrantResolverConfig struct {
+	// Vector similarity thresholds for resolution decisions
+	SemanticMergeThreshold        float64 // Minimum similarity to attempt semantic merge
+	ConceptualAlignmentThreshold  float64 // Threshold for determining conceptual alignment
+	ResolutionConfidenceThreshold float64 // Minimum confidence for automatic resolution
+
+	// Resolution strategy weights based on vector analysis
+	VectorMergeWeight         float64 // Weight for vector-based merge decisions
+	SemanticCoherenceWeight   float64 // Weight for semantic coherence in resolutions
+	ContextualRelevanceWeight float64 // Weight for contextual relevance scoring
+
+	// Advanced resolution settings
+	EnableSemanticMerging      bool // Enable embedding-based content merging
+	EnableVectorBasedRanking   bool // Enable vector-based strategy ranking
+	EnableContextualResolution bool // Enable context-aware resolution strategies
+
+	// Performance settings
+	MaxSimilaritySearchResults int           // Max results for similarity searches
+	ResolutionTimeout          time.Duration // Timeout for resolution operations
+	BatchResolutionSize        int           // Size for batch resolution operations
+}
+
+// VectorResolutionStrategy represents a resolution strategy enhanced with vector data
+type VectorResolutionStrategy struct {
+	intelligence.ResolutionStrategy
+	VectorConfidence    float64 `json:"vector_confidence"`
+	SemanticCoherence   float64 `json:"semantic_coherence"`
+	ContextualRelevance float64 `json:"contextual_relevance"`
+	MergeQuality        float64 `json:"merge_quality"`
+	ConceptualAlignment float64 `json:"conceptual_alignment"`
+}
+
+// SemanticMergeResult represents the result of a semantic merge operation
+type SemanticMergeResult struct {
+	MergedContent     string         `json:"merged_content"`
+	MergeStrategy     string         `json:"merge_strategy"`
+	ConflictPoints    []string       `json:"conflict_points"`
+	ResolutionQuality float64        `json:"resolution_quality"`
+	SemanticAlignment float64        `json:"semantic_alignment"`
+	PreservationScore float64        `json:"preservation_score"`
+	MergeMetadata     map[string]any `json:"merge_metadata"`
+}
+
+// VectorResolutionResult contains vector-enhanced resolution results
+type VectorResolutionResult struct {
+	RecommendedStrategy   *VectorResolutionStrategy  `json:"recommended_strategy"`
+	AlternativeStrategies []VectorResolutionStrategy `json:"alternative_strategies"`
+	SemanticMerge         *SemanticMergeResult       `json:"semantic_merge,omitempty"`
+	VectorAnalysis        *VectorAnalysisResult      `json:"vector_analysis"`
+	ResolutionRationale   string                     `json:"resolution_rationale"`
+	ConfidenceScore       float64                    `json:"confidence_score"`
+}
+
+// VectorAnalysisResult contains detailed vector analysis for resolution
+type VectorAnalysisResult struct {
+	ConflictVectorSimilarity float64 `json:"conflict_vector_similarity"`
+	ContentSemanticDistance  float64 `json:"content_semantic_distance"`
+	ConceptualOverlapScore   float64 `json:"conceptual_overlap_score"`
+	ContextualAlignmentScore float64 `json:"contextual_alignment_score"`
+	ResolutionComplexity     string  `json:"resolution_complexity"`
+	RecommendedApproach      string  `json:"recommended_approach"`
+}
+
+// NewQdrantConflictResolver creates a new Qdrant-enhanced conflict resolver
+func NewQdrantConflictResolver(baseResolver *intelligence.ConflictResolver, vectorStore *QdrantStore) *QdrantConflictResolver {
+	return &QdrantConflictResolver{
+		baseResolver: baseResolver,
+		vectorStore:  vectorStore,
+		config:       getDefaultQdrantResolverConfig(),
+	}
+}
+
+// ResolveConflictsWithVectors performs enhanced conflict resolution using vector analysis
+func (qcr *QdrantConflictResolver) ResolveConflictsWithVectors(ctx context.Context, conflicts []intelligence.Conflict) (*VectorResolutionResult, error) {
+	if len(conflicts) == 0 {
+		return &VectorResolutionResult{}, nil
+	}
+
+	// For multiple conflicts, resolve the most significant one
+	// In a production system, you might want to resolve all conflicts
+	primaryConflict := qcr.selectPrimaryConflict(conflicts)
+
+	// Generate base resolution strategies
+	baseStrategies := qcr.baseResolver.GenerateResolutionStrategies(&primaryConflict)
+
+	// Enhance strategies with vector analysis
+	vectorStrategies, err := qcr.enhanceStrategiesWithVectors(ctx, primaryConflict, baseStrategies)
+	if err != nil {
+		return nil, fmt.Errorf("failed to enhance strategies with vectors: %w", err)
+	}
+
+	// Perform vector analysis
+	vectorAnalysis, err := qcr.performVectorAnalysis(ctx, primaryConflict)
+	if err != nil {
+		return nil, fmt.Errorf("vector analysis failed: %w", err)
+	}
+
+	// Generate semantic merge if applicable
+	var semanticMerge *SemanticMergeResult
+	if qcr.config.EnableSemanticMerging && vectorAnalysis.ConflictVectorSimilarity >= qcr.config.SemanticMergeThreshold {
+		semanticMerge, err = qcr.performSemanticMerge(ctx, primaryConflict)
+		if err != nil {
+			// Log error but continue - semantic merge is optional
+			semanticMerge = nil
+		}
+	}
+
+	// Rank strategies using vector-enhanced confidence
+	qcr.rankVectorStrategies(vectorStrategies, vectorAnalysis)
+
+	// Select recommended strategy
+	var recommended *VectorResolutionStrategy
+	var alternatives []VectorResolutionStrategy
+	if len(vectorStrategies) > 0 {
+		recommended = &vectorStrategies[0]
+		if len(vectorStrategies) > 1 {
+			alternatives = vectorStrategies[1:]
+		}
+	}
+
+	// Build resolution rationale
+	rationale := qcr.buildResolutionRationale(vectorAnalysis, recommended, semanticMerge)
+
+	// Calculate overall confidence
+	confidence := qcr.calculateOverallConfidence(vectorAnalysis, recommended, semanticMerge)
+
+	return &VectorResolutionResult{
+		RecommendedStrategy:   recommended,
+		AlternativeStrategies: alternatives,
+		SemanticMerge:         semanticMerge,
+		VectorAnalysis:        vectorAnalysis,
+		ResolutionRationale:   rationale,
+		ConfidenceScore:       confidence,
+	}, nil
+}
+
+// selectPrimaryConflict selects the most significant conflict for resolution
+func (qcr *QdrantConflictResolver) selectPrimaryConflict(conflicts []intelligence.Conflict) intelligence.Conflict {
+	if len(conflicts) == 1 {
+		return conflicts[0]
+	}
+
+	// Sort by severity and confidence
+	sort.Slice(conflicts, func(i, j int) bool {
+		if conflicts[i].Severity != conflicts[j].Severity {
+			return getSeverityWeight(conflicts[i].Severity) > getSeverityWeight(conflicts[j].Severity)
+		}
+		return conflicts[i].Confidence > conflicts[j].Confidence
+	})
+
+	return conflicts[0]
+}
+
+// enhanceStrategiesWithVectors enhances base strategies with vector analysis
+func (qcr *QdrantConflictResolver) enhanceStrategiesWithVectors(ctx context.Context, conflict intelligence.Conflict, baseStrategies []intelligence.ResolutionStrategy) ([]VectorResolutionStrategy, error) {
+	vectorStrategies := make([]VectorResolutionStrategy, 0, len(baseStrategies))
+
+	for _, strategy := range baseStrategies {
+		vectorStrategy, err := qcr.enhanceStrategyWithVectors(ctx, conflict, strategy)
+		if err != nil {
+			// Log error but continue with base strategy
+			vectorStrategy = VectorResolutionStrategy{
+				intelligence.ResolutionStrategy: strategy,
+				VectorConfidence:                strategy.Confidence,
+			}
+		}
+		vectorStrategies = append(vectorStrategies, vectorStrategy)
+	}
+
+	return vectorStrategies, nil
+}
+
+// enhanceStrategyWithVectors enhances a single strategy with vector analysis
+func (qcr *QdrantConflictResolver) enhanceStrategyWithVectors(ctx context.Context, conflict intelligence.Conflict, strategy intelligence.ResolutionStrategy) (VectorResolutionStrategy, error) {
+	// Calculate vector-based confidence metrics
+	vectorSimilarity, err := qcr.calculateVectorSimilarity(conflict.PrimaryChunk, conflict.ConflictChunk)
+	if err != nil {
+		vectorSimilarity = 0.0
+	}
+
+	// Calculate semantic coherence
+	semanticCoherence := qcr.calculateSemanticCoherence(conflict, strategy)
+
+	// Calculate contextual relevance
+	contextualRelevance := qcr.calculateContextualRelevance(conflict, strategy)
+
+	// Calculate merge quality potential
+	mergeQuality := qcr.calculateMergeQuality(conflict, strategy, vectorSimilarity)
+
+	// Calculate conceptual alignment
+	conceptualAlignment := qcr.calculateConceptualAlignment(conflict, vectorSimilarity)
+
+	// Enhance confidence with vector data
+	enhancedConfidence := qcr.enhanceConfidenceWithVectors(strategy.Confidence, vectorSimilarity, semanticCoherence)
+
+	return VectorResolutionStrategy{
+		intelligence.ResolutionStrategy: strategy,
+		VectorConfidence:                enhancedConfidence,
+		SemanticCoherence:               semanticCoherence,
+		ContextualRelevance:             contextualRelevance,
+		MergeQuality:                    mergeQuality,
+		ConceptualAlignment:             conceptualAlignment,
+	}, nil
+}
+
+// performVectorAnalysis performs comprehensive vector analysis of the conflict
+func (qcr *QdrantConflictResolver) performVectorAnalysis(ctx context.Context, conflict intelligence.Conflict) (*VectorAnalysisResult, error) {
+	// Calculate vector similarity between conflicting chunks
+	vectorSimilarity, err := qcr.calculateVectorSimilarity(conflict.PrimaryChunk, conflict.ConflictChunk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate vector similarity: %w", err)
+	}
+
+	// Calculate semantic distance
+	semanticDistance := 1.0 - vectorSimilarity
+
+	// Calculate conceptual overlap
+	conceptualOverlap := qcr.calculateConceptualOverlap(conflict, vectorSimilarity)
+
+	// Calculate contextual alignment
+	contextualAlignment := qcr.calculateContextualAlignmentScore(conflict)
+
+	// Determine resolution complexity
+	resolutionComplexity := qcr.determineResolutionComplexity(vectorSimilarity, conceptualOverlap, contextualAlignment)
+
+	// Recommend approach based on vector analysis
+	recommendedApproach := qcr.recommendResolutionApproach(vectorSimilarity, conceptualOverlap, resolutionComplexity)
+
+	return &VectorAnalysisResult{
+		ConflictVectorSimilarity: vectorSimilarity,
+		ContentSemanticDistance:  semanticDistance,
+		ConceptualOverlapScore:   conceptualOverlap,
+		ContextualAlignmentScore: contextualAlignment,
+		ResolutionComplexity:     resolutionComplexity,
+		RecommendedApproach:      recommendedApproach,
+	}, nil
+}
+
+// performSemanticMerge attempts to merge conflicting content using vector semantics
+func (qcr *QdrantConflictResolver) performSemanticMerge(ctx context.Context, conflict intelligence.Conflict) (*SemanticMergeResult, error) {
+	// Calculate vector similarity
+	vectorSimilarity, err := qcr.calculateVectorSimilarity(conflict.PrimaryChunk, conflict.ConflictChunk)
+	if err != nil {
+		return nil, fmt.Errorf("failed to calculate similarity for merge: %w", err)
+	}
+
+	// Determine merge strategy based on similarity
+	mergeStrategy := qcr.determineMergeStrategy(vectorSimilarity, conflict)
+
+	// Perform the merge based on strategy
+	mergedContent, conflictPoints := qcr.executeMergeStrategy(conflict, mergeStrategy, vectorSimilarity)
+
+	// Calculate merge quality metrics
+	resolutionQuality := qcr.calculateMergeResolutionQuality(conflict, mergedContent, vectorSimilarity)
+	semanticAlignment := qcr.calculateMergeSemanticAlignment(conflict, mergedContent)
+	preservationScore := qcr.calculateContentPreservationScore(conflict, mergedContent)
+
+	// Build merge metadata
+	mergeMetadata := map[string]any{
+		"vector_similarity":    vectorSimilarity,
+		"merge_complexity":     qcr.calculateMergeComplexity(conflict),
+		"content_overlap":      qcr.calculateContentOverlap(conflict.PrimaryChunk.Content, conflict.ConflictChunk.Content),
+		"semantic_coherence":   semanticAlignment,
+		"timestamp_difference": conflict.TimeDifference.String(),
+	}
+
+	return &SemanticMergeResult{
+		MergedContent:     mergedContent,
+		MergeStrategy:     mergeStrategy,
+		ConflictPoints:    conflictPoints,
+		ResolutionQuality: resolutionQuality,
+		SemanticAlignment: semanticAlignment,
+		PreservationScore: preservationScore,
+		MergeMetadata:     mergeMetadata,
+	}, nil
+}
+
+// Helper methods for vector calculations
+
+func (qcr *QdrantConflictResolver) calculateVectorSimilarity(chunk1, chunk2 types.ConversationChunk) (float64, error) {
+	if len(chunk1.Embeddings) == 0 || len(chunk2.Embeddings) == 0 {
+		return 0.0, fmt.Errorf("chunks missing embeddings")
+	}
+
+	if len(chunk1.Embeddings) != len(chunk2.Embeddings) {
+		return 0.0, fmt.Errorf("embedding dimension mismatch")
+	}
+
+	return qcr.cosineSimilarity(chunk1.Embeddings, chunk2.Embeddings), nil
+}
+
+func (qcr *QdrantConflictResolver) cosineSimilarity(a, b []float64) float64 {
+	var dotProduct, normA, normB float64
+
+	for i := 0; i < len(a); i++ {
+		dotProduct += a[i] * b[i]
+		normA += a[i] * a[i]
+		normB += b[i] * b[i]
+	}
+
+	if normA == 0 || normB == 0 {
+		return 0.0
+	}
+
+	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
+}
+
+func (qcr *QdrantConflictResolver) calculateSemanticCoherence(conflict intelligence.Conflict, strategy intelligence.ResolutionStrategy) float64 {
+	// Calculate how well the strategy maintains semantic coherence
+	baseCoherence := 0.5
+
+	switch strategy.Type {
+	case intelligence.ResolutionMerge:
+		// Merge strategies can maintain high coherence if vectors are similar
+		return baseCoherence + 0.3
+	case intelligence.ResolutionContextual:
+		// Contextual strategies preserve semantic meaning well
+		return baseCoherence + 0.2
+	case intelligence.ResolutionAcceptLatest:
+		// Latest acceptance maintains coherence of one side
+		return baseCoherence + 0.1
+	case intelligence.ResolutionManualReview:
+		// Manual review can achieve high coherence with human input
+		return baseCoherence + 0.4
+	default:
+		return baseCoherence
+	}
+}
+
+func (qcr *QdrantConflictResolver) calculateContextualRelevance(conflict intelligence.Conflict, strategy intelligence.ResolutionStrategy) float64 {
+	// Calculate how well the strategy preserves contextual relevance
+	baseRelevance := 0.5
+
+	// Factor in conflict type
+	switch conflict.Type {
+	case intelligence.ConflictTypeArchitectural:
+		if strategy.Type == intelligence.ResolutionContextual || strategy.Type == intelligence.ResolutionMerge {
+			baseRelevance += 0.2
+		}
+	case intelligence.ConflictTypeTechnical:
+		if strategy.Type == intelligence.ResolutionAcceptHighest || strategy.Type == intelligence.ResolutionEvolutionary {
+			baseRelevance += 0.2
+		}
+	case intelligence.ConflictTypeOutcome:
+		if strategy.Type == intelligence.ResolutionManualReview {
+			baseRelevance += 0.3
+		}
+	}
+
+	// Factor in conflict severity
+	switch conflict.Severity {
+	case intelligence.SeverityCritical:
+		if strategy.Type == intelligence.ResolutionManualReview {
+			baseRelevance += 0.2
+		}
+	case intelligence.SeverityHigh:
+		if strategy.Type == intelligence.ResolutionContextual || strategy.Type == intelligence.ResolutionMerge {
+			baseRelevance += 0.1
+		}
+	}
+
+	return math.Min(1.0, baseRelevance)
+}
+
+func (qcr *QdrantConflictResolver) calculateMergeQuality(conflict intelligence.Conflict, strategy intelligence.ResolutionStrategy, vectorSimilarity float64) float64 {
+	if strategy.Type != intelligence.ResolutionMerge {
+		return 0.0
+	}
+
+	// High vector similarity indicates good merge potential
+	baseQuality := vectorSimilarity
+
+	// Boost for compatible conflict types
+	if conflict.Type == intelligence.ConflictTypeArchitectural || conflict.Type == intelligence.ConflictTypeDecision {
+		baseQuality += 0.1
+	}
+
+	// Penalty for temporal conflicts (may represent evolution)
+	if conflict.Type == intelligence.ConflictTypeTemporal {
+		baseQuality -= 0.1
+	}
+
+	return math.Max(0.0, math.Min(1.0, baseQuality))
+}
+
+func (qcr *QdrantConflictResolver) calculateConceptualAlignment(conflict intelligence.Conflict, vectorSimilarity float64) float64 {
+	// High vector similarity indicates strong conceptual alignment
+	baseAlignment := vectorSimilarity
+
+	// Adjust based on conflict characteristics
+	if conflict.Confidence > 0.8 {
+		baseAlignment += 0.1
+	}
+
+	if len(conflict.ConflictPoints) > 3 {
+		baseAlignment -= 0.1
+	}
+
+	return math.Max(0.0, math.Min(1.0, baseAlignment))
+}
+
+func (qcr *QdrantConflictResolver) enhanceConfidenceWithVectors(baseConfidence, vectorSimilarity, semanticCoherence float64) float64 {
+	// Combine base confidence with vector-derived confidence
+	vectorBonus := (vectorSimilarity + semanticCoherence) * 0.1
+	return math.Min(1.0, baseConfidence+vectorBonus)
+}
+
+// Ranking and selection methods
+
+func (qcr *QdrantConflictResolver) rankVectorStrategies(strategies []VectorResolutionStrategy, analysis *VectorAnalysisResult) {
+	// Calculate composite scores for ranking
+	for i := range strategies {
+		strategies[i].VectorConfidence = qcr.calculateCompositeScore(&strategies[i], analysis)
+	}
+
+	// Sort by vector confidence (composite score)
+	sort.Slice(strategies, func(i, j int) bool {
+		return strategies[i].VectorConfidence > strategies[j].VectorConfidence
+	})
+}
+
+func (qcr *QdrantConflictResolver) calculateCompositeScore(strategy *VectorResolutionStrategy, analysis *VectorAnalysisResult) float64 {
+	// Weighted combination of various metrics
+	score := strategy.ResolutionStrategy.Confidence*0.3 +
+		strategy.SemanticCoherence*qcr.config.SemanticCoherenceWeight +
+		strategy.ContextualRelevance*qcr.config.ContextualRelevanceWeight +
+		strategy.MergeQuality*qcr.config.VectorMergeWeight +
+		analysis.ConceptualOverlapScore*0.1
+
+	return math.Min(1.0, score)
+}
+
+// Analysis helper methods
+
+func (qcr *QdrantConflictResolver) calculateConceptualOverlap(conflict intelligence.Conflict, vectorSimilarity float64) float64 {
+	// Use vector similarity as a proxy for conceptual overlap
+	baseOverlap := vectorSimilarity
+
+	// Adjust based on content length similarity
+	content1Len := len(conflict.PrimaryChunk.Content)
+	content2Len := len(conflict.ConflictChunk.Content)
+	lengthSimilarity := 1.0 - math.Abs(float64(content1Len-content2Len))/math.Max(float64(content1Len), float64(content2Len))
+
+	return (baseOverlap + lengthSimilarity) / 2.0
+}
+
+func (qcr *QdrantConflictResolver) calculateContextualAlignmentScore(conflict intelligence.Conflict) float64 {
+	score := 0.5
+
+	// Same repository increases alignment
+	if conflict.PrimaryChunk.Metadata.Repository == conflict.ConflictChunk.Metadata.Repository {
+		score += 0.2
+	}
+
+	// Same outcome type increases alignment
+	if conflict.PrimaryChunk.Metadata.Outcome == conflict.ConflictChunk.Metadata.Outcome {
+		score += 0.1
+	}
+
+	// Similar time periods increase alignment
+	timeDiff := conflict.TimeDifference.Hours()
+	if timeDiff < 24 { // Same day
+		score += 0.2
+	} else if timeDiff < 168 { // Same week
+		score += 0.1
+	}
+
+	return math.Min(1.0, score)
+}
+
+func (qcr *QdrantConflictResolver) determineResolutionComplexity(vectorSimilarity, conceptualOverlap, contextualAlignment float64) string {
+	avgScore := (vectorSimilarity + conceptualOverlap + contextualAlignment) / 3.0
+
+	if avgScore > 0.8 {
+		return "simple"
+	} else if avgScore > 0.6 {
+		return "moderate"
+	} else if avgScore > 0.4 {
+		return "complex"
+	}
+	return "very_complex"
+}
+
+func (qcr *QdrantConflictResolver) recommendResolutionApproach(vectorSimilarity, conceptualOverlap, complexity string) string {
+	if vectorSimilarity > 0.8 && conceptualOverlap > 0.7 {
+		return "semantic_merge"
+	}
+
+	if complexity == "simple" || complexity == "moderate" {
+		return "automated_resolution"
+	}
+
+	if vectorSimilarity < 0.3 {
+		return "contextual_separation"
+	}
+
+	return "manual_review"
+}
+
+// Merge implementation methods
+
+func (qcr *QdrantConflictResolver) determineMergeStrategy(vectorSimilarity float64, conflict intelligence.Conflict) string {
+	if vectorSimilarity > 0.8 {
+		return "semantic_blend"
+	} else if vectorSimilarity > 0.6 {
+		return "structured_merge"
+	} else if conflict.Type == intelligence.ConflictTypeTemporal {
+		return "temporal_sequencing"
+	}
+	return "contextual_preservation"
+}
+
+func (qcr *QdrantConflictResolver) executeMergeStrategy(conflict intelligence.Conflict, strategy string, vectorSimilarity float64) (string, []string) {
+	content1 := conflict.PrimaryChunk.Content
+	content2 := conflict.ConflictChunk.Content
+	conflictPoints := []string{}
+
+	switch strategy {
+	case "semantic_blend":
+		// High similarity allows for intelligent blending
+		merged := qcr.blendSemanticContent(content1, content2, vectorSimilarity)
+		conflictPoints = append(conflictPoints, "Blended semantically similar content")
+		return merged, conflictPoints
+
+	case "structured_merge":
+		// Moderate similarity allows structured combination
+		merged := qcr.structuredContentMerge(content1, content2)
+		conflictPoints = append(conflictPoints, "Combined structured elements")
+		return merged, conflictPoints
+
+	case "temporal_sequencing":
+		// Sequence content based on temporal order
+		merged := qcr.temporalSequence(conflict)
+		conflictPoints = append(conflictPoints, "Sequenced by temporal order")
+		return merged, conflictPoints
+
+	case "contextual_preservation":
+		// Preserve context from both sources
+		merged := qcr.preserveContextualContent(content1, content2)
+		conflictPoints = append(conflictPoints, "Preserved contextual information")
+		return merged, conflictPoints
+
+	default:
+		// Fallback to simple concatenation
+		merged := content1 + "\n\n--- Alternative Approach ---\n\n" + content2
+		conflictPoints = append(conflictPoints, "Simple concatenation fallback")
+		return merged, conflictPoints
+	}
+}
+
+func (qcr *QdrantConflictResolver) blendSemanticContent(content1, content2 string, similarity float64) string {
+	// For high semantic similarity, create a blended version
+	// This is a simplified implementation - could be enhanced with NLP
+	if len(content1) > len(content2) {
+		return content1 + " [incorporating: " + qcr.extractKeyPhrases(content2) + "]"
+	}
+	return content2 + " [incorporating: " + qcr.extractKeyPhrases(content1) + "]"
+}
+
+func (qcr *QdrantConflictResolver) structuredContentMerge(content1, content2 string) string {
+	// Attempt to merge structured content intelligently
+	return fmt.Sprintf("Merged Approach:\n\nPrimary: %s\n\nSecondary: %s\n\nSynthesis: Combined insights from both approaches.",
+		qcr.summarizeContent(content1), qcr.summarizeContent(content2))
+}
+
+func (qcr *QdrantConflictResolver) temporalSequence(conflict intelligence.Conflict) string {
+	// Sequence content based on temporal order
+	earlier := conflict.PrimaryChunk
+	later := conflict.ConflictChunk
+
+	if later.Timestamp.Before(earlier.Timestamp) {
+		earlier, later = later, earlier
+	}
+
+	return fmt.Sprintf("Evolution over time:\n\nEarlier (%s): %s\n\nLater (%s): %s",
+		earlier.Timestamp.Format("2006-01-02"), qcr.summarizeContent(earlier.Content),
+		later.Timestamp.Format("2006-01-02"), qcr.summarizeContent(later.Content))
+}
+
+func (qcr *QdrantConflictResolver) preserveContextualContent(content1, content2 string) string {
+	// Preserve important context from both sources
+	return fmt.Sprintf("Contextual Synthesis:\n\nContext A: %s\n\nContext B: %s\n\nIntegrated Understanding: Both perspectives provide valuable insights for different scenarios.",
+		qcr.extractContext(content1), qcr.extractContext(content2))
+}
+
+// Quality assessment methods
+
+func (qcr *QdrantConflictResolver) calculateMergeResolutionQuality(conflict intelligence.Conflict, mergedContent string, vectorSimilarity float64) float64 {
+	// Assess the quality of the merge resolution
+	baseQuality := vectorSimilarity * 0.5
+
+	// Content length preservation
+	originalLength := len(conflict.PrimaryChunk.Content) + len(conflict.ConflictChunk.Content)
+	mergedLength := len(mergedContent)
+	lengthPreservation := float64(mergedLength) / float64(originalLength)
+
+	if lengthPreservation > 0.8 && lengthPreservation < 1.5 {
+		baseQuality += 0.2
+	}
+
+	// Conflict resolution completeness
+	if len(conflict.ConflictPoints) > 0 {
+		baseQuality += 0.1
+	}
+
+	return math.Min(1.0, baseQuality)
+}
+
+func (qcr *QdrantConflictResolver) calculateMergeSemanticAlignment(conflict intelligence.Conflict, mergedContent string) float64 {
+	// This would ideally use embedding similarity with merged content
+	// Simplified implementation based on content characteristics
+	baseAlignment := 0.6
+
+	// Check if merged content references both sources
+	content1Keywords := qcr.extractKeyPhrases(conflict.PrimaryChunk.Content)
+	content2Keywords := qcr.extractKeyPhrases(conflict.ConflictChunk.Content)
+
+	if qcr.containsKeywords(mergedContent, content1Keywords) {
+		baseAlignment += 0.15
+	}
+	if qcr.containsKeywords(mergedContent, content2Keywords) {
+		baseAlignment += 0.15
+	}
+
+	return math.Min(1.0, baseAlignment)
+}
+
+func (qcr *QdrantConflictResolver) calculateContentPreservationScore(conflict intelligence.Conflict, mergedContent string) float64 {
+	// Calculate how well the merge preserves original content
+	preservation := 0.5
+
+	// Check for key content preservation
+	content1Key := qcr.extractKeyPhrases(conflict.PrimaryChunk.Content)
+	content2Key := qcr.extractKeyPhrases(conflict.ConflictChunk.Content)
+
+	if qcr.containsKeywords(mergedContent, content1Key) {
+		preservation += 0.25
+	}
+	if qcr.containsKeywords(mergedContent, content2Key) {
+		preservation += 0.25
+	}
+
+	return preservation
+}
+
+// Utility methods
+
+func (qcr *QdrantConflictResolver) extractKeyPhrases(content string) string {
+	// Simplified key phrase extraction
+	words := strings.Fields(strings.ToLower(content))
+	if len(words) <= 5 {
+		return content
+	}
+	return strings.Join(words[:5], " ") + "..."
+}
+
+func (qcr *QdrantConflictResolver) summarizeContent(content string) string {
+	// Simple content summarization
+	if len(content) <= 100 {
+		return content
+	}
+	return content[:97] + "..."
+}
+
+func (qcr *QdrantConflictResolver) extractContext(content string) string {
+	// Extract contextual information
+	lines := strings.Split(content, "\n")
+	if len(lines) <= 2 {
+		return content
+	}
+	return lines[0] + " ... " + lines[len(lines)-1]
+}
+
+func (qcr *QdrantConflictResolver) containsKeywords(content, keywords string) bool {
+	contentLower := strings.ToLower(content)
+	keywordsLower := strings.ToLower(keywords)
+	keywordList := strings.Fields(keywordsLower)
+
+	for _, keyword := range keywordList {
+		if strings.Contains(contentLower, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func (qcr *QdrantConflictResolver) calculateMergeComplexity(conflict intelligence.Conflict) string {
+	complexity := "simple"
+
+	if len(conflict.ConflictPoints) > 2 {
+		complexity = "moderate"
+	}
+	if conflict.Type == intelligence.ConflictTypeArchitectural || conflict.Type == intelligence.ConflictTypeDecision {
+		complexity = "complex"
+	}
+	if conflict.Severity == intelligence.SeverityCritical {
+		complexity = "very_complex"
+	}
+
+	return complexity
+}
+
+func (qcr *QdrantConflictResolver) calculateContentOverlap(content1, content2 string) float64 {
+	words1 := strings.Fields(strings.ToLower(content1))
+	words2 := strings.Fields(strings.ToLower(content2))
+
+	if len(words1) == 0 || len(words2) == 0 {
+		return 0.0
+	}
+
+	set1 := make(map[string]bool)
+	for _, word := range words1 {
+		set1[word] = true
+	}
+
+	intersection := 0
+	for _, word := range words2 {
+		if set1[word] {
+			intersection++
+		}
+	}
+
+	union := len(words1) + len(words2) - intersection
+	if union == 0 {
+		return 0.0
+	}
+
+	return float64(intersection) / float64(union)
+}
+
+func (qcr *QdrantConflictResolver) buildResolutionRationale(analysis *VectorAnalysisResult, recommended *VectorResolutionStrategy, merge *SemanticMergeResult) string {
+	rationale := fmt.Sprintf("Vector analysis shows %.1f%% semantic similarity with %s resolution complexity. ",
+		analysis.ConflictVectorSimilarity*100, analysis.ResolutionComplexity)
+
+	if recommended != nil {
+		rationale += fmt.Sprintf("Recommended strategy: %s (confidence: %.1f%%). ",
+			recommended.Title, recommended.VectorConfidence*100)
+	}
+
+	if merge != nil {
+		rationale += fmt.Sprintf("Semantic merge available with %.1f%% quality score. ",
+			merge.ResolutionQuality*100)
+	}
+
+	rationale += fmt.Sprintf("Approach: %s.", analysis.RecommendedApproach)
+
+	return rationale
+}
+
+func (qcr *QdrantConflictResolver) calculateOverallConfidence(analysis *VectorAnalysisResult, recommended *VectorResolutionStrategy, merge *SemanticMergeResult) float64 {
+	confidence := analysis.ConceptualOverlapScore * 0.3
+
+	if recommended != nil {
+		confidence += recommended.VectorConfidence * 0.4
+	}
+
+	if merge != nil {
+		confidence += merge.ResolutionQuality * 0.2
+	}
+
+	confidence += analysis.ContextualAlignmentScore * 0.1
+
+	return math.Min(1.0, confidence)
+}
+
+// Helper function for severity weight (shared with conflict detector)
+func getSeverityWeight(severity intelligence.ConflictSeverity) int {
+	switch severity {
+	case intelligence.SeverityCritical:
+		return 5
+	case intelligence.SeverityHigh:
+		return 4
+	case intelligence.SeverityMedium:
+		return 3
+	case intelligence.SeverityLow:
+		return 2
+	case intelligence.SeverityInfo:
+		return 1
+	default:
+		return 0
+	}
+}
+
+func getDefaultQdrantResolverConfig() *QdrantResolverConfig {
+	return &QdrantResolverConfig{
+		SemanticMergeThreshold:        0.7,
+		ConceptualAlignmentThreshold:  0.6,
+		ResolutionConfidenceThreshold: 0.8,
+		VectorMergeWeight:             0.3,
+		SemanticCoherenceWeight:       0.3,
+		ContextualRelevanceWeight:     0.2,
+		EnableSemanticMerging:         true,
+		EnableVectorBasedRanking:      true,
+		EnableContextualResolution:    true,
+		MaxSimilaritySearchResults:    20,
+		ResolutionTimeout:             30 * time.Second,
+		BatchResolutionSize:           10,
+	}
+}

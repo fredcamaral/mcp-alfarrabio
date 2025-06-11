@@ -82,7 +82,7 @@ services:
     ports:
       - "${MCP_HOST_PORT:-9080}:9080"
       - "${MCP_HEALTH_PORT:-8081}:8081"
-      - "${MCP_METRICS_PORT:-9082}:8082"
+      - "${MCP_METRICS_PORT:-8082}:8082"
     env_file:
       - .env
     environment:
@@ -107,6 +107,12 @@ services:
       - mcp_logs:/app/logs
       - mcp_backups:/app/backups
     command: ["air", "-c", ".air.toml"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/health"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: 40s
     networks:
       - lerian_network
     profiles: ["dev"]
@@ -170,6 +176,45 @@ services:
       - lerian_network
     profiles: ["monitoring"]
 
+  # Alertmanager - Alert management
+  alertmanager:
+    image: prom/alertmanager:latest
+    container_name: lerian-mcp-memory-alertmanager
+    restart: unless-stopped
+    ports:
+      - "${ALERTMANAGER_PORT:-9093}:9093"
+    volumes:
+      - alertmanager_data:/alertmanager
+      - ./configs/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+      - '--storage.path=/alertmanager'
+      - '--web.external-url=http://localhost:9093'
+      - '--cluster.advertise-address=0.0.0.0:9093'
+    networks:
+      - lerian_network
+    profiles: ["monitoring"]
+
+  # Node Exporter - System metrics
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: lerian-mcp-memory-node-exporter
+    restart: unless-stopped
+    ports:
+      - "${NODE_EXPORTER_PORT:-9100}:9100"
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.rootfs=/rootfs'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    networks:
+      - lerian_network
+    profiles: ["monitoring"]
+
 # Networks
 networks:
   lerian_network:
@@ -209,3 +254,7 @@ volumes:
   grafana_data:
     driver: local
     name: mcp_memory_grafana_data
+
+  alertmanager_data:
+    driver: local
+    name: mcp_memory_alertmanager_data

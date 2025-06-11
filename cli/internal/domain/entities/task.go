@@ -31,21 +31,23 @@ const (
 
 // Task represents a single task with all metadata and validation
 type Task struct {
-	ID            string     `json:"id" validate:"required,uuid"`
-	Content       string     `json:"content" validate:"required,min=1,max=1000"`
-	Type          string     `json:"type,omitempty"`
-	Status        Status     `json:"status" validate:"required,oneof=pending in_progress completed cancelled"`
-	Priority      Priority   `json:"priority" validate:"required,oneof=low medium high"`
-	Repository    string     `json:"repository" validate:"required"`
-	SessionID     string     `json:"session_id,omitempty"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
-	CompletedAt   *time.Time `json:"completed_at,omitempty"`
-	EstimatedMins int        `json:"estimated_mins,omitempty" validate:"gte=0"`
-	ActualMins    int        `json:"actual_mins,omitempty" validate:"gte=0"`
-	Tags          []string   `json:"tags,omitempty"`
-	ParentTaskID  string     `json:"parent_task_id,omitempty" validate:"omitempty,uuid"`
-	AISuggested   bool       `json:"ai_suggested"`
+	ID            string                 `json:"id" validate:"required,uuid"`
+	Content       string                 `json:"content" validate:"required,min=1,max=1000"`
+	Type          string                 `json:"type,omitempty"`
+	Status        Status                 `json:"status" validate:"required,oneof=pending in_progress completed cancelled"`
+	Priority      Priority               `json:"priority" validate:"required,oneof=low medium high"`
+	Repository    string                 `json:"repository" validate:"required"`
+	SessionID     string                 `json:"session_id,omitempty"`
+	DueDate       *time.Time             `json:"due_date,omitempty"`
+	CreatedAt     time.Time              `json:"created_at"`
+	UpdatedAt     time.Time              `json:"updated_at"`
+	CompletedAt   *time.Time             `json:"completed_at,omitempty"`
+	EstimatedMins int                    `json:"estimated_mins,omitempty" validate:"gte=0"`
+	ActualMins    int                    `json:"actual_mins,omitempty" validate:"gte=0"`
+	Tags          []string               `json:"tags,omitempty"`
+	ParentTaskID  string                 `json:"parent_task_id,omitempty" validate:"omitempty,uuid"`
+	AISuggested   bool                   `json:"ai_suggested"`
+	Metadata      map[string]interface{} `json:"metadata,omitempty"`
 }
 
 // NewTask creates a new task with required fields and default values
@@ -59,6 +61,7 @@ func NewTask(content, repository string) (*Task, error) {
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 		AISuggested: false,
+		Metadata:    make(map[string]interface{}),
 	}
 
 	if err := task.Validate(); err != nil {
@@ -79,10 +82,12 @@ func NewTaskWithOptions(content, repository string, options *TaskOptions) (*Task
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 		AISuggested: false,
+		Metadata:    make(map[string]interface{}),
 	}
 
 	if options != nil {
 		task.SessionID = options.SessionID
+		task.DueDate = options.DueDate
 		task.EstimatedMins = options.EstimatedMins
 		task.Tags = options.Tags
 		task.ParentTaskID = options.ParentTaskID
@@ -93,6 +98,10 @@ func NewTaskWithOptions(content, repository string, options *TaskOptions) (*Task
 
 		if options.AISuggested {
 			task.AISuggested = true
+		}
+
+		if options.Metadata != nil {
+			task.Metadata = options.Metadata
 		}
 	}
 
@@ -107,10 +116,12 @@ func NewTaskWithOptions(content, repository string, options *TaskOptions) (*Task
 type TaskOptions struct {
 	Priority      Priority
 	SessionID     string
+	DueDate       *time.Time
 	EstimatedMins int
 	Tags          []string
 	ParentTaskID  string
 	AISuggested   bool
+	Metadata      map[string]interface{}
 }
 
 // Validate checks if task fields meet business rules
@@ -299,9 +310,19 @@ func (t *Task) GetDuration() time.Duration {
 	return time.Since(t.CreatedAt)
 }
 
-// IsOverdue checks if task is overdue based on estimation
+// IsOverdue checks if task is overdue based on due date or estimation
 func (t *Task) IsOverdue() bool {
-	if t.EstimatedMins == 0 || t.Status == StatusCompleted || t.Status == StatusCancelled {
+	if t.Status == StatusCompleted || t.Status == StatusCancelled {
+		return false
+	}
+
+	// Check due date first if set
+	if t.DueDate != nil {
+		return time.Now().After(*t.DueDate)
+	}
+
+	// Fall back to estimation-based check
+	if t.EstimatedMins == 0 {
 		return false
 	}
 
@@ -317,4 +338,110 @@ func (t *Task) HasTag(tag string) bool {
 		}
 	}
 	return false
+}
+
+// SetDueDate sets or updates the task due date
+func (t *Task) SetDueDate(dueDate *time.Time) error {
+	t.DueDate = dueDate
+	t.UpdatedAt = time.Now()
+	return t.Validate()
+}
+
+// ClearDueDate removes the due date from the task
+func (t *Task) ClearDueDate() {
+	t.DueDate = nil
+	t.UpdatedAt = time.Now()
+}
+
+// IsDueSoon checks if task is due within the specified duration
+func (t *Task) IsDueSoon(within time.Duration) bool {
+	if t.DueDate == nil || t.Status == StatusCompleted || t.Status == StatusCancelled {
+		return false
+	}
+
+	return time.Until(*t.DueDate) <= within
+}
+
+// GetTimeUntilDue returns time remaining until due date
+func (t *Task) GetTimeUntilDue() *time.Duration {
+	if t.DueDate == nil {
+		return nil
+	}
+
+	duration := time.Until(*t.DueDate)
+	return &duration
+}
+
+// SetMetadata sets a metadata key-value pair
+func (t *Task) SetMetadata(key string, value interface{}) {
+	if t.Metadata == nil {
+		t.Metadata = make(map[string]interface{})
+	}
+	t.Metadata[key] = value
+	t.UpdatedAt = time.Now()
+}
+
+// GetMetadata retrieves a metadata value by key
+func (t *Task) GetMetadata(key string) (interface{}, bool) {
+	if t.Metadata == nil {
+		return nil, false
+	}
+	value, exists := t.Metadata[key]
+	return value, exists
+}
+
+// GetMetadataString retrieves a metadata value as string
+func (t *Task) GetMetadataString(key string) (string, bool) {
+	if value, exists := t.GetMetadata(key); exists {
+		if str, ok := value.(string); ok {
+			return str, true
+		}
+	}
+	return "", false
+}
+
+// GetMetadataInt retrieves a metadata value as int
+func (t *Task) GetMetadataInt(key string) (int, bool) {
+	if value, exists := t.GetMetadata(key); exists {
+		if i, ok := value.(int); ok {
+			return i, true
+		}
+		if f, ok := value.(float64); ok {
+			return int(f), true
+		}
+	}
+	return 0, false
+}
+
+// GetMetadataBool retrieves a metadata value as bool
+func (t *Task) GetMetadataBool(key string) (bool, bool) {
+	if value, exists := t.GetMetadata(key); exists {
+		if b, ok := value.(bool); ok {
+			return b, true
+		}
+	}
+	return false, false
+}
+
+// RemoveMetadata removes a metadata key
+func (t *Task) RemoveMetadata(key string) {
+	if t.Metadata != nil {
+		delete(t.Metadata, key)
+		t.UpdatedAt = time.Now()
+	}
+}
+
+// ClearMetadata removes all metadata
+func (t *Task) ClearMetadata() {
+	t.Metadata = make(map[string]interface{})
+	t.UpdatedAt = time.Now()
+}
+
+// HasMetadata checks if a metadata key exists
+func (t *Task) HasMetadata(key string) bool {
+	if t.Metadata == nil {
+		return false
+	}
+	_, exists := t.Metadata[key]
+	return exists
 }

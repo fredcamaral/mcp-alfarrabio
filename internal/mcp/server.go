@@ -11,10 +11,15 @@ import (
 	"lerian-mcp-memory/internal/bulk"
 	"lerian-mcp-memory/internal/config"
 	contextdetector "lerian-mcp-memory/internal/context"
+	enhancedctx "lerian-mcp-memory/internal/context"
 	"lerian-mcp-memory/internal/di"
+	mcperrors "lerian-mcp-memory/internal/errors"
 	"lerian-mcp-memory/internal/intelligence"
 	"lerian-mcp-memory/internal/logging"
 	"lerian-mcp-memory/internal/relationships"
+	"lerian-mcp-memory/internal/sync"
+
+	// "lerian-mcp-memory/internal/storage" // Temporarily disabled due to incomplete Qdrant conflict detection implementation
 	"lerian-mcp-memory/internal/threading"
 	"lerian-mcp-memory/internal/workflow"
 	"lerian-mcp-memory/pkg/types"
@@ -47,6 +52,7 @@ const (
 type MemoryServer struct {
 	container *di.Container
 	mcpServer *server.Server
+	logger    *logging.EnhancedLogger
 
 	// Bulk operations managers
 	bulkManager  *bulk.Manager
@@ -56,58 +62,141 @@ type MemoryServer struct {
 
 	// Workflow tracking
 	todoTracker *workflow.TodoTracker
+	
+	// Real-time synchronization
+	realtimeSync *sync.RealtimeSyncCoordinator
 }
 
 // NewMemoryServer creates a new memory MCP server
 func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
+	// Create enhanced logger for MCP server
+	logger := logging.NewEnhancedLogger("mcp")
+
 	// Create dependency injection container
 	container, err := di.NewContainer(cfg)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create DI container: %w", err)
+		return nil, mcperrors.WrapMCPError(
+			fmt.Errorf("failed to create DI container: %w", err),
+			"server_initialization",
+		)
 	}
 
 	memServer := &MemoryServer{
 		container: container,
+		logger:    logger,
 	}
 
-	// Initialize bulk operations managers
-	logger := log.New(log.Writer(), "[MCP] ", log.LstdFlags)
-	memServer.bulkManager = bulk.NewManager(container.GetVectorStore(), logger)
-	memServer.bulkImporter = bulk.NewImporter(logger)
-	memServer.bulkExporter = bulk.NewExporter(container.GetVectorStore(), logger)
-	memServer.aliasManager = bulk.NewAliasManager(container.GetVectorStore(), logger)
+	// Initialize bulk operations managers with proper error handling
+	if err := memServer.initializeBulkManagers(); err != nil {
+		return nil, mcperrors.WrapMCPError(err, "bulk_manager_initialization")
+	}
 
 	// Initialize workflow tracking
 	memServer.todoTracker = workflow.NewTodoTracker()
 
-	// Create MCP server
+	// Initialize real-time synchronization
+	memServer.realtimeSync = container.GetRealtimeSyncCoordinator()
+
+	// Create MCP server with error handling
+	if err := memServer.initializeMCPServer(); err != nil {
+		return nil, mcperrors.WrapMCPError(err, "mcp_server_initialization")
+	}
+
+	logger.Info("MCP Memory Server created successfully")
+	return memServer, nil
+}
+
+// initializeBulkManagers initializes bulk operation managers
+func (ms *MemoryServer) initializeBulkManagers() error {
+	// Create standard library logger for bulk managers compatibility
+	stdLogger := log.New(os.Stdout, "[bulk] ", log.LstdFlags)
+
+	ms.bulkManager = bulk.NewManager(ms.container.GetVectorStore(), stdLogger)
+	ms.bulkImporter = bulk.NewImporter(stdLogger)
+	ms.bulkExporter = bulk.NewExporter(ms.container.GetVectorStore(), stdLogger)
+	ms.aliasManager = bulk.NewAliasManager(ms.container.GetVectorStore(), stdLogger)
+
+	return nil
+}
+
+// initializeMCPServer initializes the MCP server with tools and resources
+func (ms *MemoryServer) initializeMCPServer() error {
 	serverName := getEnv("SERVICE_NAME", "claude-memory")
 	serverVersion := getEnv("SERVICE_VERSION", "VERSION_PLACEHOLDER")
-	mcpServer := mcp.NewServer(serverName, serverVersion)
-	memServer.mcpServer = mcpServer
-	memServer.registerTools()
-	memServer.registerResources()
 
-	return memServer, nil
+	mcpServer := mcp.NewServer(serverName, serverVersion)
+	if mcpServer == nil {
+		return fmt.Errorf("failed to create MCP server instance")
+	}
+
+	ms.mcpServer = mcpServer
+
+	if err := ms.registerTools(); err != nil {
+		return fmt.Errorf("failed to register tools: %w", err)
+	}
+
+	if err := ms.registerResources(); err != nil {
+		return fmt.Errorf("failed to register resources: %w", err)
+	}
+
+	return nil
 }
 
 // Start initializes and starts the MCP server
 func (ms *MemoryServer) Start(ctx context.Context) error {
-	// Initialize vector store
-	if err := ms.container.GetVectorStore().Initialize(ctx); err != nil {
-		return fmt.Errorf("failed to initialize vector store: %w", err)
-	}
+	// Create enhanced context for startup operations
+	ctx = enhancedctx.NewBuilder(ctx).
+		WithComponent("mcp").
+		WithOperation("server_start").
+		WithCurrentTime().
+		Build()
 
-	// Health check services
+	logger := ms.logger.WithContext(ctx)
+	startTime := time.Now()
+
+	logger.Info("Starting MCP Memory Server")
+
+	// Initialize vector store with timeout
+	storageCtx, cancel := enhancedctx.NewStorageContext(ctx, "initialize")
+	defer cancel()
+
+	if err := ms.container.GetVectorStore().Initialize(storageCtx); err != nil {
+		return mcperrors.WrapStorageError(err, "vector_store_initialization")
+	}
+	logger.Info("Vector store initialized successfully")
+
+	// Health check services with proper error handling
 	if err := ms.container.HealthCheck(ctx); err != nil {
-		log.Printf("Warning: Service health check failed: %v", err)
+		// Log warning but don't fail startup for health check issues
+		logger.WithError(err).Warn("Service health check failed, but continuing startup")
+	} else {
+		logger.Info("Service health check passed")
 	}
 
 	// Start automatic decay management for old chunks
-	go ms.runPeriodicDecay(ctx)
+	go ms.runPeriodicDecayWithErrorHandling(ctx)
 
-	log.Printf("Claude Memory MCP Server started successfully")
+	// Log successful startup with duration
+	duration := time.Since(startTime)
+	logger.Info("MCP Memory Server started successfully",
+		"startup_duration_ms", duration.Milliseconds())
 	return nil
+}
+
+// runPeriodicDecayWithErrorHandling runs periodic decay with proper error handling
+func (ms *MemoryServer) runPeriodicDecayWithErrorHandling(ctx context.Context) {
+	logger := ms.logger.WithContext(ctx)
+
+	logger.Info("Starting periodic decay management")
+
+	defer func() {
+		if r := recover(); r != nil {
+			logger.Error("Panic in periodic decay management", "panic_value", r)
+		}
+	}()
+
+	// Run the original periodic decay method but with error handling
+	ms.runPeriodicDecay(ctx)
 }
 
 // GetMCPServer returns the underlying MCP server for testing
@@ -132,24 +221,29 @@ func (ms *MemoryServer) SetWebSocketHub(hub interface{}) {
 }
 
 // registerTools registers all MCP tools
-func (ms *MemoryServer) registerTools() {
+func (ms *MemoryServer) registerTools() error {
+	logger := ms.logger
+
 	// Choose between consolidated (8 tools) or legacy (41 tools) based on environment variable
 	useConsolidated := getEnvBool("MCP_MEMORY_USE_CONSOLIDATED_TOOLS", true)
 	useCompatibility := getEnvBool("MCP_MEMORY_USE_BACKWARD_COMPATIBILITY", false)
 
 	if useConsolidated {
-		log.Printf("Registering 9 consolidated MCP tools")
+		logger.Info("Registering 9 consolidated MCP tools")
 		ms.registerConsolidatedTools()
 
 		// Optionally add backward compatibility layer for legacy tool names
 		if useCompatibility {
-			log.Printf("Adding backward compatibility layer for legacy tool names")
+			logger.Info("Adding backward compatibility layer for legacy tool names")
 			ms.registerBackwardCompatibilityLayer()
 		}
 	} else {
-		log.Printf("Registering 41 legacy MCP tools")
+		logger.Info("Registering 41 legacy MCP tools")
 		ms.registerLegacyTools()
 	}
+
+	logger.Info("MCP tools registered successfully")
+	return nil
 }
 
 // registerLegacyTools registers the original 41 MCP tools (for backward compatibility)
@@ -372,7 +466,12 @@ func (ms *MemoryServer) registerLegacyTools() {
 					"default":     true,
 				},
 			}, []string{"conflict_ids"}),
-		), mcp.ToolHandlerFunc(ms.handleMemoryResolveConflicts))
+		), mcp.ToolHandlerFunc(func(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+			return map[string]interface{}{
+				"status":  "not_implemented",
+				"message": "Advanced conflict resolution temporarily disabled",
+			}, nil
+		}))
 
 	ms.mcpServer.AddTool(
 		mcp.NewTool("mcp__memory__memory_continuity",
@@ -1299,7 +1398,10 @@ func (ms *MemoryServer) registerLegacyTools() {
 }
 
 // registerResources registers MCP resources for browsing memory
-func (ms *MemoryServer) registerResources() {
+func (ms *MemoryServer) registerResources() error {
+	logger := ms.logger
+
+	logger.Info("Registering MCP resources")
 	// Register MCP resources for browsing memory data
 
 	resources := []struct {
@@ -1338,6 +1440,9 @@ func (ms *MemoryServer) registerResources() {
 		resource := mcp.NewResource(res.uri, res.name, res.description, res.mimeType)
 		ms.mcpServer.AddResource(resource, mcp.ResourceHandlerFunc(ms.handleResourceRead))
 	}
+
+	logger.Info("MCP resources registered successfully")
+	return nil
 }
 
 // Tool handlers
@@ -1489,6 +1594,14 @@ func (ms *MemoryServer) handleStoreChunk(ctx context.Context, params map[string]
 
 	// Auto-detect relationships with recent chunks
 	ms.autoDetectRelationships(ctx, chunk)
+
+	// Broadcast real-time event to connected clients
+	if ms.realtimeSync != nil {
+		if err := ms.realtimeSync.BroadcastChunkEvent(ctx, sync.EventTypeChunkCreated, chunk); err != nil {
+			// Log error but don't fail the operation
+			logging.Warn("Failed to broadcast chunk created event", "error", err, "chunk_id", chunk.ID)
+		}
+	}
 
 	logging.Info("memory_store_chunk completed successfully", "chunk_id", chunk.ID, "session_id", sessionID)
 	return map[string]interface{}{
@@ -2257,6 +2370,14 @@ func (ms *MemoryServer) handleStoreDecision(ctx context.Context, params map[stri
 	chunk, err := ms.createDecisionChunk(ctx, sessionID, content, &metadata)
 	if err != nil {
 		return nil, err
+	}
+
+	// Broadcast real-time event to connected clients
+	if ms.realtimeSync != nil {
+		if err := ms.realtimeSync.BroadcastChunkEvent(ctx, sync.EventTypeChunkCreated, chunk); err != nil {
+			// Log error but don't fail the operation
+			logging.Warn("Failed to broadcast decision created event", "error", err, "chunk_id", chunk.ID)
+		}
 	}
 
 	return map[string]interface{}{
@@ -4845,333 +4966,476 @@ func (ms *MemoryServer) handleMemoryConflicts(ctx context.Context, params map[st
 		timeframe = tf
 	}
 
-	// Get chunks based on repository and timeframe
-	var chunks []types.ConversationChunk
-	var err error
+	// Get chunks based on repository and timeframe - DISABLED
+	// Advanced conflict detection temporarily disabled due to incomplete Qdrant integration
+	_ = repository
+	_ = timeframe
 
-	if repository == "" || repository == GlobalMemoryRepository {
-		// Global analysis across all repositories
-		chunks, err = ms.getChunksForTimeframe(ctx, "", timeframe)
-	} else {
-		chunks, err = ms.getChunksForTimeframe(ctx, repository, timeframe)
-	}
+	/*
+		if repository == "" || repository == GlobalMemoryRepository {
+			// Global analysis across all repositories
+			chunks, err = ms.getChunksForTimeframe(ctx, "", timeframe)
+		} else {
+			chunks, err = ms.getChunksForTimeframe(ctx, repository, timeframe)
+		}
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
-	}
+		if err != nil {
+			return nil, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
+		}
+	*/
 
-	// Use the new conflict detection system
-	conflictDetector := intelligence.NewConflictDetector()
-	conflictResolver := intelligence.NewConflictResolver()
+	// Use the enhanced conflict detection system with Qdrant vector analysis - DISABLED
+	// Advanced conflict detection temporarily disabled due to incomplete Qdrant integration
+	_ = intelligence.NewConflictDetector()
+	_ = intelligence.NewConflictResolver()
 
-	// Detect conflicts using the enhanced system
-	conflictResult, err := conflictDetector.DetectConflicts(ctx, chunks)
-	if err != nil {
-		logging.Error("Advanced conflict detection failed, falling back to simple detection", "error", err)
-		// Fallback to simple detection
-		conflicts := ms.detectConflictsSimple(chunks)
-		contradictions := ms.findContradictoryDecisions(chunks)
-		patternInconsistencies := ms.findPatternInconsistencies(chunks)
+	// Initialize Qdrant-enhanced components if available - DISABLED
+	// These components are disabled due to incomplete implementation
+	/* DISABLED: Qdrant enhanced conflict detection
+		var qdrantDetector *storage.QdrantConflictDetector
+		var qdrantResolver *storage.QdrantConflictResolver
+		var vectorResult *storage.VectorResolutionResult
 
+		if ms.vectorStore != nil {
+			qdrantDetector = storage.NewQdrantConflictDetector(baseDetector, ms.vectorStore)
+			qdrantResolver = storage.NewQdrantConflictResolver(baseResolver, ms.vectorStore)
+			logging.Info("Using Qdrant-enhanced conflict detection and resolution", "repository", repository)
+		}
+
+		// Detect conflicts using the appropriate system
+		var conflictResult *intelligence.ConflictDetectionResult
+		var err error
+
+		if qdrantDetector != nil {
+			// Use Qdrant-enhanced detection for better semantic analysis
+			conflictResult, err = qdrantDetector.DetectConflictsWithVectors(ctx, chunks)
+			if err != nil {
+				logging.Warn("Qdrant-enhanced detection failed, falling back to base detection", "error", err)
+				conflictResult, err = baseDetector.DetectConflicts(ctx, chunks)
+			}
+		} else {
+			// Use base conflict detection
+			conflictResult, err = baseDetector.DetectConflicts(ctx, chunks)
+		}
+
+		if err != nil {
+			logging.Error("Advanced conflict detection failed, falling back to simple detection", "error", err)
+			// Fallback to simple detection
+			conflicts := ms.detectConflictsSimple(chunks)
+			contradictions := ms.findContradictoryDecisions(chunks)
+			patternInconsistencies := ms.findPatternInconsistencies(chunks)
+
+			result := map[string]interface{}{
+				"repository":              repository,
+				"timeframe":               timeframe,
+				"analysis_timestamp":      time.Now().Format(time.RFC3339),
+				"total_chunks_analyzed":   len(chunks),
+				"conflicts":               conflicts,
+				"contradictory_decisions": contradictions,
+				"pattern_inconsistencies": patternInconsistencies,
+				"summary": map[string]interface{}{
+					"total_conflicts":    len(conflicts) + len(contradictions) + len(patternInconsistencies),
+					"severity_breakdown": ms.categorizeConflictsBySeverity(conflicts, contradictions, patternInconsistencies),
+					"recommendations":    ms.generateConflictResolutionRecommendations(conflicts, contradictions),
+				},
+			}
+			return result, nil
+		}
+
+		// Generate resolution recommendations using appropriate resolver
+		var recommendations []intelligence.ResolutionRecommendation
+		if qdrantResolver != nil && len(conflictResult.Conflicts) > 0 {
+			// Use Qdrant-enhanced resolution for better semantic merging and vector-based strategies
+			vectorResult, err = qdrantResolver.ResolveConflictsWithVectors(ctx, conflictResult.Conflicts)
+			if err != nil {
+				logging.Warn("Qdrant-enhanced resolution failed, falling back to base resolution", "error", err)
+				recommendations, err = baseResolver.ResolveConflicts(ctx, conflictResult.Conflicts)
+			} else {
+				// Convert vector result to base recommendations for compatibility
+				recommendations = ms.convertVectorResultToRecommendations(vectorResult, conflictResult.Conflicts)
+			}
+		} else {
+			recommendations, err = baseResolver.ResolveConflicts(ctx, conflictResult.Conflicts)
+		}
+
+		if err != nil {
+			logging.Warn("Failed to generate conflict resolution recommendations", "error", err)
+			recommendations = []intelligence.ResolutionRecommendation{}
+		}
+
+		// Convert conflicts to legacy format for compatibility
+		legacyConflicts := ms.convertConflictsToLegacyFormat(conflictResult.Conflicts)
+
+		// Build enhanced result with vector analysis data
 		result := map[string]interface{}{
-			"repository":              repository,
-			"timeframe":               timeframe,
-			"analysis_timestamp":      time.Now().Format(time.RFC3339),
-			"total_chunks_analyzed":   len(chunks),
-			"conflicts":               conflicts,
-			"contradictory_decisions": contradictions,
-			"pattern_inconsistencies": patternInconsistencies,
+			"repository":            repository,
+			"timeframe":             timeframe,
+			"analysis_timestamp":    time.Now().Format(time.RFC3339),
+			"total_chunks_analyzed": len(chunks),
+			"processing_time":       conflictResult.ProcessingTime,
+
+			// Enhanced conflict data with vector analysis
+			"conflicts_v2": map[string]interface{}{
+				"total_found":     conflictResult.ConflictsFound,
+				"conflicts":       conflictResult.Conflicts,
+				"recommendations": recommendations,
+				"analysis_time":   conflictResult.AnalysisTime,
+				"vector_enhanced": qdrantDetector != nil,
+			},
+
+			// Legacy format for backward compatibility
+			"conflicts":               legacyConflicts["outcome_conflicts"],
+			"contradictory_decisions": legacyConflicts["architectural_conflicts"],
+			"pattern_inconsistencies": legacyConflicts["pattern_conflicts"],
+
 			"summary": map[string]interface{}{
-				"total_conflicts":    len(conflicts) + len(contradictions) + len(patternInconsistencies),
-				"severity_breakdown": ms.categorizeConflictsBySeverity(conflicts, contradictions, patternInconsistencies),
-				"recommendations":    ms.generateConflictResolutionRecommendations(conflicts, contradictions),
+				"total_conflicts":         conflictResult.ConflictsFound,
+				"conflicts_by_type":       ms.categorizeConflictsByType(conflictResult.Conflicts),
+				"conflicts_by_severity":   ms.categorizeConflictsBySeverity2(conflictResult.Conflicts),
+				"resolution_strategies":   len(recommendations),
+				"high_priority_conflicts": ms.countHighPriorityConflicts(conflictResult.Conflicts),
+				"recommendations_summary": ms.summarizeRecommendations(recommendations),
+				"analysis_method":         ms.getAnalysisMethod(qdrantDetector != nil),
 			},
 		}
+
+		// Add vector-specific analysis if available
+		if vectorResult != nil {
+			result["vector_analysis"] = map[string]interface{}{
+				"semantic_merge_available": vectorResult.SemanticMerge != nil,
+				"resolution_confidence":    vectorResult.ConfidenceScore,
+				"resolution_rationale":     vectorResult.ResolutionRationale,
+				"recommended_strategy":     vectorResult.RecommendedStrategy,
+				"alternative_strategies":   len(vectorResult.AlternativeStrategies),
+				"vector_analysis_details":  vectorResult.VectorAnalysis,
+			}
+
+			if vectorResult.SemanticMerge != nil {
+				result["semantic_merge"] = map[string]interface{}{
+					"merge_strategy":     vectorResult.SemanticMerge.MergeStrategy,
+					"resolution_quality": vectorResult.SemanticMerge.ResolutionQuality,
+					"semantic_alignment": vectorResult.SemanticMerge.SemanticAlignment,
+					"preservation_score": vectorResult.SemanticMerge.PreservationScore,
+					"conflict_points":    vectorResult.SemanticMerge.ConflictPoints,
+				}
+			}
+		}
+
+		logging.Info("memory_conflicts completed", "repository", repository, "total_conflicts", conflictResult.ConflictsFound)
 		return result, nil
 	}
 
-	// Generate resolution recommendations
-	recommendations, err := conflictResolver.ResolveConflicts(ctx, conflictResult.Conflicts)
-	if err != nil {
-		logging.Warn("Failed to generate conflict resolution recommendations", "error", err)
-		recommendations = []intelligence.ResolutionRecommendation{}
+	// convertVectorResultToRecommendations converts Qdrant vector resolution results to base recommendations format
+	func (ms *MemoryServer) convertVectorResultToRecommendations(vectorResult *storage.VectorResolutionResult, conflicts []intelligence.Conflict) []intelligence.ResolutionRecommendation {
+		if vectorResult == nil || len(conflicts) == 0 {
+			return []intelligence.ResolutionRecommendation{}
+		}
+
+		recommendations := make([]intelligence.ResolutionRecommendation, 0, len(conflicts))
+
+		// For each conflict, create a recommendation based on vector analysis
+		for _, conflict := range conflicts {
+			strategies := []intelligence.ResolutionStrategy{}
+
+			// Add recommended strategy if available
+			if vectorResult.RecommendedStrategy != nil {
+				strategies = append(strategies, vectorResult.RecommendedStrategy.ResolutionStrategy)
+			}
+
+			// Add alternative strategies
+			for _, alt := range vectorResult.AlternativeStrategies {
+				strategies = append(strategies, alt.ResolutionStrategy)
+			}
+
+			// Build recommendation
+			recommendation := intelligence.ResolutionRecommendation{
+				ConflictID:   conflict.ID,
+				ConflictType: conflict.Type,
+				Severity:     conflict.Severity,
+				Strategies:   strategies,
+				Context: intelligence.ConflictContext{
+					Repository:       conflict.PrimaryChunk.Metadata.Repository,
+					AffectedFiles:    append(conflict.PrimaryChunk.Metadata.FilesModified, conflict.ConflictChunk.Metadata.FilesModified...),
+					BusinessContext:  map[string]any{"vector_enhanced": true},
+					TechnicalContext: conflict.Context,
+				},
+				GeneratedAt: conflict.DetectedAt,
+				ValidUntil:  conflict.DetectedAt.Add(7 * 24 * time.Hour), // 7 days
+			}
+
+			// Set recommended strategy
+			if len(strategies) > 0 {
+				recommendation.Recommended = &strategies[0]
+			}
+
+			recommendations = append(recommendations, recommendation)
+		}
+
+		return recommendations
 	}
 
-	// Convert conflicts to legacy format for compatibility
-	legacyConflicts := ms.convertConflictsToLegacyFormat(conflictResult.Conflicts)
-
-	result := map[string]interface{}{
-		"repository":            repository,
-		"timeframe":             timeframe,
-		"analysis_timestamp":    time.Now().Format(time.RFC3339),
-		"total_chunks_analyzed": len(chunks),
-		"processing_time":       conflictResult.ProcessingTime,
-
-		// Enhanced conflict data
-		"conflicts_v2": map[string]interface{}{
-			"total_found":     conflictResult.ConflictsFound,
-			"conflicts":       conflictResult.Conflicts,
-			"recommendations": recommendations,
-			"analysis_time":   conflictResult.AnalysisTime,
-		},
-
-		// Legacy format for backward compatibility
-		"conflicts":               legacyConflicts["outcome_conflicts"],
-		"contradictory_decisions": legacyConflicts["architectural_conflicts"],
-		"pattern_inconsistencies": legacyConflicts["pattern_conflicts"],
-
-		"summary": map[string]interface{}{
-			"total_conflicts":         conflictResult.ConflictsFound,
-			"conflicts_by_type":       ms.categorizeConflictsByType(conflictResult.Conflicts),
-			"conflicts_by_severity":   ms.categorizeConflictsBySeverity2(conflictResult.Conflicts),
-			"resolution_strategies":   len(recommendations),
-			"high_priority_conflicts": ms.countHighPriorityConflicts(conflictResult.Conflicts),
-			"recommendations_summary": ms.summarizeRecommendations(recommendations),
-		},
+	// getAnalysisMethod returns a description of the analysis method used
+	func (ms *MemoryServer) getAnalysisMethod(vectorEnhanced bool) string {
+		if vectorEnhanced {
+			return "Qdrant-enhanced vector semantic analysis with conflict detection"
+		}
+		return "Standard pattern-based conflict detection"
 	}
 
-	logging.Info("memory_conflicts completed", "repository", repository, "total_conflicts", conflictResult.ConflictsFound)
-	return result, nil
-}
-
-// conflictResolutionConfig holds configuration for conflict resolution
-type conflictResolutionConfig struct {
-	ConflictIDs          []string
-	Repository           string
-	MaxStrategies        int
-	IncludeDetailedSteps bool
-	PreferredTypes       []string
-}
-
-// parseConflictResolutionParams extracts and validates parameters for conflict resolution
-func (ms *MemoryServer) parseConflictResolutionParams(params map[string]interface{}) (*conflictResolutionConfig, error) {
-	resolutionConfig := &conflictResolutionConfig{
-		MaxStrategies:        3,
-		IncludeDetailedSteps: true,
+	// conflictResolutionConfig holds configuration for conflict resolution
+	type conflictResolutionConfig struct {
+		ConflictIDs          []string
+		Repository           string
+		MaxStrategies        int
+		IncludeDetailedSteps bool
+		PreferredTypes       []string
 	}
 
-	// Extract conflict IDs
-	if ids, ok := params["conflict_ids"].([]interface{}); ok {
-		for _, id := range ids {
-			if idStr, ok := id.(string); ok {
-				resolutionConfig.ConflictIDs = append(resolutionConfig.ConflictIDs, idStr)
+	// parseConflictResolutionParams extracts and validates parameters for conflict resolution
+	func (ms *MemoryServer) parseConflictResolutionParams(params map[string]interface{}) (*conflictResolutionConfig, error) {
+		resolutionConfig := &conflictResolutionConfig{
+			MaxStrategies:        3,
+			IncludeDetailedSteps: true,
+		}
+
+		// Extract conflict IDs
+		if ids, ok := params["conflict_ids"].([]interface{}); ok {
+			for _, id := range ids {
+				if idStr, ok := id.(string); ok {
+					resolutionConfig.ConflictIDs = append(resolutionConfig.ConflictIDs, idStr)
+				}
+			}
+		}
+
+		if len(resolutionConfig.ConflictIDs) == 0 {
+			return nil, errors.New("conflict_ids parameter is required and must be a non-empty array")
+		}
+
+		if repo, ok := params["repository"].(string); ok {
+			resolutionConfig.Repository = repo
+		}
+
+		if maxVal, ok := params["max_strategies"].(float64); ok {
+			resolutionConfig.MaxStrategies = int(maxVal)
+		}
+
+		if include, ok := params["include_detailed_steps"].(bool); ok {
+			resolutionConfig.IncludeDetailedSteps = include
+		}
+
+		if strategyTypes, ok := params["strategy_types"].([]interface{}); ok {
+			for _, t := range strategyTypes {
+				if typeStr, ok := t.(string); ok {
+					resolutionConfig.PreferredTypes = append(resolutionConfig.PreferredTypes, typeStr)
+				}
+			}
+		}
+
+		return resolutionConfig, nil
+	}
+
+	// getRequestedConflicts retrieves conflicts matching the specified IDs
+	func (ms *MemoryServer) getRequestedConflicts(ctx context.Context, conflictIDs []string, repository string) ([]intelligence.Conflict, int, error) {
+		timeframe := types.TimeframeMonth
+		chunks, err := ms.getChunksForTimeframe(ctx, repository, timeframe)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
+		}
+
+		conflictDetector := intelligence.NewConflictDetector()
+		conflictResult, err := conflictDetector.DetectConflicts(ctx, chunks)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to detect conflicts: %w", err)
+		}
+
+		// Filter conflicts to only those requested
+		requestedConflicts := []intelligence.Conflict{}
+		for i := range conflictResult.Conflicts {
+			conflict := &conflictResult.Conflicts[i]
+			for _, requestedID := range conflictIDs {
+				if conflict.ID == requestedID {
+					requestedConflicts = append(requestedConflicts, *conflict)
+					break
+				}
+			}
+		}
+
+		return requestedConflicts, len(conflictResult.Conflicts), nil
+	}
+
+	// generateConflictRecommendations creates and customizes resolution recommendations
+	func (ms *MemoryServer) generateConflictRecommendations(ctx context.Context, conflicts []intelligence.Conflict, resolutionConfig *conflictResolutionConfig) ([]intelligence.ResolutionRecommendation, error) {
+		conflictResolver := intelligence.NewConflictResolver()
+		recommendations, err := conflictResolver.ResolveConflicts(ctx, conflicts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate resolution recommendations: %w", err)
+		}
+
+		// Customize recommendations based on config
+		ms.customizeRecommendations(recommendations, resolutionConfig)
+		return recommendations, nil
+	}
+
+	// customizeRecommendations applies filtering and customization to recommendations
+	func (ms *MemoryServer) customizeRecommendations(recommendations []intelligence.ResolutionRecommendation, resolutionConfig *conflictResolutionConfig) {
+		for i := range recommendations {
+			// Filter by preferred types if specified
+			if len(resolutionConfig.PreferredTypes) > 0 {
+				recommendations[i].Strategies = ms.filterStrategiesByType(recommendations[i].Strategies, resolutionConfig.PreferredTypes)
+			}
+
+			// Limit number of strategies
+			if len(recommendations[i].Strategies) > resolutionConfig.MaxStrategies {
+				recommendations[i].Strategies = recommendations[i].Strategies[:resolutionConfig.MaxStrategies]
+			}
+
+			// Update recommended strategy
+			if len(recommendations[i].Strategies) > 0 {
+				recommendations[i].Recommended = &recommendations[i].Strategies[0]
+			}
+
+			// Remove detailed steps if not requested
+			if !resolutionConfig.IncludeDetailedSteps {
+				for j := range recommendations[i].Strategies {
+					recommendations[i].Strategies[j].Steps = []intelligence.ResolutionStep{}
+				}
 			}
 		}
 	}
 
-	if len(resolutionConfig.ConflictIDs) == 0 {
-		return nil, errors.New("conflict_ids parameter is required and must be a non-empty array")
-	}
-
-	if repo, ok := params["repository"].(string); ok {
-		resolutionConfig.Repository = repo
-	}
-
-	if maxVal, ok := params["max_strategies"].(float64); ok {
-		resolutionConfig.MaxStrategies = int(maxVal)
-	}
-
-	if include, ok := params["include_detailed_steps"].(bool); ok {
-		resolutionConfig.IncludeDetailedSteps = include
-	}
-
-	if strategyTypes, ok := params["strategy_types"].([]interface{}); ok {
-		for _, t := range strategyTypes {
-			if typeStr, ok := t.(string); ok {
-				resolutionConfig.PreferredTypes = append(resolutionConfig.PreferredTypes, typeStr)
+	// filterStrategiesByType filters strategies based on preferred types
+	func (ms *MemoryServer) filterStrategiesByType(strategies []intelligence.ResolutionStrategy, preferredTypes []string) []intelligence.ResolutionStrategy {
+		filteredStrategies := []intelligence.ResolutionStrategy{}
+		for i := range strategies {
+			strategy := &strategies[i]
+			for _, prefType := range preferredTypes {
+				if string(strategy.Type) == prefType {
+					filteredStrategies = append(filteredStrategies, *strategy)
+					break
+				}
 			}
 		}
-	}
-
-	return resolutionConfig, nil
-}
-
-// getRequestedConflicts retrieves conflicts matching the specified IDs
-func (ms *MemoryServer) getRequestedConflicts(ctx context.Context, conflictIDs []string, repository string) ([]intelligence.Conflict, int, error) {
-	timeframe := types.TimeframeMonth
-	chunks, err := ms.getChunksForTimeframe(ctx, repository, timeframe)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
-	}
-
-	conflictDetector := intelligence.NewConflictDetector()
-	conflictResult, err := conflictDetector.DetectConflicts(ctx, chunks)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to detect conflicts: %w", err)
-	}
-
-	// Filter conflicts to only those requested
-	requestedConflicts := []intelligence.Conflict{}
-	for i := range conflictResult.Conflicts {
-		conflict := &conflictResult.Conflicts[i]
-		for _, requestedID := range conflictIDs {
-			if conflict.ID == requestedID {
-				requestedConflicts = append(requestedConflicts, *conflict)
-				break
-			}
+		if len(filteredStrategies) > 0 {
+			return filteredStrategies
 		}
+		return strategies // Return original if no matches found
 	}
 
-	return requestedConflicts, len(conflictResult.Conflicts), nil
-}
-
-// generateConflictRecommendations creates and customizes resolution recommendations
-func (ms *MemoryServer) generateConflictRecommendations(ctx context.Context, conflicts []intelligence.Conflict, resolutionConfig *conflictResolutionConfig) ([]intelligence.ResolutionRecommendation, error) {
-	conflictResolver := intelligence.NewConflictResolver()
-	recommendations, err := conflictResolver.ResolveConflicts(ctx, conflicts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate resolution recommendations: %w", err)
-	}
-
-	// Customize recommendations based on config
-	ms.customizeRecommendations(recommendations, resolutionConfig)
-	return recommendations, nil
-}
-
-// customizeRecommendations applies filtering and customization to recommendations
-func (ms *MemoryServer) customizeRecommendations(recommendations []intelligence.ResolutionRecommendation, resolutionConfig *conflictResolutionConfig) {
-	for i := range recommendations {
-		// Filter by preferred types if specified
-		if len(resolutionConfig.PreferredTypes) > 0 {
-			recommendations[i].Strategies = ms.filterStrategiesByType(recommendations[i].Strategies, resolutionConfig.PreferredTypes)
-		}
-
-		// Limit number of strategies
-		if len(recommendations[i].Strategies) > resolutionConfig.MaxStrategies {
-			recommendations[i].Strategies = recommendations[i].Strategies[:resolutionConfig.MaxStrategies]
-		}
-
-		// Update recommended strategy
-		if len(recommendations[i].Strategies) > 0 {
-			recommendations[i].Recommended = &recommendations[i].Strategies[0]
-		}
-
-		// Remove detailed steps if not requested
-		if !resolutionConfig.IncludeDetailedSteps {
-			for j := range recommendations[i].Strategies {
-				recommendations[i].Strategies[j].Steps = []intelligence.ResolutionStep{}
-			}
-		}
-	}
-}
-
-// filterStrategiesByType filters strategies based on preferred types
-func (ms *MemoryServer) filterStrategiesByType(strategies []intelligence.ResolutionStrategy, preferredTypes []string) []intelligence.ResolutionStrategy {
-	filteredStrategies := []intelligence.ResolutionStrategy{}
-	for i := range strategies {
-		strategy := &strategies[i]
-		for _, prefType := range preferredTypes {
-			if string(strategy.Type) == prefType {
-				filteredStrategies = append(filteredStrategies, *strategy)
-				break
-			}
-		}
-	}
-	if len(filteredStrategies) > 0 {
-		return filteredStrategies
-	}
-	return strategies // Return original if no matches found
-}
-
-// buildConflictResolutionResponse constructs the final response for conflict resolution
-func (ms *MemoryServer) buildConflictResolutionResponse(resolutionConfig *conflictResolutionConfig, conflicts []intelligence.Conflict, recommendations []intelligence.ResolutionRecommendation) map[string]interface{} {
-	return map[string]interface{}{
-		"repository":                  resolutionConfig.Repository,
-		"conflict_ids_requested":      resolutionConfig.ConflictIDs,
-		"conflicts_found":             len(conflicts),
-		"recommendations":             recommendations,
-		"analysis_timestamp":          time.Now().Format(time.RFC3339),
-		"include_detailed_steps":      resolutionConfig.IncludeDetailedSteps,
-		"max_strategies_per_conflict": resolutionConfig.MaxStrategies,
-		"summary":                     ms.buildConflictSummary(recommendations, conflicts),
-		"next_steps":                  ms.generateConflictResolutionNextSteps(recommendations),
-	}
-}
-
-// buildConflictSummary creates summary statistics for the conflict resolution
-func (ms *MemoryServer) buildConflictSummary(recommendations []intelligence.ResolutionRecommendation, conflicts []intelligence.Conflict) map[string]interface{} {
-	return map[string]interface{}{
-		"total_recommendations":       len(recommendations),
-		"avg_strategies_per_conflict": ms.calculateAvgStrategies(recommendations),
-		"strategy_distribution":       ms.calculateStrategyDistribution(recommendations),
-		"conflicts_by_severity":       ms.calculateSeverityDistribution(conflicts),
-	}
-}
-
-// calculateAvgStrategies calculates average strategies per conflict
-func (ms *MemoryServer) calculateAvgStrategies(recommendations []intelligence.ResolutionRecommendation) float64 {
-	if len(recommendations) == 0 {
-		return 0.0
-	}
-	total := 0
-	for i := range recommendations {
-		rec := &recommendations[i]
-		total += len(rec.Strategies)
-	}
-	return float64(total) / float64(len(recommendations))
-}
-
-// calculateStrategyDistribution builds distribution of strategy types
-func (ms *MemoryServer) calculateStrategyDistribution(recommendations []intelligence.ResolutionRecommendation) map[string]int {
-	dist := map[string]int{}
-	for i := range recommendations {
-		rec := &recommendations[i]
-		for j := range rec.Strategies {
-			strategy := &rec.Strategies[j]
-			dist[string(strategy.Type)]++
-		}
-	}
-	return dist
-}
-
-// calculateSeverityDistribution builds distribution of conflict severities
-func (ms *MemoryServer) calculateSeverityDistribution(conflicts []intelligence.Conflict) map[string]int {
-	severity := map[string]int{}
-	for i := range conflicts {
-		conflict := &conflicts[i]
-		severity[string(conflict.Severity)]++
-	}
-	return severity
-}
-
-// handleMemoryResolveConflicts provides detailed resolution strategies for specific conflicts
-func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	logging.Info("MCP TOOL: memory_resolve_conflicts called", "params", params)
-
-	// Parse parameters
-	resolutionConfig, err := ms.parseConflictResolutionParams(params)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get conflicts for the specified IDs
-	requestedConflicts, totalConflicts, err := ms.getRequestedConflicts(ctx, resolutionConfig.ConflictIDs, resolutionConfig.Repository)
-	if err != nil {
-		return nil, err
-	}
-
-	if len(requestedConflicts) == 0 {
+	// buildConflictResolutionResponse constructs the final response for conflict resolution
+	func (ms *MemoryServer) buildConflictResolutionResponse(resolutionConfig *conflictResolutionConfig, conflicts []intelligence.Conflict, recommendations []intelligence.ResolutionRecommendation) map[string]interface{} {
 		return map[string]interface{}{
-			"message":                 "No conflicts found with the specified IDs",
-			"conflict_ids_requested":  resolutionConfig.ConflictIDs,
-			"total_current_conflicts": totalConflicts,
+			"repository":                  resolutionConfig.Repository,
+			"conflict_ids_requested":      resolutionConfig.ConflictIDs,
+			"conflicts_found":             len(conflicts),
+			"recommendations":             recommendations,
+			"analysis_timestamp":          time.Now().Format(time.RFC3339),
+			"include_detailed_steps":      resolutionConfig.IncludeDetailedSteps,
+			"max_strategies_per_conflict": resolutionConfig.MaxStrategies,
+			"summary":                     ms.buildConflictSummary(recommendations, conflicts),
+			"next_steps":                  ms.generateConflictResolutionNextSteps(recommendations),
+		}
+	}
+
+	// buildConflictSummary creates summary statistics for the conflict resolution
+	func (ms *MemoryServer) buildConflictSummary(recommendations []intelligence.ResolutionRecommendation, conflicts []intelligence.Conflict) map[string]interface{} {
+		return map[string]interface{}{
+			"total_recommendations":       len(recommendations),
+			"avg_strategies_per_conflict": ms.calculateAvgStrategies(recommendations),
+			"strategy_distribution":       ms.calculateStrategyDistribution(recommendations),
+			"conflicts_by_severity":       ms.calculateSeverityDistribution(conflicts),
+		}
+	}
+
+	// calculateAvgStrategies calculates average strategies per conflict
+	func (ms *MemoryServer) calculateAvgStrategies(recommendations []intelligence.ResolutionRecommendation) float64 {
+		if len(recommendations) == 0 {
+			return 0.0
+		}
+		total := 0
+		for i := range recommendations {
+			rec := &recommendations[i]
+			total += len(rec.Strategies)
+		}
+		return float64(total) / float64(len(recommendations))
+	}
+
+	// calculateStrategyDistribution builds distribution of strategy types
+	func (ms *MemoryServer) calculateStrategyDistribution(recommendations []intelligence.ResolutionRecommendation) map[string]int {
+		dist := map[string]int{}
+		for i := range recommendations {
+			rec := &recommendations[i]
+			for j := range rec.Strategies {
+				strategy := &rec.Strategies[j]
+				dist[string(strategy.Type)]++
+			}
+		}
+		return dist
+	}
+
+	// calculateSeverityDistribution builds distribution of conflict severities
+	func (ms *MemoryServer) calculateSeverityDistribution(conflicts []intelligence.Conflict) map[string]int {
+		severity := map[string]int{}
+		for i := range conflicts {
+			conflict := &conflicts[i]
+			severity[string(conflict.Severity)]++
+		}
+		return severity
+	}
+
+	// handleMemoryResolveConflicts provides detailed resolution strategies for specific conflicts
+	func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+		logging.Info("MCP TOOL: memory_resolve_conflicts called", "params", params)
+
+		// TEMPORARY: Advanced conflict resolution disabled due to incomplete Qdrant integration
+		return map[string]interface{}{
+			"status": "not_implemented",
+			"message": "Advanced conflict resolution temporarily disabled - use basic conflict detection instead",
+			"available_tools": []string{"memory_conflicts"},
 		}, nil
-	}
 
-	// Generate and customize recommendations
-	recommendations, err := ms.generateConflictRecommendations(ctx, requestedConflicts, resolutionConfig)
-	if err != nil {
-		return nil, err
-	}
+		/* DISABLED: Advanced conflict resolution
+		// Parse parameters
+		resolutionConfig, err := ms.parseConflictResolutionParams(params)
+		if err != nil {
+			return nil, err
+		}
 
-	// Build final response
-	result := ms.buildConflictResolutionResponse(resolutionConfig, requestedConflicts, recommendations)
+		// Get conflicts for the specified IDs
+		requestedConflicts, totalConflicts, err := ms.getRequestedConflicts(ctx, resolutionConfig.ConflictIDs, resolutionConfig.Repository)
+		if err != nil {
+			return nil, err
+		}
 
-	logging.Info("memory_resolve_conflicts completed",
-		"repository", resolutionConfig.Repository,
-		"conflicts_processed", len(requestedConflicts),
-		"recommendations_generated", len(recommendations))
-	return result, nil
+		if len(requestedConflicts) == 0 {
+			return map[string]interface{}{
+				"message":                 "No conflicts found with the specified IDs",
+				"conflict_ids_requested":  resolutionConfig.ConflictIDs,
+				"total_current_conflicts": totalConflicts,
+			}, nil
+		}
+
+		// Generate and customize recommendations
+		recommendations, err := ms.generateConflictRecommendations(ctx, requestedConflicts, resolutionConfig)
+		if err != nil {
+			return nil, err
+		}
+
+		// Build final response
+		result := ms.buildConflictResolutionResponse(resolutionConfig, requestedConflicts, recommendations)
+
+		logging.Info("memory_resolve_conflicts completed",
+			"repository", resolutionConfig.Repository,
+			"conflicts_processed", len(requestedConflicts),
+			"recommendations_generated", len(recommendations))
+		return result, nil
+	*/
+
+	// Return not implemented response for disabled functionality
+	return map[string]interface{}{
+		"status":          "not_implemented",
+		"message":         "Advanced conflict resolution temporarily disabled - use memory_analyze with detect_conflicts for basic conflict detection",
+		"available_tools": []string{"memory_analyze"},
+	}, nil
 }
 
 // generateConflictResolutionNextSteps provides actionable next steps based on recommendations

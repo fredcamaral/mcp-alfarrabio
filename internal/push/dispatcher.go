@@ -235,6 +235,132 @@ func (d *Dispatcher) Dispatch(notification *Notification) error {
 	return nil
 }
 
+// DispatchToRepository sends a notification to all endpoints subscribed to a repository
+func (d *Dispatcher) DispatchToRepository(notification *Notification, repository string) error {
+	if !d.IsRunning() {
+		return fmt.Errorf("dispatcher not running")
+	}
+
+	// Add repository to notification metadata
+	if notification.Metadata == nil {
+		notification.Metadata = make(map[string]string)
+	}
+	notification.Metadata["repository"] = repository
+
+	// Get endpoints for this repository
+	endpoints := d.registry.GetByRepository(repository)
+	if len(endpoints) == 0 {
+		log.Printf("No CLI endpoints subscribed to repository %s for notification %s", repository, notification.ID)
+		return nil
+	}
+
+	log.Printf("Dispatching notification %s to %d endpoints for repository %s", notification.ID, len(endpoints), repository)
+
+	// Create delivery jobs
+	for _, endpoint := range endpoints {
+		if d.shouldDeliverToEndpoint(notification, endpoint) {
+			job := &DeliveryJob{
+				Notification: notification,
+				Endpoint:     endpoint,
+				Attempt:      1,
+				ScheduledAt:  time.Now(),
+			}
+
+			select {
+			case d.jobQueue <- job:
+				// Job queued successfully
+			default:
+				log.Printf("Job queue full, dropping notification %s for endpoint %s",
+					notification.ID, endpoint.ID)
+			}
+		}
+	}
+
+	return nil
+}
+
+// DispatchToSession sends a notification to all endpoints subscribed to a session
+func (d *Dispatcher) DispatchToSession(notification *Notification, sessionID string) error {
+	if !d.IsRunning() {
+		return fmt.Errorf("dispatcher not running")
+	}
+
+	// Add session to notification metadata
+	if notification.Metadata == nil {
+		notification.Metadata = make(map[string]string)
+	}
+	notification.Metadata["session_id"] = sessionID
+
+	// Get endpoints for this session
+	endpoints := d.registry.GetBySession(sessionID)
+	if len(endpoints) == 0 {
+		log.Printf("No CLI endpoints subscribed to session %s for notification %s", sessionID, notification.ID)
+		return nil
+	}
+
+	log.Printf("Dispatching notification %s to %d endpoints for session %s", notification.ID, len(endpoints), sessionID)
+
+	// Create delivery jobs
+	for _, endpoint := range endpoints {
+		if d.shouldDeliverToEndpoint(notification, endpoint) {
+			job := &DeliveryJob{
+				Notification: notification,
+				Endpoint:     endpoint,
+				Attempt:      1,
+				ScheduledAt:  time.Now(),
+			}
+
+			select {
+			case d.jobQueue <- job:
+				// Job queued successfully
+			default:
+				log.Printf("Job queue full, dropping notification %s for endpoint %s",
+					notification.ID, endpoint.ID)
+			}
+		}
+	}
+
+	return nil
+}
+
+// DispatchWithFilter sends a notification to endpoints matching specific filters
+func (d *Dispatcher) DispatchWithFilter(notification *Notification, filters map[string]string) error {
+	if !d.IsRunning() {
+		return fmt.Errorf("dispatcher not running")
+	}
+
+	// Get endpoints matching filters
+	endpoints := d.registry.GetByFilter(filters)
+	if len(endpoints) == 0 {
+		log.Printf("No CLI endpoints matching filters for notification %s", notification.ID)
+		return nil
+	}
+
+	log.Printf("Dispatching notification %s to %d filtered endpoints", notification.ID, len(endpoints))
+
+	// Create delivery jobs
+	for _, endpoint := range endpoints {
+		if d.shouldDeliverToEndpoint(notification, endpoint) {
+			job := &DeliveryJob{
+				Notification: notification,
+				Endpoint:     endpoint,
+				Attempt:      1,
+				ScheduledAt:  time.Now(),
+			}
+
+			select {
+			case d.jobQueue <- job:
+				// Job queued successfully
+			default:
+				log.Printf("Job queue full, dropping notification %s for endpoint %s",
+					notification.ID, endpoint.ID)
+			}
+		}
+	}
+
+	return nil
+}
+
 // DispatchToEndpoint sends a notification to a specific CLI endpoint
 func (d *Dispatcher) DispatchToEndpoint(notification *Notification, endpointID string) error {
 	if !d.IsRunning() {
@@ -611,4 +737,88 @@ func CreateNotification(notificationType string, payload map[string]interface{})
 		MaxAttempts: 3,
 		RetryDelay:  time.Second,
 	}
+}
+
+// DispatchBatch sends multiple notifications efficiently
+func (d *Dispatcher) DispatchBatch(notifications []*Notification) []error {
+	if !d.IsRunning() {
+		err := fmt.Errorf("dispatcher not running")
+		errors := make([]error, len(notifications))
+		for i := range errors {
+			errors[i] = err
+		}
+		return errors
+	}
+
+	errors := make([]error, len(notifications))
+	endpoints := d.registry.GetActive()
+
+	if len(endpoints) == 0 {
+		log.Printf("No active CLI endpoints for batch notification delivery")
+		return errors
+	}
+
+	// Process each notification
+	for i, notification := range notifications {
+		// Create delivery jobs for each endpoint
+		dispatched := 0
+		for _, endpoint := range endpoints {
+			if d.shouldDeliverToEndpoint(notification, endpoint) {
+				job := &DeliveryJob{
+					Notification: notification,
+					Endpoint:     endpoint,
+					Attempt:      1,
+					ScheduledAt:  time.Now(),
+				}
+
+				select {
+				case d.jobQueue <- job:
+					dispatched++
+				default:
+					// Queue full, record partial error
+					if errors[i] == nil {
+						errors[i] = fmt.Errorf("job queue full, partial delivery")
+					}
+				}
+			}
+		}
+
+		if dispatched == 0 && errors[i] == nil {
+			errors[i] = fmt.Errorf("no eligible endpoints for notification %s", notification.ID)
+		}
+	}
+
+	return errors
+}
+
+// GetPendingJobCount returns the number of jobs waiting in the queue
+func (d *Dispatcher) GetPendingJobCount() int {
+	return len(d.jobQueue)
+}
+
+// ClearDeliveryHistory clears old delivery results to free memory
+func (d *Dispatcher) ClearDeliveryHistory(olderThan time.Duration) int {
+	d.tracker.mu.Lock()
+	defer d.tracker.mu.Unlock()
+
+	cutoff := time.Now().Add(-olderThan)
+	cleared := 0
+
+	for notificationID, results := range d.tracker.results {
+		allOld := true
+		for _, result := range results {
+			if result.Timestamp.After(cutoff) {
+				allOld = false
+				break
+			}
+		}
+
+		if allOld {
+			delete(d.tracker.results, notificationID)
+			cleared += len(results)
+		}
+	}
+
+	log.Printf("Cleared %d old delivery results", cleared)
+	return cleared
 }

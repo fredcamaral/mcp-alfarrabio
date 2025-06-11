@@ -308,8 +308,14 @@ func (c *CLI) runSyncAuto(repository string, interval time.Duration, stop bool) 
 
 	if stop {
 		fmt.Printf("🛑 Stopping automatic synchronization\n")
-		// TODO: Implement stop mechanism
-		return fmt.Errorf("auto sync stop not yet implemented")
+		return c.stopAutoSync()
+	}
+
+	// Check if auto sync is already running
+	if c.autoSyncActive {
+		fmt.Printf("⚠️  Automatic synchronization is already running\n")
+		fmt.Printf("Use 'lmmc sync auto --stop' to stop it first.\n")
+		return fmt.Errorf("auto sync already active")
 	}
 
 	fmt.Printf("🔄 Starting automatic synchronization\n")
@@ -317,10 +323,41 @@ func (c *CLI) runSyncAuto(repository string, interval time.Duration, stop bool) 
 	fmt.Printf("Interval: %v\n", interval)
 	fmt.Printf("Press Ctrl+C to stop\n\n")
 
-	ctx := context.Background()
+	// Create context with cancel function
+	ctx, cancel := context.WithCancel(context.Background())
+	c.autoSyncCancel = cancel
+	c.autoSyncActive = true
 
-	// This will run until context is cancelled
-	c.batchSyncService.ScheduleAutoSync(ctx, repository, interval)
+	// Start auto sync in background
+	go func() {
+		defer func() {
+			c.autoSyncActive = false
+			c.autoSyncCancel = nil
+		}()
+		c.batchSyncService.ScheduleAutoSync(ctx, repository, interval)
+	}()
+
+	fmt.Printf("✅ Automatic synchronization started\n")
+	fmt.Printf("Use 'lmmc sync auto --stop' to stop it.\n")
+
+	return nil
+}
+
+// stopAutoSync stops the automatic synchronization
+func (c *CLI) stopAutoSync() error {
+	if !c.autoSyncActive {
+		fmt.Printf("ℹ️  No automatic synchronization is currently running\n")
+		return nil
+	}
+
+	if c.autoSyncCancel != nil {
+		c.autoSyncCancel()
+		fmt.Printf("✅ Automatic synchronization stopped\n")
+	} else {
+		fmt.Printf("⚠️  Failed to stop automatic synchronization (no cancel function)\n")
+		c.autoSyncActive = false
+		return fmt.Errorf("failed to stop auto sync: no cancel function")
+	}
 
 	return nil
 }

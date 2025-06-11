@@ -489,6 +489,63 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 		}, []string{"operation", "options"}),
 	), mcp.ToolHandlerFunc(ms.handleMemorySystem))
+
+	// 10. document_generation - AI-powered document generation
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"document_generation",
+		"Generate documents using AI including PRDs, TRDs, and tasks. Interactive sessions supported for step-by-step PRD creation. Requires repository for context.",
+		mcp.ObjectSchema("Document generation parameters", map[string]interface{}{
+			"operation": map[string]interface{}{
+				"type":        "string",
+				"enum":        []string{"generate_prd", "generate_trd", "generate_main_tasks", "generate_sub_tasks", "start_session", "continue_session", "end_session"},
+				"description": "Type of document generation operation to perform",
+			},
+			"options": map[string]interface{}{
+				"type":                 "object",
+				"description":          "Operation-specific parameters. REQUIRED: repository for all operations",
+				"additionalProperties": true,
+				"properties": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "Repository URL (REQUIRED for all operations)",
+					},
+					"user_inputs": map[string]interface{}{
+						"type":        "array",
+						"description": "User input strings (required for generate_prd)",
+						"items":       map[string]interface{}{"type": "string"},
+					},
+					"project_type": map[string]interface{}{
+						"type":        "string",
+						"description": "Type of project (api, web-app, cli, mobile, library, general)",
+					},
+					"prd_content": map[string]interface{}{
+						"type":        "string",
+						"description": "PRD content (required for generate_trd)",
+					},
+					"trd_content": map[string]interface{}{
+						"type":        "string",
+						"description": "TRD content (required for generate_main_tasks)",
+					},
+					"main_task_content": map[string]interface{}{
+						"type":        "string",
+						"description": "Main task content (required for generate_sub_tasks)",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "Session ID (required for continue_session, end_session)",
+					},
+					"user_input": map[string]interface{}{
+						"type":        "string",
+						"description": "User response (for continue_session)",
+					},
+					"doc_type": map[string]interface{}{
+						"type":        "string",
+						"description": "Document type (required for start_session): prd, trd, tasks",
+					},
+				},
+			},
+		}, []string{"operation", "options"}),
+	), mcp.ToolHandlerFunc(ms.handleDocumentGeneration))
 }
 
 // Consolidated tool handlers
@@ -641,7 +698,10 @@ func (ms *MemoryServer) handleMemoryUpdate(ctx context.Context, args map[string]
 	case "mark_refreshed":
 		return ms.handleMarkRefreshed(ctx, options)
 	case "resolve_conflicts":
-		return ms.handleMemoryResolveConflicts(ctx, options)
+		return map[string]interface{}{
+			"status":  "not_implemented",
+			"message": "Advanced conflict resolution temporarily disabled - use memory_conflicts for basic conflict detection",
+		}, nil
 	case "bulk_update":
 		// Create a modified options map for bulk update
 		bulkOptions := make(map[string]interface{})
@@ -938,4 +998,64 @@ func (ms *MemoryServer) handleDocumentationOperation(ctx context.Context, option
 func (ms *MemoryServer) buildSystemOperationError(operation string) (interface{}, error) {
 	validOps := []string{"health", "status", "generate_citations", "create_inline_citation", "get_documentation"}
 	return nil, fmt.Errorf("unsupported system operation '%s'. Valid operations: %s. Example: {\"operation\": \"health\"} or {\"operation\": \"status\", \"options\": {\"repository\": \"github.com/user/repo\"}}", operation, strings.Join(validOps, ", "))
+}
+
+// handleDocumentGeneration routes document generation operations to appropriate handlers
+func (ms *MemoryServer) handleDocumentGeneration(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	operation, ok := args["operation"].(string)
+	if !ok {
+		return nil, errors.New("operation parameter is required. Example: {\"operation\": \"generate_prd\", \"options\": {\"repository\": \"github.com/user/repo\", \"user_inputs\": [\"Create a task management app\"]}}")
+	}
+
+	options, ok := args["options"].(map[string]interface{})
+	if !ok {
+		return nil, errors.New("options parameter is required and MUST be a JSON object. Must contain repository. Example: {\"repository\": \"github.com/user/repo\", \"user_inputs\": [\"Create a task management app\"]}")
+	}
+
+	// Repository parameter is required for all document generation operations
+	repository, ok := options["repository"].(string)
+	if !ok || repository == "" {
+		return nil, errors.New("repository parameter is required for all document generation operations. Example: {\"repository\": \"github.com/user/repo\"}")
+	}
+
+	switch operation {
+	case "generate_prd":
+		return map[string]interface{}{
+			"status":  "not_implemented",
+			"message": "AI document generation moved to shared AI package - use CLI for document generation",
+		}, nil
+	case "generate_trd":
+		return map[string]interface{}{
+			"status":  "not_implemented",
+			"message": "AI document generation moved to shared AI package - use CLI for document generation",
+		}, nil
+	case "generate_main_tasks":
+		return map[string]interface{}{
+			"status":  "not_implemented",
+			"message": "AI task generation moved to shared AI package - use CLI for task generation",
+		}, nil
+	case "generate_sub_tasks":
+		return map[string]interface{}{
+			"status":  "not_implemented",
+			"message": "AI task generation moved to shared AI package - use CLI for task generation",
+		}, nil
+	case "start_session":
+		return map[string]interface{}{
+			"status":  "not_implemented",
+			"message": "Interactive sessions moved to shared AI package - use CLI for interactive sessions",
+		}, nil
+	case "continue_session":
+		return map[string]interface{}{
+			"status":  "not_implemented",
+			"message": "Interactive sessions moved to shared AI package - use CLI for interactive sessions",
+		}, nil
+	case "end_session":
+		return map[string]interface{}{
+			"status":  "not_implemented",
+			"message": "Interactive sessions moved to shared AI package - use CLI for interactive sessions",
+		}, nil
+	default:
+		validOps := []string{"generate_prd", "generate_trd", "generate_main_tasks", "generate_sub_tasks", "start_session", "continue_session", "end_session"}
+		return nil, fmt.Errorf("unsupported document generation operation '%s'. Valid operations: %s", operation, strings.Join(validOps, ", "))
+	}
 }

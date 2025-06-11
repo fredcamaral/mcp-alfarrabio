@@ -12,6 +12,7 @@ import (
 
 	"lerian-mcp-memory-cli/internal/adapters/primary/cli"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/ai"
+	"lerian-mcp-memory-cli/internal/adapters/secondary/analytics"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/config"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/filesystem"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/mcp"
@@ -21,6 +22,7 @@ import (
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 	"lerian-mcp-memory-cli/internal/domain/services"
+	sharedai "lerian-mcp-memory/pkg/ai"
 )
 
 // Container holds all application dependencies
@@ -50,6 +52,7 @@ type Container struct {
 	// Intelligence Adapters
 	Visualizer        ports.Visualizer
 	AnalyticsExporter ports.AnalyticsExporter
+	AnalyticsEngine   ports.AnalyticsEngine
 
 	// Storage for intelligence features
 	PatternStore  ports.PatternStorage
@@ -288,24 +291,28 @@ func (c *Container) initTaskService() {
 	c.Logger.Info("task service initialized")
 }
 
-// initAIService initializes the AI service
+// initAIService initializes the AI service using shared AI package
 func (c *Container) initAIService() {
-	// Check if AI service is configured
-	aiConfig := &ai.AIServiceConfig{
-		BaseURL: c.Config.Server.URL, // Use the same base URL as MCP server
-		APIKey:  "",                  // No API key needed for MCP server
-		Timeout: 30 * time.Second,
+	// Try to create AI service from environment variables first (for real providers)
+	sharedService, err := sharedai.NewFromEnv(c.Logger)
+	if err != nil {
+		c.Logger.Warn("failed to create AI service from environment, falling back to mock",
+			slog.Any("error", err))
+
+		// Fall back to mock service if real providers aren't configured
+		sharedService, err = sharedai.NewMockService(c.Logger)
+		if err != nil {
+			c.Logger.Error("failed to create mock AI service", slog.Any("error", err))
+			c.AIService = nil
+			return
+		}
+		c.Logger.Info("AI service initialized", slog.String("provider", "mock"))
+	} else {
+		c.Logger.Info("AI service initialized", slog.String("provider", "real-ai-from-env"))
 	}
 
-	if c.Config.Server.URL == "" {
-		c.Logger.Info("AI service disabled (no server URL configured)")
-		// We'll create a mock or nil service
-		c.AIService = nil
-		return
-	}
-
-	c.AIService = ai.NewHTTPAIService(aiConfig)
-	c.Logger.Info("AI service initialized", slog.String("base_url", aiConfig.BaseURL))
+	// Create adapter that bridges shared AI service to CLI's expected interface
+	c.AIService = ai.NewSharedAIService(sharedService)
 }
 
 // initDocumentChainService initializes the document chain service
@@ -338,10 +345,32 @@ func (c *Container) initIntelligenceServices() {
 func (c *Container) initIntelligenceStorage() {
 	// For now, use file-based storage adapters
 	// In production, these could be replaced with database implementations
-	c.PatternStore = storage.NewFilePatternStorage(c.Logger)
-	c.TemplateStore = storage.NewFileTemplateStorage(c.Logger)
-	c.SessionStore = storage.NewFileSessionStorage(c.Logger)
-	c.InsightStore = storage.NewFileInsightStorage(c.Logger)
+	var err error
+
+	c.PatternStore, err = storage.NewFilePatternStorage(c.Logger)
+	if err != nil {
+		c.Logger.Error("failed to initialize pattern storage", slog.Any("error", err))
+		// Use a noop implementation or panic - for now we'll panic in development
+		panic(fmt.Sprintf("failed to initialize pattern storage: %v", err))
+	}
+
+	c.TemplateStore, err = storage.NewFileTemplateStorage(c.Logger)
+	if err != nil {
+		c.Logger.Error("failed to initialize template storage", slog.Any("error", err))
+		panic(fmt.Sprintf("failed to initialize template storage: %v", err))
+	}
+
+	c.SessionStore, err = storage.NewFileSessionStorage(c.Logger)
+	if err != nil {
+		c.Logger.Error("failed to initialize session storage", slog.Any("error", err))
+		panic(fmt.Sprintf("failed to initialize session storage: %v", err))
+	}
+
+	c.InsightStore, err = storage.NewFileInsightStorage(c.Logger)
+	if err != nil {
+		c.Logger.Error("failed to initialize insight storage", slog.Any("error", err))
+		panic(fmt.Sprintf("failed to initialize insight storage: %v", err))
+	}
 }
 
 // initIntelligenceAdapters initializes adapters for intelligence features
@@ -352,6 +381,11 @@ func (c *Container) initIntelligenceAdapters() {
 
 	// Initialize analytics exporter
 	c.AnalyticsExporter = visualization.NewAnalyticsExporter(c.Logger)
+
+	// Initialize analytics engine
+	portsTaskRepo := storage.NewPortsTaskRepositoryAdapter(c.Storage)
+	portsSessionRepo := storage.NewPortsSessionRepositoryAdapter(c.SessionStore)
+	c.AnalyticsEngine = analytics.NewWorkflowAnalyticsEngine(portsTaskRepo, portsSessionRepo, c.Logger)
 }
 
 // initCoreIntelligenceServices initializes the core intelligence services
@@ -392,8 +426,8 @@ func (c *Container) initCoreIntelligenceServices() {
 		c.Logger,
 	)
 
-	// Initialize suggestion service
-	c.SuggestionService = services.NewSuggestionService(
+	// Initialize local suggestion service
+	localSuggestionService := services.NewSuggestionService(
 		taskRepo,
 		patternRepo,
 		sessionRepo,
@@ -401,6 +435,13 @@ func (c *Container) initCoreIntelligenceServices() {
 		c.PatternDetector,
 		nil, // analytics engine - will be initialized later
 		nil, // config - will use defaults
+		c.Logger,
+	)
+
+	// Wrap with hybrid service that can use server intelligence when available
+	c.SuggestionService = services.NewHybridSuggestionService(
+		localSuggestionService,
+		c.MCPClient,
 		c.Logger,
 	)
 
@@ -414,13 +455,39 @@ func (c *Container) initCoreIntelligenceServices() {
 		c.Logger,
 	)
 
-	// Initialize analytics service with nil dependencies for now
-	// TODO: Fix interface mismatches and implement proper adapters
-	c.AnalyticsService = nil
+	// Create adapters for analytics service
+	taskStore := storage.NewServicesTaskStorageAdapter(c.Storage)
+	sessionStore := storage.NewServicesSessionStorageAdapter(c.SessionStore)
+	visualizer := storage.NewServicesVisualizerAdapter(c.Visualizer)
+	exporter := storage.NewServicesAnalyticsExporterAdapter(c.AnalyticsExporter)
 
-	// Initialize cross-repository analyzer with nil dependencies for now
-	// TODO: Fix interface mismatches and implement proper adapters
-	c.CrossRepoAnalyzer = nil
+	// Initialize analytics service using the analytics engine
+	c.AnalyticsService = services.NewAnalyticsService(
+		services.AnalyticsServiceDependencies{
+			TaskStore:    taskStore,
+			PatternStore: c.PatternStore,
+			SessionStore: sessionStore,
+			Visualizer:   visualizer,
+			Exporter:     exporter,
+			Calculator:   c.MetricsCalculator,
+			Config:       nil, // will use defaults
+			Logger:       c.Logger,
+		},
+	)
+
+	// Create ports adapters for cross-repo analyzer
+	portsTaskRepo := storage.NewPortsTaskRepositoryAdapter(c.Storage)
+	portsSessionRepo := storage.NewPortsSessionRepositoryAdapter(c.SessionStore)
+
+	// Initialize cross-repository analyzer
+	c.CrossRepoAnalyzer = analytics.NewCrossRepoAnalyzer(
+		c.AnalyticsEngine,
+		portsTaskRepo,
+		portsSessionRepo,
+		c.PatternStore,
+		c.InsightStore,
+		c.Logger,
+	)
 }
 
 // initCLI initializes the CLI

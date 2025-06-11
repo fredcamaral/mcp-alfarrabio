@@ -29,7 +29,8 @@ RESET := \033[0m
 	setup-env deps tidy ensure-env test-coverage test-integration test-race benchmark ci \
 	dev-docker-up dev-docker-down dev-docker-logs dev-docker-rebuild dev-docker-shell \
 	dev-docker-restart dev-logs docker-logs docker-restart docker-rebuild docker-clean \
-	monitoring-up monitoring-down monitoring-logs health-check prod-deploy security-scan \
+	monitoring-start monitoring-stop monitoring-restart monitoring-status monitoring-logs \
+	monitoring-backup monitoring-cleanup health-check prod-deploy security-scan \
 	cli-build cli-install cli-test cli-clean cli-run
 
 # Default target - show help
@@ -219,15 +220,15 @@ dev-docker-down: ## Stop development services
 	docker compose --profile dev down
 
 dev-docker-logs: ## View development Docker logs
-	docker compose --profile dev logs -f lerian-mcp-memory-dev
+	docker compose --profile dev logs -f lerian-mcp-memory-server
 
 dev-docker-rebuild: ## Rebuild development Docker image
 	@echo "$(GREEN)Rebuilding development Docker image...$(RESET)"
-	docker compose --profile dev build --no-cache lerian-mcp-memory-dev
+	docker compose --profile dev build --no-cache lerian-mcp-memory-server
 
 dev-docker-shell: ## Open shell in development container
 	@echo "$(GREEN)Opening shell in development container...$(RESET)"
-	docker compose --profile dev exec lerian-mcp-memory-dev /bin/sh
+	docker compose --profile dev exec lerian-mcp-memory-server /bin/sh
 
 dev-docker-restart: ## Restart development services
 	@echo "$(GREEN)Restarting development services...$(RESET)"
@@ -299,6 +300,31 @@ prod-deploy: ci docker-build ## Deploy to production (CI + Docker build)
 health-check: ## Check server health
 	@echo "$(GREEN)Checking server health...$(RESET)"
 	@curl -f http://localhost:8081/health || echo "$(YELLOW)Server not responding$(RESET)"
+
+## Monitoring Commands (via Scripts)
+monitoring-start: ensure-env ## Start monitoring stack via script (Prometheus + Grafana + Alertmanager)
+	@echo "$(GREEN)Starting monitoring stack via script...$(RESET)"
+	@./scripts/monitoring.sh start
+
+monitoring-stop: ## Stop monitoring stack via script
+	@echo "$(GREEN)Stopping monitoring stack via script...$(RESET)"
+	@./scripts/monitoring.sh stop
+
+monitoring-restart: ## Restart monitoring stack via script
+	@echo "$(GREEN)Restarting monitoring stack via script...$(RESET)"
+	@./scripts/monitoring.sh restart
+
+monitoring-status: ## Show monitoring stack status via script
+	@echo "$(GREEN)Checking monitoring stack status via script...$(RESET)"
+	@./scripts/monitoring.sh status
+
+monitoring-backup: ## Backup monitoring data via script
+	@echo "$(GREEN)Backing up monitoring data via script...$(RESET)"
+	@./scripts/monitoring.sh backup
+
+monitoring-cleanup: ## Clean up monitoring data via script (WARNING: deletes all data)
+	@echo "$(YELLOW)Cleaning up monitoring data via script...$(RESET)"
+	@./scripts/monitoring.sh cleanup
 
 ## Internal targets
 ensure-env: ## Ensure .env file exists (internal)

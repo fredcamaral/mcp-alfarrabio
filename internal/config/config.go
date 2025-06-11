@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/joho/godotenv"
@@ -15,15 +16,16 @@ import (
 
 // Config represents the application configuration
 type Config struct {
-	Server   ServerConfig   `json:"server"`
-	Database DatabaseConfig `json:"database"`
-	Qdrant   QdrantConfig   `json:"qdrant"`
-	OpenAI   OpenAIConfig   `json:"openai"`
-	AI       AIConfig       `json:"ai"`
-	Storage  StorageConfig  `json:"storage"`
-	Chunking ChunkingConfig `json:"chunking"`
-	Search   SearchConfig   `json:"search"`
-	Logging  LoggingConfig  `json:"logging"`
+	Server    ServerConfig    `json:"server"`
+	Database  DatabaseConfig  `json:"database"`
+	Qdrant    QdrantConfig    `json:"qdrant"`
+	OpenAI    OpenAIConfig    `json:"openai"`
+	AI        AIConfig        `json:"ai"`
+	Storage   StorageConfig   `json:"storage"`
+	Chunking  ChunkingConfig  `json:"chunking"`
+	Search    SearchConfig    `json:"search"`
+	Logging   LoggingConfig   `json:"logging"`
+	WebSocket WebSocketConfig `json:"websocket"`
 }
 
 // ServerConfig represents server configuration
@@ -187,6 +189,22 @@ type LoggingConfig struct {
 	MaxAge     int    `json:"max_age_days"`
 }
 
+// WebSocketConfig represents WebSocket server configuration
+type WebSocketConfig struct {
+	MaxConnections    int      `json:"max_connections"`
+	ReadBufferSize    int      `json:"read_buffer_size"`
+	WriteBufferSize   int      `json:"write_buffer_size"`
+	HandshakeTimeout  int      `json:"handshake_timeout"`
+	PingInterval      int      `json:"ping_interval"`
+	PongTimeout       int      `json:"pong_timeout"`
+	WriteTimeout      int      `json:"write_timeout"`
+	ReadTimeout       int      `json:"read_timeout"`
+	EnableCompression bool     `json:"enable_compression"`
+	MaxMessageSize    int      `json:"max_message_size"`
+	EnableAuth        bool     `json:"enable_auth"`
+	AllowedOrigins    []string `json:"allowed_origins"`
+}
+
 // DefaultConfig returns the default configuration
 func DefaultConfig() *Config {
 	return &Config{
@@ -299,6 +317,20 @@ func DefaultConfig() *Config {
 			MaxSize:    10,
 			MaxBackups: 3,
 			MaxAge:     30,
+		},
+		WebSocket: WebSocketConfig{
+			MaxConnections:    100,
+			ReadBufferSize:    1024,
+			WriteBufferSize:   1024,
+			HandshakeTimeout:  10,
+			PingInterval:      30,
+			PongTimeout:       60,
+			WriteTimeout:      10,
+			ReadTimeout:       10,
+			EnableCompression: true,
+			MaxMessageSize:    65536,
+			EnableAuth:        false,
+			AllowedOrigins:    []string{"*"},
 		},
 	}
 }
@@ -533,6 +565,7 @@ func loadStorageAndOtherConfig(config *Config) {
 	loadStorageConfig(config)
 	loadChunkingConfig(config)
 	loadLoggingConfig(config)
+	loadWebSocketConfig(config)
 }
 
 // loadStorageConfig loads storage configuration from environment
@@ -816,4 +849,76 @@ func (c *Config) SetRepoConfig(repository string, config RepoConfig) {
 func (c *Config) IsRepositoryEnabled(repository string) bool {
 	repoConfig := c.GetRepoConfig(repository)
 	return repoConfig.Enabled
+}
+
+// loadWebSocketConfig loads WebSocket configuration from environment
+func loadWebSocketConfig(config *Config) {
+	if maxConns := os.Getenv("WS_MAX_CONNECTIONS"); maxConns != "" {
+		if n, err := strconv.Atoi(maxConns); err == nil {
+			config.WebSocket.MaxConnections = n
+		}
+	}
+	if readBuffer := os.Getenv("WS_READ_BUFFER_SIZE"); readBuffer != "" {
+		if n, err := strconv.Atoi(readBuffer); err == nil {
+			config.WebSocket.ReadBufferSize = n
+		}
+	}
+	if writeBuffer := os.Getenv("WS_WRITE_BUFFER_SIZE"); writeBuffer != "" {
+		if n, err := strconv.Atoi(writeBuffer); err == nil {
+			config.WebSocket.WriteBufferSize = n
+		}
+	}
+	if handshakeTimeout := os.Getenv("WS_HANDSHAKE_TIMEOUT"); handshakeTimeout != "" {
+		if n, err := strconv.Atoi(handshakeTimeout); err == nil {
+			config.WebSocket.HandshakeTimeout = n
+		}
+	}
+	if pingInterval := os.Getenv("WS_PING_INTERVAL"); pingInterval != "" {
+		if n, err := strconv.Atoi(pingInterval); err == nil {
+			config.WebSocket.PingInterval = n
+		}
+	}
+	if pongTimeout := os.Getenv("WS_PONG_TIMEOUT"); pongTimeout != "" {
+		if n, err := strconv.Atoi(pongTimeout); err == nil {
+			config.WebSocket.PongTimeout = n
+		}
+	}
+	if writeTimeout := os.Getenv("WS_WRITE_TIMEOUT"); writeTimeout != "" {
+		if n, err := strconv.Atoi(writeTimeout); err == nil {
+			config.WebSocket.WriteTimeout = n
+		}
+	}
+	if readTimeout := os.Getenv("WS_READ_TIMEOUT"); readTimeout != "" {
+		if n, err := strconv.Atoi(readTimeout); err == nil {
+			config.WebSocket.ReadTimeout = n
+		}
+	}
+	if enableCompression := os.Getenv("WS_ENABLE_COMPRESSION"); enableCompression != "" {
+		if b, err := strconv.ParseBool(enableCompression); err == nil {
+			config.WebSocket.EnableCompression = b
+		}
+	}
+	if maxMessageSize := os.Getenv("WS_MAX_MESSAGE_SIZE"); maxMessageSize != "" {
+		if n, err := strconv.Atoi(maxMessageSize); err == nil {
+			config.WebSocket.MaxMessageSize = n
+		}
+	}
+	if enableAuth := os.Getenv("WS_ENABLE_AUTH"); enableAuth != "" {
+		if b, err := strconv.ParseBool(enableAuth); err == nil {
+			config.WebSocket.EnableAuth = b
+		}
+	}
+	if allowedOrigins := os.Getenv("WS_ALLOWED_ORIGINS"); allowedOrigins != "" {
+		// Split comma-separated origins
+		origins := strings.Split(allowedOrigins, ",")
+		cleaned := make([]string, 0, len(origins))
+		for _, origin := range origins {
+			if trimmed := strings.TrimSpace(origin); trimmed != "" {
+				cleaned = append(cleaned, trimmed)
+			}
+		}
+		if len(cleaned) > 0 {
+			config.WebSocket.AllowedOrigins = cleaned
+		}
+	}
 }

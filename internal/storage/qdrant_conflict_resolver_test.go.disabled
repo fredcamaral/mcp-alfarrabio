@@ -1,0 +1,691 @@
+package storage
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"lerian-mcp-memory/internal/intelligence"
+	"lerian-mcp-memory/pkg/types"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+func TestQdrantConflictResolver_Creation(t *testing.T) {
+	baseResolver := intelligence.NewConflictResolver()
+	resolver := NewQdrantConflictResolver(baseResolver, nil)
+
+	assert.NotNil(t, resolver)
+	assert.NotNil(t, resolver.baseResolver)
+	assert.NotNil(t, resolver.config)
+	assert.Equal(t, 0.7, resolver.config.SemanticMergeThreshold)
+}
+
+func TestQdrantConflictResolver_SelectPrimaryConflict(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name      string
+		conflicts []intelligence.Conflict
+		expected  intelligence.ConflictSeverity
+	}{
+		{
+			name: "single conflict",
+			conflicts: []intelligence.Conflict{
+				{Severity: intelligence.SeverityMedium, Confidence: 0.8},
+			},
+			expected: intelligence.SeverityMedium,
+		},
+		{
+			name: "multiple conflicts - severity priority",
+			conflicts: []intelligence.Conflict{
+				{Severity: intelligence.SeverityMedium, Confidence: 0.9},
+				{Severity: intelligence.SeverityHigh, Confidence: 0.7},
+				{Severity: intelligence.SeverityLow, Confidence: 0.8},
+			},
+			expected: intelligence.SeverityHigh,
+		},
+		{
+			name: "same severity - confidence priority",
+			conflicts: []intelligence.Conflict{
+				{Severity: intelligence.SeverityMedium, Confidence: 0.7},
+				{Severity: intelligence.SeverityMedium, Confidence: 0.9},
+				{Severity: intelligence.SeverityMedium, Confidence: 0.8},
+			},
+			expected: intelligence.SeverityMedium,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			primary := resolver.selectPrimaryConflict(tt.conflicts)
+			assert.Equal(t, tt.expected, primary.Severity)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_CosineSimilarity(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name     string
+		vector1  []float64
+		vector2  []float64
+		expected float64
+		delta    float64
+	}{
+		{
+			name:     "identical vectors",
+			vector1:  []float64{1.0, 0.0, 0.0},
+			vector2:  []float64{1.0, 0.0, 0.0},
+			expected: 1.0,
+			delta:    0.001,
+		},
+		{
+			name:     "orthogonal vectors",
+			vector1:  []float64{1.0, 0.0, 0.0},
+			vector2:  []float64{0.0, 1.0, 0.0},
+			expected: 0.0,
+			delta:    0.001,
+		},
+		{
+			name:     "opposite vectors",
+			vector1:  []float64{1.0, 0.0, 0.0},
+			vector2:  []float64{-1.0, 0.0, 0.0},
+			expected: -1.0,
+			delta:    0.001,
+		},
+		{
+			name:     "zero vectors",
+			vector1:  []float64{0.0, 0.0, 0.0},
+			vector2:  []float64{0.0, 0.0, 0.0},
+			expected: 0.0,
+			delta:    0.001,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.cosineSimilarity(tt.vector1, tt.vector2)
+			assert.InDelta(t, tt.expected, result, tt.delta)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_CalculateVectorSimilarity(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name        string
+		chunk1      types.ConversationChunk
+		chunk2      types.ConversationChunk
+		expectError bool
+		expected    float64
+		delta       float64
+	}{
+		{
+			name: "valid embeddings",
+			chunk1: types.ConversationChunk{
+				Embeddings: []float64{1.0, 0.0, 0.0},
+			},
+			chunk2: types.ConversationChunk{
+				Embeddings: []float64{0.8, 0.6, 0.0},
+			},
+			expectError: false,
+			expected:    0.8,
+			delta:       0.1,
+		},
+		{
+			name: "missing embeddings - chunk1",
+			chunk1: types.ConversationChunk{
+				Embeddings: []float64{},
+			},
+			chunk2: types.ConversationChunk{
+				Embeddings: []float64{1.0, 0.0, 0.0},
+			},
+			expectError: true,
+		},
+		{
+			name: "missing embeddings - chunk2",
+			chunk1: types.ConversationChunk{
+				Embeddings: []float64{1.0, 0.0, 0.0},
+			},
+			chunk2: types.ConversationChunk{
+				Embeddings: []float64{},
+			},
+			expectError: true,
+		},
+		{
+			name: "dimension mismatch",
+			chunk1: types.ConversationChunk{
+				Embeddings: []float64{1.0, 0.0, 0.0},
+			},
+			chunk2: types.ConversationChunk{
+				Embeddings: []float64{1.0, 0.0},
+			},
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := resolver.calculateVectorSimilarity(tt.chunk1, tt.chunk2)
+
+			if tt.expectError {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				assert.InDelta(t, tt.expected, result, tt.delta)
+			}
+		})
+	}
+}
+
+func TestQdrantConflictResolver_CalculateSemanticCoherence(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	conflict := intelligence.Conflict{
+		Type:     intelligence.ConflictTypeArchitectural,
+		Severity: intelligence.SeverityHigh,
+	}
+
+	tests := []struct {
+		name     string
+		strategy ResolutionStrategy
+		expected float64
+		delta    float64
+	}{
+		{
+			name:     "merge strategy",
+			strategy: ResolutionStrategy{Type: ResolutionMerge},
+			expected: 0.8,
+			delta:    0.1,
+		},
+		{
+			name:     "contextual strategy",
+			strategy: ResolutionStrategy{Type: ResolutionContextual},
+			expected: 0.7,
+			delta:    0.1,
+		},
+		{
+			name:     "manual review strategy",
+			strategy: ResolutionStrategy{Type: ResolutionManualReview},
+			expected: 0.9,
+			delta:    0.1,
+		},
+		{
+			name:     "accept latest strategy",
+			strategy: ResolutionStrategy{Type: ResolutionAcceptLatest},
+			expected: 0.6,
+			delta:    0.1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.calculateSemanticCoherence(conflict, tt.strategy)
+			assert.InDelta(t, tt.expected, result, tt.delta)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_CalculateContextualRelevance(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name     string
+		conflict Conflict
+		strategy ResolutionStrategy
+		expected float64
+		delta    float64
+	}{
+		{
+			name: "architectural conflict with contextual strategy",
+			conflict: intelligence.Conflict{
+				Type:     intelligence.ConflictTypeArchitectural,
+				Severity: intelligence.SeverityHigh,
+			},
+			strategy: ResolutionStrategy{Type: ResolutionContextual},
+			expected: 0.7,
+			delta:    0.1,
+		},
+		{
+			name: "technical conflict with accept highest strategy",
+			conflict: intelligence.Conflict{
+				Type:     intelligence.ConflictTypeTechnical,
+				Severity: intelligence.SeverityMedium,
+			},
+			strategy: ResolutionStrategy{Type: ResolutionAcceptHighest},
+			expected: 0.7,
+			delta:    0.1,
+		},
+		{
+			name: "critical conflict with manual review",
+			conflict: intelligence.Conflict{
+				Type:     intelligence.ConflictTypeOutcome,
+				Severity: intelligence.SeverityCritical,
+			},
+			strategy: ResolutionStrategy{Type: ResolutionManualReview},
+			expected: 0.8,
+			delta:    0.1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.calculateContextualRelevance(tt.conflict, tt.strategy)
+			assert.InDelta(t, tt.expected, result, tt.delta)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_CalculateMergeQuality(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name             string
+		conflict         Conflict
+		strategy         ResolutionStrategy
+		vectorSimilarity float64
+		expected         float64
+		delta            float64
+	}{
+		{
+			name: "merge strategy with high similarity",
+			conflict: intelligence.Conflict{
+				Type: intelligence.ConflictTypeArchitectural,
+			},
+			strategy:         ResolutionStrategy{Type: ResolutionMerge},
+			vectorSimilarity: 0.8,
+			expected:         0.9,
+			delta:            0.1,
+		},
+		{
+			name: "non-merge strategy",
+			conflict: intelligence.Conflict{
+				Type: intelligence.ConflictTypeArchitectural,
+			},
+			strategy:         ResolutionStrategy{Type: ResolutionAcceptLatest},
+			vectorSimilarity: 0.8,
+			expected:         0.0,
+			delta:            0.001,
+		},
+		{
+			name: "temporal conflict with merge strategy",
+			conflict: intelligence.Conflict{
+				Type: intelligence.ConflictTypeTemporal,
+			},
+			strategy:         ResolutionStrategy{Type: ResolutionMerge},
+			vectorSimilarity: 0.8,
+			expected:         0.7,
+			delta:            0.1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.calculateMergeQuality(tt.conflict, tt.strategy, tt.vectorSimilarity)
+			assert.InDelta(t, tt.expected, result, tt.delta)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_DetermineResolutionComplexity(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name                string
+		vectorSimilarity    float64
+		conceptualOverlap   float64
+		contextualAlignment float64
+		expected            string
+	}{
+		{
+			name:                "simple resolution",
+			vectorSimilarity:    0.9,
+			conceptualOverlap:   0.8,
+			contextualAlignment: 0.85,
+			expected:            "simple",
+		},
+		{
+			name:                "moderate resolution",
+			vectorSimilarity:    0.7,
+			conceptualOverlap:   0.6,
+			contextualAlignment: 0.65,
+			expected:            "moderate",
+		},
+		{
+			name:                "complex resolution",
+			vectorSimilarity:    0.5,
+			conceptualOverlap:   0.4,
+			contextualAlignment: 0.45,
+			expected:            "complex",
+		},
+		{
+			name:                "very complex resolution",
+			vectorSimilarity:    0.2,
+			conceptualOverlap:   0.1,
+			contextualAlignment: 0.15,
+			expected:            "very_complex",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.determineResolutionComplexity(tt.vectorSimilarity, tt.conceptualOverlap, tt.contextualAlignment)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_RecommendResolutionApproach(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name              string
+		vectorSimilarity  float64
+		conceptualOverlap float64
+		complexity        string
+		expected          string
+	}{
+		{
+			name:              "semantic merge candidate",
+			vectorSimilarity:  0.9,
+			conceptualOverlap: 0.8,
+			complexity:        "simple",
+			expected:          "semantic_merge",
+		},
+		{
+			name:              "automated resolution",
+			vectorSimilarity:  0.6,
+			conceptualOverlap: 0.5,
+			complexity:        "moderate",
+			expected:          "automated_resolution",
+		},
+		{
+			name:              "contextual separation",
+			vectorSimilarity:  0.2,
+			conceptualOverlap: 0.4,
+			complexity:        "complex",
+			expected:          "contextual_separation",
+		},
+		{
+			name:              "manual review needed",
+			vectorSimilarity:  0.5,
+			conceptualOverlap: 0.3,
+			complexity:        "very_complex",
+			expected:          "manual_review",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.recommendResolutionApproach(tt.vectorSimilarity, tt.conceptualOverlap, tt.complexity)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_DetermineMergeStrategy(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name             string
+		vectorSimilarity float64
+		conflict         Conflict
+		expected         string
+	}{
+		{
+			name:             "semantic blend",
+			vectorSimilarity: 0.9,
+			conflict:         intelligence.Conflict{Type: intelligence.ConflictTypeArchitectural},
+			expected:         "semantic_blend",
+		},
+		{
+			name:             "structured merge",
+			vectorSimilarity: 0.7,
+			conflict:         intelligence.Conflict{Type: intelligence.ConflictTypeTechnical},
+			expected:         "structured_merge",
+		},
+		{
+			name:             "temporal sequencing",
+			vectorSimilarity: 0.4,
+			conflict:         intelligence.Conflict{Type: intelligence.ConflictTypeTemporal},
+			expected:         "temporal_sequencing",
+		},
+		{
+			name:             "contextual preservation",
+			vectorSimilarity: 0.3,
+			conflict:         intelligence.Conflict{Type: ConflictTypeDecision},
+			expected:         "contextual_preservation",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.determineMergeStrategy(tt.vectorSimilarity, tt.conflict)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_ExtractKeyPhrases(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name     string
+		content  string
+		expected string
+	}{
+		{
+			name:     "short content",
+			content:  "Hello world",
+			expected: "Hello world",
+		},
+		{
+			name:     "long content",
+			content:  "This is a very long piece of content that should be truncated",
+			expected: "this is a very long...",
+		},
+		{
+			name:     "exactly five words",
+			content:  "One two three four five",
+			expected: "one two three four five",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.extractKeyPhrases(tt.content)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_CalculateContentOverlap(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	tests := []struct {
+		name     string
+		content1 string
+		content2 string
+		expected float64
+		delta    float64
+	}{
+		{
+			name:     "identical content",
+			content1: "hello world",
+			content2: "hello world",
+			expected: 1.0,
+			delta:    0.001,
+		},
+		{
+			name:     "no overlap",
+			content1: "hello world",
+			content2: "foo bar",
+			expected: 0.0,
+			delta:    0.001,
+		},
+		{
+			name:     "partial overlap",
+			content1: "hello world test",
+			content2: "world test example",
+			expected: 0.5,
+			delta:    0.1,
+		},
+		{
+			name:     "empty content",
+			content1: "",
+			content2: "hello world",
+			expected: 0.0,
+			delta:    0.001,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := resolver.calculateContentOverlap(tt.content1, tt.content2)
+			assert.InDelta(t, tt.expected, result, tt.delta)
+		})
+	}
+}
+
+func TestQdrantConflictResolver_ExecuteMergeStrategy(t *testing.T) {
+	resolver := &QdrantConflictResolver{}
+
+	conflict := intelligence.Conflict{
+		PrimaryChunk: types.ConversationChunk{
+			Content:   "Primary content approach",
+			Timestamp: time.Now().Add(-time.Hour),
+		},
+		ConflictChunk: types.ConversationChunk{
+			Content:   "Alternative approach",
+			Timestamp: time.Now(),
+		},
+		Type: intelligence.ConflictTypeArchitectural,
+	}
+
+	tests := []struct {
+		name             string
+		strategy         string
+		vectorSimilarity float64
+		expectContent    bool
+		expectConflicts  bool
+	}{
+		{
+			name:             "semantic blend",
+			strategy:         "semantic_blend",
+			vectorSimilarity: 0.8,
+			expectContent:    true,
+			expectConflicts:  true,
+		},
+		{
+			name:             "structured merge",
+			strategy:         "structured_merge",
+			vectorSimilarity: 0.6,
+			expectContent:    true,
+			expectConflicts:  true,
+		},
+		{
+			name:             "temporal sequencing",
+			strategy:         "temporal_sequencing",
+			vectorSimilarity: 0.4,
+			expectContent:    true,
+			expectConflicts:  true,
+		},
+		{
+			name:             "contextual preservation",
+			strategy:         "contextual_preservation",
+			vectorSimilarity: 0.3,
+			expectContent:    true,
+			expectConflicts:  true,
+		},
+		{
+			name:             "fallback strategy",
+			strategy:         "unknown",
+			vectorSimilarity: 0.5,
+			expectContent:    true,
+			expectConflicts:  true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			content, conflictPoints := resolver.executeMergeStrategy(conflict, tt.strategy, tt.vectorSimilarity)
+
+			if tt.expectContent {
+				assert.NotEmpty(t, content)
+			}
+			if tt.expectConflicts {
+				assert.NotEmpty(t, conflictPoints)
+			}
+		})
+	}
+}
+
+func TestQdrantConflictResolver_Integration(t *testing.T) {
+	baseResolver := intelligence.NewConflictResolver()
+	resolver := NewQdrantConflictResolver(baseResolver, nil)
+
+	// Create test conflicts with embeddings
+	conflicts := []intelligence.Conflict{
+		{
+			ID:         "test-conflict-1",
+			Type:       intelligence.ConflictTypeArchitectural,
+			Severity:   intelligence.SeverityHigh,
+			Confidence: 0.8,
+			PrimaryChunk: types.ConversationChunk{
+				ID:         "chunk1",
+				Content:    "Use microservices architecture for better scalability",
+				Embeddings: []float64{0.8, 0.6, 0.0, 0.0, 0.0},
+			},
+			ConflictChunk: types.ConversationChunk{
+				ID:         "chunk2",
+				Content:    "Monolithic architecture is better for team coordination",
+				Embeddings: []float64{0.6, 0.8, 0.0, 0.0, 0.0},
+			},
+			ConflictPoints: []ConflictPoint{
+				{Aspect: "architecture", Confidence: 0.9},
+			},
+			TimeDifference: time.Hour,
+		},
+	}
+
+	ctx := context.Background()
+
+	// Test that the resolver can process conflicts without vector store
+	result, err := resolver.ResolveConflictsWithVectors(ctx, conflicts)
+
+	// Should not error even without vector store
+	require.NoError(t, err)
+	require.NotNil(t, result)
+
+	// Should have vector analysis
+	assert.NotNil(t, result.VectorAnalysis)
+	assert.Greater(t, result.VectorAnalysis.ConflictVectorSimilarity, 0.0)
+
+	// Should have recommended strategy
+	if result.RecommendedStrategy != nil {
+		assert.NotEmpty(t, result.RecommendedStrategy.Title)
+		assert.Greater(t, result.RecommendedStrategy.VectorConfidence, 0.0)
+	}
+
+	// Should have resolution rationale
+	assert.NotEmpty(t, result.ResolutionRationale)
+	assert.Greater(t, result.ConfidenceScore, 0.0)
+}
+
+func TestQdrantConflictResolver_EmptyConflicts(t *testing.T) {
+	baseResolver := intelligence.NewConflictResolver()
+	resolver := NewQdrantConflictResolver(baseResolver, nil)
+
+	ctx := context.Background()
+	result, err := resolver.ResolveConflictsWithVectors(ctx, []intelligence.Conflict{})
+
+	require.NoError(t, err)
+	require.NotNil(t, result)
+	assert.Nil(t, result.RecommendedStrategy)
+	assert.Empty(t, result.AlternativeStrategies)
+	assert.Nil(t, result.SemanticMerge)
+}

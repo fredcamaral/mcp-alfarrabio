@@ -225,8 +225,12 @@ func runReportGeneration(
 
 	// Export report if requested
 	if exportFormat != "" {
-		// TODO: Implement ExportReport method or use ExportAnalytics
-		fmt.Printf("📄 Report export feature coming soon for format: %s\n", exportFormat)
+		filename, err := exportProductivityReport(ctx, analyticsService, report, exportFormat)
+		if err != nil {
+			fmt.Printf("\n⚠️  Export failed: %v\n", err)
+		} else {
+			fmt.Printf("\n📄 Report exported to: %s\n", filename)
+		}
 	}
 
 	return nil
@@ -308,7 +312,13 @@ func runTrendAnalysis(
 
 	// Show overall trends
 	fmt.Printf("📈 TREND ANALYSIS\n")
-	// TODO: Implement trend visualization
+	fmt.Printf("═════════════════\n\n")
+
+	// Render detailed trend visualization
+	if sv, ok := visualizer.(*simpleVisualizer); ok {
+		trendViz := sv.RenderTrendAnalysis(metrics.Trends)
+		fmt.Print(trendViz)
+	}
 
 	// Trend analysis summary
 	fmt.Printf("\n📊 TREND SUMMARY:\n")
@@ -538,6 +548,260 @@ func (v *simpleVisualizer) RenderBottlenecks(bottlenecks []*entities.Bottleneck)
 	return result
 }
 
+func (v *simpleVisualizer) RenderTrendAnalysis(trends entities.TrendAnalysis) string {
+	result := ""
+
+	// Render individual trend charts
+	trendItems := []struct {
+		name  string
+		trend entities.Trend
+		icon  string
+	}{
+		{"Productivity", trends.ProductivityTrend, "📊"},
+		{"Velocity", trends.VelocityTrend, "🚀"},
+		{"Quality", trends.QualityTrend, "✨"},
+		{"Efficiency", trends.EfficiencyTrend, "⚡"},
+	}
+
+	for _, item := range trendItems {
+		result += v.renderSingleTrend(item.name, item.trend, item.icon)
+		result += "\n"
+	}
+
+	// Show predictions if available
+	if len(trends.Predictions) > 0 {
+		result += v.renderPredictions(trends.Predictions)
+		result += "\n"
+	}
+
+	// Show seasonality analysis
+	if trends.Seasonality.HasSeasonality {
+		result += v.renderSeasonality(trends.Seasonality)
+		result += "\n"
+	}
+
+	return result
+}
+
+func (v *simpleVisualizer) renderSingleTrend(name string, trend entities.Trend, icon string) string {
+	var result strings.Builder
+
+	// Header with trend direction
+	directionIcon := v.getTrendDirectionIcon(trend.Direction)
+	confidenceIcon := v.getConfidenceIcon(trend.Confidence)
+
+	result.WriteString(fmt.Sprintf("%s %s TREND %s %s\n", icon, strings.ToUpper(name), directionIcon, confidenceIcon))
+
+	// Trend details
+	result.WriteString(fmt.Sprintf("  Direction: %s (%.1f%% confidence)\n",
+		v.getTrendDirectionText(trend.Direction), trend.Confidence*100))
+	result.WriteString(fmt.Sprintf("  Strength: %.3f\n", trend.Strength))
+	result.WriteString(fmt.Sprintf("  Change Rate: %+.1f%%\n", trend.ChangeRate))
+	result.WriteString(fmt.Sprintf("  Start Value: %.1f\n", trend.StartValue))
+	result.WriteString(fmt.Sprintf("  End Value: %.1f\n", trend.EndValue))
+
+	// Render mini chart using ASCII if trend line data available
+	if len(trend.TrendLine) > 1 {
+		result.WriteString("  Chart: ")
+		result.WriteString(v.renderTrendLineChart(trend.TrendLine))
+		result.WriteString("\n")
+	}
+
+	// Description if available
+	if trend.Description != "" {
+		result.WriteString(fmt.Sprintf("  Summary: %s\n", trend.Description))
+	}
+
+	return result.String()
+}
+
+func (v *simpleVisualizer) renderTrendLineChart(trendLine []entities.TrendPoint) string {
+	if len(trendLine) == 0 {
+		return "No data"
+	}
+
+	// Find min/max for normalization
+	minVal, maxVal := trendLine[0].Value, trendLine[0].Value
+	for _, point := range trendLine {
+		if point.Value < minVal {
+			minVal = point.Value
+		}
+		if point.Value > maxVal {
+			maxVal = point.Value
+		}
+	}
+
+	// Avoid division by zero
+	if maxVal == minVal {
+		return strings.Repeat("─", len(trendLine))
+	}
+
+	// Create ASCII chart
+	var chart strings.Builder
+	chars := []string{"▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"}
+
+	for _, point := range trendLine {
+		// Normalize to 0-7 range for character selection
+		normalized := (point.Value - minVal) / (maxVal - minVal)
+		charIndex := int(normalized * 7)
+		if charIndex > 7 {
+			charIndex = 7
+		}
+		chart.WriteString(chars[charIndex])
+	}
+
+	return chart.String()
+}
+
+func (v *simpleVisualizer) renderPredictions(predictions []entities.Prediction) string {
+	result := "🔮 PREDICTIONS:\n"
+
+	if len(predictions) == 0 {
+		return result + "  No predictions available\n"
+	}
+
+	for i, prediction := range predictions {
+		if i >= 5 { // Limit to top 5 predictions
+			break
+		}
+
+		confidenceIcon := v.getConfidenceIcon(prediction.Confidence)
+		result += fmt.Sprintf("  %s %s: %.1f (%.0f%% confidence)\n",
+			confidenceIcon,
+			strings.Title(string(prediction.Metric)),
+			prediction.Value,
+			prediction.Confidence*100)
+
+		if len(prediction.Range) == 2 {
+			result += fmt.Sprintf("    Range: %.1f - %.1f\n", prediction.Range[0], prediction.Range[1])
+		}
+
+		if prediction.Method != "" {
+			result += fmt.Sprintf("    Method: %s\n", prediction.Method)
+		}
+	}
+
+	return result
+}
+
+func (v *simpleVisualizer) renderSeasonality(seasonality entities.Seasonality) string {
+	result := "📅 SEASONALITY ANALYSIS:\n"
+
+	if !seasonality.HasSeasonality {
+		return result + "  No significant seasonal patterns detected\n"
+	}
+
+	// Show seasonal patterns
+	if len(seasonality.Patterns) > 0 {
+		result += "  Detected Patterns:\n"
+		for _, pattern := range seasonality.Patterns {
+			result += fmt.Sprintf("    • %s: %s (%.1f%% confidence)\n",
+				strings.Title(pattern.Type),
+				pattern.Description,
+				pattern.Confidence*100)
+		}
+	}
+
+	// Show weekly pattern if available
+	if len(seasonality.WeeklyPattern) > 0 {
+		result += "\n  Weekly Pattern:\n"
+		days := []string{"Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"}
+		for _, day := range days {
+			if multiplier, exists := seasonality.WeeklyPattern[strings.ToLower(day)]; exists {
+				intensity := v.getSeasonalIntensity(multiplier)
+				result += fmt.Sprintf("    %s: %.2fx %s\n", day, multiplier, intensity)
+			}
+		}
+	}
+
+	// Show hourly pattern if available
+	if len(seasonality.HourlyPattern) > 0 {
+		result += "\n  Peak Hours: "
+		var peakHours []string
+		for hour, multiplier := range seasonality.HourlyPattern {
+			if multiplier > 1.2 { // 20% above average
+				peakHours = append(peakHours, fmt.Sprintf("%02d:00", hour))
+			}
+		}
+		if len(peakHours) > 0 {
+			result += strings.Join(peakHours, ", ") + "\n"
+		} else {
+			result += "No significant peak hours detected\n"
+		}
+	}
+
+	return result
+}
+
+func (v *simpleVisualizer) getTrendDirectionIcon(direction entities.TrendDirection) string {
+	switch direction {
+	case entities.TrendDirectionUp:
+		return "📈"
+	case entities.TrendDirectionDown:
+		return "📉"
+	case entities.TrendDirectionStable:
+		return "➡️"
+	default:
+		return "❓"
+	}
+}
+
+func (v *simpleVisualizer) getTrendDirectionText(direction entities.TrendDirection) string {
+	switch direction {
+	case entities.TrendDirectionUp:
+		return "Improving"
+	case entities.TrendDirectionDown:
+		return "Declining"
+	case entities.TrendDirectionStable:
+		return "Stable"
+	default:
+		return "Unknown"
+	}
+}
+
+func (v *simpleVisualizer) getConfidenceIcon(confidence float64) string {
+	if confidence >= 0.9 {
+		return "🟢" // High confidence
+	} else if confidence >= 0.7 {
+		return "🟡" // Medium confidence
+	} else if confidence >= 0.5 {
+		return "🟠" // Low confidence
+	} else {
+		return "🔴" // Very low confidence
+	}
+}
+
+func (v *simpleVisualizer) getSeasonalIntensity(multiplier float64) string {
+	if multiplier >= 1.5 {
+		return "🔥 Very High"
+	} else if multiplier >= 1.2 {
+		return "⬆️ High"
+	} else if multiplier >= 0.8 {
+		return "➡️ Normal"
+	} else if multiplier >= 0.5 {
+		return "⬇️ Low"
+	} else {
+		return "❄️ Very Low"
+	}
+}
+
+func (v *simpleVisualizer) getCorrelationStrength(correlation float64) string {
+	abs := correlation
+	if abs < 0 {
+		abs = -abs
+	}
+
+	if abs >= 0.8 {
+		return "strong"
+	} else if abs >= 0.6 {
+		return "moderate"
+	} else if abs >= 0.3 {
+		return "weak"
+	} else {
+		return "very weak"
+	}
+}
+
 func (v *simpleVisualizer) GenerateVisualization(metrics *entities.WorkflowMetrics, format entities.VisFormat) ([]byte, error) {
 	output := fmt.Sprintf(`📊 WORKFLOW ANALYTICS DASHBOARD
 ════════════════════════════════
@@ -644,6 +908,31 @@ func getImpactIcon(impact float64) string {
 	} else {
 		return "ℹ️"
 	}
+}
+
+// exportProductivityReport exports a productivity report to the specified format
+func exportProductivityReport(
+	ctx context.Context,
+	analyticsService services.AnalyticsService,
+	report *entities.ProductivityReport,
+	exportFormat string,
+) (string, error) {
+	// Convert export format string to entities.ExportFormat
+	format := entities.ExportFormat(exportFormat)
+
+	// Use the existing ExportAnalytics method with the report's metrics
+	filename, err := analyticsService.ExportAnalytics(
+		ctx,
+		report.Repository,
+		report.Period,
+		format,
+	)
+
+	if err != nil {
+		return "", fmt.Errorf("failed to export productivity report: %w", err)
+	}
+
+	return filename, nil
 }
 
 // getPriorityIcon returns an icon based on recommendation priority

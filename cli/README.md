@@ -74,6 +74,33 @@ All configuration options can be overridden with environment variables:
 - `LMMC_CLI_OUTPUT_FORMAT`: Default output format (table, json, plain)
 - `LMMC_LOGGING_LEVEL`: Log level (debug, info, warn, error)
 
+### AI Provider Configuration
+
+The CLI supports multiple AI providers for intelligent task suggestions and analysis. Configure using environment variables:
+
+#### OpenAI
+```bash
+export AI_PROVIDER=openai
+export OPENAI_API_KEY=your_openai_api_key_here
+export OPENAI_MODEL=gpt-4o  # Optional: defaults to gpt-4o
+```
+
+#### Claude (Anthropic)
+```bash
+export AI_PROVIDER=claude
+export CLAUDE_API_KEY=your_claude_api_key_here
+export CLAUDE_MODEL=claude-sonnet-4  # Optional: defaults to claude-sonnet-4
+```
+
+#### Perplexity
+```bash
+export AI_PROVIDER=perplexity
+export PERPLEXITY_API_KEY=your_perplexity_api_key_here
+export PERPLEXITY_MODEL=sonar-pro  # Optional: defaults to sonar-pro
+```
+
+If no AI provider is configured, the CLI will fall back to mock mode for testing.
+
 ## Command Reference
 
 ### Task Management
