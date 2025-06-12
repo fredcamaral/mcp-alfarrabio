@@ -2,96 +2,149 @@
 // This replaces the 9 fragmented tools with 4 logical tools with clear boundaries.
 package tools
 
-// StoreOperations defines all data persistence operations
+import (
+	"fmt"
+	"lerian-mcp-memory/internal/operations"
+)
+
+// StoreOperations defines all data persistence operations using clear names
 type StoreOperations string
 
 const (
 	// OpStoreContent stores new content/memory chunks
-	OpStoreContent StoreOperations = "store_content"
+	OpStoreContent StoreOperations = operations.StoreContent
 	
 	// OpStoreDecision stores architectural or design decisions
-	OpStoreDecision StoreOperations = "store_decision"
+	OpStoreDecision StoreOperations = operations.StoreDecision
+	
+	// OpStoreInsight stores generated insights
+	OpStoreInsight StoreOperations = operations.StoreInsight
+	
+	// OpStorePattern stores detected patterns
+	OpStorePattern StoreOperations = operations.StorePattern
+	
+	// OpStoreRelationship creates relationships between content
+	OpStoreRelationship StoreOperations = operations.StoreRelationship
 	
 	// OpUpdateContent updates existing content
-	OpUpdateContent StoreOperations = "update_content"
+	OpUpdateContent StoreOperations = operations.UpdateExistingContent
+	
+	// OpUpdateMetadata updates content metadata only
+	OpUpdateMetadata StoreOperations = operations.UpdateContentMetadata
 	
 	// OpDeleteContent removes content
-	OpDeleteContent StoreOperations = "delete_content"
+	OpDeleteContent StoreOperations = operations.DeleteOldContent
 	
-	// OpCreateThread creates a new conversation thread
-	OpCreateThread StoreOperations = "create_thread"
+	// OpDeleteRelationship removes content relationships
+	OpDeleteRelationship StoreOperations = operations.DeleteRelationship
 	
-	// OpCreateRelation creates relationships between content
-	OpCreateRelation StoreOperations = "create_relationship"
+	// OpExpireContent removes stale content
+	OpExpireContent StoreOperations = operations.ExpireStaleContent
 )
 
-// RetrieveOperations defines all data retrieval operations
+// RetrieveOperations defines all data retrieval operations using clear names
 type RetrieveOperations string
 
 const (
-	// OpSearch performs semantic search across content
-	OpSearch RetrieveOperations = "search"
+	// OpSearchContent performs semantic search across content
+	OpSearchContent RetrieveOperations = operations.SearchContent
 	
-	// OpGetContent retrieves specific content by ID
-	OpGetContent RetrieveOperations = "get_content"
+	// OpGetContentByID retrieves specific content by ID
+	OpGetContentByID RetrieveOperations = operations.GetContentByID
 	
-	// OpFindSimilar finds content similar to given text
-	OpFindSimilar RetrieveOperations = "find_similar"
+	// OpGetContentByProject gets all content in a project
+	OpGetContentByProject RetrieveOperations = operations.GetContentByProject
 	
-	// OpGetThreads retrieves conversation threads
-	OpGetThreads RetrieveOperations = "get_threads"
+	// OpGetContentBySession gets session-specific content
+	OpGetContentBySession RetrieveOperations = operations.GetContentBySession
 	
-	// OpGetRelationships retrieves relationships between content
-	OpGetRelationships RetrieveOperations = "get_relationships"
+	// OpFindSimilarContent finds content similar to given text
+	OpFindSimilarContent RetrieveOperations = operations.FindSimilarContent
 	
-	// OpGetHistory retrieves content history/changes
-	OpGetHistory RetrieveOperations = "get_history"
+	// OpFindRelatedContent finds connected content via relationships
+	OpFindRelatedContent RetrieveOperations = operations.FindRelatedContent
+	
+	// OpGetContentHistory retrieves content version history
+	OpGetContentHistory RetrieveOperations = operations.GetContentHistory
+	
+	// OpGetContentRelationships retrieves relationships for content
+	OpGetContentRelationships RetrieveOperations = operations.GetContentRelationships
+	
+	// OpExploreContentGraph traverses relationship graph
+	OpExploreContentGraph RetrieveOperations = operations.ExploreContentGraph
+	
+	// OpListProjectContent lists content with pagination
+	OpListProjectContent RetrieveOperations = operations.ListProjectContent
 )
 
-// AnalyzeOperations defines all analysis and intelligence operations
+// AnalyzeOperations defines all analysis and intelligence operations using clear names
 type AnalyzeOperations string
 
 const (
-	// OpDetectPatterns identifies patterns in content/behavior
-	OpDetectPatterns AnalyzeOperations = "detect_patterns"
+	// OpDetectContentPatterns identifies patterns in content and behavior
+	OpDetectContentPatterns AnalyzeOperations = operations.DetectContentPatterns
 	
-	// OpSuggestRelated suggests related content or context
-	OpSuggestRelated AnalyzeOperations = "suggest_related"
+	// OpAnalyzeContentQuality analyzes content quality and completeness
+	OpAnalyzeContentQuality AnalyzeOperations = operations.AnalyzeContentQuality
 	
-	// OpAnalyzeQuality analyzes content quality and completeness
-	OpAnalyzeQuality AnalyzeOperations = "analyze_quality"
+	// OpFindContentRelationships discovers relationships between content
+	OpFindContentRelationships AnalyzeOperations = operations.FindContentRelationships
 	
-	// OpDetectConflicts identifies conflicting information
-	OpDetectConflicts AnalyzeOperations = "detect_conflicts"
+	// OpGenerateContentInsights generates insights from content analysis
+	OpGenerateContentInsights AnalyzeOperations = operations.GenerateContentInsights
 	
-	// OpGenerateInsights generates insights from data patterns
-	OpGenerateInsights AnalyzeOperations = "generate_insights"
+	// OpRecommendRelatedContent suggests content that might be of interest
+	OpRecommendRelatedContent AnalyzeOperations = operations.RecommendRelatedContent
 	
-	// OpPredictTrends predicts future trends based on data
-	OpPredictTrends AnalyzeOperations = "predict_trends"
+	// OpDetectContentConflicts identifies conflicting information
+	OpDetectContentConflicts AnalyzeOperations = operations.DetectContentConflicts
+	
+	// OpAnalyzeDecisionConflicts checks for conflicting decisions
+	OpAnalyzeDecisionConflicts AnalyzeOperations = operations.AnalyzeDecisionConflicts
+	
+	// OpPredictContentTrends forecasts content evolution
+	OpPredictContentTrends AnalyzeOperations = operations.PredictContentTrends
+	
+	// OpIdentifyKnowledgeGaps finds missing information areas
+	OpIdentifyKnowledgeGaps AnalyzeOperations = operations.IdentifyKnowledgeGaps
+	
+	// OpAnalyzeUsagePatterns studies how content is accessed and used
+	OpAnalyzeUsagePatterns AnalyzeOperations = operations.AnalyzeUsagePatterns
 )
 
-// SystemOperations defines all system and administrative operations
+// SystemOperations defines all system and administrative operations using clear names
 type SystemOperations string
 
 const (
-	// OpHealth checks system health and status
-	OpHealth SystemOperations = "health"
+	// OpCheckSystemHealth verifies system is functioning properly
+	OpCheckSystemHealth SystemOperations = operations.CheckSystemHealth
 	
-	// OpExportProject exports project data
-	OpExportProject SystemOperations = "export_project"
+	// OpExportProjectData exports all project data to external formats
+	OpExportProjectData SystemOperations = operations.ExportProjectData
 	
-	// OpImportProject imports project data
-	OpImportProject SystemOperations = "import_project"
+	// OpImportProjectData imports project data from external sources
+	OpImportProjectData SystemOperations = operations.ImportProjectData
 	
-	// OpGenerateCitation generates citations for content
-	OpGenerateCitation SystemOperations = "generate_citation"
+	// OpGenerateContentCitation creates properly formatted citations
+	OpGenerateContentCitation SystemOperations = operations.GenerateContentCitation
 	
-	// OpValidateIntegrity validates data integrity
-	OpValidateIntegrity SystemOperations = "validate_integrity"
+	// OpValidateDataIntegrity checks data consistency and integrity
+	OpValidateDataIntegrity SystemOperations = operations.ValidateDataIntegrity
 	
-	// OpGetMetrics retrieves system metrics
-	OpGetMetrics SystemOperations = "get_metrics"
+	// OpCalculateSystemMetrics computes detailed system metrics
+	OpCalculateSystemMetrics SystemOperations = operations.CalculateSystemMetrics
+	
+	// OpMonitorSystemPerformance tracks system performance
+	OpMonitorSystemPerformance SystemOperations = operations.MonitorSystemPerformance
+	
+	// OpCreateUserSession starts new user session
+	OpCreateUserSession SystemOperations = operations.CreateUserSession
+	
+	// OpUpdateSessionAccess updates session permissions
+	OpUpdateSessionAccess SystemOperations = operations.UpdateSessionAccess
+	
+	// OpCleanupExpiredSessions removes old sessions
+	OpCleanupExpiredSessions SystemOperations = operations.CleanupExpiredSessions
 )
 
 // ToolName represents the 4 clean tool names
@@ -113,60 +166,79 @@ const (
 
 // GetToolForOperation returns which tool handles a given operation
 func GetToolForOperation(operation string) (ToolName, error) {
+	// First, convert any deprecated operation names to clear names
+	clearOp := operations.GetClearOperationName(operation)
+	
 	// Store operations
 	storeOps := map[string]bool{
-		string(OpStoreContent):    true,
-		string(OpStoreDecision):   true,
-		string(OpUpdateContent):   true,
-		string(OpDeleteContent):   true,
-		string(OpCreateThread):    true,
-		string(OpCreateRelation):  true,
+		string(OpStoreContent):      true,
+		string(OpStoreDecision):     true,
+		string(OpStoreInsight):      true,
+		string(OpStorePattern):      true,
+		string(OpStoreRelationship): true,
+		string(OpUpdateContent):     true,
+		string(OpUpdateMetadata):    true,
+		string(OpDeleteContent):     true,
+		string(OpDeleteRelationship): true,
+		string(OpExpireContent):     true,
 	}
 	
 	// Retrieve operations
 	retrieveOps := map[string]bool{
-		string(OpSearch):            true,
-		string(OpGetContent):        true,
-		string(OpFindSimilar):       true,
-		string(OpGetThreads):        true,
-		string(OpGetRelationships):  true,
-		string(OpGetHistory):        true,
+		string(OpSearchContent):           true,
+		string(OpGetContentByID):          true,
+		string(OpGetContentByProject):     true,
+		string(OpGetContentBySession):     true,
+		string(OpFindSimilarContent):      true,
+		string(OpFindRelatedContent):      true,
+		string(OpGetContentHistory):       true,
+		string(OpGetContentRelationships): true,
+		string(OpExploreContentGraph):     true,
+		string(OpListProjectContent):      true,
 	}
 	
 	// Analyze operations
 	analyzeOps := map[string]bool{
-		string(OpDetectPatterns):    true,
-		string(OpSuggestRelated):    true,
-		string(OpAnalyzeQuality):    true,
-		string(OpDetectConflicts):   true,
-		string(OpGenerateInsights):  true,
-		string(OpPredictTrends):     true,
+		string(OpDetectContentPatterns):    true,
+		string(OpAnalyzeContentQuality):    true,
+		string(OpFindContentRelationships): true,
+		string(OpGenerateContentInsights):  true,
+		string(OpRecommendRelatedContent):  true,
+		string(OpDetectContentConflicts):   true,
+		string(OpAnalyzeDecisionConflicts): true,
+		string(OpPredictContentTrends):     true,
+		string(OpIdentifyKnowledgeGaps):    true,
+		string(OpAnalyzeUsagePatterns):     true,
 	}
 	
 	// System operations
 	systemOps := map[string]bool{
-		string(OpHealth):            true,
-		string(OpExportProject):     true,
-		string(OpImportProject):     true,
-		string(OpGenerateCitation):  true,
-		string(OpValidateIntegrity): true,
-		string(OpGetMetrics):        true,
+		string(OpCheckSystemHealth):         true,
+		string(OpExportProjectData):         true,
+		string(OpImportProjectData):         true,
+		string(OpGenerateContentCitation):   true,
+		string(OpValidateDataIntegrity):     true,
+		string(OpCalculateSystemMetrics):    true,
+		string(OpMonitorSystemPerformance):  true,
+		string(OpCreateUserSession):         true,
+		string(OpUpdateSessionAccess):       true,
+		string(OpCleanupExpiredSessions):    true,
 	}
 	
-	if storeOps[operation] {
+	if storeOps[clearOp] {
 		return ToolMemoryStore, nil
 	}
-	if retrieveOps[operation] {
+	if retrieveOps[clearOp] {
 		return ToolMemoryRetrieve, nil
 	}
-	if analyzeOps[operation] {
+	if analyzeOps[clearOp] {
 		return ToolMemoryAnalyze, nil
 	}
-	if systemOps[operation] {
+	if systemOps[clearOp] {
 		return ToolMemorySystem, nil
 	}
 	
-	return "", fmt.Errorf("unknown operation: %s", operation)
+	return "", fmt.Errorf("unknown operation: %s (clear name: %s)", operation, clearOp)
 }
 
 // GetOperationsForTool returns all operations handled by a tool
@@ -176,37 +248,53 @@ func GetOperationsForTool(tool ToolName) []string {
 		return []string{
 			string(OpStoreContent),
 			string(OpStoreDecision),
+			string(OpStoreInsight),
+			string(OpStorePattern),
+			string(OpStoreRelationship),
 			string(OpUpdateContent),
+			string(OpUpdateMetadata),
 			string(OpDeleteContent),
-			string(OpCreateThread),
-			string(OpCreateRelation),
+			string(OpDeleteRelationship),
+			string(OpExpireContent),
 		}
 	case ToolMemoryRetrieve:
 		return []string{
-			string(OpSearch),
-			string(OpGetContent),
-			string(OpFindSimilar),
-			string(OpGetThreads),
-			string(OpGetRelationships),
-			string(OpGetHistory),
+			string(OpSearchContent),
+			string(OpGetContentByID),
+			string(OpGetContentByProject),
+			string(OpGetContentBySession),
+			string(OpFindSimilarContent),
+			string(OpFindRelatedContent),
+			string(OpGetContentHistory),
+			string(OpGetContentRelationships),
+			string(OpExploreContentGraph),
+			string(OpListProjectContent),
 		}
 	case ToolMemoryAnalyze:
 		return []string{
-			string(OpDetectPatterns),
-			string(OpSuggestRelated),
-			string(OpAnalyzeQuality),
-			string(OpDetectConflicts),
-			string(OpGenerateInsights),
-			string(OpPredictTrends),
+			string(OpDetectContentPatterns),
+			string(OpAnalyzeContentQuality),
+			string(OpFindContentRelationships),
+			string(OpGenerateContentInsights),
+			string(OpRecommendRelatedContent),
+			string(OpDetectContentConflicts),
+			string(OpAnalyzeDecisionConflicts),
+			string(OpPredictContentTrends),
+			string(OpIdentifyKnowledgeGaps),
+			string(OpAnalyzeUsagePatterns),
 		}
 	case ToolMemorySystem:
 		return []string{
-			string(OpHealth),
-			string(OpExportProject),
-			string(OpImportProject),
-			string(OpGenerateCitation),
-			string(OpValidateIntegrity),
-			string(OpGetMetrics),
+			string(OpCheckSystemHealth),
+			string(OpExportProjectData),
+			string(OpImportProjectData),
+			string(OpGenerateContentCitation),
+			string(OpValidateDataIntegrity),
+			string(OpCalculateSystemMetrics),
+			string(OpMonitorSystemPerformance),
+			string(OpCreateUserSession),
+			string(OpUpdateSessionAccess),
+			string(OpCleanupExpiredSessions),
 		}
 	default:
 		return []string{}
@@ -215,60 +303,30 @@ func GetOperationsForTool(tool ToolName) []string {
 
 // IsWriteOperation returns true if the operation modifies data
 func IsWriteOperation(operation string) bool {
+	// Convert to clear operation name first
+	clearOp := operations.GetClearOperationName(operation)
+	
 	writeOps := map[string]bool{
-		string(OpStoreContent):     true,
-		string(OpStoreDecision):    true,
-		string(OpUpdateContent):    true,
-		string(OpDeleteContent):    true,
-		string(OpCreateThread):     true,
-		string(OpCreateRelation):   true,
-		string(OpImportProject):    true,
+		string(OpStoreContent):      true,
+		string(OpStoreDecision):     true,
+		string(OpStoreInsight):      true,
+		string(OpStorePattern):      true,
+		string(OpStoreRelationship): true,
+		string(OpUpdateContent):     true,
+		string(OpUpdateMetadata):    true,
+		string(OpDeleteContent):     true,
+		string(OpDeleteRelationship): true,
+		string(OpExpireContent):     true,
+		string(OpImportProjectData): true,
+		string(OpCreateUserSession): true,
+		string(OpUpdateSessionAccess): true,
 	}
 	
-	return writeOps[operation]
+	return writeOps[clearOp]
 }
 
 // GetOperationDescription returns a human-readable description of the operation
 func GetOperationDescription(operation string) string {
-	descriptions := map[string]string{
-		// Store operations
-		string(OpStoreContent):    "Store new content or memory chunks in the system",
-		string(OpStoreDecision):   "Store architectural or design decisions for future reference",
-		string(OpUpdateContent):   "Update existing content with new information",
-		string(OpDeleteContent):   "Remove content from the system",
-		string(OpCreateThread):    "Create a new conversation thread for organizing related content",
-		string(OpCreateRelation):  "Create relationships between different pieces of content",
-		
-		// Retrieve operations
-		string(OpSearch):            "Perform semantic search across all stored content",
-		string(OpGetContent):        "Retrieve specific content by its unique identifier",
-		string(OpFindSimilar):       "Find content similar to the provided text or context",
-		string(OpGetThreads):        "Retrieve conversation threads and their metadata",
-		string(OpGetRelationships):  "Retrieve relationships between content items",
-		string(OpGetHistory):        "Retrieve the change history for content items",
-		
-		// Analyze operations
-		string(OpDetectPatterns):    "Identify patterns in content, behavior, or usage",
-		string(OpSuggestRelated):    "Suggest related content or context based on current focus",
-		string(OpAnalyzeQuality):    "Analyze the quality and completeness of stored content",
-		string(OpDetectConflicts):   "Identify conflicting information or decisions",
-		string(OpGenerateInsights):  "Generate insights from data patterns and relationships",
-		string(OpPredictTrends):     "Predict future trends based on historical data",
-		
-		// System operations
-		string(OpHealth):            "Check system health, status, and performance metrics",
-		string(OpExportProject):     "Export all project data in a portable format",
-		string(OpImportProject):     "Import project data from external sources",
-		string(OpGenerateCitation):  "Generate proper citations for stored content",
-		string(OpValidateIntegrity): "Validate the integrity of stored data and relationships",
-		string(OpGetMetrics):        "Retrieve detailed system and usage metrics",
-	}
-	
-	if desc, exists := descriptions[operation]; exists {
-		return desc
-	}
-	
-	return "Unknown operation"
+	// Delegate to the operations package for consistent descriptions
+	return operations.GetOperationDescription(operation)
 }
-
-import "fmt"
