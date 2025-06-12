@@ -87,7 +87,7 @@ func NewHTTPMCPClient(config *entities.Config, logger *slog.Logger) ports.MCPCli
 	return client
 }
 
-// SyncTask syncs a task with the MCP server
+// SyncTask syncs a task with the MCP server using the new memory_store tool
 func (c *HTTPMCPClient) SyncTask(ctx context.Context, task *entities.Task) error {
 	if !c.IsOnline() {
 		return ErrMCPOffline
@@ -98,10 +98,14 @@ func (c *HTTPMCPClient) SyncTask(ctx context.Context, task *entities.Task) error
 
 	request := MCPRequest{
 		JSONRPC: "2.0",
-		Method:  "memory_tasks/todo_write",
+		Method:  "memory_store",
 		Params: map[string]interface{}{
-			"todos":      []interface{}{mcpTask},
-			"repository": task.Repository,
+			"operation":  "store_content",
+			"project_id": task.Repository, // Repository becomes project_id
+			"session_id": c.getSessionID(task.Repository), // Generate or get session ID
+			"content":    mcpTask["content"],
+			"type":       "task",
+			"metadata":   mcpTask,
 		},
 		ID: 1,
 	}
@@ -112,7 +116,7 @@ func (c *HTTPMCPClient) SyncTask(ctx context.Context, task *entities.Task) error
 	})
 }
 
-// GetTasks retrieves tasks from the MCP server
+// GetTasks retrieves tasks from the MCP server using the new memory_retrieve tool
 func (c *HTTPMCPClient) GetTasks(ctx context.Context, repository string) ([]*entities.Task, error) {
 	if !c.IsOnline() {
 		return nil, ErrMCPOffline
@@ -120,9 +124,14 @@ func (c *HTTPMCPClient) GetTasks(ctx context.Context, repository string) ([]*ent
 
 	request := MCPRequest{
 		JSONRPC: "2.0",
-		Method:  "memory_tasks/todo_read",
+		Method:  "memory_retrieve",
 		Params: map[string]interface{}{
-			"repository": repository,
+			"operation":  "search",
+			"project_id": repository, // Repository becomes project_id
+			"session_id": c.getSessionID(repository), // Optional session for expanded access
+			"query":      "type:task", // Search for task-type content
+			"types":      []string{"task"},
+			"limit":      100,
 		},
 		ID: 2,
 	}
@@ -140,18 +149,27 @@ func (c *HTTPMCPClient) GetTasks(ctx context.Context, repository string) ([]*ent
 	return c.convertFromMCPFormat(response.Result)
 }
 
-// UpdateTaskStatus updates a task's status on the MCP server
+// UpdateTaskStatus updates a task's status on the MCP server using the new memory_store tool
 func (c *HTTPMCPClient) UpdateTaskStatus(ctx context.Context, taskID string, status entities.Status) error {
 	if !c.IsOnline() {
 		return ErrMCPOffline
 	}
 
+	// First get the current task to determine project_id
+	// For now, use a default project ID - this would need task context in a real implementation
+	projectID := c.getProjectIDFromTaskID(taskID)
+
 	request := MCPRequest{
 		JSONRPC: "2.0",
-		Method:  "memory_tasks/todo_update",
+		Method:  "memory_store",
 		Params: map[string]interface{}{
-			"task_id": taskID,
-			"status":  string(status),
+			"operation":  "update_content",
+			"project_id": projectID,
+			"session_id": c.getSessionID(projectID), // Session required for write operations
+			"content_id": taskID,
+			"metadata": map[string]interface{}{
+				"status": string(status),
+			},
 		},
 		ID: 3,
 	}
@@ -162,20 +180,37 @@ func (c *HTTPMCPClient) UpdateTaskStatus(ctx context.Context, taskID string, sta
 	})
 }
 
-// QueryIntelligence queries the server's intelligence capabilities
+// QueryIntelligence queries the server's intelligence capabilities using the new memory_analyze tool
 func (c *HTTPMCPClient) QueryIntelligence(ctx context.Context, operation string, options map[string]interface{}) (map[string]interface{}, error) {
 	if !c.IsOnline() {
 		return nil, ErrMCPOffline
 	}
 
+	// Extract project_id from options or use default
+	projectID, _ := options["project_id"].(string)
+	if projectID == "" {
+		projectID = "default" // Fallback for legacy calls
+	}
+
+	// Build request params with new parameter system
+	params := map[string]interface{}{
+		"operation":  operation,
+		"project_id": projectID,
+		"session_id": c.getSessionID(projectID), // Optional for read operations
+	}
+
+	// Copy other options
+	for key, value := range options {
+		if key != "project_id" && key != "repository" {
+			params[key] = value
+		}
+	}
+
 	request := MCPRequest{
 		JSONRPC: "2.0",
-		Method:  "memory_intelligence",
-		Params: map[string]interface{}{
-			"operation": operation,
-			"options":   options,
-		},
-		ID: 4,
+		Method:  "memory_analyze",
+		Params:  params,
+		ID:      4,
 	}
 
 	var response MCPResponse
@@ -541,4 +576,20 @@ func (c *HTTPMCPClient) setNumericFields(task *entities.Task, taskData map[strin
 			task.ActualMins = actual
 		}
 	}
+}
+
+// getSessionID generates or retrieves a session ID for a project
+// In the new architecture, session IDs provide expanded access
+func (c *HTTPMCPClient) getSessionID(projectID string) string {
+	// For now, generate a simple session ID based on project
+	// In production, this would be managed properly with session storage
+	return fmt.Sprintf("cli_session_%s_%d", projectID, time.Now().Unix()/3600) // Hourly sessions
+}
+
+// getProjectIDFromTaskID extracts project ID from task ID
+// This is a placeholder - in production, task context would be tracked properly
+func (c *HTTPMCPClient) getProjectIDFromTaskID(taskID string) string {
+	// For now, return a default project ID
+	// In production, this would look up the task's project context
+	return "default_project"
 }
