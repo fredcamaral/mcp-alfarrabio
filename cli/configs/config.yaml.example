@@ -76,6 +76,38 @@ logging:
   file: ""
 
 # ================================================================
+# AI CONFIGURATION
+# ================================================================
+# Note: AI features are configured via environment variables only
+# The following environment variables are supported:
+#
+# Core AI Configuration:
+# AI_PROVIDER       - AI provider ("claude", "openai", "perplexity", "mock")
+# AI_API_KEY        - Generic API key for the selected provider
+# AI_BASE_URL       - Custom base URL for API endpoints
+# AI_MODEL          - Model name to use
+#
+# Claude/Anthropic Configuration:
+# CLAUDE_API_KEY    - Claude API key
+# CLAUDE_BASE_URL   - Claude API base URL (default: https://api.anthropic.com)
+# CLAUDE_MODEL      - Claude model (default: claude-sonnet-4)
+#
+# OpenAI Configuration:
+# OPENAI_API_KEY    - OpenAI API key
+# OPENAI_BASE_URL   - OpenAI API base URL (default: https://api.openai.com/v1)
+# OPENAI_MODEL      - OpenAI model (default: gpt-4o)
+#
+# Perplexity Configuration:
+# PERPLEXITY_API_KEY    - Perplexity API key
+# PERPLEXITY_BASE_URL   - Perplexity API base URL (default: https://api.perplexity.ai)
+# PERPLEXITY_MODEL      - Perplexity model (default: sonar-pro)
+#
+# Example usage:
+# export AI_PROVIDER=claude
+# export CLAUDE_API_KEY=your_api_key_here
+# lmmc ai process task-123
+
+# ================================================================
 # EXAMPLE CONFIGURATIONS
 # ================================================================
 
