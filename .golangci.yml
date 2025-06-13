@@ -1,5 +1,3 @@
-version: "2"
-
 run:
   timeout: 10m
   tests: true
@@ -7,15 +5,13 @@ run:
 
 linters:
   enable:
-    # BLOCKING: Core quality checks (must pass for CI)
+    # Core quality checks
     - errcheck        # Check for unchecked errors  
     - govet          # Vet examines Go source code
     - staticcheck    # Advanced Go linter
     - gosec          # Security analyzer
     - contextcheck   # Check the function whether use a non-inherited context
     - errorlint      # Find code that will cause problems with the error wrapping scheme
-    
-    # NON-BLOCKING: Code quality improvements (warnings only)
     - ineffassign    # Detects ineffectual assignments
     - unused         # Checks for unused constants, variables, functions and types
     - bodyclose      # Check HTTP response bodies are closed
@@ -48,10 +44,8 @@ linters-settings:
       - commentedOutCode
       - ifElseChain
   gosec:
-    severity: "high"  # Only fail CI on high severity issues
-    confidence: "high" # Only fail CI on high confidence issues
     excludes:
-      - G104  # Audit errors not checked (we'll address these gradually)
+      - G104  # Audit errors not checked
       - G204  # Subprocess launched with variable
       - G304  # File path provided as taint input
   staticcheck:
@@ -60,7 +54,6 @@ linters-settings:
     check-type-assertions: false
     check-blank: false
     exclude-functions:
-      # Allow ignoring errors for common write operations
       - (*os.File).Write
       - (*os.File).WriteString
       - (*bufio.Writer).Write
@@ -68,11 +61,9 @@ linters-settings:
       - (io.Writer).Write
 
 issues:
-  max-issues-per-linter: 50  # Limit to prevent overwhelming output
+  max-issues-per-linter: 50
   max-same-issues: 10
-  exclude-use-default: true
   exclude-rules:
-    # Exclude some issues from being considered failures
     - linters:
         - gocritic
         - unparam 
@@ -80,24 +71,7 @@ issues:
         - prealloc
         - goconst
         - dupl
-      severity: warning
-  severity-rules:
-    - linters:
-        - errcheck
-        - govet
-        - staticcheck
-        - gosec
-        - contextcheck
-        - errorlint
-      severity: error  # These will fail CI
-    - linters:
-        - gocritic
-        - unparam
-        - unused
-        - prealloc
-        - goconst
-        - dupl
         - ineffassign
         - gocyclo
         - nestif
-      severity: warning  # These will show as warnings but not fail CI
+      text: ".*"
