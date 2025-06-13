@@ -49,7 +49,7 @@ func TestBatchResult(t *testing.T) {
 		result := &BatchResult{
 			Success:      5,
 			Failed:       0,
-			Errors:       []string{},
+			Errors:       []BatchError{},
 			ProcessedIDs: []string{"id1", "id2", "id3", "id4", "id5"},
 		}
 
@@ -63,15 +63,15 @@ func TestBatchResult(t *testing.T) {
 		result := &BatchResult{
 			Success:      3,
 			Failed:       2,
-			Errors:       []string{"error1", "error2"},
+			Errors:       []BatchError{{Error: "error1"}, {Error: "error2"}},
 			ProcessedIDs: []string{"id1", "id2", "id3", "id4", "id5"},
 		}
 
 		assert.Equal(t, 3, result.Success)
 		assert.Equal(t, 2, result.Failed)
 		assert.Len(t, result.Errors, 2)
-		assert.Contains(t, result.Errors, "error1")
-		assert.Contains(t, result.Errors, "error2")
+		assert.Equal(t, "error1", result.Errors[0].Error)
+		assert.Equal(t, "error2", result.Errors[1].Error)
 	})
 }
 

@@ -230,8 +230,8 @@ func (m *SimpleMockVectorStore) StoreChunk(ctx context.Context, chunk *types.Con
 	return m.Store(ctx, chunk)
 }
 
-func (m *SimpleMockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
-	result := &BatchResult{
+func (m *SimpleMockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*LegacyBatchResult, error) {
+	result := &LegacyBatchResult{
 		Success:      0,
 		Failed:       0,
 		Errors:       []string{},
@@ -252,8 +252,8 @@ func (m *SimpleMockVectorStore) BatchStore(ctx context.Context, chunks []*types.
 	return result, nil
 }
 
-func (m *SimpleMockVectorStore) BatchDelete(ctx context.Context, ids []string) (*BatchResult, error) {
-	result := &BatchResult{
+func (m *SimpleMockVectorStore) BatchDelete(ctx context.Context, ids []string) (*LegacyBatchResult, error) {
+	result := &LegacyBatchResult{
 		Success:      0,
 		Failed:       0,
 		Errors:       []string{},

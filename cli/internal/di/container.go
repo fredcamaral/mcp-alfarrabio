@@ -15,6 +15,7 @@ import (
 	"lerian-mcp-memory-cli/internal/adapters/secondary/analytics"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/config"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/filesystem"
+	"lerian-mcp-memory-cli/internal/adapters/secondary/http"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/mcp"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/repository"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/storage"
@@ -246,18 +247,19 @@ func (c *Container) initStorage() error {
 	return nil
 }
 
-// initMCPClient initializes the MCP client
+// initMCPClient initializes the server client (renamed from MCP client for clarity)
 func (c *Container) initMCPClient() {
-	// Check if MCP is enabled
+	// Check if server is configured
 	if c.Config.Server.URL == "" {
-		c.Logger.Info("MCP client disabled (no server URL configured)")
+		c.Logger.Info("Server client disabled (no server URL configured)")
 		// Use a mock client that always returns offline
 		c.MCPClient = &mcp.MockMCPClient{}
 		c.MCPClient.(*mcp.MockMCPClient).SetOnline(false)
 		return
 	}
 
-	client := mcp.NewHTTPMCPClient(c.Config, c.Logger)
+	// Use HTTP REST client instead of MCP JSON-RPC client
+	client := http.NewHTTPRestClient(c.Config, c.Logger)
 	c.MCPClient = client
 
 	// Test connection (non-blocking)
@@ -266,10 +268,10 @@ func (c *Container) initMCPClient() {
 		defer cancel()
 
 		if err := client.TestConnection(ctx); err != nil {
-			c.Logger.Warn("MCP server not available, running in offline mode",
+			c.Logger.Warn("Server not available, running in offline mode",
 				slog.Any("error", err))
 		} else {
-			c.Logger.Info("MCP server connection established")
+			c.Logger.Info("Server connection established (HTTP REST)")
 		}
 	}()
 }
@@ -291,7 +293,7 @@ func (c *Container) initTaskService() {
 	c.Logger.Info("task service initialized")
 }
 
-// initAIService initializes the AI service using shared AI package
+// initAIService initializes the AI service using shared AI package with enhancements
 func (c *Container) initAIService() {
 	// Try to create AI service from environment variables first (for real providers)
 	sharedService, err := sharedai.NewFromEnv(c.Logger)
@@ -311,8 +313,14 @@ func (c *Container) initAIService() {
 		c.Logger.Info("AI service initialized", slog.String("provider", "real-ai-from-env"))
 	}
 
-	// Create adapter that bridges shared AI service to CLI's expected interface
-	c.AIService = ai.NewSharedAIService(sharedService)
+	// Create base adapter that bridges shared AI service to CLI's expected interface
+	baseAIService := ai.NewSharedAIService(sharedService)
+
+	// Create enhanced AI service with task processing and memory management capabilities
+	// Note: Storage will be available when this is called since initStorage() runs before initAIService()
+	c.AIService = ai.NewEnhancedAIService(baseAIService, c.MCPClient, c.Storage, c.Logger)
+
+	c.Logger.Info("enhanced AI service initialized with task processing and memory management")
 }
 
 // initDocumentChainService initializes the document chain service
@@ -505,6 +513,7 @@ func (c *Container) initCLI() {
 		c.TaskService,
 		c.ConfigManager,
 		c.Logger,
+		c.Storage,
 		c.DocumentChain,
 		c.AIService,
 		c.RepositoryDetector,

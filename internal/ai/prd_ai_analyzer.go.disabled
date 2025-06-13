@@ -1,0 +1,464 @@
+// Package ai provides enhanced AI-powered PRD content analysis functionality.
+package ai
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+
+	"lerian-mcp-memory/internal/prd"
+	"lerian-mcp-memory/pkg/types"
+)
+
+// PRDAIAnalyzer provides AI-enhanced PRD analysis capabilities
+type PRDAIAnalyzer struct {
+	baseAnalyzer *prd.Analyzer
+	aiService    Service
+	logger       *slog.Logger
+}
+
+// NewPRDAIAnalyzer creates a new AI-enhanced analyzer
+func NewPRDAIAnalyzer(config prd.AnalyzerConfig, aiService Service, logger *slog.Logger) *PRDAIAnalyzer {
+	return &PRDAIAnalyzer{
+		baseAnalyzer: prd.NewAnalyzer(config),
+		aiService:    aiService,
+		logger:       logger,
+	}
+}
+
+// AnalyzeWithAI performs comprehensive AI-enhanced analysis of a PRD document
+func (a *PRDAIAnalyzer) AnalyzeWithAI(ctx context.Context, doc *types.PRDDocument) error {
+	// First perform base analysis
+	if err := a.baseAnalyzer.AnalyzeDocument(doc); err != nil {
+		return fmt.Errorf("base analysis failed: %w", err)
+	}
+
+	// If AI analysis is not enabled, return after base analysis
+	if a.aiService == nil {
+		a.logger.Info("AI analysis skipped - service unavailable")
+		return nil
+	}
+
+	// Perform AI-enhanced analysis
+	a.logger.Info("performing AI-enhanced PRD analysis", slog.String("doc_id", doc.ID))
+
+	// AI-powered section classification
+	if err := a.classifySectionsWithAI(ctx, doc); err != nil {
+		a.logger.Warn("AI section classification failed", slog.String("error", err.Error()))
+	}
+
+	// AI-powered completeness checking
+	if err := a.checkCompletenessWithAI(ctx, doc); err != nil {
+		a.logger.Warn("AI completeness check failed", slog.String("error", err.Error()))
+	}
+
+	// AI-powered recommendation generation
+	if err := a.generateAIRecommendations(ctx, doc); err != nil {
+		a.logger.Warn("AI recommendation generation failed", slog.String("error", err.Error()))
+	}
+
+	// AI-powered complexity analysis
+	if err := a.analyzeComplexityWithAI(ctx, doc); err != nil {
+		a.logger.Warn("AI complexity analysis failed", slog.String("error", err.Error()))
+	}
+
+	return nil
+}
+
+// classifySectionsWithAI uses AI to better classify and understand document sections
+func (a *PRDAIAnalyzer) classifySectionsWithAI(ctx context.Context, doc *types.PRDDocument) error {
+	prompt := fmt.Sprintf(`Analyze the following PRD sections and classify them accurately. 
+	For each section, identify:
+	1. The section type (overview, objectives, requirements, functional, non-functional, acceptance, risks, timeline, etc.)
+	2. Key information extracted from the section
+	3. Any missing or unclear information
+	
+	PRD Content:
+	%s
+	
+	Return as JSON with structure:
+	{
+		"sections": [
+			{
+				"title": "section title",
+				"type": "section type",
+				"key_points": ["point1", "point2"],
+				"missing_info": ["missing1", "missing2"],
+				"clarity_score": 0.0-1.0
+			}
+		],
+		"overall_structure_score": 0.0-1.0,
+		"structure_feedback": "feedback on document structure"
+	}`, doc.Content.Raw)
+
+	req := &Request{
+		Messages: []Message{
+			{
+				Role:    "system",
+				Content: "You are an expert PRD analyst specializing in document structure and completeness.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Metadata: RequestMetadata{
+			Tags: []string{"prd_analysis", "section_classification"},
+		},
+	}
+
+	resp, err := a.aiService.ProcessRequest(ctx, req)
+	if err != nil {
+		return fmt.Errorf("AI section classification failed: %w", err)
+	}
+
+	// Parse AI response
+	var result struct {
+		Sections []struct {
+			Title        string   `json:"title"`
+			Type         string   `json:"type"`
+			KeyPoints    []string `json:"key_points"`
+			MissingInfo  []string `json:"missing_info"`
+			ClarityScore float64  `json:"clarity_score"`
+		} `json:"sections"`
+		OverallStructureScore float64 `json:"overall_structure_score"`
+		StructureFeedback     string  `json:"structure_feedback"`
+	}
+
+	if err := json.Unmarshal([]byte(resp.Content), &result); err != nil {
+		return fmt.Errorf("failed to parse AI response: %w", err)
+	}
+
+	// Update analysis with AI insights
+	if result.OverallStructureScore > 0 {
+		// Adjust structure score based on AI analysis
+		doc.Analysis.StructureScore = (doc.Analysis.StructureScore + result.OverallStructureScore) / 2
+	}
+
+	// Add AI feedback to recommendations
+	if result.StructureFeedback != "" {
+		doc.Analysis.Recommendations = append(doc.Analysis.Recommendations,
+			"AI Structure Analysis: "+result.StructureFeedback)
+	}
+
+	// Collect missing information from all sections
+	for _, section := range result.Sections {
+		for _, missing := range section.MissingInfo {
+			if !contains(doc.Analysis.MissingElements, missing) {
+				doc.Analysis.MissingElements = append(doc.Analysis.MissingElements, missing)
+			}
+		}
+	}
+
+	return nil
+}
+
+// checkCompletenessWithAI uses AI to check document completeness
+func (a *PRDAIAnalyzer) checkCompletenessWithAI(ctx context.Context, doc *types.PRDDocument) error {
+	prompt := fmt.Sprintf(`Analyze this PRD for completeness and identify any missing critical information.
+	
+	PRD Content:
+	%s
+	
+	Check for presence and quality of:
+	1. Clear problem statement
+	2. Target users and personas
+	3. Specific objectives and success metrics
+	4. Detailed functional requirements
+	5. Non-functional requirements (performance, security, scalability)
+	6. User stories or use cases
+	7. Acceptance criteria
+	8. Technical constraints
+	9. Timeline and milestones
+	10. Risks and mitigation strategies
+	
+	Return as JSON:
+	{
+		"completeness_score": 0.0-1.0,
+		"missing_critical": ["list of critical missing items"],
+		"weak_areas": ["areas that need more detail"],
+		"strengths": ["well-covered areas"],
+		"specific_gaps": {
+			"section_name": "what's missing or weak"
+		}
+	}`, doc.Content.Raw)
+
+	req := &Request{
+		Messages: []Message{
+			{
+				Role:    "system",
+				Content: "You are an expert PRD reviewer focused on identifying gaps and ensuring comprehensive documentation.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Metadata: RequestMetadata{
+			Tags: []string{"prd_analysis", "completeness_check"},
+		},
+	}
+
+	resp, err := a.aiService.ProcessRequest(ctx, req)
+	if err != nil {
+		return fmt.Errorf("AI completeness check failed: %w", err)
+	}
+
+	// Parse AI response
+	var result struct {
+		CompletenessScore float64           `json:"completeness_score"`
+		MissingCritical   []string          `json:"missing_critical"`
+		WeakAreas         []string          `json:"weak_areas"`
+		Strengths         []string          `json:"strengths"`
+		SpecificGaps      map[string]string `json:"specific_gaps"`
+	}
+
+	if err := json.Unmarshal([]byte(resp.Content), &result); err != nil {
+		return fmt.Errorf("failed to parse AI response: %w", err)
+	}
+
+	// Update completeness score with AI insights
+	if result.CompletenessScore > 0 {
+		doc.Analysis.CompletenessScore = (doc.Analysis.CompletenessScore + result.CompletenessScore) / 2
+	}
+
+	// Add missing critical items
+	for _, item := range result.MissingCritical {
+		if !contains(doc.Analysis.MissingElements, item) {
+			doc.Analysis.MissingElements = append(doc.Analysis.MissingElements, item)
+		}
+	}
+
+	// Create issues for weak areas
+	for _, weakness := range result.WeakAreas {
+		doc.Analysis.Issues = append(doc.Analysis.Issues, types.AnalysisIssue{
+			Type:       types.IssueTypeCompleteness,
+			Severity:   types.SeverityMedium,
+			Message:    "Weak area identified: " + weakness,
+			Location:   "content",
+			Suggestion: "Provide more detail for: " + weakness,
+		})
+	}
+
+	// Add specific gap recommendations
+	for section, gap := range result.SpecificGaps {
+		recommendation := fmt.Sprintf("In section '%s': %s", section, gap)
+		doc.Analysis.Recommendations = append(doc.Analysis.Recommendations, recommendation)
+	}
+
+	return nil
+}
+
+// generateAIRecommendations uses AI to generate specific improvement recommendations
+func (a *PRDAIAnalyzer) generateAIRecommendations(ctx context.Context, doc *types.PRDDocument) error {
+	prompt := fmt.Sprintf(`Based on this PRD and its analysis, provide specific, actionable recommendations for improvement.
+	
+	PRD Content:
+	%s
+	
+	Current Analysis:
+	- Completeness Score: %.2f
+	- Clarity Score: %.2f
+	- Structure Score: %.2f
+	- Quality Score: %.2f
+	
+	Missing Elements: %v
+	
+	Provide 5-7 specific, prioritized recommendations that would most improve this PRD.
+	Return as JSON:
+	{
+		"recommendations": [
+			{
+				"priority": "high|medium|low",
+				"category": "completeness|clarity|structure|technical|business",
+				"recommendation": "specific action to take",
+				"impact": "expected improvement",
+				"example": "brief example of the improvement"
+			}
+		],
+		"quick_wins": ["list of easy improvements"],
+		"major_improvements": ["list of significant changes needed"]
+	}`, doc.Content.Raw,
+		doc.Analysis.CompletenessScore,
+		doc.Analysis.ClarityScore,
+		doc.Analysis.StructureScore,
+		doc.Analysis.QualityScore,
+		doc.Analysis.MissingElements)
+
+	req := &Request{
+		Messages: []Message{
+			{
+				Role:    "system",
+				Content: "You are a senior product manager providing actionable feedback to improve PRDs.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Metadata: RequestMetadata{
+			Tags: []string{"prd_analysis", "recommendations"},
+		},
+	}
+
+	resp, err := a.aiService.ProcessRequest(ctx, req)
+	if err != nil {
+		return fmt.Errorf("AI recommendation generation failed: %w", err)
+	}
+
+	// Parse AI response
+	var result struct {
+		Recommendations []struct {
+			Priority       string `json:"priority"`
+			Category       string `json:"category"`
+			Recommendation string `json:"recommendation"`
+			Impact         string `json:"impact"`
+			Example        string `json:"example"`
+		} `json:"recommendations"`
+		QuickWins         []string `json:"quick_wins"`
+		MajorImprovements []string `json:"major_improvements"`
+	}
+
+	if err := json.Unmarshal([]byte(resp.Content), &result); err != nil {
+		return fmt.Errorf("failed to parse AI response: %w", err)
+	}
+
+	// Add AI recommendations
+	for _, rec := range result.Recommendations {
+		fullRec := fmt.Sprintf("[%s - %s] %s", rec.Priority, rec.Category, rec.Recommendation)
+		if rec.Impact != "" {
+			fullRec += " (Impact: " + rec.Impact + ")"
+		}
+		doc.Analysis.Recommendations = append(doc.Analysis.Recommendations, fullRec)
+	}
+
+	// Add quick wins as high-priority recommendations
+	for _, quickWin := range result.QuickWins {
+		doc.Analysis.Recommendations = append(doc.Analysis.Recommendations,
+			"[Quick Win] "+quickWin)
+	}
+
+	return nil
+}
+
+// analyzeComplexityWithAI uses AI to provide deeper complexity analysis
+func (a *PRDAIAnalyzer) analyzeComplexityWithAI(ctx context.Context, doc *types.PRDDocument) error {
+	prompt := fmt.Sprintf(`Analyze the complexity of this PRD and estimate implementation effort.
+	
+	PRD Content:
+	%s
+	
+	Consider:
+	1. Technical complexity (architecture, integrations, algorithms)
+	2. Business logic complexity
+	3. User experience complexity
+	4. Data model complexity
+	5. Security and compliance requirements
+	6. Performance and scalability requirements
+	
+	Return as JSON:
+	{
+		"overall_complexity": "low|medium|high|very_high",
+		"complexity_score": 0.0-10.0,
+		"complexity_factors": {
+			"technical": 0.0-10.0,
+			"business_logic": 0.0-10.0,
+			"user_experience": 0.0-10.0,
+			"data_model": 0.0-10.0,
+			"security": 0.0-10.0,
+			"performance": 0.0-10.0
+		},
+		"estimated_effort": {
+			"development_weeks": number,
+			"team_size": number,
+			"required_skills": ["skill1", "skill2"]
+		},
+		"complexity_drivers": ["main factors driving complexity"],
+		"simplification_opportunities": ["ways to reduce complexity"]
+	}`, doc.Content.Raw)
+
+	req := &Request{
+		Messages: []Message{
+			{
+				Role:    "system",
+				Content: "You are a technical architect expert at estimating project complexity and effort.",
+			},
+			{
+				Role:    "user",
+				Content: prompt,
+			},
+		},
+		Metadata: RequestMetadata{
+			Tags: []string{"prd_analysis", "complexity_analysis"},
+		},
+	}
+
+	resp, err := a.aiService.ProcessRequest(ctx, req)
+	if err != nil {
+		return fmt.Errorf("AI complexity analysis failed: %w", err)
+	}
+
+	// Parse AI response
+	var result struct {
+		OverallComplexity string  `json:"overall_complexity"`
+		ComplexityScore   float64 `json:"complexity_score"`
+		ComplexityFactors struct {
+			Technical      float64 `json:"technical"`
+			BusinessLogic  float64 `json:"business_logic"`
+			UserExperience float64 `json:"user_experience"`
+			DataModel      float64 `json:"data_model"`
+			Security       float64 `json:"security"`
+			Performance    float64 `json:"performance"`
+		} `json:"complexity_factors"`
+		EstimatedEffort struct {
+			DevelopmentWeeks int      `json:"development_weeks"`
+			TeamSize         int      `json:"team_size"`
+			RequiredSkills   []string `json:"required_skills"`
+		} `json:"estimated_effort"`
+		ComplexityDrivers           []string `json:"complexity_drivers"`
+		SimplificationOpportunities []string `json:"simplification_opportunities"`
+	}
+
+	if err := json.Unmarshal([]byte(resp.Content), &result); err != nil {
+		return fmt.Errorf("failed to parse AI response: %w", err)
+	}
+
+	// Update complexity score with AI insights
+	if result.ComplexityScore > 0 {
+		// Normalize AI score (0-10) to our scale (0-1)
+		aiNormalizedScore := result.ComplexityScore / 10.0
+		doc.Analysis.ComplexityScore = (doc.Analysis.ComplexityScore + aiNormalizedScore) / 2
+	}
+
+	// Add complexity insights to analysis
+	for _, driver := range result.ComplexityDrivers {
+		doc.Analysis.KeyConcepts = append(doc.Analysis.KeyConcepts, "Complexity Driver: "+driver)
+	}
+
+	// Add simplification opportunities as recommendations
+	for _, opportunity := range result.SimplificationOpportunities {
+		doc.Analysis.Recommendations = append(doc.Analysis.Recommendations,
+			"[Simplification] "+opportunity)
+	}
+
+	// Add effort estimation to metadata
+	if result.EstimatedEffort.DevelopmentWeeks > 0 {
+		estimation := fmt.Sprintf("AI Estimate: %d weeks with %d developers",
+			result.EstimatedEffort.DevelopmentWeeks,
+			result.EstimatedEffort.TeamSize)
+		doc.Analysis.KeyConcepts = append(doc.Analysis.KeyConcepts, estimation)
+	}
+
+	return nil
+}
+
+// contains checks if a string slice contains a value
+func contains(slice []string, value string) bool {
+	for _, item := range slice {
+		if item == value {
+			return true
+		}
+	}
+	return false
+}

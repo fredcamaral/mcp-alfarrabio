@@ -42,10 +42,10 @@ type HealthRequest struct {
 // ExportProjectRequest represents a project export request
 type ExportProjectRequest struct {
 	types.StandardParams
-	Format      string   `json:"format,omitempty"`      // "json", "yaml", "archive"
-	IncludeData bool     `json:"include_data,omitempty"` // Include actual content
+	Format      string     `json:"format,omitempty"`       // "json", "yaml", "archive"
+	IncludeData bool       `json:"include_data,omitempty"` // Include actual content
 	DateRange   *DateRange `json:"date_range,omitempty"`
-	Types       []string `json:"types,omitempty"`       // Content types to export
+	Types       []string   `json:"types,omitempty"` // Content types to export
 }
 
 // ImportProjectRequest represents a project import request
@@ -73,13 +73,13 @@ type DateRange struct {
 
 // HealthResponse represents system health information
 type HealthResponse struct {
-	Status      string                 `json:"status"`       // "healthy", "degraded", "unhealthy"
-	Version     string                 `json:"version"`
-	Uptime      time.Duration          `json:"uptime"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Components  map[string]ComponentHealth `json:"components,omitempty"`
-	Metrics     *SystemMetrics         `json:"metrics,omitempty"`
-	Sessions    *SessionMetrics        `json:"sessions,omitempty"`
+	Status     string                     `json:"status"` // "healthy", "degraded", "unhealthy"
+	Version    string                     `json:"version"`
+	Uptime     time.Duration              `json:"uptime"`
+	Timestamp  time.Time                  `json:"timestamp"`
+	Components map[string]ComponentHealth `json:"components,omitempty"`
+	Metrics    *SystemMetrics             `json:"metrics,omitempty"`
+	Sessions   *SessionMetrics            `json:"sessions,omitempty"`
 }
 
 // ComponentHealth represents the health of a system component
@@ -92,9 +92,9 @@ type ComponentHealth struct {
 
 // SystemMetrics represents system performance metrics
 type SystemMetrics struct {
-	Memory      MemoryMetrics    `json:"memory"`
-	Goroutines  int              `json:"goroutines"`
-	GCStats     GCMetrics        `json:"gc_stats"`
+	Memory      MemoryMetrics      `json:"memory"`
+	Goroutines  int                `json:"goroutines"`
+	GCStats     GCMetrics          `json:"gc_stats"`
 	Performance PerformanceMetrics `json:"performance"`
 }
 
@@ -116,29 +116,29 @@ type GCMetrics struct {
 
 // PerformanceMetrics represents performance statistics
 type PerformanceMetrics struct {
-	RequestsTotal    int64         `json:"requests_total"`
-	RequestsPerSec   float64       `json:"requests_per_sec"`
-	AvgResponseTime  time.Duration `json:"avg_response_time"`
-	ErrorRate        float64       `json:"error_rate"`
+	RequestsTotal   int64         `json:"requests_total"`
+	RequestsPerSec  float64       `json:"requests_per_sec"`
+	AvgResponseTime time.Duration `json:"avg_response_time"`
+	ErrorRate       float64       `json:"error_rate"`
 }
 
 // SessionMetrics represents session statistics
 type SessionMetrics struct {
-	TotalSessions  int                    `json:"total_sessions"`
-	ActiveSessions int                    `json:"active_sessions"`
+	TotalSessions  int                     `json:"total_sessions"`
+	ActiveSessions int                     `json:"active_sessions"`
 	ProjectCounts  map[types.ProjectID]int `json:"project_counts"`
 }
 
 // ExportResult represents export operation results
 type ExportResult struct {
-	Success      bool      `json:"success"`
-	Message      string    `json:"message"`
-	Format       string    `json:"format"`
-	Size         int64     `json:"size,omitempty"`       // bytes
-	ItemCount    int       `json:"item_count,omitempty"`
-	ExportedAt   time.Time `json:"exported_at"`
-	DownloadURL  string    `json:"download_url,omitempty"`
-	Data         string    `json:"data,omitempty"`       // For small exports
+	Success     bool      `json:"success"`
+	Message     string    `json:"message"`
+	Format      string    `json:"format"`
+	Size        int64     `json:"size,omitempty"` // bytes
+	ItemCount   int       `json:"item_count,omitempty"`
+	ExportedAt  time.Time `json:"exported_at"`
+	DownloadURL string    `json:"download_url,omitempty"`
+	Data        string    `json:"data,omitempty"` // For small exports
 }
 
 // ImportResult represents import operation results
@@ -154,11 +154,11 @@ type ImportResult struct {
 
 // Citation represents a generated citation
 type Citation struct {
-	ContentID    string    `json:"content_id"`
-	Style        string    `json:"style"`
-	Citation     string    `json:"citation"`
-	BibEntry     string    `json:"bib_entry,omitempty"`
-	GeneratedAt  time.Time `json:"generated_at"`
+	ContentID   string    `json:"content_id"`
+	Style       string    `json:"style"`
+	Citation    string    `json:"citation"`
+	BibEntry    string    `json:"bib_entry,omitempty"`
+	GeneratedAt time.Time `json:"generated_at"`
 }
 
 // HandleOperation handles all system operations
@@ -187,29 +187,29 @@ func (h *Handler) handleHealth(ctx context.Context, params map[string]interface{
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
 	}
-	
+
 	var req HealthRequest
 	if err := json.Unmarshal(reqBytes, &req); err != nil {
 		return nil, fmt.Errorf("failed to parse health request: %w", err)
 	}
-	
+
 	// Health check is global operation - no project/session required
 	if err := h.validator.ValidateOperation(string(tools.OpHealth), &req.StandardParams); err != nil {
 		return nil, fmt.Errorf("parameter validation failed: %w", err)
 	}
-	
+
 	response := &HealthResponse{
 		Status:    "healthy",
 		Version:   h.version,
 		Uptime:    time.Since(h.startTime),
 		Timestamp: time.Now(),
 	}
-	
+
 	if req.Detailed {
 		// Add detailed metrics
 		var memStats runtime.MemStats
 		runtime.ReadMemStats(&memStats)
-		
+
 		response.Metrics = &SystemMetrics{
 			Memory: MemoryMetrics{
 				Allocated:     memStats.Alloc,
@@ -231,7 +231,7 @@ func (h *Handler) handleHealth(ctx context.Context, params map[string]interface{
 				ErrorRate:       0.02,
 			},
 		}
-		
+
 		// Session metrics
 		sessionStats := h.sessionManager.GetSessionStats()
 		response.Sessions = &SessionMetrics{
@@ -239,7 +239,7 @@ func (h *Handler) handleHealth(ctx context.Context, params map[string]interface{
 			ActiveSessions: sessionStats["active_sessions"].(int),
 			ProjectCounts:  sessionStats["project_counts"].(map[types.ProjectID]int),
 		}
-		
+
 		// Component health
 		response.Components = map[string]ComponentHealth{
 			"database": {
@@ -259,7 +259,7 @@ func (h *Handler) handleHealth(ctx context.Context, params map[string]interface{
 			},
 		}
 	}
-	
+
 	return response, nil
 }
 
@@ -269,29 +269,29 @@ func (h *Handler) handleExportProject(ctx context.Context, params map[string]int
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
 	}
-	
+
 	var req ExportProjectRequest
 	if err := json.Unmarshal(reqBytes, &req); err != nil {
 		return nil, fmt.Errorf("failed to parse export project request: %w", err)
 	}
-	
+
 	// Validate parameters
 	if err := h.validator.ValidateOperation(string(tools.OpExportProject), &req.StandardParams); err != nil {
 		return nil, fmt.Errorf("parameter validation failed: %w", err)
 	}
-	
+
 	// Set defaults
 	if req.Format == "" {
 		req.Format = "json"
 	}
-	
+
 	// Update session access if session provided
 	if !req.SessionID.IsEmpty() {
 		if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
 			return nil, fmt.Errorf("failed to update session access: %w", err)
 		}
 	}
-	
+
 	// TODO: Implement actual export logic
 	result := &ExportResult{
 		Success:     true,
@@ -302,7 +302,7 @@ func (h *Handler) handleExportProject(ctx context.Context, params map[string]int
 		ExportedAt:  time.Now(),
 		DownloadURL: fmt.Sprintf("/exports/%s_%d.%s", req.ProjectID, time.Now().Unix(), req.Format),
 	}
-	
+
 	return result, nil
 }
 
@@ -312,29 +312,29 @@ func (h *Handler) handleImportProject(ctx context.Context, params map[string]int
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
 	}
-	
+
 	var req ImportProjectRequest
 	if err := json.Unmarshal(reqBytes, &req); err != nil {
 		return nil, fmt.Errorf("failed to parse import project request: %w", err)
 	}
-	
+
 	// Validate parameters - import requires session for write access
 	if err := h.validator.ValidateOperation(string(tools.OpImportProject), &req.StandardParams); err != nil {
 		return nil, fmt.Errorf("parameter validation failed: %w", err)
 	}
-	
+
 	if req.Source == "" {
 		return nil, fmt.Errorf("source is required for import")
 	}
 	if req.Format == "" {
 		return nil, fmt.Errorf("format is required for import")
 	}
-	
+
 	// Update session access
 	if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
 		return nil, fmt.Errorf("failed to update session access: %w", err)
 	}
-	
+
 	// TODO: Implement actual import logic
 	result := &ImportResult{
 		Success:       true,
@@ -344,7 +344,7 @@ func (h *Handler) handleImportProject(ctx context.Context, params map[string]int
 		ItemsError:    0,
 		ImportedAt:    time.Now(),
 	}
-	
+
 	return result, nil
 }
 
@@ -354,33 +354,33 @@ func (h *Handler) handleGenerateCitation(ctx context.Context, params map[string]
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
 	}
-	
+
 	var req GenerateCitationRequest
 	if err := json.Unmarshal(reqBytes, &req); err != nil {
 		return nil, fmt.Errorf("failed to parse generate citation request: %w", err)
 	}
-	
+
 	// Validate parameters
 	if err := h.validator.ValidateOperation(string(tools.OpGenerateCitation), &req.StandardParams); err != nil {
 		return nil, fmt.Errorf("parameter validation failed: %w", err)
 	}
-	
+
 	if req.ContentID == "" {
 		return nil, fmt.Errorf("content_id is required for citation generation")
 	}
-	
+
 	// Set default style
 	if req.Style == "" {
 		req.Style = "apa"
 	}
-	
+
 	// Update session access if session provided
 	if !req.SessionID.IsEmpty() {
 		if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
 			return nil, fmt.Errorf("failed to update session access: %w", err)
 		}
 	}
-	
+
 	// TODO: Implement actual citation generation
 	citation := &Citation{
 		ContentID:   req.ContentID,
@@ -389,7 +389,7 @@ func (h *Handler) handleGenerateCitation(ctx context.Context, params map[string]
 		BibEntry:    fmt.Sprintf("@misc{%s, title={Content Title}, note={Generated from MCP Memory}}", req.ContentID),
 		GeneratedAt: time.Now(),
 	}
-	
+
 	return citation, nil
 }
 
@@ -401,10 +401,10 @@ func (h *Handler) handleValidateIntegrity(ctx context.Context, params map[string
 		"checked_at": time.Now(),
 		"issues":     []string{},
 		"summary": map[string]interface{}{
-			"total_items":      1000,
-			"valid_items":      995,
-			"corrupted_items":  0,
-			"orphaned_items":   5,
+			"total_items":        1000,
+			"valid_items":        995,
+			"corrupted_items":    0,
+			"orphaned_items":     5,
 			"missing_embeddings": 2,
 		},
 	}, nil
@@ -414,19 +414,19 @@ func (h *Handler) handleValidateIntegrity(ctx context.Context, params map[string
 func (h *Handler) handleGetMetrics(ctx context.Context, params map[string]interface{}) (interface{}, error) {
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
-	
+
 	metrics := map[string]interface{}{
 		"system": map[string]interface{}{
-			"uptime":       time.Since(h.startTime).Seconds(),
-			"goroutines":   runtime.NumGoroutine(),
-			"memory_mb":    float64(memStats.Alloc) / 1024 / 1024,
-			"gc_cycles":    memStats.NumGC,
+			"uptime":     time.Since(h.startTime).Seconds(),
+			"goroutines": runtime.NumGoroutine(),
+			"memory_mb":  float64(memStats.Alloc) / 1024 / 1024,
+			"gc_cycles":  memStats.NumGC,
 		},
 		"sessions": h.sessionManager.GetSessionStats(),
 		"performance": map[string]interface{}{
-			"requests_total":     1000,
-			"avg_response_time":  45.5,
-			"error_rate":         0.02,
+			"requests_total":    1000,
+			"avg_response_time": 45.5,
+			"error_rate":        0.02,
 		},
 		"storage": map[string]interface{}{
 			"total_content":    500,
@@ -435,7 +435,7 @@ func (h *Handler) handleGetMetrics(ctx context.Context, params map[string]interf
 		},
 		"collected_at": time.Now(),
 	}
-	
+
 	return metrics, nil
 }
 
@@ -448,8 +448,8 @@ func (h *Handler) GetToolDefinition() map[string]interface{} {
 			"type": "object",
 			"properties": map[string]interface{}{
 				"operation": map[string]interface{}{
-					"type": "string",
-					"enum": tools.GetOperationsForTool(tools.ToolMemorySystem),
+					"type":        "string",
+					"enum":        tools.GetOperationsForTool(tools.ToolMemorySystem),
 					"description": "The system operation to perform",
 				},
 				"project_id": map[string]interface{}{
@@ -490,7 +490,7 @@ func (h *Handler) GetToolDefinition() map[string]interface{} {
 					"description": "Direct data for import",
 				},
 			},
-			"required": ["operation"],
+			"required": []string{"operation"},
 		},
 	}
 }

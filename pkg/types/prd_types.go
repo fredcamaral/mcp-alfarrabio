@@ -128,6 +128,17 @@ const (
 	ProjectTypeRefactor    ProjectType = "refactor"
 	ProjectTypeResearch    ProjectType = "research"
 	ProjectTypeOther       ProjectType = "other"
+
+	// Template-specific project types
+	ProjectTypeWeb      ProjectType = "web"
+	ProjectTypeAPI      ProjectType = "api"
+	ProjectTypeBackend  ProjectType = "backend"
+	ProjectTypeFrontend ProjectType = "frontend"
+	ProjectTypeMobile   ProjectType = "mobile"
+	ProjectTypeDesktop  ProjectType = "desktop"
+	ProjectTypeLibrary  ProjectType = "library"
+	ProjectTypeCLI      ProjectType = "cli"
+	ProjectTypeAny      ProjectType = "any"
 )
 
 // EstimatedEffort represents effort estimation
@@ -372,7 +383,7 @@ type TaskTemplate struct {
 
 	// Template metadata
 	ProjectType          *string   `json:"project_type,omitempty" db:"project_type"`
-	ComplexityLevel      string    `json:"complexity_level" db:"complexity_level"`
+	ComplexityLevel      string    `json:"complexity_level" db:"complexity"`
 	EstimatedEffortHours *float64  `json:"estimated_effort_hours,omitempty" db:"estimated_effort_hours"`
 	RequiredSkills       JSONArray `json:"required_skills" db:"required_skills"`
 

@@ -498,7 +498,7 @@ func (pe *PatternEngine) identifyPatternsWithAI(ctx context.Context, chunks []ty
 				Content: prompt,
 			},
 		},
-		Metadata: internalAI.RequestMetadata{
+		Metadata: &internalAI.RequestMetadata{
 			Repository: "pattern-engine",
 			Tags:       []string{"pattern-detection"},
 			CreatedAt:  time.Now(),
@@ -750,7 +750,7 @@ func (pe *PatternEngine) analyzeWithAI(ctx context.Context, chunks []types.Conve
 				Content: prompt,
 			},
 		},
-		Metadata: internalAI.RequestMetadata{
+		Metadata: &internalAI.RequestMetadata{
 			Repository: "pattern-engine",
 			Tags:       []string{"pattern-learning"},
 			CreatedAt:  time.Now(),
@@ -923,7 +923,7 @@ func (pe *PatternEngine) getOrGenerateEmbeddings(ctx context.Context, text strin
 	pe.metrics.mu.Unlock()
 
 	// Generate embeddings
-	embeddings, err := pe.embeddingService.GenerateEmbedding(ctx, text)
+	embeddings, err := pe.embeddingService.Generate(ctx, text)
 	if err != nil {
 		return nil, err
 	}
@@ -1159,7 +1159,7 @@ func (pe *PatternEngine) getAISuggestions(ctx context.Context, chunks []types.Co
 				Content: prompt,
 			},
 		},
-		Metadata: internalAI.RequestMetadata{
+		Metadata: &internalAI.RequestMetadata{
 			Repository: "pattern-engine",
 			Tags:       []string{"pattern-suggestions"},
 			CreatedAt:  time.Now(),

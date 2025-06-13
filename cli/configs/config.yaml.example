@@ -1,0 +1,108 @@
+# LMMC CLI Configuration Template
+# Copy this file to ~/.lmmc/config.yaml to customize CLI behavior
+# 
+# Environment variables with LMMC_ prefix take precedence over this file
+# Example: LMMC_SERVER_URL=http://localhost:8080 overrides server.url
+
+# ================================================================
+# SERVER CONNECTION
+# ================================================================
+server:
+  # MCP Memory Server URL
+  url: "http://localhost:9080"
+  
+  # API version to use
+  version: "v1"
+  
+  # Connection timeout in seconds
+  timeout: 30
+
+# ================================================================
+# CLI BEHAVIOR
+# ================================================================
+cli:
+  # Default repository when none specified
+  # Options: "" (auto-detect), "current", or specific path
+  default_repository: ""
+  
+  # Output format for commands
+  # Options: table, json, plain
+  output_format: "table"
+  
+  # Enable tab completion and command suggestions
+  auto_complete: true
+  
+  # Color scheme for output
+  # Options: auto (detect terminal), always, never
+  color_scheme: "auto"
+  
+  # Number of items to show per page in paginated output
+  page_size: 20
+  
+  # Default text editor for interactive commands
+  # If empty, uses $EDITOR environment variable or system default
+  editor: ""
+
+# ================================================================
+# STORAGE & CACHING
+# ================================================================
+storage:
+  # Enable local caching of server responses
+  cache_enabled: true
+  
+  # Cache time-to-live in seconds (300 = 5 minutes)
+  cache_ttl: 300
+  
+  # Number of backup files to keep
+  backup_count: 3
+
+# ================================================================
+# LOGGING
+# ================================================================
+logging:
+  # Log level for CLI operations
+  # Options: debug, info, warn, error
+  level: "info"
+  
+  # Log output format
+  # Options: text, json
+  format: "text"
+  
+  # Log file path (optional)
+  # If empty, logs only to stderr
+  file: ""
+
+# ================================================================
+# EXAMPLE CONFIGURATIONS
+# ================================================================
+
+# Development configuration:
+# server:
+#   url: "http://localhost:9080"
+# cli:
+#   output_format: "json"
+#   color_scheme: "always"
+# logging:
+#   level: "debug"
+#   format: "text"
+
+# Production configuration:
+# server:
+#   url: "https://mcp-memory.yourcompany.com"
+#   timeout: 60
+# cli:
+#   output_format: "table"
+#   page_size: 50
+# logging:
+#   level: "warn"
+#   format: "json"
+#   file: "/var/log/lmmc/lmmc.log"
+
+# Remote server configuration:
+# server:
+#   url: "https://api.example.com/mcp"
+#   version: "v2"
+#   timeout: 45
+# storage:
+#   cache_enabled: true
+#   cache_ttl: 600  # 10 minutes for remote servers

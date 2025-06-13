@@ -1113,7 +1113,19 @@ func generateOperationID(method, path string) string {
 
 	for _, part := range parts {
 		if part != "" && !strings.HasPrefix(part, "{") {
-			operationID += caser.String(part)
+			// Handle file extensions specially - capitalize each part after dots
+			if strings.Contains(part, ".") {
+				subParts := strings.Split(part, ".")
+				for i, subPart := range subParts {
+					if i == 0 {
+						operationID += caser.String(subPart)
+					} else {
+						operationID += "." + caser.String(subPart)
+					}
+				}
+			} else {
+				operationID += caser.String(part)
+			}
 		}
 	}
 

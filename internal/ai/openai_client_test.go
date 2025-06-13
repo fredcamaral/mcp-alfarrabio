@@ -392,7 +392,9 @@ func TestOpenAIClient_RetryLogic(t *testing.T) {
 
 	assert.NoError(t, err)
 	assert.NotNil(t, resp)
-	assert.Equal(t, "Success after retries", resp.Content)
+	if resp != nil {
+		assert.Equal(t, "Success after retries", resp.Content)
+	}
 	assert.Equal(t, 3, retryCount)
 }
 

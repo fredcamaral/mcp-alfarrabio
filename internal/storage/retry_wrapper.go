@@ -363,8 +363,8 @@ func (r *RetryableVectorStore) StoreChunk(ctx context.Context, chunk *types.Conv
 }
 
 // BatchStore stores chunks in batch with retries
-func (r *RetryableVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
-	var result *BatchResult
+func (r *RetryableVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*LegacyBatchResult, error) {
+	var result *LegacyBatchResult
 
 	retryResult := r.retrier.Do(ctx, func(ctx context.Context) error {
 		var err error
@@ -379,8 +379,8 @@ func (r *RetryableVectorStore) BatchStore(ctx context.Context, chunks []*types.C
 }
 
 // BatchDelete deletes chunks in batch with retries
-func (r *RetryableVectorStore) BatchDelete(ctx context.Context, ids []string) (*BatchResult, error) {
-	var result *BatchResult
+func (r *RetryableVectorStore) BatchDelete(ctx context.Context, ids []string) (*LegacyBatchResult, error) {
+	var result *LegacyBatchResult
 
 	retryResult := r.retrier.Do(ctx, func(ctx context.Context) error {
 		var err error

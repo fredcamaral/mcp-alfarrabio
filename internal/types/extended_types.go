@@ -89,11 +89,6 @@ type MemoryQuery struct {
 	EndTime           time.Time `json:"end_time,omitempty"`
 }
 
-// SearchResults wraps search results
-type SearchResults struct {
-	Chunks []ScoredChunk `json:"chunks"`
-}
-
 // ScoredChunk wraps a chunk with score
 type ScoredChunk struct {
 	Chunk ExtendedConversationChunk `json:"chunk"`

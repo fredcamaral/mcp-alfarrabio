@@ -126,7 +126,7 @@ func (g *Generator) generateRawTasks(ctx context.Context, req *types.TaskSuggest
 	// Create AI request
 	aiReq := &ai.Request{
 		ID:    fmt.Sprintf("task_generation_%d", time.Now().Unix()),
-		Model: ai.Model(req.Options.AIModel),
+		Model: req.Options.AIModel,
 		Messages: []ai.Message{
 			{
 				Role:    "system",
@@ -137,11 +137,11 @@ func (g *Generator) generateRawTasks(ctx context.Context, req *types.TaskSuggest
 				Content: prompt,
 			},
 		},
-		Context: map[string]string{
+		Context: map[string]interface{}{
 			"operation": "task_generation",
 			"prd_id":    req.PRDID,
 		},
-		Metadata: ai.RequestMetadata{
+		Metadata: &ai.RequestMetadata{
 			Repository: req.Context.Repository,
 			Tags:       []string{"task_generation", "ai_analysis"},
 			CreatedAt:  time.Now(),
@@ -150,7 +150,7 @@ func (g *Generator) generateRawTasks(ctx context.Context, req *types.TaskSuggest
 
 	// Set default model if not specified
 	if aiReq.Model == "" {
-		aiReq.Model = g.config.DefaultModel
+		aiReq.Model = string(g.config.DefaultModel)
 	}
 
 	// Call AI service
@@ -173,9 +173,9 @@ func (g *Generator) generateRawTasks(ctx context.Context, req *types.TaskSuggest
 			{
 				Name:      "ai_generation",
 				Status:    types.StepStatusCompleted,
-				StartTime: time.Now().Add(-resp.Latency),
+				StartTime: time.Now().Add(-time.Second), // Estimate 1 second duration
 				EndTime:   time.Now(),
-				Duration:  resp.Latency,
+				Duration:  time.Second,
 			},
 		},
 	}

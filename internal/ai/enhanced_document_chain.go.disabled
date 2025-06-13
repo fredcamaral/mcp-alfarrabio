@@ -1,0 +1,497 @@
+// Package ai provides enhanced AI-powered document chain service.
+package ai
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"strings"
+	"time"
+
+	"lerian-mcp-memory/internal/documents"
+	"lerian-mcp-memory/internal/prd"
+	"lerian-mcp-memory/pkg/types"
+)
+
+// EnhancedDocumentChainService provides AI-powered document generation
+type EnhancedDocumentChainService struct {
+	aiService     Service
+	documentGen   *DocumentGenerator
+	prdAnalyzer   *PRDAIAnalyzer
+	trdGenerator  *AITRDGenerator
+	taskGenerator *AITaskGenerator
+	ruleManager   *documents.RuleManager
+	processor     *documents.Processor
+	logger        *slog.Logger
+}
+
+// NewEnhancedDocumentChainService creates a new enhanced document chain service
+func NewEnhancedDocumentChainService(
+	aiService Service,
+	ruleManager *documents.RuleManager,
+	processor *documents.Processor,
+	logger *slog.Logger,
+) *EnhancedDocumentChainService {
+	// Initialize AI-powered components
+	documentGen := NewDocumentGenerator(aiService, ruleManager)
+	prdAnalyzer := NewPRDAIAnalyzer(prd.DefaultAnalyzerConfig(), aiService, logger)
+	trdGenerator := NewAITRDGenerator(aiService, ruleManager, processor, logger)
+	taskGenerator := NewAITaskGenerator(aiService, ruleManager, logger)
+
+	return &EnhancedDocumentChainService{
+		aiService:     aiService,
+		documentGen:   documentGen,
+		prdAnalyzer:   prdAnalyzer,
+		trdGenerator:  trdGenerator,
+		taskGenerator: taskGenerator,
+		ruleManager:   ruleManager,
+		processor:     processor,
+		logger:        logger,
+	}
+}
+
+// DocumentChainRequest represents a request for complete document chain generation
+type DocumentChainRequest struct {
+	UserInput            string                `json:"user_input"`
+	Repository           string                `json:"repository"`
+	ProjectType          string                `json:"project_type"`
+	TechnicalPreferences TechnicalPreferences  `json:"technical_preferences"`
+	TaskOptions          TaskGenerationOptions `json:"task_options"`
+	GenerationOptions    DocumentGenOptions    `json:"generation_options"`
+	Context              map[string]string     `json:"context,omitempty"`
+}
+
+// TechnicalPreferences contains technical choices for TRD generation
+type TechnicalPreferences struct {
+	TechStack               []string          `json:"tech_stack,omitempty"`
+	Architecture            string            `json:"architecture,omitempty"`
+	DeploymentTarget        string            `json:"deployment_target,omitempty"`
+	SecurityRequirements    []string          `json:"security_requirements,omitempty"`
+	PerformanceRequirements map[string]string `json:"performance_requirements,omitempty"`
+}
+
+// DocumentGenOptions contains options for document generation
+type DocumentGenOptions struct {
+	PerformAnalysis          bool `json:"perform_analysis"`
+	GenerateAPISpecs         bool `json:"generate_api_specs"`
+	IncludeTechnicalAnalysis bool `json:"include_technical_analysis"`
+	GenerateTestPlans        bool `json:"generate_test_plans"`
+	Interactive              bool `json:"interactive"`
+}
+
+// DocumentChainResult contains the complete generated document chain
+type DocumentChainResult struct {
+	PRD              *documents.PRDEntity  `json:"prd"`
+	PRDAnalysis      interface{}           `json:"prd_analysis,omitempty"`
+	TRD              *documents.TRDEntity  `json:"trd"`
+	MainTasks        []*documents.MainTask `json:"main_tasks"`
+	SubTasks         []*documents.SubTask  `json:"sub_tasks"`
+	GenerationReport *GenerationReport     `json:"generation_report"`
+	AIInsights       *AIInsights           `json:"ai_insights,omitempty"`
+}
+
+// GenerationReport contains metrics and information about the generation process
+type GenerationReport struct {
+	StartTime       time.Time                `json:"start_time"`
+	EndTime         time.Time                `json:"end_time"`
+	TotalDuration   time.Duration            `json:"total_duration"`
+	StageTimings    map[string]time.Duration `json:"stage_timings"`
+	ModelsUsed      map[string]TokenUsage    `json:"models_used"`
+	TotalTokensUsed TokenUsage               `json:"total_tokens_used"`
+	QualityMetrics  DocumentQualityMetrics   `json:"quality_metrics"`
+	Warnings        []string                 `json:"warnings,omitempty"`
+	Recommendations []string                 `json:"recommendations,omitempty"`
+}
+
+// AIInsights contains AI-generated insights about the project
+type AIInsights struct {
+	ComplexityAnalysis   *ComplexityInsight   `json:"complexity_analysis,omitempty"`
+	RiskAssessment       *RiskAssessment      `json:"risk_assessment,omitempty"`
+	ArchitectureInsights *ArchitectureInsight `json:"architecture_insights,omitempty"`
+	EffortEstimation     *EffortEstimation    `json:"effort_estimation,omitempty"`
+}
+
+// ComplexityInsight contains AI analysis of project complexity
+type ComplexityInsight struct {
+	OverallScore    float64            `json:"overall_score"`
+	ComplexityLevel string             `json:"complexity_level"`
+	Factors         map[string]float64 `json:"factors"`
+	MainDrivers     []string           `json:"main_drivers"`
+	Recommendations []string           `json:"recommendations"`
+}
+
+// RiskAssessment contains AI-identified risks and mitigations
+type RiskAssessment struct {
+	HighRisks        []Risk `json:"high_risks"`
+	MediumRisks      []Risk `json:"medium_risks"`
+	LowRisks         []Risk `json:"low_risks"`
+	OverallRiskLevel string `json:"overall_risk_level"`
+}
+
+// Risk represents a project risk with mitigation
+type Risk struct {
+	Description string `json:"description"`
+	Impact      string `json:"impact"`
+	Probability string `json:"probability"`
+	Mitigation  string `json:"mitigation"`
+	Category    string `json:"category"`
+}
+
+// ArchitectureInsight contains AI analysis of architecture decisions
+type ArchitectureInsight struct {
+	RecommendedPattern string   `json:"recommended_pattern"`
+	Alternatives       []string `json:"alternatives"`
+	Tradeoffs          []string `json:"tradeoffs"`
+	ScalabilityNotes   []string `json:"scalability_notes"`
+	SecurityNotes      []string `json:"security_notes"`
+}
+
+// EffortEstimation contains AI-based effort estimates
+type EffortEstimation struct {
+	TotalWeeks          int            `json:"total_weeks"`
+	RecommendedTeamSize int            `json:"recommended_team_size"`
+	SkillsRequired      []string       `json:"skills_required"`
+	PhaseBreakdown      map[string]int `json:"phase_breakdown"`
+	RiskFactors         []string       `json:"risk_factors"`
+}
+
+// DocumentQualityMetrics contains quality assessment of generated documents
+type DocumentQualityMetrics struct {
+	PRDQuality   float64 `json:"prd_quality"`
+	TRDQuality   float64 `json:"trd_quality"`
+	TaskQuality  float64 `json:"task_quality"`
+	Completeness float64 `json:"completeness"`
+	Consistency  float64 `json:"consistency"`
+}
+
+// GenerateCompleteDocumentChain generates PRD, TRD, and tasks using AI
+func (s *EnhancedDocumentChainService) GenerateCompleteDocumentChain(ctx context.Context, req *DocumentChainRequest) (*DocumentChainResult, error) {
+	report := &GenerationReport{
+		StartTime:       time.Now(),
+		StageTimings:    make(map[string]time.Duration),
+		ModelsUsed:      make(map[string]TokenUsage),
+		Warnings:        []string{},
+		Recommendations: []string{},
+	}
+
+	result := &DocumentChainResult{
+		GenerationReport: report,
+	}
+
+	s.logger.Info("starting complete document chain generation",
+		slog.String("repository", req.Repository),
+		slog.String("project_type", req.ProjectType))
+
+	// Stage 1: Generate PRD using AI
+	stageStart := time.Now()
+	prd, err := s.generatePRDWithAI(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("PRD generation failed: %w", err)
+	}
+	result.PRD = prd
+	report.StageTimings["prd_generation"] = time.Since(stageStart)
+
+	// Stage 2: Analyze PRD with AI if requested
+	if req.GenerationOptions.PerformAnalysis {
+		stageStart = time.Now()
+		analysis, err := s.analyzePRDWithAI(ctx, prd)
+		if err != nil {
+			s.logger.Warn("PRD analysis failed", slog.String("error", err.Error()))
+			report.Warnings = append(report.Warnings, "PRD analysis failed: "+err.Error())
+		} else {
+			result.PRDAnalysis = analysis
+		}
+		report.StageTimings["prd_analysis"] = time.Since(stageStart)
+	}
+
+	// Stage 3: Generate TRD from PRD using AI
+	stageStart = time.Now()
+	trd, err := s.generateTRDWithAI(ctx, prd, req)
+	if err != nil {
+		return nil, fmt.Errorf("TRD generation failed: %w", err)
+	}
+	result.TRD = trd
+	report.StageTimings["trd_generation"] = time.Since(stageStart)
+
+	// Stage 4: Generate main tasks from TRD using AI
+	stageStart = time.Now()
+	mainTasks, err := s.generateMainTasksWithAI(ctx, trd, prd, req.TaskOptions)
+	if err != nil {
+		return nil, fmt.Errorf("main task generation failed: %w", err)
+	}
+	result.MainTasks = mainTasks
+	report.StageTimings["main_task_generation"] = time.Since(stageStart)
+
+	// Stage 5: Generate sub-tasks for each main task using AI
+	stageStart = time.Now()
+	allSubTasks, err := s.generateSubTasksWithAI(ctx, mainTasks, trd, req.TaskOptions)
+	if err != nil {
+		return nil, fmt.Errorf("sub-task generation failed: %w", err)
+	}
+	result.SubTasks = allSubTasks
+	report.StageTimings["sub_task_generation"] = time.Since(stageStart)
+
+	// Stage 6: Generate AI insights if requested
+	if req.GenerationOptions.PerformAnalysis {
+		stageStart = time.Now()
+		insights, err := s.generateAIInsights(ctx, result)
+		if err != nil {
+			s.logger.Warn("AI insights generation failed", slog.String("error", err.Error()))
+			report.Warnings = append(report.Warnings, "AI insights generation failed: "+err.Error())
+		} else {
+			result.AIInsights = insights
+		}
+		report.StageTimings["ai_insights"] = time.Since(stageStart)
+	}
+
+	// Finalize report
+	report.EndTime = time.Now()
+	report.TotalDuration = report.EndTime.Sub(report.StartTime)
+	report.QualityMetrics = s.calculateDocumentQualityMetrics(result)
+
+	s.logger.Info("completed document chain generation",
+		slog.Duration("total_duration", report.TotalDuration),
+		slog.Int("main_tasks", len(result.MainTasks)),
+		slog.Int("sub_tasks", len(result.SubTasks)))
+
+	return result, nil
+}
+
+// generatePRDWithAI generates a PRD using AI document generator
+func (s *EnhancedDocumentChainService) generatePRDWithAI(ctx context.Context, req *DocumentChainRequest) (*documents.PRDEntity, error) {
+	docReq := &DocumentGenerationRequest{
+		Type:        DocumentTypePRD,
+		Input:       req.UserInput,
+		Context:     req.Context,
+		Repository:  req.Repository,
+		Interactive: req.GenerationOptions.Interactive,
+		Metadata: map[string]interface{}{
+			"project_type": req.ProjectType,
+		},
+	}
+
+	// Add project type specific context
+	if docReq.Context == nil {
+		docReq.Context = make(map[string]string)
+	}
+	docReq.Context["project_type"] = req.ProjectType
+
+	resp, err := s.documentGen.GenerateDocument(ctx, docReq)
+	if err != nil {
+		return nil, fmt.Errorf("AI PRD generation failed: %w", err)
+	}
+
+	// Convert to PRDEntity
+	prd, ok := resp.Document.(*documents.PRDEntity)
+	if !ok {
+		return nil, fmt.Errorf("unexpected document type returned")
+	}
+
+	return prd, nil
+}
+
+// analyzePRDWithAI performs AI-enhanced PRD analysis
+func (s *EnhancedDocumentChainService) analyzePRDWithAI(ctx context.Context, prd *documents.PRDEntity) (*types.PRDDocument, error) {
+	// Convert PRDEntity to types.PRDDocument for analysis
+	doc := &types.PRDDocument{
+		ID: prd.ID,
+		Content: types.PRDContent{
+			Raw: prd.Content,
+		},
+	}
+
+	err := s.prdAnalyzer.AnalyzeWithAI(ctx, doc)
+	if err != nil {
+		return nil, fmt.Errorf("AI PRD analysis failed: %w", err)
+	}
+
+	return doc, nil
+}
+
+// generateTRDWithAI generates a TRD using AI TRD generator
+func (s *EnhancedDocumentChainService) generateTRDWithAI(ctx context.Context, prd *documents.PRDEntity, req *DocumentChainRequest) (*documents.TRDEntity, error) {
+	options := TRDGenerationOptions{
+		TechStack:                req.TechnicalPreferences.TechStack,
+		Architecture:             req.TechnicalPreferences.Architecture,
+		DeploymentTarget:         req.TechnicalPreferences.DeploymentTarget,
+		SecurityRequirements:     req.TechnicalPreferences.SecurityRequirements,
+		PerformanceRequirements:  req.TechnicalPreferences.PerformanceRequirements,
+		IncludeTechnicalAnalysis: req.GenerationOptions.IncludeTechnicalAnalysis,
+		GenerateAPISpecs:         req.GenerationOptions.GenerateAPISpecs,
+		CustomContext:            req.Context,
+	}
+
+	trd, err := s.trdGenerator.GenerateTRDFromPRD(ctx, prd, options)
+	if err != nil {
+		return nil, fmt.Errorf("AI TRD generation failed: %w", err)
+	}
+
+	return trd, nil
+}
+
+// generateMainTasksWithAI generates main tasks using AI task generator
+func (s *EnhancedDocumentChainService) generateMainTasksWithAI(ctx context.Context, trd *documents.TRDEntity, prd *documents.PRDEntity, options TaskGenerationOptions) ([]*documents.MainTask, error) {
+	mainTasks, err := s.taskGenerator.GenerateMainTasksFromTRD(ctx, trd, prd, options)
+	if err != nil {
+		return nil, fmt.Errorf("AI main task generation failed: %w", err)
+	}
+
+	return mainTasks, nil
+}
+
+// generateSubTasksWithAI generates sub-tasks for all main tasks using AI
+func (s *EnhancedDocumentChainService) generateSubTasksWithAI(ctx context.Context, mainTasks []*documents.MainTask, trd *documents.TRDEntity, options TaskGenerationOptions) ([]*documents.SubTask, error) {
+	var allSubTasks []*documents.SubTask
+
+	for _, mainTask := range mainTasks {
+		subTasks, err := s.taskGenerator.GenerateSubTasksFromMainTask(ctx, mainTask, trd, options)
+		if err != nil {
+			s.logger.Warn("sub-task generation failed for main task",
+				slog.String("main_task_id", mainTask.ID),
+				slog.String("error", err.Error()))
+			continue
+		}
+
+		allSubTasks = append(allSubTasks, subTasks...)
+	}
+
+	return allSubTasks, nil
+}
+
+// generateAIInsights generates comprehensive AI insights about the project
+func (s *EnhancedDocumentChainService) generateAIInsights(ctx context.Context, result *DocumentChainResult) (*AIInsights, error) {
+	insights := &AIInsights{}
+
+	// Generate complexity analysis
+	complexityInsight, err := s.generateComplexityInsight(ctx, result)
+	if err != nil {
+		s.logger.Warn("complexity insight generation failed", slog.String("error", err.Error()))
+	} else {
+		insights.ComplexityAnalysis = complexityInsight
+	}
+
+	// Generate risk assessment
+	riskAssessment, err := s.generateRiskAssessment(ctx, result)
+	if err != nil {
+		s.logger.Warn("risk assessment generation failed", slog.String("error", err.Error()))
+	} else {
+		insights.RiskAssessment = riskAssessment
+	}
+
+	// Generate effort estimation
+	effortEstimation, err := s.generateEffortEstimation(ctx, result)
+	if err != nil {
+		s.logger.Warn("effort estimation generation failed", slog.String("error", err.Error()))
+	} else {
+		insights.EffortEstimation = effortEstimation
+	}
+
+	return insights, nil
+}
+
+// generateComplexityInsight generates AI-powered complexity analysis
+func (s *EnhancedDocumentChainService) generateComplexityInsight(ctx context.Context, result *DocumentChainResult) (*ComplexityInsight, error) {
+	// This would make an AI call to analyze complexity across all documents
+	// For now, returning a placeholder
+	return &ComplexityInsight{
+		OverallScore:    7.5,
+		ComplexityLevel: "High",
+		Factors: map[string]float64{
+			"technical":      8.0,
+			"business_logic": 7.0,
+			"integration":    8.5,
+			"scalability":    7.5,
+		},
+		MainDrivers: []string{
+			"Multiple system integrations",
+			"Complex business logic",
+			"High scalability requirements",
+		},
+		Recommendations: []string{
+			"Consider phased implementation approach",
+			"Implement robust testing strategy",
+			"Plan for extensive monitoring",
+		},
+	}, nil
+}
+
+// generateRiskAssessment generates AI-powered risk assessment
+func (s *EnhancedDocumentChainService) generateRiskAssessment(ctx context.Context, result *DocumentChainResult) (*RiskAssessment, error) {
+	// This would make an AI call to assess risks
+	// For now, returning a placeholder
+	return &RiskAssessment{
+		OverallRiskLevel: "Medium-High",
+		HighRisks: []Risk{
+			{
+				Description: "Complex integration requirements",
+				Impact:      "High",
+				Probability: "Medium",
+				Mitigation:  "Create detailed integration testing plan",
+				Category:    "Technical",
+			},
+		},
+		MediumRisks: []Risk{
+			{
+				Description: "Performance bottlenecks under load",
+				Impact:      "Medium",
+				Probability: "Medium",
+				Mitigation:  "Implement performance monitoring and load testing",
+				Category:    "Performance",
+			},
+		},
+	}, nil
+}
+
+// generateEffortEstimation generates AI-powered effort estimation
+func (s *EnhancedDocumentChainService) generateEffortEstimation(ctx context.Context, result *DocumentChainResult) (*EffortEstimation, error) {
+	// Calculate based on main tasks and complexity
+	totalWeeks := 0
+	for _, task := range result.MainTasks {
+		// Parse duration estimate (simplified)
+		if strings.Contains(task.DurationEstimate, "week") {
+			totalWeeks += 1 // Simplified parsing
+		}
+	}
+
+	return &EffortEstimation{
+		TotalWeeks:          totalWeeks,
+		RecommendedTeamSize: 3,
+		SkillsRequired:      []string{"Backend Development", "Frontend Development", "DevOps"},
+		PhaseBreakdown: map[string]int{
+			"setup":       2,
+			"development": totalWeeks - 4,
+			"testing":     1,
+			"deployment":  1,
+		},
+		RiskFactors: []string{
+			"Complex integration requirements",
+			"New technology stack",
+		},
+	}, nil
+}
+
+// calculateDocumentQualityMetrics calculates quality metrics for generated documents
+func (s *EnhancedDocumentChainService) calculateDocumentQualityMetrics(result *DocumentChainResult) DocumentQualityMetrics {
+	// Simplified quality calculation
+	prdQuality := 0.85
+	trdQuality := 0.90
+	taskQuality := 0.80
+
+	if result.PRD != nil && len(result.PRD.Sections) > 5 {
+		prdQuality += 0.05
+	}
+	if result.TRD != nil && len(result.TRD.TechnicalStack) > 0 {
+		trdQuality += 0.05
+	}
+	if len(result.SubTasks) > 0 {
+		taskQuality += 0.05
+	}
+
+	return DocumentQualityMetrics{
+		PRDQuality:   prdQuality,
+		TRDQuality:   trdQuality,
+		TaskQuality:  taskQuality,
+		Completeness: (prdQuality + trdQuality + taskQuality) / 3,
+		Consistency:  0.88,
+	}
+}

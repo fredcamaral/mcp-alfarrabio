@@ -10,39 +10,39 @@ import (
 
 // AsyncProcessor handles background processing of heavy operations
 type AsyncProcessor struct {
-	config       *ProcessorConfig
-	workers      []*worker
-	jobQueue     chan Job
-	resultQueue  chan Result
-	wg           sync.WaitGroup
-	ctx          context.Context
-	cancel       context.CancelFunc
-	metrics      *ProcessorMetrics
-	mutex        sync.RWMutex
+	config      *ProcessorConfig
+	workers     []*worker
+	jobQueue    chan Job
+	resultQueue chan Result
+	wg          sync.WaitGroup
+	ctx         context.Context
+	cancel      context.CancelFunc
+	metrics     *ProcessorMetrics
+	mutex       sync.RWMutex
 }
 
 // ProcessorConfig defines async processor configuration
 type ProcessorConfig struct {
 	// Worker settings
-	WorkerCount    int           `json:"worker_count"`
-	QueueSize      int           `json:"queue_size"`
-	MaxRetries     int           `json:"max_retries"`
-	RetryDelay     time.Duration `json:"retry_delay"`
-	
+	WorkerCount int           `json:"worker_count"`
+	QueueSize   int           `json:"queue_size"`
+	MaxRetries  int           `json:"max_retries"`
+	RetryDelay  time.Duration `json:"retry_delay"`
+
 	// Performance settings
 	BatchSize      int           `json:"batch_size"`
 	ProcessTimeout time.Duration `json:"process_timeout"`
 	IdleTimeout    time.Duration `json:"idle_timeout"`
-	
+
 	// Quality settings
-	EnableMetrics  bool          `json:"enable_metrics"`
-	EnableTracing  bool          `json:"enable_tracing"`
+	EnableMetrics bool `json:"enable_metrics"`
+	EnableTracing bool `json:"enable_tracing"`
 }
 
 // DefaultProcessorConfig returns optimized default configuration
 func DefaultProcessorConfig() *ProcessorConfig {
 	return &ProcessorConfig{
-		WorkerCount:    10,  // Optimal for I/O-bound operations
+		WorkerCount:    10, // Optimal for I/O-bound operations
 		QueueSize:      1000,
 		MaxRetries:     3,
 		RetryDelay:     1 * time.Second,
@@ -56,14 +56,14 @@ func DefaultProcessorConfig() *ProcessorConfig {
 
 // Job represents a unit of work to be processed asynchronously
 type Job struct {
-	ID          string                 `json:"id"`
-	Type        JobType                `json:"type"`
-	Priority    Priority               `json:"priority"`
-	Payload     map[string]interface{} `json:"payload"`
-	CreatedAt   time.Time              `json:"created_at"`
-	Timeout     time.Duration          `json:"timeout"`
-	RetryCount  int                    `json:"retry_count"`
-	Metadata    map[string]string      `json:"metadata"`
+	ID         string                 `json:"id"`
+	Type       JobType                `json:"type"`
+	Priority   Priority               `json:"priority"`
+	Payload    map[string]interface{} `json:"payload"`
+	CreatedAt  time.Time              `json:"created_at"`
+	Timeout    time.Duration          `json:"timeout"`
+	RetryCount int                    `json:"retry_count"`
+	Metadata   map[string]string      `json:"metadata"`
 }
 
 // Result represents the result of a processed job
@@ -81,11 +81,11 @@ type Result struct {
 type JobType string
 
 const (
-	JobTypeEmbedding       JobType = "embedding_generation"
-	JobTypeAnalysis        JobType = "content_analysis"
-	JobTypeIndexing        JobType = "search_indexing"
-	JobTypeBulkOperation   JobType = "bulk_operation"
-	JobTypeQualityCheck    JobType = "quality_check"
+	JobTypeEmbedding        JobType = "embedding_generation"
+	JobTypeAnalysis         JobType = "content_analysis"
+	JobTypeIndexing         JobType = "search_indexing"
+	JobTypeBulkOperation    JobType = "bulk_operation"
+	JobTypeQualityCheck     JobType = "quality_check"
 	JobTypePatternDetection JobType = "pattern_detection"
 )
 
@@ -93,22 +93,22 @@ const (
 type Priority int
 
 const (
-	PriorityLow    Priority = 1
-	PriorityNormal Priority = 5
-	PriorityHigh   Priority = 8
+	PriorityLow      Priority = 1
+	PriorityNormal   Priority = 5
+	PriorityHigh     Priority = 8
 	PriorityCritical Priority = 10
 )
 
 // ProcessorMetrics tracks async processor performance
 type ProcessorMetrics struct {
-	mutex           sync.RWMutex
-	JobsQueued      int64 `json:"jobs_queued"`
-	JobsProcessed   int64 `json:"jobs_processed"`
-	JobsFailed      int64 `json:"jobs_failed"`
-	JobsRetried     int64 `json:"jobs_retried"`
-	WorkersActive   int   `json:"workers_active"`
-	QueueLength     int   `json:"queue_length"`
-	AvgProcessTime  time.Duration `json:"avg_process_time"`
+	mutex            sync.RWMutex
+	JobsQueued       int64         `json:"jobs_queued"`
+	JobsProcessed    int64         `json:"jobs_processed"`
+	JobsFailed       int64         `json:"jobs_failed"`
+	JobsRetried      int64         `json:"jobs_retried"`
+	WorkersActive    int           `json:"workers_active"`
+	QueueLength      int           `json:"queue_length"`
+	AvgProcessTime   time.Duration `json:"avg_process_time"`
 	TotalProcessTime time.Duration `json:"total_process_time"`
 }
 
@@ -132,9 +132,9 @@ func NewAsyncProcessor(config *ProcessorConfig) *AsyncProcessor {
 	if config == nil {
 		config = DefaultProcessorConfig()
 	}
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	processor := &AsyncProcessor{
 		config:      config,
 		jobQueue:    make(chan Job, config.QueueSize),
@@ -143,15 +143,15 @@ func NewAsyncProcessor(config *ProcessorConfig) *AsyncProcessor {
 		cancel:      cancel,
 		metrics:     &ProcessorMetrics{},
 	}
-	
+
 	// Start workers
 	processor.startWorkers()
-	
+
 	// Start metrics collection if enabled
 	if config.EnableMetrics {
 		go processor.metricsCollector()
 	}
-	
+
 	return processor
 }
 
@@ -160,15 +160,15 @@ func (p *AsyncProcessor) SubmitJob(job Job) error {
 	if job.ID == "" {
 		job.ID = generateJobID()
 	}
-	
+
 	if job.CreatedAt.IsZero() {
 		job.CreatedAt = time.Now()
 	}
-	
+
 	if job.Timeout == 0 {
 		job.Timeout = p.config.ProcessTimeout
 	}
-	
+
 	select {
 	case p.jobQueue <- job:
 		p.incrementJobsQueued()
@@ -185,7 +185,7 @@ func (p *AsyncProcessor) SubmitBatch(jobs []Job) error {
 	if len(jobs) == 0 {
 		return nil
 	}
-	
+
 	// Process in batches to avoid blocking
 	batchSize := p.config.BatchSize
 	for i := 0; i < len(jobs); i += batchSize {
@@ -193,14 +193,14 @@ func (p *AsyncProcessor) SubmitBatch(jobs []Job) error {
 		if end > len(jobs) {
 			end = len(jobs)
 		}
-		
+
 		for j := i; j < end; j++ {
 			if err := p.SubmitJob(jobs[j]); err != nil {
 				return fmt.Errorf("failed to submit job %d: %w", j, err)
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -218,7 +218,7 @@ func (p *AsyncProcessor) GetResult() (*Result, bool) {
 func (p *AsyncProcessor) WaitForResult(jobID string, timeout time.Duration) (*Result, error) {
 	ctx, cancel := context.WithTimeout(p.ctx, timeout)
 	defer cancel()
-	
+
 	for {
 		select {
 		case result := <-p.resultQueue:
@@ -241,15 +241,24 @@ func (p *AsyncProcessor) WaitForResult(jobID string, timeout time.Duration) (*Re
 func (p *AsyncProcessor) GetMetrics() ProcessorMetrics {
 	p.metrics.mutex.RLock()
 	defer p.metrics.mutex.RUnlock()
-	
-	metrics := *p.metrics
-	metrics.QueueLength = len(p.jobQueue)
-	
+
+	// Return a copy without the mutex to avoid lock value copying
+	metrics := ProcessorMetrics{
+		JobsQueued:       p.metrics.JobsQueued,
+		JobsProcessed:    p.metrics.JobsProcessed,
+		JobsFailed:       p.metrics.JobsFailed,
+		JobsRetried:      p.metrics.JobsRetried,
+		WorkersActive:    p.metrics.WorkersActive,
+		QueueLength:      len(p.jobQueue),
+		AvgProcessTime:   p.metrics.AvgProcessTime,
+		TotalProcessTime: p.metrics.TotalProcessTime,
+	}
+
 	// Calculate average process time
 	if metrics.JobsProcessed > 0 {
 		metrics.AvgProcessTime = metrics.TotalProcessTime / time.Duration(metrics.JobsProcessed)
 	}
-	
+
 	return metrics
 }
 
@@ -257,14 +266,14 @@ func (p *AsyncProcessor) GetMetrics() ProcessorMetrics {
 func (p *AsyncProcessor) Shutdown(timeout time.Duration) error {
 	// Stop accepting new jobs
 	p.cancel()
-	
+
 	// Wait for workers to finish with timeout
 	done := make(chan struct{})
 	go func() {
 		p.wg.Wait()
 		close(done)
 	}()
-	
+
 	select {
 	case <-done:
 		return nil
@@ -276,14 +285,14 @@ func (p *AsyncProcessor) Shutdown(timeout time.Duration) error {
 // startWorkers starts the configured number of worker goroutines
 func (p *AsyncProcessor) startWorkers() {
 	p.workers = make([]*worker, p.config.WorkerCount)
-	
+
 	for i := 0; i < p.config.WorkerCount; i++ {
 		worker := &worker{
 			id:        fmt.Sprintf("worker-%d", i),
 			processor: p,
 			active:    false,
 		}
-		
+
 		p.workers[i] = worker
 		p.wg.Add(1)
 		go worker.run()
@@ -293,7 +302,7 @@ func (p *AsyncProcessor) startWorkers() {
 // run is the main worker loop
 func (w *worker) run() {
 	defer w.processor.wg.Done()
-	
+
 	for {
 		select {
 		case job := <-w.processor.jobQueue:
@@ -314,22 +323,22 @@ func (w *worker) processJob(job Job) {
 	defer func() {
 		w.active = false
 	}()
-	
+
 	start := time.Now()
-	
+
 	// Create job context with timeout
 	ctx, cancel := context.WithTimeout(w.processor.ctx, job.Timeout)
 	defer cancel()
-	
+
 	// Process the job
 	result := w.executeJob(ctx, job)
 	result.WorkerID = w.id
 	result.Duration = time.Since(start)
 	result.ProcessedAt = time.Now()
-	
+
 	// Track metrics
 	w.processor.updateMetrics(result)
-	
+
 	// Send result (non-blocking)
 	select {
 	case w.processor.resultQueue <- *result:
@@ -341,7 +350,7 @@ func (w *worker) processJob(job Job) {
 // executeJob executes the actual job processing with retry logic
 func (w *worker) executeJob(ctx context.Context, job Job) *Result {
 	var lastErr error
-	
+
 	for attempt := 0; attempt <= w.processor.config.MaxRetries; attempt++ {
 		if attempt > 0 {
 			// Wait before retry
@@ -354,25 +363,25 @@ func (w *worker) executeJob(ctx context.Context, job Job) *Result {
 					Error:   fmt.Errorf("job cancelled during retry: %w", ctx.Err()),
 				}
 			}
-			
+
 			w.processor.incrementJobsRetried()
 		}
-		
+
 		// Execute job based on type
 		result, err := w.processJobByType(ctx, job)
 		if err == nil {
 			w.processor.incrementJobsProcessed()
 			return result
 		}
-		
+
 		lastErr = err
-		
+
 		// Check if error is retryable
 		if !isRetryableError(err) {
 			break
 		}
 	}
-	
+
 	w.processor.incrementJobsFailed()
 	return &Result{
 		JobID:   job.ID,
@@ -408,21 +417,21 @@ func (w *worker) processEmbeddingJob(ctx context.Context, job Job) (*Result, err
 	if !ok {
 		return nil, fmt.Errorf("invalid content in embedding job")
 	}
-	
+
 	// Simulate processing time
 	select {
 	case <-time.After(100 * time.Millisecond):
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	
+
 	return &Result{
 		JobID:   job.ID,
 		Success: true,
 		Data: map[string]interface{}{
-			"embedding_id": generateJobID(),
+			"embedding_id":   generateJobID(),
 			"content_length": len(content),
-			"vector_size": 1536,
+			"vector_size":    1536,
 		},
 	}, nil
 }
@@ -433,21 +442,21 @@ func (w *worker) processAnalysisJob(ctx context.Context, job Job) (*Result, erro
 	if !ok {
 		return nil, fmt.Errorf("invalid content in analysis job")
 	}
-	
+
 	// Simulate processing time
 	select {
 	case <-time.After(200 * time.Millisecond):
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	
+
 	return &Result{
 		JobID:   job.ID,
 		Success: true,
 		Data: map[string]interface{}{
 			"quality_score": 0.85,
-			"word_count": len(content),
-			"sentiment": "neutral",
+			"word_count":    len(content),
+			"sentiment":     "neutral",
 		},
 	}, nil
 }
@@ -458,20 +467,20 @@ func (w *worker) processIndexingJob(ctx context.Context, job Job) (*Result, erro
 	if !ok {
 		return nil, fmt.Errorf("invalid content_id in indexing job")
 	}
-	
+
 	// Simulate processing time
 	select {
 	case <-time.After(50 * time.Millisecond):
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	
+
 	return &Result{
 		JobID:   job.ID,
 		Success: true,
 		Data: map[string]interface{}{
-			"content_id": contentID,
-			"indexed": true,
+			"content_id":    contentID,
+			"indexed":       true,
 			"index_version": "v2.1",
 		},
 	}, nil
@@ -483,7 +492,7 @@ func (w *worker) processBulkOperationJob(ctx context.Context, job Job) (*Result,
 	if !ok {
 		return nil, fmt.Errorf("invalid items in bulk operation job")
 	}
-	
+
 	// Simulate processing time based on item count
 	processingTime := time.Duration(len(items)) * 10 * time.Millisecond
 	select {
@@ -491,14 +500,14 @@ func (w *worker) processBulkOperationJob(ctx context.Context, job Job) (*Result,
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	
+
 	return &Result{
 		JobID:   job.ID,
 		Success: true,
 		Data: map[string]interface{}{
 			"items_processed": len(items),
-			"success_count": len(items),
-			"failed_count": 0,
+			"success_count":   len(items),
+			"failed_count":    0,
 		},
 	}, nil
 }
@@ -509,22 +518,22 @@ func (w *worker) processQualityCheckJob(ctx context.Context, job Job) (*Result, 
 	if !ok {
 		return nil, fmt.Errorf("invalid content_id in quality check job")
 	}
-	
+
 	// Simulate processing time
 	select {
 	case <-time.After(150 * time.Millisecond):
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	
+
 	return &Result{
 		JobID:   job.ID,
 		Success: true,
 		Data: map[string]interface{}{
-			"content_id": contentID,
+			"content_id":    contentID,
 			"quality_score": 0.92,
-			"issues_found": 2,
-			"passed": true,
+			"issues_found":  2,
+			"passed":        true,
 		},
 	}, nil
 }
@@ -535,21 +544,21 @@ func (w *worker) processPatternDetectionJob(ctx context.Context, job Job) (*Resu
 	if !ok {
 		return nil, fmt.Errorf("invalid project_id in pattern detection job")
 	}
-	
+
 	// Simulate processing time
 	select {
 	case <-time.After(300 * time.Millisecond):
 	case <-ctx.Done():
 		return nil, ctx.Err()
 	}
-	
+
 	return &Result{
 		JobID:   job.ID,
 		Success: true,
 		Data: map[string]interface{}{
-			"project_id": projectID,
+			"project_id":     projectID,
 			"patterns_found": 5,
-			"confidence": 0.88,
+			"confidence":     0.88,
 		},
 	}, nil
 }
@@ -558,7 +567,7 @@ func (w *worker) processPatternDetectionJob(ctx context.Context, job Job) (*Resu
 func (p *AsyncProcessor) metricsCollector() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -573,7 +582,7 @@ func (p *AsyncProcessor) metricsCollector() {
 func (p *AsyncProcessor) collectMetrics() {
 	p.metrics.mutex.Lock()
 	defer p.metrics.mutex.Unlock()
-	
+
 	// Count active workers
 	activeWorkers := 0
 	for _, worker := range p.workers {
@@ -581,7 +590,7 @@ func (p *AsyncProcessor) collectMetrics() {
 			activeWorkers++
 		}
 	}
-	
+
 	p.metrics.WorkersActive = activeWorkers
 	p.metrics.QueueLength = len(p.jobQueue)
 }
@@ -614,7 +623,7 @@ func (p *AsyncProcessor) incrementJobsRetried() {
 func (p *AsyncProcessor) updateMetrics(result *Result) {
 	p.metrics.mutex.Lock()
 	defer p.metrics.mutex.Unlock()
-	
+
 	p.metrics.TotalProcessTime += result.Duration
 }
 
@@ -628,7 +637,7 @@ func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
-	
+
 	errStr := err.Error()
 	retryableErrors := []string{
 		"timeout",
@@ -636,18 +645,18 @@ func isRetryableError(err error) bool {
 		"temporary failure",
 		"rate limit",
 	}
-	
+
 	for _, retryable := range retryableErrors {
 		if contains(errStr, retryable) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
 func contains(str, substr string) bool {
-	return len(str) >= len(substr) && str[len(str)-len(substr):] == substr || 
-		   len(str) > len(substr) && str[:len(substr)] == substr ||
-		   len(str) > len(substr) && str[len(str)/2-len(substr)/2:len(str)/2+len(substr)/2+len(substr)%2] == substr
+	return len(str) >= len(substr) && str[len(str)-len(substr):] == substr ||
+		len(str) > len(substr) && str[:len(substr)] == substr ||
+		len(str) > len(substr) && str[len(str)/2-len(substr)/2:len(str)/2+len(substr)/2+len(substr)%2] == substr
 }

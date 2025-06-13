@@ -2,14 +2,12 @@
 package testing
 
 import (
-	"context"
 	"database/sql"
 	"fmt"
 	"os"
 	"path/filepath"
 	"runtime"
 	"sync"
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/suite"
@@ -31,57 +29,57 @@ type TestSuite struct {
 // TestConfig defines test configuration
 type TestConfig struct {
 	// Database settings
-	DatabaseURL         string        `json:"database_url"`
-	TestDatabaseURL     string        `json:"test_database_url"`
-	UseInMemoryDB       bool          `json:"use_in_memory_db"`
-	MigrateOnSetup      bool          `json:"migrate_on_setup"`
-	
+	DatabaseURL     string `json:"database_url"`
+	TestDatabaseURL string `json:"test_database_url"`
+	UseInMemoryDB   bool   `json:"use_in_memory_db"`
+	MigrateOnSetup  bool   `json:"migrate_on_setup"`
+
 	// Performance settings
-	EnablePerformanceTracking bool          `json:"enable_performance_tracking"`
+	EnablePerformanceTracking bool                     `json:"enable_performance_tracking"`
 	PerformanceThresholds     map[string]time.Duration `json:"performance_thresholds"`
-	
+
 	// Concurrency settings
-	MaxConcurrentTests  int           `json:"max_concurrent_tests"`
-	TestTimeout         time.Duration `json:"test_timeout"`
-	
+	MaxConcurrentTests int           `json:"max_concurrent_tests"`
+	TestTimeout        time.Duration `json:"test_timeout"`
+
 	// Data settings
-	SeedTestData        bool          `json:"seed_test_data"`
-	CleanupAfterTests   bool          `json:"cleanup_after_tests"`
-	TestDataDirectory   string        `json:"test_data_directory"`
-	
+	SeedTestData      bool   `json:"seed_test_data"`
+	CleanupAfterTests bool   `json:"cleanup_after_tests"`
+	TestDataDirectory string `json:"test_data_directory"`
+
 	// Coverage settings
-	EnableCoverage      bool          `json:"enable_coverage"`
-	CoverageThreshold   float64       `json:"coverage_threshold"`
-	
+	EnableCoverage    bool    `json:"enable_coverage"`
+	CoverageThreshold float64 `json:"coverage_threshold"`
+
 	// Integration settings
-	EnableIntegrationTests bool        `json:"enable_integration_tests"`
+	EnableIntegrationTests bool              `json:"enable_integration_tests"`
 	ExternalServiceURLs    map[string]string `json:"external_service_urls"`
 }
 
 // DefaultTestConfig returns optimized test configuration
 func DefaultTestConfig() *TestConfig {
 	return &TestConfig{
-		DatabaseURL:         "postgres://localhost/mcp_memory_test",
-		TestDatabaseURL:     "postgres://localhost/mcp_memory_test",
-		UseInMemoryDB:       true,
-		MigrateOnSetup:      true,
+		DatabaseURL:               "postgres://localhost/mcp_memory_test",
+		TestDatabaseURL:           "postgres://localhost/mcp_memory_test",
+		UseInMemoryDB:             true,
+		MigrateOnSetup:            true,
 		EnablePerformanceTracking: true,
 		PerformanceThresholds: map[string]time.Duration{
 			"unit_test":        100 * time.Millisecond,
 			"integration_test": 5 * time.Second,
 			"load_test":        30 * time.Second,
 		},
-		MaxConcurrentTests:      10,
-		TestTimeout:             30 * time.Second,
-		SeedTestData:            true,
-		CleanupAfterTests:       true,
-		TestDataDirectory:       "./testdata",
-		EnableCoverage:          true,
-		CoverageThreshold:       80.0,
-		EnableIntegrationTests:  true,
+		MaxConcurrentTests:     10,
+		TestTimeout:            30 * time.Second,
+		SeedTestData:           true,
+		CleanupAfterTests:      true,
+		TestDataDirectory:      "./testdata",
+		EnableCoverage:         true,
+		CoverageThreshold:      80.0,
+		EnableIntegrationTests: true,
 		ExternalServiceURLs: map[string]string{
-			"qdrant":  "http://localhost:6333",
-			"openai":  "https://api.openai.com",
+			"qdrant": "http://localhost:6333",
+			"openai": "https://api.openai.com",
 		},
 	}
 }
@@ -116,23 +114,23 @@ type PerformanceTracker struct {
 
 // TestMetrics represents performance metrics for tests
 type TestMetrics struct {
-	TestName      string        `json:"test_name"`
-	Duration      time.Duration `json:"duration"`
-	MemoryUsage   int64         `json:"memory_usage"`
-	Allocations   int64         `json:"allocations"`
-	StartTime     time.Time     `json:"start_time"`
-	EndTime       time.Time     `json:"end_time"`
-	Success       bool          `json:"success"`
-	ErrorMessage  string        `json:"error_message,omitempty"`
+	TestName     string        `json:"test_name"`
+	Duration     time.Duration `json:"duration"`
+	MemoryUsage  int64         `json:"memory_usage"`
+	Allocations  int64         `json:"allocations"`
+	StartTime    time.Time     `json:"start_time"`
+	EndTime      time.Time     `json:"end_time"`
+	Success      bool          `json:"success"`
+	ErrorMessage string        `json:"error_message,omitempty"`
 }
 
 // Fixture represents a test data fixture
 type Fixture struct {
-	Name        string                 `json:"name"`
-	Type        string                 `json:"type"`
-	Data        map[string]interface{} `json:"data"`
-	Dependencies []string              `json:"dependencies"`
-	CreatedAt   time.Time              `json:"created_at"`
+	Name         string                 `json:"name"`
+	Type         string                 `json:"type"`
+	Data         map[string]interface{} `json:"data"`
+	Dependencies []string               `json:"dependencies"`
+	CreatedAt    time.Time              `json:"created_at"`
 }
 
 // FixtureLoader loads test fixtures from various sources
@@ -152,16 +150,16 @@ func NewTestSuite(config *TestConfig) *TestSuite {
 	if config == nil {
 		config = DefaultTestConfig()
 	}
-	
+
 	suite := &TestSuite{
-		config:   config,
-		cleanup:  make([]func(), 0),
-		testData: NewTestDataManager(config),
-		mocks:    NewMockManager(),
-		fixtures: NewFixtureManager(config),
+		config:      config,
+		cleanup:     make([]func(), 0),
+		testData:    NewTestDataManager(config),
+		mocks:       NewMockManager(),
+		fixtures:    NewFixtureManager(config),
 		performance: NewPerformanceTracker(config.PerformanceThresholds),
 	}
-	
+
 	return suite
 }
 
@@ -171,15 +169,15 @@ func (ts *TestSuite) SetupSuite() {
 	if !ts.config.UseInMemoryDB {
 		ts.setupDatabase()
 	}
-	
+
 	// Seed test data if enabled
 	if ts.config.SeedTestData {
 		ts.seedTestData()
 	}
-	
+
 	// Initialize fixtures
 	ts.fixtures.LoadAll()
-	
+
 	// Setup performance tracking
 	if ts.config.EnablePerformanceTracking {
 		ts.performance.Start()
@@ -195,18 +193,18 @@ func (ts *TestSuite) TearDownSuite() {
 	}
 	ts.cleanup = nil
 	ts.mutex.Unlock()
-	
+
 	// Cleanup database
 	if ts.db != nil {
 		ts.db.Close()
 	}
-	
+
 	// Stop performance tracking
 	if ts.config.EnablePerformanceTracking {
 		ts.performance.Stop()
 		ts.performance.Report()
 	}
-	
+
 	// Cleanup test data
 	if ts.config.CleanupAfterTests {
 		ts.cleanupTestData()
@@ -216,12 +214,12 @@ func (ts *TestSuite) TearDownSuite() {
 // SetupTest runs before each test
 func (ts *TestSuite) SetupTest() {
 	testName := ts.T().Name()
-	
+
 	// Start performance tracking
 	if ts.config.EnablePerformanceTracking {
 		ts.performance.StartTest(testName)
 	}
-	
+
 	// Reset mocks
 	ts.mocks.Reset()
 }
@@ -229,7 +227,7 @@ func (ts *TestSuite) SetupTest() {
 // TearDownTest runs after each test
 func (ts *TestSuite) TearDownTest() {
 	testName := ts.T().Name()
-	
+
 	// Stop performance tracking
 	if ts.config.EnablePerformanceTracking {
 		success := !ts.T().Failed()
@@ -241,7 +239,7 @@ func (ts *TestSuite) TearDownTest() {
 func (ts *TestSuite) AddCleanup(fn func()) {
 	ts.mutex.Lock()
 	defer ts.mutex.Unlock()
-	
+
 	ts.cleanup = append(ts.cleanup, fn)
 }
 
@@ -265,16 +263,16 @@ func (ts *TestSuite) AssertPerformance(testName string) {
 	if !ts.config.EnablePerformanceTracking {
 		return
 	}
-	
+
 	metrics := ts.performance.GetMetrics(testName)
 	if metrics == nil {
 		return
 	}
-	
+
 	if threshold, exists := ts.config.PerformanceThresholds[getTestType(testName)]; exists {
 		ts.Assert().True(
 			metrics.Duration <= threshold,
-			fmt.Sprintf("Test %s took %v, exceeding threshold of %v", 
+			fmt.Sprintf("Test %s took %v, exceeding threshold of %v",
 				testName, metrics.Duration, threshold),
 		)
 	}
@@ -306,11 +304,11 @@ func (ts *TestSuite) RequireEnvironment(requirements ...string) {
 func (ts *TestSuite) CreateTempDir(pattern string) string {
 	dir, err := os.MkdirTemp("", pattern)
 	ts.Require().NoError(err)
-	
+
 	ts.AddCleanup(func() {
 		os.RemoveAll(dir)
 	})
-	
+
 	return dir
 }
 
@@ -320,12 +318,12 @@ func (ts *TestSuite) setupDatabase() {
 	if ts.config.TestDatabaseURL == "" {
 		ts.T().Fatal("Test database URL not configured")
 	}
-	
+
 	db, err := sql.Open("postgres", ts.config.TestDatabaseURL)
 	ts.Require().NoError(err)
-	
+
 	ts.db = db
-	
+
 	if ts.config.MigrateOnSetup {
 		ts.runMigrations()
 	}
@@ -369,7 +367,7 @@ func (tdm *TestDataManager) SeedAll() {
 func (tdm *TestDataManager) CleanupAll() {
 	tdm.mutex.Lock()
 	defer tdm.mutex.Unlock()
-	
+
 	tdm.fixtures = make(map[string]interface{})
 	tdm.templates = make(map[string]string)
 }
@@ -406,11 +404,11 @@ func (tdm *TestDataManager) createTestUsers(count int) []interface{} {
 	users := make([]interface{}, count)
 	for i := 0; i < count; i++ {
 		users[i] = map[string]interface{}{
-			"id":       fmt.Sprintf("user_%d", i),
-			"name":     fmt.Sprintf("Test User %d", i),
-			"email":    fmt.Sprintf("user%d@test.com", i),
-			"role":     "user",
-			"active":   true,
+			"id":     fmt.Sprintf("user_%d", i),
+			"name":   fmt.Sprintf("Test User %d", i),
+			"email":  fmt.Sprintf("user%d@test.com", i),
+			"role":   "user",
+			"active": true,
 		}
 	}
 	return users
@@ -443,7 +441,7 @@ func NewMockManager() *MockManager {
 func (mm *MockManager) Register(name string, mock interface{}) {
 	mm.mutex.Lock()
 	defer mm.mutex.Unlock()
-	
+
 	mm.mocks[name] = mock
 }
 
@@ -451,7 +449,7 @@ func (mm *MockManager) Register(name string, mock interface{}) {
 func (mm *MockManager) Get(name string) interface{} {
 	mm.mutex.RLock()
 	defer mm.mutex.RUnlock()
-	
+
 	return mm.mocks[name]
 }
 
@@ -459,7 +457,7 @@ func (mm *MockManager) Get(name string) interface{} {
 func (mm *MockManager) Reset() {
 	mm.mutex.Lock()
 	defer mm.mutex.Unlock()
-	
+
 	// Reset mock states - in production would call Reset() on each mock
 	for _, mock := range mm.mocks {
 		if resettable, ok := mock.(interface{ Reset() }); ok {
@@ -484,14 +482,14 @@ func (fm *FixtureManager) LoadAll() error {
 	if err != nil {
 		return err
 	}
-	
+
 	fm.mutex.Lock()
 	defer fm.mutex.Unlock()
-	
+
 	for _, fixture := range fixtures {
 		fm.fixtures[fixture.Name] = fixture
 	}
-	
+
 	return nil
 }
 
@@ -499,7 +497,7 @@ func (fm *FixtureManager) LoadAll() error {
 func (fm *FixtureManager) Get(name string) *Fixture {
 	fm.mutex.RLock()
 	defer fm.mutex.RUnlock()
-	
+
 	return fm.fixtures[name]
 }
 
@@ -516,13 +514,13 @@ func NewFixtureLoader(dataDir string) *FixtureLoader {
 // LoadAll loads all fixtures from all sources
 func (fl *FixtureLoader) LoadAll() ([]*Fixture, error) {
 	var allFixtures []*Fixture
-	
+
 	for _, source := range fl.sources {
 		names, err := source.List()
 		if err != nil {
 			continue // Skip unavailable sources
 		}
-		
+
 		for _, name := range names {
 			fixture, err := source.Load(name)
 			if err != nil {
@@ -531,7 +529,7 @@ func (fl *FixtureLoader) LoadAll() ([]*Fixture, error) {
 			allFixtures = append(allFixtures, fixture)
 		}
 	}
-	
+
 	return allFixtures, nil
 }
 
@@ -543,9 +541,9 @@ type JSONFixtureSource struct {
 func (jfs *JSONFixtureSource) Load(name string) (*Fixture, error) {
 	// Simplified fixture loading - in production would parse JSON
 	return &Fixture{
-		Name: name,
-		Type: "json",
-		Data: make(map[string]interface{}),
+		Name:      name,
+		Type:      "json",
+		Data:      make(map[string]interface{}),
 		CreatedAt: time.Now(),
 	}, nil
 }
@@ -554,19 +552,19 @@ func (jfs *JSONFixtureSource) List() ([]string, error) {
 	if jfs.directory == "" {
 		return nil, fmt.Errorf("directory not set")
 	}
-	
+
 	files, err := filepath.Glob(filepath.Join(jfs.directory, "*.json"))
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var names []string
 	for _, file := range files {
 		base := filepath.Base(file)
 		name := base[:len(base)-5] // Remove .json extension
 		names = append(names, name)
 	}
-	
+
 	return names, nil
 }
 
@@ -582,9 +580,9 @@ type YAMLFixtureSource struct {
 func (yfs *YAMLFixtureSource) Load(name string) (*Fixture, error) {
 	// Simplified fixture loading - in production would parse YAML
 	return &Fixture{
-		Name: name,
-		Type: "yaml",
-		Data: make(map[string]interface{}),
+		Name:      name,
+		Type:      "yaml",
+		Data:      make(map[string]interface{}),
 		CreatedAt: time.Now(),
 	}, nil
 }
@@ -593,19 +591,19 @@ func (yfs *YAMLFixtureSource) List() ([]string, error) {
 	if yfs.directory == "" {
 		return nil, fmt.Errorf("directory not set")
 	}
-	
+
 	files, err := filepath.Glob(filepath.Join(yfs.directory, "*.yaml"))
 	if err != nil {
 		return nil, err
 	}
-	
+
 	var names []string
 	for _, file := range files {
 		base := filepath.Base(file)
 		name := base[:len(base)-5] // Remove .yaml extension
 		names = append(names, name)
 	}
-	
+
 	return names, nil
 }
 
@@ -637,10 +635,10 @@ func (pt *PerformanceTracker) Stop() {
 func (pt *PerformanceTracker) StartTest(testName string) {
 	pt.mutex.Lock()
 	defer pt.mutex.Unlock()
-	
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	pt.metrics[testName] = &TestMetrics{
 		TestName:    testName,
 		StartTime:   time.Now(),
@@ -653,15 +651,15 @@ func (pt *PerformanceTracker) StartTest(testName string) {
 func (pt *PerformanceTracker) EndTest(testName string, success bool) {
 	pt.mutex.Lock()
 	defer pt.mutex.Unlock()
-	
+
 	metric, exists := pt.metrics[testName]
 	if !exists {
 		return
 	}
-	
+
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	metric.EndTime = time.Now()
 	metric.Duration = metric.EndTime.Sub(metric.StartTime)
 	metric.MemoryUsage = int64(m.Alloc) - metric.MemoryUsage
@@ -673,7 +671,7 @@ func (pt *PerformanceTracker) EndTest(testName string, success bool) {
 func (pt *PerformanceTracker) GetMetrics(testName string) *TestMetrics {
 	pt.mutex.RLock()
 	defer pt.mutex.RUnlock()
-	
+
 	return pt.metrics[testName]
 }
 
@@ -681,18 +679,18 @@ func (pt *PerformanceTracker) GetMetrics(testName string) *TestMetrics {
 func (pt *PerformanceTracker) Report() {
 	pt.mutex.RLock()
 	defer pt.mutex.RUnlock()
-	
+
 	fmt.Println("\n=== Performance Report ===")
 	for testName, metrics := range pt.metrics {
 		status := "PASS"
 		if !metrics.Success {
 			status = "FAIL"
 		}
-		
-		fmt.Printf("%s: %s (%v, %d allocs, %d bytes)\n", 
+
+		fmt.Printf("%s: %s (%v, %d allocs, %d bytes)\n",
 			testName, status, metrics.Duration, metrics.Allocations, metrics.MemoryUsage)
 	}
-	fmt.Println("=========================\n")
+	fmt.Println("=========================")
 }
 
 // Utility functions
@@ -708,7 +706,7 @@ func getTestType(testName string) string {
 }
 
 func contains(s, substr string) bool {
-	return len(s) >= len(substr) && (s[:len(substr)] == substr || 
+	return len(s) >= len(substr) && (s[:len(substr)] == substr ||
 		s[len(s)-len(substr):] == substr ||
 		findSubstring(s, substr))
 }

@@ -69,7 +69,7 @@ func TestService_Integration(t *testing.T) {
 			// Create test request
 			req := &Request{
 				ID:    "test-" + string(model),
-				Model: model,
+				Model: string(model),
 				Messages: []Message{
 					{
 						Role:    "system",
@@ -80,7 +80,7 @@ func TestService_Integration(t *testing.T) {
 						Content: "What is 2+2? Answer with just the number.",
 					},
 				},
-				Metadata: RequestMetadata{
+				Metadata: &RequestMetadata{
 					Repository: "test-repo",
 					SessionID:  "test-session",
 					UserID:     "test-user",
@@ -107,16 +107,16 @@ func TestService_Integration(t *testing.T) {
 			// Validate response
 			assert.NotNil(t, resp)
 			assert.NotEmpty(t, resp.Content)
-			assert.Equal(t, model, resp.Model)
+			assert.Equal(t, string(model), resp.Model)
 			assert.Greater(t, resp.TokensUsed.Total, 0)
-			assert.Greater(t, resp.Latency, time.Duration(0))
+			assert.Greater(t, resp.Latency, int64(0))
 			assert.False(t, resp.CacheHit) // First request should not be cached
 
 			// Check quality metrics
 			assert.Greater(t, resp.Quality.Confidence, 0.0)
 			assert.Greater(t, resp.Quality.Score, 0.0)
 
-			t.Logf("Model %s response: %s (tokens: %d, latency: %v)",
+			t.Logf("Model %s response: %s (tokens: %d, latency: %d ms)",
 				model, resp.Content, resp.TokensUsed.Total, resp.Latency)
 
 			// Test cache hit on second request
@@ -175,7 +175,7 @@ func TestService_Fallback(t *testing.T) {
 				Content: "test",
 			},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			CreatedAt: time.Now(),
 		},
 	}
@@ -211,7 +211,7 @@ func TestService_Metrics(t *testing.T) {
 				Content: "test",
 			},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			CreatedAt: time.Now(),
 		},
 	}

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -303,19 +304,55 @@ func (c *CLI) createPriorityCommand() *cobra.Command {
 // createDeleteCommand creates the 'delete' command
 func (c *CLI) createDeleteCommand() *cobra.Command {
 	var force bool
+	var repository string
 
 	cmd := &cobra.Command{
 		Use:     "delete [task-id]",
 		Aliases: []string{"rm"},
 		Short:   "Delete a task",
-		Long:    `Delete a task permanently. This action cannot be undone.`,
+		Long:    `Delete a task permanently. You can use either the numeric index from the list or the full task ID. This action cannot be undone.`,
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			taskID := args[0]
+			taskIDOrIndex := args[0]
+
+			// Get repository
+			if repository == "" {
+				repoInfo, err := c.repositoryDetector.DetectCurrent(c.getContext())
+				if err == nil {
+					repository = repoInfo.Name
+				} else {
+					repository = "local"
+				}
+			}
+
+			// Check if it's a numeric index
+			var actualTaskID string
+			if index, err := strconv.Atoi(taskIDOrIndex); err == nil {
+				// It's a numeric index - find the actual task ID
+				filters := &ports.TaskFilters{Repository: repository}
+				tasks, err := c.taskService.ListTasks(c.getContext(), filters)
+				if err != nil {
+					return c.handleError(cmd, fmt.Errorf("failed to list tasks: %w", err))
+				}
+
+				if index < 1 || index > len(tasks) {
+					return c.handleError(cmd, fmt.Errorf("task index %d is out of range (1-%d)", index, len(tasks)))
+				}
+
+				actualTaskID = tasks[index-1].ID
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Found task %d: %s\n", index, tasks[index-1].Content)
+			} else {
+				// It's a full task ID
+				actualTaskID = taskIDOrIndex
+			}
 
 			// Confirm deletion if not forced
 			if !force {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Delete task %s? [y/N]: ", taskID[:8])
+				displayID := actualTaskID
+				if len(displayID) > 8 {
+					displayID = displayID[:8]
+				}
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Delete task %s? [y/N]: ", displayID)
 
 				var response string
 				if _, err := fmt.Scanln(&response); err != nil {
@@ -330,17 +367,22 @@ func (c *CLI) createDeleteCommand() *cobra.Command {
 				}
 			}
 
-			err := c.taskService.DeleteTask(c.getContext(), taskID)
+			err := c.taskService.DeleteTask(c.getContext(), actualTaskID)
 			if err != nil {
 				return c.handleError(cmd, err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Task %s deleted\n", taskID[:8])
+			displayID := actualTaskID
+			if len(displayID) > 8 {
+				displayID = displayID[:8]
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Task %s deleted\n", displayID)
 			return nil
 		},
 	}
 
 	cmd.Flags().BoolVarP(&force, "force", "f", false, "Skip confirmation prompt")
+	cmd.Flags().StringVarP(&repository, "repository", "r", "", "Repository to search for tasks")
 
 	return cmd
 }

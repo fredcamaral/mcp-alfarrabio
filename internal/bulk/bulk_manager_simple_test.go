@@ -21,17 +21,17 @@ func NewSimpleMockStorage() *SimpleMockStorage {
 	}
 }
 
-func (s *SimpleMockStorage) BatchStore(_ context.Context, chunks []*types.ConversationChunk) (*storage.BatchResult, error) {
+func (s *SimpleMockStorage) BatchStore(_ context.Context, chunks []*types.ConversationChunk) (*storage.LegacyBatchResult, error) {
 	success := 0
 	for i := range chunks {
 		chunk := chunks[i]
 		s.chunks[chunk.ID] = *chunk
 		success++
 	}
-	return &storage.BatchResult{Success: success, Failed: 0}, nil
+	return &storage.LegacyBatchResult{Success: success, Failed: 0}, nil
 }
 
-func (s *SimpleMockStorage) BatchDelete(_ context.Context, ids []string) (*storage.BatchResult, error) {
+func (s *SimpleMockStorage) BatchDelete(_ context.Context, ids []string) (*storage.LegacyBatchResult, error) {
 	success := 0
 	for _, id := range ids {
 		if _, exists := s.chunks[id]; exists {
@@ -39,7 +39,7 @@ func (s *SimpleMockStorage) BatchDelete(_ context.Context, ids []string) (*stora
 			success++
 		}
 	}
-	return &storage.BatchResult{Success: success, Failed: len(ids) - success}, nil
+	return &storage.LegacyBatchResult{Success: success, Failed: len(ids) - success}, nil
 }
 
 // Minimal interface implementation - return nil/empty for unused methods

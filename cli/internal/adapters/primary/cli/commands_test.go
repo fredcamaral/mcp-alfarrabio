@@ -431,7 +431,7 @@ func TestCommandArgsValidation(t *testing.T) {
 		{"delete without ID", cli.createDeleteCommand(), []string{}, true},
 
 		{"search with query", cli.createSearchCommand(), []string{"test"}, false},
-		{"search without query", cli.createSearchCommand(), []string{}, false}, // Advanced search allows no args for interactive mode
+		{"search without query", cli.createSearchCommand(), []string{}, false},                     // Advanced search allows no args for interactive mode
 		{"search with multiple words", cli.createSearchCommand(), []string{"test", "query"}, true}, // MaximumNArgs(1)
 	}
 

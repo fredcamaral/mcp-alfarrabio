@@ -21,7 +21,7 @@ func TestCache_BasicOperations(t *testing.T) {
 	// Create test request
 	req := &Request{
 		ID:    "test-1",
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "Hello"},
 		},
@@ -35,12 +35,13 @@ func TestCache_BasicOperations(t *testing.T) {
 	// Store response
 	testResp := &Response{
 		ID:      "resp-1",
-		Model:   ModelClaude,
+		Model:   string(ModelClaude),
 		Content: "Hello response",
-		TokensUsed: TokenUsage{
-			Input:  10,
-			Output: 5,
-			Total:  15,
+		TokensUsed: &TokenUsage{
+			PromptTokens:     5,
+			CompletionTokens: 10,
+			TotalTokens:      15,
+			Total:            15,
 		},
 	}
 	cache.Set(req, testResp)
@@ -50,7 +51,7 @@ func TestCache_BasicOperations(t *testing.T) {
 	assert.True(t, found)
 	assert.NotNil(t, resp)
 	assert.Equal(t, testResp.Content, resp.Content)
-	assert.Equal(t, testResp.TokensUsed.Total, resp.TokensUsed.Total)
+	assert.Equal(t, testResp.TokensUsed, resp.TokensUsed)
 }
 
 func TestCache_KeyGeneration(t *testing.T) {
@@ -61,13 +62,13 @@ func TestCache_KeyGeneration(t *testing.T) {
 
 	// Same content should generate same key
 	req1 := &Request{
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "Hello"},
 		},
 	}
 	req2 := &Request{
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "Hello"},
 		},
@@ -79,7 +80,7 @@ func TestCache_KeyGeneration(t *testing.T) {
 
 	// Different content should generate different keys
 	req3 := &Request{
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "Goodbye"},
 		},
@@ -89,7 +90,7 @@ func TestCache_KeyGeneration(t *testing.T) {
 
 	// Different model should generate different keys
 	req4 := &Request{
-		Model: ModelOpenAI,
+		Model: string(ModelOpenAI),
 		Messages: []Message{
 			{Role: "user", Content: "Hello"},
 		},
@@ -108,7 +109,7 @@ func TestCache_TTL(t *testing.T) {
 	cache.SetTTL(100 * time.Millisecond)
 
 	req := &Request{
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "Test TTL"},
 		},
@@ -143,7 +144,7 @@ func TestCache_SizeLimit(t *testing.T) {
 	// Add entries
 	for i := 0; i < 5; i++ {
 		req := &Request{
-			Model: ModelClaude,
+			Model: string(ModelClaude),
 			Messages: []Message{
 				{Role: "user", Content: string(rune('A' + i))},
 			},
@@ -159,7 +160,7 @@ func TestCache_SizeLimit(t *testing.T) {
 
 	// Oldest entries should be evicted
 	req1 := &Request{
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "A"},
 		},
@@ -188,7 +189,7 @@ func TestCache_Concurrency(t *testing.T) {
 			for j := 0; j < numOperations; j++ {
 				// Mix of get and set operations
 				req := &Request{
-					Model: ModelClaude,
+					Model: string(ModelClaude),
 					Messages: []Message{
 						{Role: "user", Content: string(rune('A' + (j % 26)))},
 					},
@@ -217,7 +218,7 @@ func TestCache_Statistics(t *testing.T) {
 	defer cache.Close()
 
 	req := &Request{
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "Stats test"},
 		},
@@ -257,7 +258,7 @@ func TestCache_Clear(t *testing.T) {
 	// Add some entries
 	for i := 0; i < 5; i++ {
 		req := &Request{
-			Model: ModelClaude,
+			Model: string(ModelClaude),
 			Messages: []Message{
 				{Role: "user", Content: string(rune('A' + i))},
 			},
@@ -276,7 +277,7 @@ func TestCache_Clear(t *testing.T) {
 
 	// Verify entries are gone
 	req := &Request{
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "A"},
 		},
@@ -295,11 +296,11 @@ func TestCache_WithContext(t *testing.T) {
 	ctx := context.WithValue(context.Background(), "user_id", "user123")
 
 	req := &Request{
-		Model: ModelClaude,
+		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "Context test"},
 		},
-		Context: map[string]string{
+		Context: map[string]interface{}{
 			"user_id": "user123",
 		},
 	}

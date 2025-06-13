@@ -52,6 +52,14 @@ type HeartbeatMetrics struct {
 func NewHeartbeatManager(pingInterval, pongTimeout time.Duration) *HeartbeatManager {
 	ctx, cancel := context.WithCancel(context.Background())
 
+	// Set reasonable defaults if intervals are invalid
+	if pingInterval <= 0 {
+		pingInterval = 54 * time.Second // Default from ServerConfig
+	}
+	if pongTimeout <= 0 {
+		pongTimeout = 60 * time.Second // Default from ServerConfig
+	}
+
 	return &HeartbeatManager{
 		clients:      make(map[string]*ClientHealth),
 		pingInterval: pingInterval,
@@ -69,6 +77,12 @@ func NewHeartbeatManager(pingInterval, pongTimeout time.Duration) *HeartbeatMana
 func (hm *HeartbeatManager) Start(ctx context.Context) {
 	log.Printf("Starting heartbeat manager with interval: %v, timeout: %v",
 		hm.pingInterval, hm.pongTimeout)
+
+	// Validate intervals to prevent panic
+	if hm.pingInterval <= 0 {
+		log.Println("Invalid ping interval, heartbeat manager disabled")
+		return
+	}
 
 	ticker := time.NewTicker(hm.pingInterval)
 	defer ticker.Stop()

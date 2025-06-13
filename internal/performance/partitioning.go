@@ -11,46 +11,46 @@ import (
 
 // PartitionManager manages intelligent data partitioning for scalability
 type PartitionManager struct {
-	config       *PartitionConfig
-	partitions   map[string]*Partition
-	strategies   map[string]PartitionStrategy
-	router       *PartitionRouter
-	balancer     *LoadBalancer
-	mutex        sync.RWMutex
-	metrics      *PartitionMetrics
+	config     *PartitionConfig
+	partitions map[string]*Partition
+	strategies map[string]PartitionStrategy
+	router     *PartitionRouter
+	balancer   *LoadBalancer
+	mutex      sync.RWMutex
+	metrics    *PartitionMetrics
 }
 
 // PartitionConfig defines partitioning configuration
 type PartitionConfig struct {
 	// Partitioning strategy
 	DefaultStrategy       PartitionStrategy `json:"default_strategy"`
-	MaxPartitionSize      int64             `json:"max_partition_size"`      // Max records per partition
+	MaxPartitionSize      int64             `json:"max_partition_size"`       // Max records per partition
 	MaxPartitionSizeBytes int64             `json:"max_partition_size_bytes"` // Max bytes per partition
-	
+
 	// Rebalancing settings
-	EnableAutoRebalance   bool              `json:"enable_auto_rebalance"`
-	RebalanceThreshold    float64           `json:"rebalance_threshold"`     // Imbalance threshold (0.0-1.0)
-	RebalanceInterval     time.Duration     `json:"rebalance_interval"`
-	
+	EnableAutoRebalance bool          `json:"enable_auto_rebalance"`
+	RebalanceThreshold  float64       `json:"rebalance_threshold"` // Imbalance threshold (0.0-1.0)
+	RebalanceInterval   time.Duration `json:"rebalance_interval"`
+
 	// Performance settings
-	ConcurrentOperations  int               `json:"concurrent_operations"`
-	BatchSize             int               `json:"batch_size"`
-	EnablePartitionCache  bool              `json:"enable_partition_cache"`
-	CacheTTL              time.Duration     `json:"cache_ttl"`
-	
+	ConcurrentOperations int           `json:"concurrent_operations"`
+	BatchSize            int           `json:"batch_size"`
+	EnablePartitionCache bool          `json:"enable_partition_cache"`
+	CacheTTL             time.Duration `json:"cache_ttl"`
+
 	// Distribution settings
-	ReplicationFactor     int               `json:"replication_factor"`
-	ConsistencyLevel      ConsistencyLevel  `json:"consistency_level"`
+	ReplicationFactor int              `json:"replication_factor"`
+	ConsistencyLevel  ConsistencyLevel `json:"consistency_level"`
 }
 
 // DefaultPartitionConfig returns optimized default configuration
 func DefaultPartitionConfig() *PartitionConfig {
 	return &PartitionConfig{
 		DefaultStrategy:       StrategyTimeRange,
-		MaxPartitionSize:      100000,     // 100K records
+		MaxPartitionSize:      100000,             // 100K records
 		MaxPartitionSizeBytes: 1024 * 1024 * 1024, // 1GB
 		EnableAutoRebalance:   true,
-		RebalanceThreshold:    0.3,        // 30% imbalance triggers rebalance
+		RebalanceThreshold:    0.3, // 30% imbalance triggers rebalance
 		RebalanceInterval:     1 * time.Hour,
 		ConcurrentOperations:  10,
 		BatchSize:             1000,
@@ -63,30 +63,30 @@ func DefaultPartitionConfig() *PartitionConfig {
 
 // Partition represents a data partition with metadata
 type Partition struct {
-	ID              string                 `json:"id"`
-	Strategy        PartitionStrategy      `json:"strategy"`
-	KeyRange        *KeyRange              `json:"key_range"`
-	TimeRange       *TimeRange             `json:"time_range"`
-	Size            int64                  `json:"size"`
-	SizeBytes       int64                  `json:"size_bytes"`
-	RecordCount     int64                  `json:"record_count"`
-	LastAccessed    time.Time              `json:"last_accessed"`
-	CreatedAt       time.Time              `json:"created_at"`
-	UpdatedAt       time.Time              `json:"updated_at"`
-	Status          PartitionStatus        `json:"status"`
-	Replicas        []string               `json:"replicas"`
-	Metadata        map[string]interface{} `json:"metadata"`
-	LoadScore       float64                `json:"load_score"`
+	ID           string                 `json:"id"`
+	Strategy     PartitionStrategy      `json:"strategy"`
+	KeyRange     *KeyRange              `json:"key_range"`
+	TimeRange    *TimeRange             `json:"time_range"`
+	Size         int64                  `json:"size"`
+	SizeBytes    int64                  `json:"size_bytes"`
+	RecordCount  int64                  `json:"record_count"`
+	LastAccessed time.Time              `json:"last_accessed"`
+	CreatedAt    time.Time              `json:"created_at"`
+	UpdatedAt    time.Time              `json:"updated_at"`
+	Status       PartitionStatus        `json:"status"`
+	Replicas     []string               `json:"replicas"`
+	Metadata     map[string]interface{} `json:"metadata"`
+	LoadScore    float64                `json:"load_score"`
 }
 
 // PartitionStrategy defines partitioning strategies
 type PartitionStrategy string
 
 const (
-	StrategyHash      PartitionStrategy = "hash"       // Hash-based partitioning
-	StrategyRange     PartitionStrategy = "range"      // Range-based partitioning
-	StrategyTimeRange PartitionStrategy = "time_range" // Time-based range partitioning
-	StrategyCustom    PartitionStrategy = "custom"     // Custom partitioning logic
+	StrategyHash       PartitionStrategy = "hash"        // Hash-based partitioning
+	StrategyRange      PartitionStrategy = "range"       // Range-based partitioning
+	StrategyTimeRange  PartitionStrategy = "time_range"  // Time-based range partitioning
+	StrategyCustom     PartitionStrategy = "custom"      // Custom partitioning logic
 	StrategyRoundRobin PartitionStrategy = "round_robin" // Round-robin distribution
 )
 
@@ -94,20 +94,20 @@ const (
 type PartitionStatus string
 
 const (
-	StatusActive      PartitionStatus = "active"
-	StatusMigrating   PartitionStatus = "migrating"
-	StatusBalancing   PartitionStatus = "balancing"
-	StatusReadOnly    PartitionStatus = "read_only"
-	StatusArchived    PartitionStatus = "archived"
+	StatusActive    PartitionStatus = "active"
+	StatusMigrating PartitionStatus = "migrating"
+	StatusBalancing PartitionStatus = "balancing"
+	StatusReadOnly  PartitionStatus = "read_only"
+	StatusArchived  PartitionStatus = "archived"
 )
 
 // ConsistencyLevel defines data consistency requirements
 type ConsistencyLevel string
 
 const (
-	ConsistencyLevelStrong    ConsistencyLevel = "strong"
-	ConsistencyLevelEventual  ConsistencyLevel = "eventual"
-	ConsistencyLevelSession   ConsistencyLevel = "session"
+	ConsistencyLevelStrong   ConsistencyLevel = "strong"
+	ConsistencyLevelEventual ConsistencyLevel = "eventual"
+	ConsistencyLevelSession  ConsistencyLevel = "session"
 )
 
 // KeyRange represents a key-based partition range
@@ -143,16 +143,16 @@ type LoadBalancer struct {
 
 // PartitionMetrics tracks partitioning performance
 type PartitionMetrics struct {
-	mutex                sync.RWMutex
-	TotalPartitions      int                    `json:"total_partitions"`
-	ActivePartitions     int                    `json:"active_partitions"`
-	TotalRecords         int64                  `json:"total_records"`
-	TotalSize            int64                  `json:"total_size"`
-	BalanceScore         float64                `json:"balance_score"`
-	LastRebalance        time.Time              `json:"last_rebalance"`
-	RebalanceCount       int64                  `json:"rebalance_count"`
-	PartitionDistribution map[string]int64      `json:"partition_distribution"`
-	OperationCounts      map[string]int64       `json:"operation_counts"`
+	mutex                 sync.RWMutex
+	TotalPartitions       int              `json:"total_partitions"`
+	ActivePartitions      int              `json:"active_partitions"`
+	TotalRecords          int64            `json:"total_records"`
+	TotalSize             int64            `json:"total_size"`
+	BalanceScore          float64          `json:"balance_score"`
+	LastRebalance         time.Time        `json:"last_rebalance"`
+	RebalanceCount        int64            `json:"rebalance_count"`
+	PartitionDistribution map[string]int64 `json:"partition_distribution"`
+	OperationCounts       map[string]int64 `json:"operation_counts"`
 }
 
 // NewPartitionManager creates a new intelligent partition manager
@@ -160,24 +160,24 @@ func NewPartitionManager(config *PartitionConfig) *PartitionManager {
 	if config == nil {
 		config = DefaultPartitionConfig()
 	}
-	
+
 	manager := &PartitionManager{
 		config:     config,
 		partitions: make(map[string]*Partition),
 		strategies: make(map[string]PartitionStrategy),
-		metrics:    &PartitionMetrics{
+		metrics: &PartitionMetrics{
 			PartitionDistribution: make(map[string]int64),
-			OperationCounts:      make(map[string]int64),
+			OperationCounts:       make(map[string]int64),
 		},
 	}
-	
+
 	// Initialize router
 	manager.router = &PartitionRouter{
 		manager:  manager,
 		cache:    make(map[string]string),
 		cacheTTL: config.CacheTTL,
 	}
-	
+
 	// Initialize load balancer
 	ctx, cancel := context.WithCancel(context.Background())
 	manager.balancer = &LoadBalancer{
@@ -186,15 +186,15 @@ func NewPartitionManager(config *PartitionConfig) *PartitionManager {
 		ctx:       ctx,
 		cancel:    cancel,
 	}
-	
+
 	// Register built-in strategies
 	manager.registerBuiltinStrategies()
-	
+
 	// Start auto-rebalancing if enabled
 	if config.EnableAutoRebalance {
 		go manager.balancer.autoRebalanceLoop()
 	}
-	
+
 	return manager
 }
 
@@ -202,23 +202,23 @@ func NewPartitionManager(config *PartitionConfig) *PartitionManager {
 func (pm *PartitionManager) CreatePartition(strategy PartitionStrategy, keyRange *KeyRange, timeRange *TimeRange) (*Partition, error) {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
-	
+
 	partition := &Partition{
-		ID:           generatePartitionID(),
-		Strategy:     strategy,
-		KeyRange:     keyRange,
-		TimeRange:    timeRange,
-		CreatedAt:    time.Now(),
-		UpdatedAt:    time.Now(),
-		Status:       StatusActive,
-		Replicas:     make([]string, 0),
-		Metadata:     make(map[string]interface{}),
-		LoadScore:    0.0,
+		ID:        generatePartitionID(),
+		Strategy:  strategy,
+		KeyRange:  keyRange,
+		TimeRange: timeRange,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+		Status:    StatusActive,
+		Replicas:  make([]string, 0),
+		Metadata:  make(map[string]interface{}),
+		LoadScore: 0.0,
 	}
-	
+
 	pm.partitions[partition.ID] = partition
 	pm.updateMetrics()
-	
+
 	return partition, nil
 }
 
@@ -233,19 +233,19 @@ func (pm *PartitionManager) GetPartitionForKey(key interface{}) (*Partition, err
 			}
 		}
 	}
-	
+
 	// Find partition using strategy
 	partition, err := pm.findPartitionByStrategy(key)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Cache the result
 	if pm.config.EnablePartitionCache {
 		keyStr := fmt.Sprintf("%v", key)
 		pm.router.cachePartition(keyStr, partition.ID)
 	}
-	
+
 	return partition, nil
 }
 
@@ -253,9 +253,9 @@ func (pm *PartitionManager) GetPartitionForKey(key interface{}) (*Partition, err
 func (pm *PartitionManager) GetPartitionsForTimeRange(start, end time.Time) ([]*Partition, error) {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
-	
+
 	var matchingPartitions []*Partition
-	
+
 	for _, partition := range pm.partitions {
 		if partition.TimeRange != nil {
 			// Check if time ranges overlap
@@ -264,7 +264,7 @@ func (pm *PartitionManager) GetPartitionsForTimeRange(start, end time.Time) ([]*
 			}
 		}
 	}
-	
+
 	return matchingPartitions, nil
 }
 
@@ -274,20 +274,20 @@ func (pm *PartitionManager) InsertRecord(key interface{}, data interface{}) erro
 	if err != nil {
 		return fmt.Errorf("failed to find partition for key: %w", err)
 	}
-	
+
 	// Check if partition needs splitting
 	if pm.shouldSplitPartition(partition) {
 		if err := pm.splitPartition(partition); err != nil {
 			// Log error but continue with insertion
 		}
 	}
-	
+
 	// Insert into partition (simplified)
 	partition.RecordCount++
 	partition.Size += estimateRecordSize(data)
 	partition.LastAccessed = time.Now()
 	partition.UpdatedAt = time.Now()
-	
+
 	pm.incrementOperationCount("insert")
 	return nil
 }
@@ -299,18 +299,18 @@ func (pm *PartitionManager) QueryPartitions(query PartitionQuery) (*QueryResult,
 	if err != nil {
 		return nil, fmt.Errorf("failed to determine query partitions: %w", err)
 	}
-	
+
 	// Query partitions concurrently
 	results := make(chan *PartitionQueryResult, len(partitions))
 	errors := make(chan error, len(partitions))
-	
+
 	sem := make(chan struct{}, pm.config.ConcurrentOperations)
-	
+
 	for _, partition := range partitions {
 		go func(p *Partition) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
-			
+
 			result, err := pm.queryPartition(p, query)
 			if err != nil {
 				errors <- err
@@ -319,11 +319,11 @@ func (pm *PartitionManager) QueryPartitions(query PartitionQuery) (*QueryResult,
 			results <- result
 		}(partition)
 	}
-	
+
 	// Collect results
 	var allResults []*PartitionQueryResult
 	var queryErrors []error
-	
+
 	for i := 0; i < len(partitions); i++ {
 		select {
 		case result := <-results:
@@ -332,26 +332,26 @@ func (pm *PartitionManager) QueryPartitions(query PartitionQuery) (*QueryResult,
 			queryErrors = append(queryErrors, err)
 		}
 	}
-	
+
 	if len(queryErrors) > 0 {
 		return nil, fmt.Errorf("query errors: %v", queryErrors)
 	}
-	
+
 	// Merge and return results
 	mergedResult := pm.mergeQueryResults(allResults, query)
 	pm.incrementOperationCount("query")
-	
+
 	return mergedResult, nil
 }
 
 // PartitionQuery represents a query across partitions
 type PartitionQuery struct {
-	KeyRange    *KeyRange              `json:"key_range"`
-	TimeRange   *TimeRange             `json:"time_range"`
-	Filters     map[string]interface{} `json:"filters"`
-	OrderBy     string                 `json:"order_by"`
-	Limit       int                    `json:"limit"`
-	Offset      int                    `json:"offset"`
+	KeyRange  *KeyRange              `json:"key_range"`
+	TimeRange *TimeRange             `json:"time_range"`
+	Filters   map[string]interface{} `json:"filters"`
+	OrderBy   string                 `json:"order_by"`
+	Limit     int                    `json:"limit"`
+	Offset    int                    `json:"offset"`
 }
 
 // PartitionQueryResult represents results from a single partition
@@ -364,10 +364,10 @@ type PartitionQueryResult struct {
 
 // QueryResult represents merged results from multiple partitions
 type QueryResult struct {
-	Records      []map[string]interface{} `json:"records"`
-	TotalCount   int64                    `json:"total_count"`
-	PartitionCount int                    `json:"partition_count"`
-	ExecutionTime time.Duration           `json:"execution_time"`
+	Records        []map[string]interface{} `json:"records"`
+	TotalCount     int64                    `json:"total_count"`
+	PartitionCount int                      `json:"partition_count"`
+	ExecutionTime  time.Duration            `json:"execution_time"`
 }
 
 // RebalancePartitions triggers manual partition rebalancing
@@ -379,10 +379,20 @@ func (pm *PartitionManager) RebalancePartitions() error {
 func (pm *PartitionManager) GetMetrics() PartitionMetrics {
 	pm.metrics.mutex.RLock()
 	defer pm.metrics.mutex.RUnlock()
-	
-	metrics := *pm.metrics
-	metrics.BalanceScore = pm.calculateBalanceScore()
-	
+
+	// Return a copy without the mutex to avoid lock value copying
+	metrics := PartitionMetrics{
+		TotalPartitions:       pm.metrics.TotalPartitions,
+		ActivePartitions:      pm.metrics.ActivePartitions,
+		TotalRecords:          pm.metrics.TotalRecords,
+		TotalSize:             pm.metrics.TotalSize,
+		BalanceScore:          pm.calculateBalanceScore(),
+		LastRebalance:         pm.metrics.LastRebalance,
+		RebalanceCount:        pm.metrics.RebalanceCount,
+		PartitionDistribution: pm.metrics.PartitionDistribution,
+		OperationCounts:       pm.metrics.OperationCounts,
+	}
+
 	return metrics
 }
 
@@ -400,7 +410,7 @@ func (pm *PartitionManager) registerBuiltinStrategies() {
 func (pm *PartitionManager) findPartitionByStrategy(key interface{}) (*Partition, error) {
 	pm.mutex.RLock()
 	defer pm.mutex.RUnlock()
-	
+
 	switch pm.config.DefaultStrategy {
 	case StrategyHash:
 		return pm.findByHashStrategy(key)
@@ -419,14 +429,14 @@ func (pm *PartitionManager) findPartitionByStrategy(key interface{}) (*Partition
 func (pm *PartitionManager) findByHashStrategy(key interface{}) (*Partition, error) {
 	keyStr := fmt.Sprintf("%v", key)
 	hash := calculateHash(keyStr)
-	
+
 	// Find partition with hash-based distribution
 	partitionCount := len(pm.partitions)
 	if partitionCount == 0 {
 		// Create first partition
 		return pm.createInitialPartition()
 	}
-	
+
 	partitionIndex := int(hash) % partitionCount
 	i := 0
 	for _, partition := range pm.partitions {
@@ -435,12 +445,12 @@ func (pm *PartitionManager) findByHashStrategy(key interface{}) (*Partition, err
 		}
 		i++
 	}
-	
+
 	// Fallback to first partition
 	for _, partition := range pm.partitions {
 		return partition, nil
 	}
-	
+
 	return nil, fmt.Errorf("no partitions available")
 }
 
@@ -453,7 +463,7 @@ func (pm *PartitionManager) findByRangeStrategy(key interface{}) (*Partition, er
 			}
 		}
 	}
-	
+
 	// Create new partition for key
 	return pm.createPartitionForKey(key)
 }
@@ -461,7 +471,7 @@ func (pm *PartitionManager) findByRangeStrategy(key interface{}) (*Partition, er
 // findByTimeRangeStrategy finds partition using time range strategy
 func (pm *PartitionManager) findByTimeRangeStrategy(key interface{}) (*Partition, error) {
 	now := time.Now()
-	
+
 	for _, partition := range pm.partitions {
 		if partition.TimeRange != nil {
 			if now.After(partition.TimeRange.Start) && now.Before(partition.TimeRange.End) {
@@ -469,7 +479,7 @@ func (pm *PartitionManager) findByTimeRangeStrategy(key interface{}) (*Partition
 			}
 		}
 	}
-	
+
 	// Create new time-based partition
 	return pm.createTimePartition(now)
 }
@@ -479,7 +489,7 @@ func (pm *PartitionManager) findByRoundRobinStrategy(key interface{}) (*Partitio
 	if len(pm.partitions) == 0 {
 		return pm.createInitialPartition()
 	}
-	
+
 	// Simple round-robin based on current time
 	index := int(time.Now().UnixNano()) % len(pm.partitions)
 	i := 0
@@ -489,26 +499,26 @@ func (pm *PartitionManager) findByRoundRobinStrategy(key interface{}) (*Partitio
 		}
 		i++
 	}
-	
+
 	// Fallback
 	for _, partition := range pm.partitions {
 		return partition, nil
 	}
-	
+
 	return nil, fmt.Errorf("no partitions available")
 }
 
 // shouldSplitPartition determines if partition should be split
 func (pm *PartitionManager) shouldSplitPartition(partition *Partition) bool {
 	return partition.RecordCount >= pm.config.MaxPartitionSize ||
-		   partition.SizeBytes >= pm.config.MaxPartitionSizeBytes
+		partition.SizeBytes >= pm.config.MaxPartitionSizeBytes
 }
 
 // splitPartition splits a partition into two
 func (pm *PartitionManager) splitPartition(partition *Partition) error {
 	pm.mutex.Lock()
 	defer pm.mutex.Unlock()
-	
+
 	// Create new partition
 	newPartition := &Partition{
 		ID:        generatePartitionID(),
@@ -519,7 +529,7 @@ func (pm *PartitionManager) splitPartition(partition *Partition) error {
 		Replicas:  make([]string, 0),
 		Metadata:  make(map[string]interface{}),
 	}
-	
+
 	// Split ranges based on strategy
 	switch partition.Strategy {
 	case StrategyTimeRange:
@@ -533,21 +543,21 @@ func (pm *PartitionManager) splitPartition(partition *Partition) error {
 		partition.RecordCount = partition.RecordCount / 2
 		partition.Size = partition.Size / 2
 	}
-	
+
 	pm.partitions[newPartition.ID] = newPartition
 	pm.updateMetrics()
-	
+
 	return nil
 }
 
 // getPartitionsForQuery determines partitions needed for query
 func (pm *PartitionManager) getPartitionsForQuery(query PartitionQuery) ([]*Partition, error) {
 	var partitions []*Partition
-	
+
 	if query.TimeRange != nil {
 		return pm.GetPartitionsForTimeRange(query.TimeRange.Start, query.TimeRange.End)
 	}
-	
+
 	if query.KeyRange != nil {
 		pm.mutex.RLock()
 		for _, partition := range pm.partitions {
@@ -558,14 +568,14 @@ func (pm *PartitionManager) getPartitionsForQuery(query PartitionQuery) ([]*Part
 		pm.mutex.RUnlock()
 		return partitions, nil
 	}
-	
+
 	// Query all partitions if no specific range
 	pm.mutex.RLock()
 	for _, partition := range pm.partitions {
 		partitions = append(partitions, partition)
 	}
 	pm.mutex.RUnlock()
-	
+
 	return partitions, nil
 }
 
@@ -578,10 +588,10 @@ func (pm *PartitionManager) queryPartition(partition *Partition, query Partition
 		Count:       0,
 		Size:        0,
 	}
-	
+
 	// Simulate query execution
 	partition.LastAccessed = time.Now()
-	
+
 	return result, nil
 }
 
@@ -592,18 +602,18 @@ func (pm *PartitionManager) mergeQueryResults(results []*PartitionQueryResult, q
 		TotalCount:     0,
 		PartitionCount: len(results),
 	}
-	
+
 	// Merge all records
 	for _, result := range results {
 		merged.Records = append(merged.Records, result.Records...)
 		merged.TotalCount += result.Count
 	}
-	
+
 	// Sort if needed
 	if query.OrderBy != "" {
 		pm.sortResults(merged.Records, query.OrderBy)
 	}
-	
+
 	// Apply limit/offset
 	if query.Limit > 0 {
 		start := query.Offset
@@ -617,7 +627,7 @@ func (pm *PartitionManager) mergeQueryResults(results []*PartitionQueryResult, q
 			merged.Records = make([]map[string]interface{}, 0)
 		}
 	}
-	
+
 	return merged
 }
 
@@ -627,10 +637,10 @@ func (pm *PartitionManager) mergeQueryResults(results []*PartitionQueryResult, q
 func (lb *LoadBalancer) autoRebalanceLoop() {
 	lb.running = true
 	defer func() { lb.running = false }()
-	
+
 	ticker := time.NewTicker(lb.manager.config.RebalanceInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -653,24 +663,24 @@ func (lb *LoadBalancer) shouldRebalance() bool {
 func (lb *LoadBalancer) rebalance() error {
 	lb.manager.mutex.Lock()
 	defer lb.manager.mutex.Unlock()
-	
+
 	// Get partition load information
 	loads := make([]float64, 0, len(lb.manager.partitions))
 	for _, partition := range lb.manager.partitions {
 		loads = append(loads, partition.LoadScore)
 	}
-	
+
 	// Sort by load
 	sort.Float64s(loads)
-	
+
 	// Implement simple load balancing logic
 	// In production, would implement sophisticated rebalancing algorithms
-	
+
 	lb.manager.metrics.mutex.Lock()
 	lb.manager.metrics.LastRebalance = time.Now()
 	lb.manager.metrics.RebalanceCount++
 	lb.manager.metrics.mutex.Unlock()
-	
+
 	return nil
 }
 
@@ -680,7 +690,7 @@ func (lb *LoadBalancer) rebalance() error {
 func (pr *PartitionRouter) getCachedPartition(key string) string {
 	pr.cacheMutex.RLock()
 	defer pr.cacheMutex.RUnlock()
-	
+
 	return pr.cache[key]
 }
 
@@ -688,7 +698,7 @@ func (pr *PartitionRouter) getCachedPartition(key string) string {
 func (pr *PartitionRouter) cachePartition(key, partitionID string) {
 	pr.cacheMutex.Lock()
 	defer pr.cacheMutex.Unlock()
-	
+
 	pr.cache[key] = partitionID
 }
 
@@ -746,13 +756,13 @@ func (pm *PartitionManager) splitTimeRange(old, new *Partition) {
 	if old.TimeRange != nil {
 		duration := old.TimeRange.End.Sub(old.TimeRange.Start)
 		mid := old.TimeRange.Start.Add(duration / 2)
-		
+
 		new.TimeRange = &TimeRange{
 			Start:    mid,
 			End:      old.TimeRange.End,
 			Interval: old.TimeRange.Interval,
 		}
-		
+
 		old.TimeRange.End = mid
 	}
 }
@@ -769,48 +779,48 @@ func (pm *PartitionManager) calculateBalanceScore() float64 {
 	if len(pm.partitions) < 2 {
 		return 1.0
 	}
-	
+
 	// Calculate load distribution variance
 	var loads []float64
 	var sum float64
-	
+
 	for _, partition := range pm.partitions {
 		load := float64(partition.RecordCount)
 		loads = append(loads, load)
 		sum += load
 	}
-	
+
 	if sum == 0 {
 		return 1.0
 	}
-	
+
 	mean := sum / float64(len(loads))
 	var variance float64
-	
+
 	for _, load := range loads {
 		variance += (load - mean) * (load - mean)
 	}
-	
+
 	variance /= float64(len(loads))
 	stddev := variance // Simplified, should be sqrt(variance)
-	
+
 	// Return balance score (1.0 = perfectly balanced, 0.0 = completely unbalanced)
 	if mean == 0 {
 		return 1.0
 	}
-	
+
 	return 1.0 - (stddev / mean)
 }
 
 func (pm *PartitionManager) updateMetrics() {
 	pm.metrics.mutex.Lock()
 	defer pm.metrics.mutex.Unlock()
-	
+
 	pm.metrics.TotalPartitions = len(pm.partitions)
 	pm.metrics.ActivePartitions = 0
 	pm.metrics.TotalRecords = 0
 	pm.metrics.TotalSize = 0
-	
+
 	for _, partition := range pm.partitions {
 		if partition.Status == StatusActive {
 			pm.metrics.ActivePartitions++

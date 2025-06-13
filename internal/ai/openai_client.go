@@ -80,12 +80,6 @@ func (c *OpenAIClient) Complete(ctx context.Context, request CompletionRequest) 
 	if request.TopP > 0 {
 		body["top_p"] = request.TopP
 	}
-	if request.FrequencyPenalty > 0 {
-		body["frequency_penalty"] = request.FrequencyPenalty
-	}
-	if request.PresencePenalty > 0 {
-		body["presence_penalty"] = request.PresencePenalty
-	}
 	if len(request.StopSequences) > 0 {
 		body["stop"] = request.StopSequences
 	}
@@ -103,12 +97,26 @@ func (c *OpenAIClient) Complete(ctx context.Context, request CompletionRequest) 
 		}
 
 		resp, err := c.executeRequest(ctx, body)
-		if err == nil {
+		if err != nil {
+			lastErr = err
+			if !c.isRetryableError(err) {
+				break
+			}
+			continue
+		}
+
+		// Check if the response is successful
+		if resp.StatusCode == http.StatusOK {
 			return c.processResponse(resp, request)
 		}
 
-		lastErr = err
-		if !c.isRetryableError(err) {
+		// Parse the error response to determine if it's retryable
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		apiErr := c.parseErrorResponse(resp.StatusCode, body)
+		lastErr = apiErr
+
+		if !c.isRetryableError(apiErr) {
 			break
 		}
 	}
@@ -136,12 +144,14 @@ func (c *OpenAIClient) ValidateRequest(request CompletionRequest) error {
 // GetCapabilities returns the capabilities of the OpenAI client
 func (c *OpenAIClient) GetCapabilities() ClientCapabilities {
 	return ClientCapabilities{
-		Provider:              "openai",
 		SupportedModels:       []string{"gpt-4", "gpt-4-turbo", "gpt-4o", "gpt-3.5-turbo"},
 		MaxTokens:             128000, // GPT-4 max
 		SupportsStreaming:     true,
+		SupportsSystemMsg:     true,
 		SupportsSystemMessage: true,
-		SupportsFunctionCalls: true,
+		SupportsJSONMode:      true,
+		SupportsToolCalling:   true,
+		Provider:              "openai",
 	}
 }
 
@@ -225,14 +235,13 @@ func (c *OpenAIClient) processResponse(resp *http.Response, request CompletionRe
 	return &CompletionResponse{
 		Content: apiResp.Choices[0].Message.Content,
 		Model:   request.Model,
-		Usage: TokenUsage{
-			Input:  apiResp.Usage.PromptTokens,
-			Output: apiResp.Usage.CompletionTokens,
-			Total:  apiResp.Usage.TotalTokens,
+		Usage: &UsageStats{
+			PromptTokens:     apiResp.Usage.PromptTokens,
+			CompletionTokens: apiResp.Usage.CompletionTokens,
+			Total:            apiResp.Usage.TotalTokens,
 		},
-		Metadata:     request.Metadata,
-		FinishReason: apiResp.Choices[0].FinishReason,
-		Provider:     "openai",
+		Metadata:    request.Metadata,
+		GeneratedAt: time.Now(),
 	}, nil
 }
 

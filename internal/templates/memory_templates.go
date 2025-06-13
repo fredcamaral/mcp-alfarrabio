@@ -105,7 +105,7 @@ func (tm *TemplateManager) loadBuiltinTemplates() {
 		tm.createLearningTemplate(),
 		tm.createPerformanceTemplate(),
 		tm.createSecurityTemplate(),
-		
+
 		// Development workflow templates
 		tm.createCodeReviewTemplate(),
 		tm.createDeploymentTemplate(),
@@ -113,24 +113,24 @@ func (tm *TemplateManager) loadBuiltinTemplates() {
 		tm.createRefactoringTemplate(),
 		tm.createAPIDesignTemplate(),
 		tm.createDatabaseSchemaTemplate(),
-		
+
 		// DevOps and Infrastructure templates
 		tm.createIncidentTemplate(),
 		tm.createMonitoringTemplate(),
 		tm.createBackupTemplate(),
 		tm.createCapacityPlanningTemplate(),
-		
+
 		// Project Management templates
 		tm.createMeetingNotesTemplate(),
 		tm.createProjectMilestoneTemplate(),
 		tm.createPostMortemTemplate(),
 		tm.createKnowledgeTransferTemplate(),
-		
+
 		// AI/ML specific templates
 		tm.createMLExperimentTemplate(),
 		tm.createDataAnalysisTemplate(),
 		tm.createModelDeploymentTemplate(),
-		
+
 		// AI Prompt Analysis templates (based on discovered ai-prompts structure)
 		tm.createCodebaseOverviewTemplate(),
 		tm.createArchitecturalAnalysisTemplate(),

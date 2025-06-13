@@ -62,13 +62,13 @@ type InteractiveAnswer struct {
 
 // DocumentGenerator handles AI-powered document generation
 type DocumentGenerator struct {
-	service     *Service
+	service     Service
 	ruleManager *documents.RuleManager
 	templates   map[DocumentType]string
 }
 
 // NewDocumentGenerator creates a new document generator
-func NewDocumentGenerator(service *Service, ruleManager *documents.RuleManager) *DocumentGenerator {
+func NewDocumentGenerator(service Service, ruleManager *documents.RuleManager) *DocumentGenerator {
 	return &DocumentGenerator{
 		service:     service,
 		ruleManager: ruleManager,
@@ -133,7 +133,7 @@ func (g *DocumentGenerator) GenerateDocument(ctx context.Context, req *DocumentG
 				Content: prompt,
 			},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			Repository: req.Repository,
 			SessionID:  req.SessionID,
 			Tags:       []string{string(req.Type), "document_generation"},
@@ -154,12 +154,16 @@ func (g *DocumentGenerator) GenerateDocument(ctx context.Context, req *DocumentG
 
 	// Create response
 	resp := &DocumentGenerationResponse{
-		Document:   document,
-		Type:       req.Type,
-		SessionID:  req.SessionID,
-		Duration:   time.Since(startTime),
-		ModelUsed:  aiResp.Model,
-		TokensUsed: aiResp.TokensUsed,
+		Document:  document,
+		Type:      req.Type,
+		SessionID: req.SessionID,
+		Duration:  time.Since(startTime),
+		ModelUsed: Model(aiResp.Model),
+		TokensUsed: TokenUsage{
+			PromptTokens:     aiResp.Usage.PromptTokens,
+			CompletionTokens: aiResp.Usage.CompletionTokens,
+			TotalTokens:      aiResp.Usage.Total,
+		},
 	}
 
 	// Add suggestions based on document type

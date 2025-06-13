@@ -1,0 +1,612 @@
+// Package storage provides content storage implementation using Qdrant vector database
+package storage
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"log/slog"
+	"strconv"
+	"time"
+
+	"github.com/qdrant/go-client/qdrant"
+
+	"lerian-mcp-memory/internal/types"
+)
+
+// ContentStoreImpl implements ContentStore interface using Qdrant
+type ContentStoreImpl struct {
+	client         *qdrant.Client
+	collectionName string
+	logger         *slog.Logger
+	metrics        *StorageMetrics
+}
+
+// NewContentStore creates a new content store with Qdrant backend
+func NewContentStore(client *qdrant.Client, collectionName string, logger *slog.Logger) *ContentStoreImpl {
+	if logger == nil {
+		logger = slog.Default()
+	}
+
+	return &ContentStoreImpl{
+		client:         client,
+		collectionName: collectionName,
+		logger:         logger,
+		metrics: &StorageMetrics{
+			OperationCounts:  make(map[string]int64),
+			AverageLatency:   make(map[string]float64),
+			ErrorCounts:      make(map[string]int64),
+			ConnectionStatus: "connected",
+		},
+	}
+}
+
+// Store saves content to Qdrant with proper validation and error handling
+func (cs *ContentStoreImpl) Store(ctx context.Context, content *types.Content) error {
+	start := time.Now()
+	defer cs.updateMetrics("store", start)
+
+	// Validate content
+	if err := cs.validateContent(content); err != nil {
+		cs.incrementErrorCount("store")
+		return fmt.Errorf("content validation failed: %w", err)
+	}
+
+	// Ensure timestamps are set
+	if content.CreatedAt.IsZero() {
+		content.CreatedAt = time.Now()
+	}
+	content.UpdatedAt = time.Now()
+
+	// Convert content to Qdrant point
+	point, err := cs.contentToPoint(content)
+	if err != nil {
+		cs.incrementErrorCount("store")
+		return fmt.Errorf("failed to convert content to point: %w", err)
+	}
+
+	// Store in Qdrant
+	_, err = cs.client.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: cs.collectionName,
+		Points:         []*qdrant.PointStruct{point},
+	})
+	if err != nil {
+		cs.incrementErrorCount("store")
+		return fmt.Errorf("failed to store content in Qdrant: %w", err)
+	}
+
+	cs.logger.Debug("content stored successfully",
+		slog.String("id", content.ID),
+		slog.String("project_id", string(content.ProjectID)),
+		slog.String("type", content.Type),
+		slog.Int("version", content.Version))
+
+	return nil
+}
+
+// Update modifies existing content in Qdrant
+func (cs *ContentStoreImpl) Update(ctx context.Context, content *types.Content) error {
+	start := time.Now()
+	defer cs.updateMetrics("update", start)
+
+	// Validate content
+	if err := cs.validateContent(content); err != nil {
+		cs.incrementErrorCount("update")
+		return fmt.Errorf("content validation failed: %w", err)
+	}
+
+	// Check if content exists
+	existing, err := cs.Get(ctx, content.ProjectID, content.ID)
+	if err != nil {
+		cs.incrementErrorCount("update")
+		return fmt.Errorf("failed to check existing content: %w", err)
+	}
+	if existing == nil {
+		cs.incrementErrorCount("update")
+		return fmt.Errorf("content with ID %s not found in project %s", content.ID, content.ProjectID)
+	}
+
+	// Update timestamps and version
+	content.Version = existing.Version + 1
+	content.CreatedAt = existing.CreatedAt // Preserve original creation time
+	content.UpdatedAt = time.Now()
+
+	// Convert to point and update
+	point, err := cs.contentToPoint(content)
+	if err != nil {
+		cs.incrementErrorCount("update")
+		return fmt.Errorf("failed to convert content to point: %w", err)
+	}
+
+	_, err = cs.client.Upsert(ctx, &qdrant.UpsertPoints{
+		CollectionName: cs.collectionName,
+		Points:         []*qdrant.PointStruct{point},
+	})
+	if err != nil {
+		cs.incrementErrorCount("update")
+		return fmt.Errorf("failed to update content in Qdrant: %w", err)
+	}
+
+	cs.logger.Debug("content updated successfully",
+		slog.String("id", content.ID),
+		slog.String("project_id", string(content.ProjectID)),
+		slog.Int("new_version", content.Version))
+
+	return nil
+}
+
+// Delete removes content from Qdrant
+func (cs *ContentStoreImpl) Delete(ctx context.Context, projectID types.ProjectID, contentID string) error {
+	start := time.Now()
+	defer cs.updateMetrics("delete", start)
+
+	if err := projectID.Validate(); err != nil {
+		cs.incrementErrorCount("delete")
+		return fmt.Errorf("invalid project ID: %w", err)
+	}
+
+	if contentID == "" {
+		cs.incrementErrorCount("delete")
+		return fmt.Errorf("content ID cannot be empty")
+	}
+
+	// Create point ID using project_id:content_id format
+	pointID := cs.createPointID(projectID, contentID)
+
+	_, err := cs.client.Delete(ctx, &qdrant.DeletePoints{
+		CollectionName: cs.collectionName,
+		PointsSelector: &qdrant.PointsSelector{
+			PointsSelectorOneOf: &qdrant.PointsSelector_Points{
+				Points: &qdrant.PointsIdsList{
+					Ids: []*qdrant.PointId{{
+						PointIdOptions: &qdrant.PointId_Str{Str: pointID},
+					}},
+				},
+			},
+		},
+	})
+	if err != nil {
+		cs.incrementErrorCount("delete")
+		return fmt.Errorf("failed to delete content from Qdrant: %w", err)
+	}
+
+	cs.logger.Debug("content deleted successfully",
+		slog.String("id", contentID),
+		slog.String("project_id", string(projectID)))
+
+	return nil
+}
+
+// Get retrieves content by project and content ID
+func (cs *ContentStoreImpl) Get(ctx context.Context, projectID types.ProjectID, contentID string) (*types.Content, error) {
+	start := time.Now()
+	defer cs.updateMetrics("get", start)
+
+	if err := projectID.Validate(); err != nil {
+		cs.incrementErrorCount("get")
+		return nil, fmt.Errorf("invalid project ID: %w", err)
+	}
+
+	if contentID == "" {
+		cs.incrementErrorCount("get")
+		return nil, fmt.Errorf("content ID cannot be empty")
+	}
+
+	// Create point ID
+	pointID := cs.createPointID(projectID, contentID)
+
+	// Retrieve from Qdrant
+	response, err := cs.client.Retrieve(ctx, &qdrant.RetrievePoints{
+		CollectionName: cs.collectionName,
+		Ids: []*qdrant.PointId{{
+			PointIdOptions: &qdrant.PointId_Str{Str: pointID},
+		}},
+		WithPayload: &qdrant.WithPayloadSelector{
+			SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true},
+		},
+		WithVectors: &qdrant.WithVectorsSelector{
+			SelectorOptions: &qdrant.WithVectorsSelector_Enable{Enable: true},
+		},
+	})
+	if err != nil {
+		cs.incrementErrorCount("get")
+		return nil, fmt.Errorf("failed to retrieve content from Qdrant: %w", err)
+	}
+
+	if len(response.Result) == 0 {
+		return nil, nil // Content not found
+	}
+
+	// Convert point back to content
+	content, err := cs.pointToContent(response.Result[0])
+	if err != nil {
+		cs.incrementErrorCount("get")
+		return nil, fmt.Errorf("failed to convert point to content: %w", err)
+	}
+
+	cs.logger.Debug("content retrieved successfully",
+		slog.String("id", contentID),
+		slog.String("project_id", string(projectID)))
+
+	return content, nil
+}
+
+// BatchStore stores multiple contents efficiently
+func (cs *ContentStoreImpl) BatchStore(ctx context.Context, contents []*types.Content) (*BatchResult, error) {
+	start := time.Now()
+	defer cs.updateMetrics("batch_store", start)
+
+	if len(contents) == 0 {
+		return &BatchResult{Success: 0, Failed: 0, Total: 0}, nil
+	}
+
+	// Convert all contents to points
+	points := make([]*qdrant.PointStruct, 0, len(contents))
+	var errors []error
+
+	for _, content := range contents {
+		if err := cs.validateContent(content); err != nil {
+			errors = append(errors, fmt.Errorf("content %s validation failed: %w", content.ID, err))
+			continue
+		}
+
+		// Set timestamps
+		if content.CreatedAt.IsZero() {
+			content.CreatedAt = time.Now()
+		}
+		content.UpdatedAt = time.Now()
+
+		point, err := cs.contentToPoint(content)
+		if err != nil {
+			errors = append(errors, fmt.Errorf("failed to convert content %s: %w", content.ID, err))
+			continue
+		}
+
+		points = append(points, point)
+	}
+
+	// Store valid points
+	if len(points) > 0 {
+		_, err := cs.client.Upsert(ctx, &qdrant.UpsertPoints{
+			CollectionName: cs.collectionName,
+			Points:         points,
+		})
+		if err != nil {
+			cs.incrementErrorCount("batch_store")
+			return nil, fmt.Errorf("failed to batch store contents in Qdrant: %w", err)
+		}
+	}
+
+	result := &BatchResult{
+		Success:   len(points),
+		Failed:    len(errors),
+		Total:     len(contents),
+		Errors:    errors,
+		Duration:  time.Since(start),
+		Timestamp: time.Now(),
+	}
+
+	cs.logger.Debug("batch store completed",
+		slog.Int("success", result.Success),
+		slog.Int("failed", result.Failed),
+		slog.Int("total", result.Total))
+
+	return result, nil
+}
+
+// BatchUpdate updates multiple contents efficiently
+func (cs *ContentStoreImpl) BatchUpdate(ctx context.Context, contents []*types.Content) (*BatchResult, error) {
+	start := time.Now()
+	defer cs.updateMetrics("batch_update", start)
+
+	// For now, implement as individual updates for data consistency
+	// TODO: Optimize with true batch operations when Qdrant supports it
+	var errors []error
+	successCount := 0
+
+	for _, content := range contents {
+		if err := cs.Update(ctx, content); err != nil {
+			errors = append(errors, fmt.Errorf("failed to update content %s: %w", content.ID, err))
+		} else {
+			successCount++
+		}
+	}
+
+	result := &BatchResult{
+		Success:   successCount,
+		Failed:    len(errors),
+		Total:     len(contents),
+		Errors:    errors,
+		Duration:  time.Since(start),
+		Timestamp: time.Now(),
+	}
+
+	return result, nil
+}
+
+// BatchDelete deletes multiple contents efficiently
+func (cs *ContentStoreImpl) BatchDelete(ctx context.Context, projectID types.ProjectID, contentIDs []string) (*BatchResult, error) {
+	start := time.Now()
+	defer cs.updateMetrics("batch_delete", start)
+
+	if err := projectID.Validate(); err != nil {
+		cs.incrementErrorCount("batch_delete")
+		return nil, fmt.Errorf("invalid project ID: %w", err)
+	}
+
+	if len(contentIDs) == 0 {
+		return &BatchResult{Success: 0, Failed: 0, Total: 0}, nil
+	}
+
+	// Create point IDs
+	pointIDs := make([]*qdrant.PointId, len(contentIDs))
+	for i, contentID := range contentIDs {
+		pointID := cs.createPointID(projectID, contentID)
+		pointIDs[i] = &qdrant.PointId{
+			PointIdOptions: &qdrant.PointId_Str{Str: pointID},
+		}
+	}
+
+	// Delete from Qdrant
+	_, err := cs.client.Delete(ctx, &qdrant.DeletePoints{
+		CollectionName: cs.collectionName,
+		PointsSelector: &qdrant.PointsSelector{
+			PointsSelectorOneOf: &qdrant.PointsSelector_Points{
+				Points: &qdrant.PointsIdsList{Ids: pointIDs},
+			},
+		},
+	})
+	if err != nil {
+		cs.incrementErrorCount("batch_delete")
+		return nil, fmt.Errorf("failed to batch delete contents: %w", err)
+	}
+
+	result := &BatchResult{
+		Success:   len(contentIDs),
+		Failed:    0,
+		Total:     len(contentIDs),
+		Duration:  time.Since(start),
+		Timestamp: time.Now(),
+	}
+
+	cs.logger.Debug("batch delete completed",
+		slog.String("project_id", string(projectID)),
+		slog.Int("deleted", len(contentIDs)))
+
+	return result, nil
+}
+
+// Helper methods
+
+func (cs *ContentStoreImpl) validateContent(content *types.Content) error {
+	if content == nil {
+		return fmt.Errorf("content cannot be nil")
+	}
+	if content.ID == "" {
+		return fmt.Errorf("content ID cannot be empty")
+	}
+	if err := content.ProjectID.Validate(); err != nil {
+		return fmt.Errorf("invalid project ID: %w", err)
+	}
+	if content.Content == "" {
+		return fmt.Errorf("content text cannot be empty")
+	}
+	if content.Type == "" {
+		return fmt.Errorf("content type cannot be empty")
+	}
+	if len(content.Embeddings) == 0 {
+		return fmt.Errorf("content must have embeddings before storing")
+	}
+	if len(content.Embeddings) != 1536 { // OpenAI embedding size
+		return fmt.Errorf("embeddings must be 1536 dimensions, got %d", len(content.Embeddings))
+	}
+	return nil
+}
+
+func (cs *ContentStoreImpl) contentToPoint(content *types.Content) (*qdrant.PointStruct, error) {
+	pointID := cs.createPointID(content.ProjectID, content.ID)
+
+	// Convert embeddings to float32
+	vectors := make([]float32, len(content.Embeddings))
+	for i, v := range content.Embeddings {
+		vectors[i] = float32(v)
+	}
+
+	// Create payload with all content fields
+	payload := map[string]*qdrant.Value{
+		"id":         {Kind: &qdrant.Value_StringValue{StringValue: content.ID}},
+		"project_id": {Kind: &qdrant.Value_StringValue{StringValue: string(content.ProjectID)}},
+		"type":       {Kind: &qdrant.Value_StringValue{StringValue: content.Type}},
+		"content":    {Kind: &qdrant.Value_StringValue{StringValue: content.Content}},
+		"created_at": {Kind: &qdrant.Value_IntegerValue{IntegerValue: content.CreatedAt.Unix()}},
+		"updated_at": {Kind: &qdrant.Value_IntegerValue{IntegerValue: content.UpdatedAt.Unix()}},
+		"version":    {Kind: &qdrant.Value_IntegerValue{IntegerValue: int64(content.Version)}},
+	}
+
+	// Add optional fields
+	if content.SessionID != "" {
+		payload["session_id"] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: string(content.SessionID)}}
+	}
+	if content.Title != "" {
+		payload["title"] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: content.Title}}
+	}
+	if content.Summary != "" {
+		payload["summary"] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: content.Summary}}
+	}
+	if content.Quality > 0 {
+		payload["quality"] = &qdrant.Value{Kind: &qdrant.Value_DoubleValue{DoubleValue: content.Quality}}
+	}
+	if content.Confidence > 0 {
+		payload["confidence"] = &qdrant.Value{Kind: &qdrant.Value_DoubleValue{DoubleValue: content.Confidence}}
+	}
+	if content.ParentID != "" {
+		payload["parent_id"] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: content.ParentID}}
+	}
+	if content.ThreadID != "" {
+		payload["thread_id"] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: content.ThreadID}}
+	}
+	if content.Source != "" {
+		payload["source"] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: content.Source}}
+	}
+	if content.SourcePath != "" {
+		payload["source_path"] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: content.SourcePath}}
+	}
+
+	// Add tags as array
+	if len(content.Tags) > 0 {
+		tagValues := make([]*qdrant.Value, len(content.Tags))
+		for i, tag := range content.Tags {
+			tagValues[i] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: tag}}
+		}
+		payload["tags"] = &qdrant.Value{Kind: &qdrant.Value_ListValue{
+			ListValue: &qdrant.ListValue{Values: tagValues},
+		}}
+	}
+
+	// Add metadata as JSON string if present
+	if len(content.Metadata) > 0 {
+		metadataBytes, err := json.Marshal(content.Metadata)
+		if err != nil {
+			return nil, fmt.Errorf("failed to marshal metadata: %w", err)
+		}
+		payload["metadata"] = &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: string(metadataBytes)}}
+	}
+
+	return &qdrant.PointStruct{
+		Id: &qdrant.PointId{
+			PointIdOptions: &qdrant.PointId_Str{Str: pointID},
+		},
+		Vectors: &qdrant.Vectors{
+			VectorsOptions: &qdrant.Vectors_Vector{
+				Vector: &qdrant.Vector{Data: vectors},
+			},
+		},
+		Payload: payload,
+	}, nil
+}
+
+func (cs *ContentStoreImpl) pointToContent(point *qdrant.RetrievedPoint) (*types.Content, error) {
+	payload := point.Payload
+
+	content := &types.Content{}
+
+	// Extract required fields
+	if id, ok := payload["id"]; ok && id.GetStringValue() != "" {
+		content.ID = id.GetStringValue()
+	} else {
+		return nil, fmt.Errorf("missing or invalid ID in point payload")
+	}
+
+	if projectID, ok := payload["project_id"]; ok && projectID.GetStringValue() != "" {
+		content.ProjectID = types.ProjectID(projectID.GetStringValue())
+	} else {
+		return nil, fmt.Errorf("missing or invalid project_id in point payload")
+	}
+
+	if contentType, ok := payload["type"]; ok && contentType.GetStringValue() != "" {
+		content.Type = contentType.GetStringValue()
+	} else {
+		return nil, fmt.Errorf("missing or invalid type in point payload")
+	}
+
+	if contentText, ok := payload["content"]; ok && contentText.GetStringValue() != "" {
+		content.Content = contentText.GetStringValue()
+	} else {
+		return nil, fmt.Errorf("missing or invalid content in point payload")
+	}
+
+	// Extract timestamps
+	if createdAt, ok := payload["created_at"]; ok {
+		content.CreatedAt = time.Unix(createdAt.GetIntegerValue(), 0)
+	}
+	if updatedAt, ok := payload["updated_at"]; ok {
+		content.UpdatedAt = time.Unix(updatedAt.GetIntegerValue(), 0)
+	}
+
+	// Extract version
+	if version, ok := payload["version"]; ok {
+		content.Version = int(version.GetIntegerValue())
+	}
+
+	// Extract optional fields
+	if sessionID, ok := payload["session_id"]; ok && sessionID.GetStringValue() != "" {
+		content.SessionID = types.SessionID(sessionID.GetStringValue())
+	}
+	if title, ok := payload["title"]; ok && title.GetStringValue() != "" {
+		content.Title = title.GetStringValue()
+	}
+	if summary, ok := payload["summary"]; ok && summary.GetStringValue() != "" {
+		content.Summary = summary.GetStringValue()
+	}
+	if quality, ok := payload["quality"]; ok {
+		content.Quality = quality.GetDoubleValue()
+	}
+	if confidence, ok := payload["confidence"]; ok {
+		content.Confidence = confidence.GetDoubleValue()
+	}
+	if parentID, ok := payload["parent_id"]; ok && parentID.GetStringValue() != "" {
+		content.ParentID = parentID.GetStringValue()
+	}
+	if threadID, ok := payload["thread_id"]; ok && threadID.GetStringValue() != "" {
+		content.ThreadID = threadID.GetStringValue()
+	}
+	if source, ok := payload["source"]; ok && source.GetStringValue() != "" {
+		content.Source = source.GetStringValue()
+	}
+	if sourcePath, ok := payload["source_path"]; ok && sourcePath.GetStringValue() != "" {
+		content.SourcePath = sourcePath.GetStringValue()
+	}
+
+	// Extract tags
+	if tags, ok := payload["tags"]; ok && tags.GetListValue() != nil {
+		tagValues := tags.GetListValue().Values
+		content.Tags = make([]string, len(tagValues))
+		for i, tag := range tagValues {
+			content.Tags[i] = tag.GetStringValue()
+		}
+	}
+
+	// Extract metadata
+	if metadata, ok := payload["metadata"]; ok && metadata.GetStringValue() != "" {
+		var metadataMap map[string]interface{}
+		if err := json.Unmarshal([]byte(metadata.GetStringValue()), &metadataMap); err != nil {
+			cs.logger.Warn("failed to unmarshal metadata", slog.String("error", err.Error()))
+		} else {
+			content.Metadata = metadataMap
+		}
+	}
+
+	// Extract embeddings from vectors
+	if point.Vectors != nil && point.Vectors.GetVector() != nil {
+		vectorData := point.Vectors.GetVector().Data
+		content.Embeddings = make([]float64, len(vectorData))
+		for i, v := range vectorData {
+			content.Embeddings[i] = float64(v)
+		}
+	}
+
+	return content, nil
+}
+
+func (cs *ContentStoreImpl) createPointID(projectID types.ProjectID, contentID string) string {
+	return fmt.Sprintf("%s:%s", projectID, contentID)
+}
+
+func (cs *ContentStoreImpl) updateMetrics(operation string, start time.Time) {
+	duration := time.Since(start)
+	cs.metrics.OperationCounts[operation]++
+
+	// Update average latency (simple moving average)
+	current := cs.metrics.AverageLatency[operation]
+	count := cs.metrics.OperationCounts[operation]
+	cs.metrics.AverageLatency[operation] = (current*float64(count-1) + duration.Seconds()) / float64(count)
+}
+
+func (cs *ContentStoreImpl) incrementErrorCount(operation string) {
+	cs.metrics.ErrorCounts[operation]++
+}
+
+// GetMetrics returns current storage metrics
+func (cs *ContentStoreImpl) GetMetrics() *StorageMetrics {
+	return cs.metrics
+}

@@ -1,0 +1,332 @@
+// Package storage provides enhanced content storage with embeddings integration
+package storage
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+	"time"
+
+	"github.com/qdrant/go-client/qdrant"
+
+	"lerian-mcp-memory/internal/embeddings"
+	"lerian-mcp-memory/internal/types"
+)
+
+// EnhancedContentStore extends ContentStore with embeddings generation
+type EnhancedContentStore struct {
+	*ContentStoreImpl
+	embeddingService embeddings.EmbeddingService
+}
+
+// NewEnhancedContentStore creates a content store with embeddings integration
+func NewEnhancedContentStore(client *qdrant.Client, collectionName string, logger *slog.Logger, embeddingService embeddings.EmbeddingService) *EnhancedContentStore {
+	contentStore := NewContentStore(client, collectionName, logger)
+
+	return &EnhancedContentStore{
+		ContentStoreImpl: contentStore,
+		embeddingService: embeddingService,
+	}
+}
+
+// Store saves content with automatic embeddings generation
+func (ecs *EnhancedContentStore) Store(ctx context.Context, content *types.Content) error {
+	start := time.Now()
+	defer ecs.updateMetrics("enhanced_store", start)
+
+	// Validate content (excluding embeddings check since we'll generate them)
+	if err := ecs.validateContentForEmbedding(content); err != nil {
+		ecs.incrementErrorCount("enhanced_store")
+		return fmt.Errorf("content validation failed: %w", err)
+	}
+
+	// Generate embeddings if not provided
+	if len(content.Embeddings) == 0 {
+		embeddings, err := ecs.embeddingService.Generate(ctx, content.Content)
+		if err != nil {
+			ecs.incrementErrorCount("enhanced_store")
+			return fmt.Errorf("failed to generate embeddings: %w", err)
+		}
+		content.Embeddings = embeddings
+	}
+
+	// Ensure timestamps are set
+	if content.CreatedAt.IsZero() {
+		content.CreatedAt = time.Now()
+	}
+	content.UpdatedAt = time.Now()
+
+	// Use the base implementation to store
+	if err := ecs.ContentStoreImpl.Store(ctx, content); err != nil {
+		ecs.incrementErrorCount("enhanced_store")
+		return fmt.Errorf("failed to store content: %w", err)
+	}
+
+	ecs.logger.Debug("enhanced content stored successfully",
+		slog.String("id", content.ID),
+		slog.String("project_id", string(content.ProjectID)),
+		slog.String("type", content.Type),
+		slog.Int("embedding_dimensions", len(content.Embeddings)))
+
+	return nil
+}
+
+// Update modifies existing content with embeddings regeneration if content changed
+func (ecs *EnhancedContentStore) Update(ctx context.Context, content *types.Content) error {
+	start := time.Now()
+	defer ecs.updateMetrics("enhanced_update", start)
+
+	// Validate content
+	if err := ecs.validateContentForEmbedding(content); err != nil {
+		ecs.incrementErrorCount("enhanced_update")
+		return fmt.Errorf("content validation failed: %w", err)
+	}
+
+	// Get existing content to check if content text changed
+	existing, err := ecs.ContentStoreImpl.Get(ctx, content.ProjectID, content.ID)
+	if err != nil {
+		ecs.incrementErrorCount("enhanced_update")
+		return fmt.Errorf("failed to get existing content: %w", err)
+	}
+	if existing == nil {
+		ecs.incrementErrorCount("enhanced_update")
+		return fmt.Errorf("content with ID %s not found in project %s", content.ID, content.ProjectID)
+	}
+
+	// Regenerate embeddings if content text changed
+	if existing.Content != content.Content || len(content.Embeddings) == 0 {
+		embeddings, err := ecs.embeddingService.Generate(ctx, content.Content)
+		if err != nil {
+			ecs.incrementErrorCount("enhanced_update")
+			return fmt.Errorf("failed to generate embeddings: %w", err)
+		}
+		content.Embeddings = embeddings
+	} else {
+		// Keep existing embeddings if content hasn't changed
+		content.Embeddings = existing.Embeddings
+	}
+
+	// Update timestamps and version
+	content.Version = existing.Version + 1
+	content.CreatedAt = existing.CreatedAt // Preserve original creation time
+	content.UpdatedAt = time.Now()
+
+	// Use base implementation to update
+	if err := ecs.ContentStoreImpl.Update(ctx, content); err != nil {
+		ecs.incrementErrorCount("enhanced_update")
+		return fmt.Errorf("failed to update content: %w", err)
+	}
+
+	ecs.logger.Debug("enhanced content updated successfully",
+		slog.String("id", content.ID),
+		slog.String("project_id", string(content.ProjectID)),
+		slog.Int("new_version", content.Version),
+		slog.Bool("embeddings_regenerated", existing.Content != content.Content))
+
+	return nil
+}
+
+// BatchStore stores multiple contents with batch embeddings generation
+func (ecs *EnhancedContentStore) BatchStore(ctx context.Context, contents []*types.Content) (*BatchResult, error) {
+	start := time.Now()
+	defer ecs.updateMetrics("enhanced_batch_store", start)
+
+	if len(contents) == 0 {
+		return &BatchResult{Success: 0, Failed: 0, Total: 0}, nil
+	}
+
+	// Collect texts that need embeddings
+	var textsToEmbed []string
+	var textsIndices []int
+	var errors []error
+
+	for i, content := range contents {
+		if err := ecs.validateContentForEmbedding(content); err != nil {
+			errors = append(errors, fmt.Errorf("content %s validation failed: %w", content.ID, err))
+			continue
+		}
+
+		// Set timestamps
+		if content.CreatedAt.IsZero() {
+			content.CreatedAt = time.Now()
+		}
+		content.UpdatedAt = time.Now()
+
+		// Check if embeddings need to be generated
+		if len(content.Embeddings) == 0 {
+			textsToEmbed = append(textsToEmbed, content.Content)
+			textsIndices = append(textsIndices, i)
+		}
+	}
+
+	// Generate batch embeddings if needed
+	if len(textsToEmbed) > 0 {
+		batchEmbeddings, err := ecs.embeddingService.GenerateBatch(ctx, textsToEmbed)
+		if err != nil {
+			ecs.incrementErrorCount("enhanced_batch_store")
+			return nil, fmt.Errorf("failed to generate batch embeddings: %w", err)
+		}
+
+		// Assign embeddings to contents
+		for i, embeddings := range batchEmbeddings {
+			contentIndex := textsIndices[i]
+			contents[contentIndex].Embeddings = embeddings
+		}
+	}
+
+	// Use base implementation for batch storage
+	result, err := ecs.ContentStoreImpl.BatchStore(ctx, contents)
+	if err != nil {
+		ecs.incrementErrorCount("enhanced_batch_store")
+		return nil, fmt.Errorf("failed to batch store contents: %w", err)
+	}
+
+	// Add any validation errors to the result
+	if len(errors) > 0 {
+		if result.Errors == nil {
+			result.Errors = errors
+		} else {
+			result.Errors = append(result.Errors, errors...)
+		}
+		result.Failed += len(errors)
+		result.Total = len(contents)
+	}
+
+	ecs.logger.Debug("enhanced batch store completed",
+		slog.Int("success", result.Success),
+		slog.Int("failed", result.Failed),
+		slog.Int("total", result.Total),
+		slog.Int("embeddings_generated", len(textsToEmbed)))
+
+	return result, nil
+}
+
+// StoreWithMetadata stores content with additional metadata and automatic embedding
+func (ecs *EnhancedContentStore) StoreWithMetadata(ctx context.Context, content *types.Content, metadata map[string]interface{}) error {
+	// Merge metadata
+	if content.Metadata == nil {
+		content.Metadata = make(map[string]interface{})
+	}
+	for k, v := range metadata {
+		content.Metadata[k] = v
+	}
+
+	// Add embedding metadata
+	content.Metadata["embedding_model"] = "text-embedding-ada-002" // Could get from service
+	content.Metadata["embedding_dimensions"] = ecs.embeddingService.GetDimensions()
+	content.Metadata["enhanced_store"] = true
+
+	return ecs.Store(ctx, content)
+}
+
+// SearchSimilar performs similarity search with automatic query embedding
+func (ecs *EnhancedContentStore) SearchSimilar(ctx context.Context, query string, projectID types.ProjectID, limit int, minSimilarity float64) ([]*types.Content, error) {
+	start := time.Now()
+	defer ecs.updateMetrics("search_similar", start)
+
+	if query == "" {
+		ecs.incrementErrorCount("search_similar")
+		return nil, fmt.Errorf("query cannot be empty")
+	}
+
+	// Generate embeddings for the query
+	queryEmbeddings, err := ecs.embeddingService.Generate(ctx, query)
+	if err != nil {
+		ecs.incrementErrorCount("search_similar")
+		return nil, fmt.Errorf("failed to generate query embeddings: %w", err)
+	}
+
+	// Convert to float32 for Qdrant
+	queryVector := make([]float32, len(queryEmbeddings))
+	for i, v := range queryEmbeddings {
+		queryVector[i] = float32(v)
+	}
+
+	// Build filter for project
+	filter := &qdrant.Filter{
+		Must: []*qdrant.Condition{
+			{
+				ConditionOneOf: &qdrant.Condition_Field{
+					Field: &qdrant.FieldCondition{
+						Key: "project_id",
+						Match: &qdrant.Match{
+							MatchValue: &qdrant.Match_Keyword{Keyword: string(projectID)},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	// Perform vector search
+	searchResult, err := ecs.client.Search(ctx, &qdrant.SearchPoints{
+		CollectionName: ecs.collectionName,
+		Vector:         queryVector,
+		Filter:         filter,
+		Limit:          uint64(limit),
+		WithPayload: &qdrant.WithPayloadSelector{
+			SelectorOptions: &qdrant.WithPayloadSelector_Enable{Enable: true},
+		},
+		WithVectors: &qdrant.WithVectorsSelector{
+			SelectorOptions: &qdrant.WithVectorsSelector_Enable{Enable: true},
+		},
+		ScoreThreshold: &minSimilarity,
+	})
+	if err != nil {
+		ecs.incrementErrorCount("search_similar")
+		return nil, fmt.Errorf("failed to perform vector search: %w", err)
+	}
+
+	// Convert results to content
+	var results []*types.Content
+	for _, point := range searchResult.Result {
+		content, err := ecs.pointToContent(point.GetScoredPoint())
+		if err != nil {
+			ecs.logger.Warn("failed to convert search result to content",
+				slog.String("error", err.Error()))
+			continue
+		}
+		results = append(results, content)
+	}
+
+	ecs.logger.Debug("similarity search completed",
+		slog.String("query", query),
+		slog.String("project_id", string(projectID)),
+		slog.Int("results", len(results)),
+		slog.Float64("min_similarity", minSimilarity))
+
+	return results, nil
+}
+
+// Helper method to convert ScoredPoint to Content
+func (ecs *EnhancedContentStore) pointToContent(scoredPoint *qdrant.ScoredPoint) (*types.Content, error) {
+	// Create a RetrievedPoint from ScoredPoint for compatibility
+	retrievedPoint := &qdrant.RetrievedPoint{
+		Id:      scoredPoint.Id,
+		Payload: scoredPoint.Payload,
+		Vectors: scoredPoint.Vectors,
+	}
+
+	return ecs.ContentStoreImpl.pointToContent(retrievedPoint)
+}
+
+// validateContentForEmbedding validates content without requiring pre-existing embeddings
+func (ecs *EnhancedContentStore) validateContentForEmbedding(content *types.Content) error {
+	if content == nil {
+		return fmt.Errorf("content cannot be nil")
+	}
+	if content.ID == "" {
+		return fmt.Errorf("content ID cannot be empty")
+	}
+	if err := content.ProjectID.Validate(); err != nil {
+		return fmt.Errorf("invalid project ID: %w", err)
+	}
+	if content.Content == "" {
+		return fmt.Errorf("content text cannot be empty")
+	}
+	if content.Type == "" {
+		return fmt.Errorf("content type cannot be empty")
+	}
+	// NOTE: We don't check for embeddings here since we'll generate them
+	return nil
+}

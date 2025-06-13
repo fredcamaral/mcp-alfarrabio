@@ -20,14 +20,14 @@ func (p ProjectID) Validate() error {
 	if len(p) > 100 {
 		return fmt.Errorf("project_id must be 100 characters or less, got %d", len(p))
 	}
-	
+
 	// Allow alphanumeric characters, hyphens, underscores, and dots
 	// This covers Git URLs, folder names, and custom identifiers
 	validFormat := regexp.MustCompile(`^[a-zA-Z0-9\-_./:]+$`)
 	if !validFormat.MatchString(string(p)) {
 		return fmt.Errorf("project_id contains invalid characters, only alphanumeric, hyphens, underscores, dots, colons, and slashes allowed")
 	}
-	
+
 	return nil
 }
 
@@ -53,13 +53,13 @@ func (s SessionID) Validate() error {
 	if len(s) > 100 {
 		return fmt.Errorf("session_id must be 100 characters or less, got %d", len(s))
 	}
-	
+
 	// Allow alphanumeric characters, hyphens, and underscores
 	validFormat := regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
 	if !validFormat.MatchString(string(s)) {
 		return fmt.Errorf("session_id contains invalid characters, only alphanumeric, hyphens, and underscores allowed")
 	}
-	
+
 	return nil
 }
 
@@ -81,11 +81,11 @@ const (
 	// ScopeSession requires both session_id and project_id
 	// Provides full access to session data + project data
 	ScopeSession OperationScope = "session"
-	
+
 	// ScopeProject requires project_id only
 	// Provides read-only access to project-wide data
 	ScopeProject OperationScope = "project"
-	
+
 	// ScopeGlobal requires no parameters
 	// Provides access to system-wide operations (health, etc.)
 	ScopeGlobal OperationScope = "global"
@@ -131,7 +131,7 @@ func (sp *StandardParams) Validate() error {
 	if !sp.Scope.Valid() {
 		return fmt.Errorf("invalid scope: %s", sp.Scope)
 	}
-	
+
 	// Validate scope requirements
 	if sp.Scope.RequiresProjectID() && sp.ProjectID.IsEmpty() {
 		return fmt.Errorf("scope %s requires project_id", sp.Scope)
@@ -139,7 +139,7 @@ func (sp *StandardParams) Validate() error {
 	if sp.Scope.RequiresSessionID() && sp.SessionID.IsEmpty() {
 		return fmt.Errorf("scope %s requires session_id", sp.Scope)
 	}
-	
+
 	return nil
 }
 
@@ -160,10 +160,10 @@ type AccessLevel string
 const (
 	// AccessGlobal allows access to system-wide operations only
 	AccessGlobal AccessLevel = "global"
-	
+
 	// AccessProject allows read-only access to project data
 	AccessProject AccessLevel = "project"
-	
+
 	// AccessSession allows full access to session + project data
 	AccessSession AccessLevel = "session"
 )

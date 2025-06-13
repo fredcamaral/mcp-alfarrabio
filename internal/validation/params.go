@@ -10,11 +10,11 @@ import (
 
 // OperationRequirements defines what parameters an operation requires
 type OperationRequirements struct {
-	Scope               types.OperationScope `json:"scope"`
-	RequiresProjectID   bool                 `json:"requires_project_id"`
-	RequiresSessionID   bool                 `json:"requires_session_id"`
-	AllowsEmptySession  bool                 `json:"allows_empty_session"`
-	Description         string               `json:"description"`
+	Scope              types.OperationScope `json:"scope"`
+	RequiresProjectID  bool                 `json:"requires_project_id"`
+	RequiresSessionID  bool                 `json:"requires_session_id"`
+	AllowsEmptySession bool                 `json:"allows_empty_session"`
+	Description        string               `json:"description"`
 }
 
 // Validate checks if the provided parameters meet the operation requirements
@@ -62,10 +62,10 @@ func NewParameterValidator() *ParameterValidator {
 	pv := &ParameterValidator{
 		requirements: make(map[string]*OperationRequirements),
 	}
-	
+
 	// Initialize with standard operation requirements
 	pv.initializeStandardRequirements()
-	
+
 	return pv
 }
 
@@ -73,110 +73,110 @@ func NewParameterValidator() *ParameterValidator {
 func (pv *ParameterValidator) initializeStandardRequirements() {
 	// Store operations - require session for writes
 	pv.requirements["store_content"] = &OperationRequirements{
-		Scope:             types.ScopeSession,
-		RequiresProjectID: true,
-		RequiresSessionID: true,
+		Scope:              types.ScopeSession,
+		RequiresProjectID:  true,
+		RequiresSessionID:  true,
 		AllowsEmptySession: false,
-		Description:       "Store content requires session access for write operations",
+		Description:        "Store content requires session access for write operations",
 	}
-	
+
 	pv.requirements["store_decision"] = &OperationRequirements{
-		Scope:             types.ScopeSession,
-		RequiresProjectID: true,
-		RequiresSessionID: true,
+		Scope:              types.ScopeSession,
+		RequiresProjectID:  true,
+		RequiresSessionID:  true,
 		AllowsEmptySession: false,
-		Description:       "Store decision requires session access for write operations",
+		Description:        "Store decision requires session access for write operations",
 	}
-	
+
 	pv.requirements["update_content"] = &OperationRequirements{
-		Scope:             types.ScopeSession,
-		RequiresProjectID: true,
-		RequiresSessionID: true,
+		Scope:              types.ScopeSession,
+		RequiresProjectID:  true,
+		RequiresSessionID:  true,
 		AllowsEmptySession: false,
-		Description:       "Update content requires session access for write operations",
+		Description:        "Update content requires session access for write operations",
 	}
-	
+
 	pv.requirements["delete_content"] = &OperationRequirements{
-		Scope:             types.ScopeSession,
-		RequiresProjectID: true,
-		RequiresSessionID: true,
+		Scope:              types.ScopeSession,
+		RequiresProjectID:  true,
+		RequiresSessionID:  true,
 		AllowsEmptySession: false,
-		Description:       "Delete content requires session access for write operations",
+		Description:        "Delete content requires session access for write operations",
 	}
-	
+
 	// Retrieve operations - can work with project scope (read-only)
 	pv.requirements["search"] = &OperationRequirements{
-		Scope:             types.ScopeProject,
-		RequiresProjectID: true,
-		RequiresSessionID: false,
+		Scope:              types.ScopeProject,
+		RequiresProjectID:  true,
+		RequiresSessionID:  false,
 		AllowsEmptySession: true,
-		Description:       "Search allows project-level read access",
+		Description:        "Search allows project-level read access",
 	}
-	
+
 	pv.requirements["get_content"] = &OperationRequirements{
-		Scope:             types.ScopeProject,
-		RequiresProjectID: true,
-		RequiresSessionID: false,
+		Scope:              types.ScopeProject,
+		RequiresProjectID:  true,
+		RequiresSessionID:  false,
 		AllowsEmptySession: true,
-		Description:       "Get content allows project-level read access",
+		Description:        "Get content allows project-level read access",
 	}
-	
+
 	pv.requirements["find_similar"] = &OperationRequirements{
-		Scope:             types.ScopeProject,
-		RequiresProjectID: true,
-		RequiresSessionID: false,
+		Scope:              types.ScopeProject,
+		RequiresProjectID:  true,
+		RequiresSessionID:  false,
 		AllowsEmptySession: true,
-		Description:       "Find similar allows project-level read access",
+		Description:        "Find similar allows project-level read access",
 	}
-	
+
 	// Analyze operations - read-only, work with project scope
 	pv.requirements["detect_patterns"] = &OperationRequirements{
-		Scope:             types.ScopeProject,
-		RequiresProjectID: true,
-		RequiresSessionID: false,
+		Scope:              types.ScopeProject,
+		RequiresProjectID:  true,
+		RequiresSessionID:  false,
 		AllowsEmptySession: true,
-		Description:       "Pattern detection allows project-level read access",
+		Description:        "Pattern detection allows project-level read access",
 	}
-	
+
 	pv.requirements["suggest_related"] = &OperationRequirements{
-		Scope:             types.ScopeProject,
-		RequiresProjectID: true,
-		RequiresSessionID: false,
+		Scope:              types.ScopeProject,
+		RequiresProjectID:  true,
+		RequiresSessionID:  false,
 		AllowsEmptySession: true,
-		Description:       "Suggest related allows project-level read access",
+		Description:        "Suggest related allows project-level read access",
 	}
-	
+
 	pv.requirements["analyze_quality"] = &OperationRequirements{
-		Scope:             types.ScopeProject,
-		RequiresProjectID: true,
-		RequiresSessionID: false,
+		Scope:              types.ScopeProject,
+		RequiresProjectID:  true,
+		RequiresSessionID:  false,
 		AllowsEmptySession: true,
-		Description:       "Quality analysis allows project-level read access",
+		Description:        "Quality analysis allows project-level read access",
 	}
-	
+
 	// System operations - global scope, no project/session required
 	pv.requirements["health"] = &OperationRequirements{
-		Scope:             types.ScopeGlobal,
-		RequiresProjectID: false,
-		RequiresSessionID: false,
+		Scope:              types.ScopeGlobal,
+		RequiresProjectID:  false,
+		RequiresSessionID:  false,
 		AllowsEmptySession: true,
-		Description:       "Health check is a global operation",
+		Description:        "Health check is a global operation",
 	}
-	
+
 	pv.requirements["export_project"] = &OperationRequirements{
-		Scope:             types.ScopeProject,
-		RequiresProjectID: true,
-		RequiresSessionID: false,
+		Scope:              types.ScopeProject,
+		RequiresProjectID:  true,
+		RequiresSessionID:  false,
 		AllowsEmptySession: true,
-		Description:       "Export project allows project-level read access",
+		Description:        "Export project allows project-level read access",
 	}
-	
+
 	pv.requirements["import_project"] = &OperationRequirements{
-		Scope:             types.ScopeSession,
-		RequiresProjectID: true,
-		RequiresSessionID: true,
+		Scope:              types.ScopeSession,
+		RequiresProjectID:  true,
+		RequiresSessionID:  true,
 		AllowsEmptySession: false,
-		Description:       "Import project requires session access for write operations",
+		Description:        "Import project requires session access for write operations",
 	}
 }
 
@@ -186,7 +186,7 @@ func (pv *ParameterValidator) ValidateOperation(operation string, params *types.
 	if !exists {
 		return fmt.Errorf("unknown operation: %s", operation)
 	}
-	
+
 	return requirements.Validate(params)
 }
 
@@ -196,7 +196,7 @@ func (pv *ParameterValidator) GetOperationRequirements(operation string) (*Opera
 	if !exists {
 		return nil, fmt.Errorf("unknown operation: %s", operation)
 	}
-	
+
 	return requirements, nil
 }
 
@@ -217,12 +217,12 @@ func (pv *ParameterValidator) ListOperations() []string {
 // CreateErrorMessage creates a helpful error message for parameter validation failures
 func CreateErrorMessage(operation string, err error, params *types.StandardParams) string {
 	baseMsg := fmt.Sprintf("Operation '%s' failed parameter validation: %s", operation, err.Error())
-	
+
 	if params != nil {
 		baseMsg += fmt.Sprintf("\nProvided parameters: project_id='%s', session_id='%s', scope='%s'",
 			params.ProjectID, params.SessionID, params.Scope)
 	}
-	
+
 	// Add helpful suggestions based on common errors
 	if params != nil {
 		if params.ProjectID.IsEmpty() {
@@ -232,6 +232,6 @@ func CreateErrorMessage(operation string, err error, params *types.StandardParam
 			baseMsg += "\nSuggestion: Provide a session_id for write operations to ensure proper data isolation"
 		}
 	}
-	
+
 	return baseMsg
 }

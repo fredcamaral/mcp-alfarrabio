@@ -50,15 +50,20 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Always allow health checks to succeed
-	if request.Method == "memory_system/health" {
-		response := MCPResponse{
-			JSONRPC: "2.0",
-			ID:      request.ID,
-			Result:  map[string]string{"status": "healthy"},
+	if request.Method == "memory_system" {
+		// Check if this is a health operation
+		if paramsMap, ok := request.Params.(map[string]interface{}); ok {
+			if operation, ok := paramsMap["operation"].(string); ok && operation == "health" {
+				response := MCPResponse{
+					JSONRPC: "2.0",
+					ID:      request.ID,
+					Result:  map[string]string{"status": "healthy"},
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(response)
+				return
+			}
 		}
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(response)
-		return
 	}
 
 	// Simulate failures for retry testing (only for non-health requests)
@@ -74,12 +79,16 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 	}
 
 	switch request.Method {
-	case "memory_tasks/todo_write":
-		m.handleTodoWrite(request.Params, &response)
-	case "memory_tasks/todo_read":
-		m.handleTodoRead(request.Params, &response)
-	case "memory_tasks/todo_update":
-		m.handleTodoUpdate(request.Params, &response)
+	case "memory_create":
+		m.handleMemoryCreate(request.Params, &response)
+	case "memory_read":
+		m.handleMemoryRead(request.Params, &response)
+	case "memory_update":
+		m.handleMemoryUpdate(request.Params, &response)
+	case "memory_analyze":
+		m.handleMemoryAnalyze(request.Params, &response)
+	case "memory_system":
+		m.handleMemorySystem(request.Params, &response)
 	default:
 		response.Error = &MCPError{
 			Code:    -32601,
@@ -91,122 +100,214 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 	_ = json.NewEncoder(w).Encode(response)
 }
 
-func (m *mockMCPServer) handleTodoWrite(params interface{}, response *MCPResponse) {
+func (m *mockMCPServer) handleMemoryCreate(params interface{}, response *MCPResponse) {
 	paramsMap, ok := params.(map[string]interface{})
 	if !ok {
 		response.Error = &MCPError{Code: -32602, Message: "Invalid params"}
 		return
 	}
 
-	todos, ok := paramsMap["todos"].([]interface{})
+	operation, ok := paramsMap["operation"].(string)
 	if !ok {
-		response.Error = &MCPError{Code: -32602, Message: "Invalid todos"}
+		response.Error = &MCPError{Code: -32602, Message: "Missing operation"}
 		return
 	}
 
-	for _, todo := range todos {
-		taskMap, ok := todo.(map[string]interface{})
+	options, ok := paramsMap["options"].(map[string]interface{})
+	if !ok {
+		response.Error = &MCPError{Code: -32602, Message: "Missing options"}
+		return
+	}
+
+	// Handle store_chunk operation (used for storing tasks)
+	if operation == "store_chunk" {
+		// Extract task information from content
+		content, ok := options["content"].(string)
 		if !ok {
-			continue
+			response.Error = &MCPError{Code: -32602, Message: "Missing content"}
+			return
 		}
 
-		// Create a simple task from the map
+		repository, ok := options["repository"].(string)
+		if !ok {
+			response.Error = &MCPError{Code: -32602, Message: "Missing repository"}
+			return
+		}
+
+		// Create a simple task from the content
 		task := &entities.Task{
-			ID:         taskMap["id"].(string),
-			Content:    taskMap["content"].(string),
-			Status:     entities.Status(taskMap["status"].(string)),
-			Priority:   entities.Priority(taskMap["priority"].(string)),
-			Repository: taskMap["repository"].(string),
+			ID:         uuid.New().String(),
+			Content:    content,
+			Status:     entities.StatusPending,
+			Priority:   entities.PriorityMedium,
+			Repository: repository,
 		}
 
 		m.tasks[task.ID] = task
+		response.Result = map[string]interface{}{
+			"status":   "success",
+			"chunk_id": task.ID,
+		}
+		return
 	}
 
 	response.Result = map[string]string{"status": "success"}
 }
 
-func (m *mockMCPServer) handleTodoRead(params interface{}, response *MCPResponse) {
+func (m *mockMCPServer) handleMemoryRead(params interface{}, response *MCPResponse) {
 	paramsMap, ok := params.(map[string]interface{})
 	if !ok {
 		response.Error = &MCPError{Code: -32602, Message: "Invalid params"}
 		return
 	}
 
-	repo, ok := paramsMap["repository"].(string)
+	operation, ok := paramsMap["operation"].(string)
+	if !ok {
+		response.Error = &MCPError{Code: -32602, Message: "Missing operation"}
+		return
+	}
+
+	options, ok := paramsMap["options"].(map[string]interface{})
+	if !ok {
+		response.Error = &MCPError{Code: -32602, Message: "Missing options"}
+		return
+	}
+
+	repo, ok := options["repository"].(string)
 	if !ok {
 		response.Error = &MCPError{Code: -32602, Message: "Invalid repository"}
 		return
 	}
 
-	todos := make([]interface{}, 0, 5)
-	for _, task := range m.tasks {
-		if task.Repository != repo {
-			continue
-		}
-		taskMap := map[string]interface{}{
-			"id":         task.ID,
-			"content":    task.Content,
-			"status":     string(task.Status),
-			"priority":   string(task.Priority),
-			"repository": task.Repository,
-			"created_at": task.CreatedAt.Format(time.RFC3339),
-			"updated_at": task.UpdatedAt.Format(time.RFC3339),
+	// Handle search operation (used for retrieving tasks)
+	if operation == "search" {
+		chunks := make([]interface{}, 0, 5)
+		for _, task := range m.tasks {
+			if task.Repository != repo {
+				continue
+			}
+			chunkMap := map[string]interface{}{
+				"id":         task.ID,
+				"content":    task.Content,
+				"type":       "task",
+				"repository": task.Repository,
+				"created_at": task.CreatedAt.Format(time.RFC3339),
+				"updated_at": task.UpdatedAt.Format(time.RFC3339),
+				"metadata": map[string]interface{}{
+					"status":   string(task.Status),
+					"priority": string(task.Priority),
+					"tags":     task.Tags,
+				},
+			}
+
+			// Add optional fields if they exist
+			if task.EstimatedMins > 0 {
+				chunkMap["estimated_mins"] = task.EstimatedMins
+			}
+			if task.ActualMins > 0 {
+				chunkMap["actual_mins"] = task.ActualMins
+			}
+			if task.ParentTaskID != "" {
+				chunkMap["parent_task_id"] = task.ParentTaskID
+			}
+			if task.SessionID != "" {
+				chunkMap["session_id"] = task.SessionID
+			}
+			if task.CompletedAt != nil {
+				chunkMap["completed_at"] = task.CompletedAt.Format(time.RFC3339)
+			}
+
+			chunks = append(chunks, chunkMap)
 		}
 
-		// Add optional fields if they exist
-		if len(task.Tags) > 0 {
-			taskMap["tags"] = task.Tags
+		response.Result = map[string]interface{}{
+			"chunks": chunks,
 		}
-		if task.EstimatedMins > 0 {
-			taskMap["estimated_mins"] = task.EstimatedMins
-		}
-		if task.ActualMins > 0 {
-			taskMap["actual_mins"] = task.ActualMins
-		}
-		if task.ParentTaskID != "" {
-			taskMap["parent_task_id"] = task.ParentTaskID
-		}
-		if task.SessionID != "" {
-			taskMap["session_id"] = task.SessionID
-		}
-		if task.CompletedAt != nil {
-			taskMap["completed_at"] = task.CompletedAt.Format(time.RFC3339)
-		}
-
-		todos = append(todos, taskMap)
+		return
 	}
 
 	response.Result = map[string]interface{}{
-		"todos": todos,
+		"status": "success",
 	}
 }
 
-func (m *mockMCPServer) handleTodoUpdate(params interface{}, response *MCPResponse) {
+func (m *mockMCPServer) handleMemoryUpdate(params interface{}, response *MCPResponse) {
 	paramsMap, ok := params.(map[string]interface{})
 	if !ok {
 		response.Error = &MCPError{Code: -32602, Message: "Invalid params"}
 		return
 	}
 
-	taskID, ok := paramsMap["task_id"].(string)
+	operation, ok := paramsMap["operation"].(string)
 	if !ok {
-		response.Error = &MCPError{Code: -32602, Message: "Invalid task_id"}
+		response.Error = &MCPError{Code: -32602, Message: "Missing operation"}
 		return
 	}
 
-	status, ok := paramsMap["status"].(string)
+	options, ok := paramsMap["options"].(map[string]interface{})
 	if !ok {
-		response.Error = &MCPError{Code: -32602, Message: "Invalid status"}
+		response.Error = &MCPError{Code: -32602, Message: "Missing options"}
 		return
 	}
 
-	task, exists := m.tasks[taskID]
-	if !exists {
-		response.Error = &MCPError{Code: -32602, Message: "Task not found"}
+	// Handle update_thread operation (used for updating tasks)
+	if operation == "update_thread" {
+		taskID, ok := options["thread_id"].(string)
+		if !ok {
+			response.Error = &MCPError{Code: -32602, Message: "Invalid thread_id"}
+			return
+		}
+
+		metadata, ok := options["metadata"].(map[string]interface{})
+		if !ok {
+			response.Error = &MCPError{Code: -32602, Message: "Invalid metadata"}
+			return
+		}
+
+		task, exists := m.tasks[taskID]
+		if !exists {
+			response.Error = &MCPError{Code: -32602, Message: "Task not found"}
+			return
+		}
+
+		// Update task status from metadata
+		if status, ok := metadata["status"].(string); ok {
+			task.Status = entities.Status(status)
+		}
+
+		response.Result = map[string]string{"status": "success"}
 		return
 	}
 
-	task.Status = entities.Status(status)
+	response.Result = map[string]string{"status": "success"}
+}
+
+func (m *mockMCPServer) handleMemoryAnalyze(params interface{}, response *MCPResponse) {
+	// Basic implementation for analyze operations
+	response.Result = map[string]interface{}{
+		"status":   "success",
+		"insights": []string{"Mock analysis result"},
+	}
+}
+
+func (m *mockMCPServer) handleMemorySystem(params interface{}, response *MCPResponse) {
+	paramsMap, ok := params.(map[string]interface{})
+	if !ok {
+		response.Error = &MCPError{Code: -32602, Message: "Invalid params"}
+		return
+	}
+
+	operation, ok := paramsMap["operation"].(string)
+	if !ok {
+		response.Error = &MCPError{Code: -32602, Message: "Missing operation"}
+		return
+	}
+
+	if operation == "health" {
+		response.Result = map[string]string{"status": "healthy"}
+		return
+	}
+
 	response.Result = map[string]string{"status": "success"}
 }
 

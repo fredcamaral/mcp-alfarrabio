@@ -16,13 +16,13 @@ import (
 
 // AITaskGenerator handles AI-powered task generation
 type AITaskGenerator struct {
-	aiService   *Service
+	aiService   Service
 	ruleManager *documents.RuleManager
 	logger      *slog.Logger
 }
 
 // NewAITaskGenerator creates a new AI-powered task generator
-func NewAITaskGenerator(aiService *Service, ruleManager *documents.RuleManager, logger *slog.Logger) *AITaskGenerator {
+func NewAITaskGenerator(aiService Service, ruleManager *documents.RuleManager, logger *slog.Logger) *AITaskGenerator {
 	return &AITaskGenerator{
 		aiService:   aiService,
 		ruleManager: ruleManager,
@@ -75,7 +75,7 @@ func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *doc
 				Content: prompt,
 			},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			Repository: trd.Repository,
 			Tags:       []string{"task_generation", "main_tasks"},
 		},
@@ -92,7 +92,12 @@ func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *doc
 	g.logger.Info("AI main task generation completed",
 		slog.Duration("duration", duration),
 		slog.String("model", string(resp.Model)),
-		slog.Int("tokens", resp.TokensUsed.Total))
+		slog.Int("tokens", func() int {
+			if resp.TokensUsed != nil {
+				return resp.TokensUsed.Total
+			}
+			return 0
+		}()))
 
 	// Parse AI response into main tasks
 	mainTasks, err := g.parseMainTasksResponse(resp.Content, trd, prd)
@@ -146,7 +151,7 @@ func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, main
 				Content: prompt,
 			},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			Repository: mainTask.Repository,
 			Tags:       []string{"task_generation", "sub_tasks"},
 		},
@@ -163,7 +168,12 @@ func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, main
 	g.logger.Info("AI sub-task generation completed",
 		slog.Duration("duration", duration),
 		slog.String("model", string(resp.Model)),
-		slog.Int("tokens", resp.TokensUsed.Total))
+		slog.Int("tokens", func() int {
+			if resp.TokensUsed != nil {
+				return resp.TokensUsed.Total
+			}
+			return 0
+		}()))
 
 	// Parse AI response into sub-tasks
 	subTasks, err := g.parseSubTasksResponse(resp.Content, mainTask, options)

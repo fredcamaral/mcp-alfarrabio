@@ -27,7 +27,7 @@ func (r *TemplateRepository) CreateTemplate(ctx context.Context, template *types
 	query := `
 		INSERT INTO task_templates (
 			id, name, description, category, template_data, applicability,
-			variables, project_type, complexity_level, estimated_effort_hours,
+			variables, project_type, complexity, estimated_effort_hours,
 			required_skills, usage_count, success_rate, avg_completion_time_hours,
 			user_rating, feedback_count, version, parent_template_id, is_active,
 			created_by, tags, metadata, created_at, updated_at
@@ -53,7 +53,7 @@ func (r *TemplateRepository) CreateTemplate(ctx context.Context, template *types
 func (r *TemplateRepository) GetTemplateByID(ctx context.Context, id string) (*types.TaskTemplate, error) {
 	query := `
 		SELECT id, name, description, category, template_data, applicability,
-		       variables, project_type, complexity_level, estimated_effort_hours,
+		       variables, project_type, complexity, estimated_effort_hours,
 		       required_skills, usage_count, success_rate, avg_completion_time_hours,
 		       user_rating, feedback_count, version, parent_template_id, is_active,
 		       created_by, tags, metadata, created_at, updated_at, deleted_at
@@ -112,7 +112,7 @@ func (r *TemplateRepository) buildListTemplatesQuery(filters *TemplateFilters) (
 	var queryBuilder strings.Builder
 	queryBuilder.WriteString(`
 		SELECT id, name, description, category, template_data, applicability,
-		       variables, project_type, complexity_level, estimated_effort_hours,
+		       variables, project_type, complexity, estimated_effort_hours,
 		       required_skills, usage_count, success_rate, avg_completion_time_hours,
 		       user_rating, feedback_count, version, parent_template_id, is_active,
 		       created_by, tags, metadata, created_at, updated_at, deleted_at
@@ -139,7 +139,7 @@ func (r *TemplateRepository) buildListTemplatesQuery(filters *TemplateFilters) (
 	// Add complexity filter
 	if filters.ComplexityLevel != nil {
 		argCount++
-		queryBuilder.WriteString(fmt.Sprintf(" AND complexity_level = $%d", argCount))
+		queryBuilder.WriteString(fmt.Sprintf(" AND complexity = $%d", argCount))
 		args = append(args, *filters.ComplexityLevel)
 	}
 
@@ -234,7 +234,7 @@ func (r *TemplateRepository) UpdateTemplate(ctx context.Context, template *types
 		UPDATE task_templates SET
 			name = $2, description = $3, category = $4, template_data = $5,
 			applicability = $6, variables = $7, project_type = $8,
-			complexity_level = $9, estimated_effort_hours = $10,
+			complexity = $9, estimated_effort_hours = $10,
 			required_skills = $11, usage_count = $12, success_rate = $13,
 			avg_completion_time_hours = $14, user_rating = $15,
 			feedback_count = $16, version = $17, parent_template_id = $18,
@@ -300,7 +300,7 @@ func (r *TemplateRepository) DeleteTemplate(ctx context.Context, id string) erro
 func (r *TemplateRepository) SearchTemplates(ctx context.Context, searchQuery string, limit int) ([]*types.TaskTemplate, error) {
 	query := `
 		SELECT id, name, description, category, template_data, applicability,
-		       variables, project_type, complexity_level, estimated_effort_hours,
+		       variables, project_type, complexity, estimated_effort_hours,
 		       required_skills, usage_count, success_rate, avg_completion_time_hours,
 		       user_rating, feedback_count, version, parent_template_id, is_active,
 		       created_by, tags, metadata, created_at, updated_at, deleted_at,

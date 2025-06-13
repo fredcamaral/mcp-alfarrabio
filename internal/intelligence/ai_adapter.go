@@ -62,10 +62,14 @@ func (a *AIServiceAdapter) ProcessRequest(ctx context.Context, req *internalAI.R
 	}
 
 	response := &internalAI.Response{
-		ID:           req.ID,
-		Content:      responseContent,
-		TokensUsed:   internalAI.TokenUsage{Input: len(content), Output: len(responseContent), Total: len(content) + len(responseContent)},
-		CacheHit:     false,
+		ID:      req.ID,
+		Content: responseContent,
+		TokensUsed: &internalAI.TokenUsage{
+			PromptTokens:     len(content) / 4,
+			CompletionTokens: len(responseContent) / 4,
+			TotalTokens:      (len(content) + len(responseContent)) / 4,
+			Total:            (len(content) + len(responseContent)) / 4,
+		},
 		FallbackUsed: false,
 	}
 

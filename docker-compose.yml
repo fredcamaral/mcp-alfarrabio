@@ -79,6 +79,7 @@ services:
     restart: unless-stopped
     depends_on:
       - qdrant
+      - postgres
     ports:
       - "${MCP_HOST_PORT:-9080}:9080"
       - "${MCP_HEALTH_PORT:-8081}:8081"
@@ -94,6 +95,13 @@ services:
       - MCP_MEMORY_DEV_MODE=true
       - CGO_ENABLED=0
       - GOOS=linux
+      # Database configuration
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_NAME=lerian_mcp_memory
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_SSLMODE=disable
     volumes:
       # Mount source code for hot reload
       - ./cmd:/app/cmd:ro
@@ -117,7 +125,7 @@ services:
       - lerian_network
     profiles: ["dev"]
 
-  # PostgreSQL Database - For advanced monitoring
+  # PostgreSQL Database - For development and monitoring
   postgres:
     image: postgres:16-alpine
     container_name: lerian-mcp-memory-postgres
@@ -133,7 +141,7 @@ services:
       - "${POSTGRES_PORT:-5432}:5432"
     networks:
       - lerian_network
-    profiles: ["monitoring"]
+    profiles: ["dev", "monitoring"]
 
   # Prometheus - Metrics collection
   prometheus:

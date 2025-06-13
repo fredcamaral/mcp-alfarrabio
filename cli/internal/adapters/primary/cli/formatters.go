@@ -69,10 +69,11 @@ func (f *TableFormatter) FormatTaskList(tasks []*entities.Task) error {
 	}
 
 	table := tablewriter.NewWriter(f.writer)
-	table.Header("ID", "Content", "Status", "Priority", "Tags", "Created")
+	table.Header("#", "ID", "Content", "Status", "Priority", "Tags", "Created")
 
-	for _, task := range tasks {
+	for i, task := range tasks {
 		_ = table.Append([]string{
+			strconv.Itoa(i + 1),
 			truncateID(task.ID),
 			truncateContent(task.Content, 50),
 			string(task.Status),
@@ -85,7 +86,7 @@ func (f *TableFormatter) FormatTaskList(tasks []*entities.Task) error {
 	if err := table.Render(); err != nil {
 		return err
 	}
-	_, _ = fmt.Fprintf(f.writer, "\nTotal: %d tasks\n", len(tasks))
+	_, _ = fmt.Fprintf(f.writer, "\nTotal: %d tasks (use the # number to delete)\n", len(tasks))
 	return nil
 }
 

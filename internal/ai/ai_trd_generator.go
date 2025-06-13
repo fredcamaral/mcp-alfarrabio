@@ -16,14 +16,14 @@ import (
 
 // AITRDGenerator handles AI-powered TRD generation from PRDs
 type AITRDGenerator struct {
-	aiService   *Service
+	aiService   Service
 	ruleManager *documents.RuleManager
 	processor   *documents.Processor
 	logger      *slog.Logger
 }
 
 // NewAITRDGenerator creates a new AI-powered TRD generator
-func NewAITRDGenerator(aiService *Service, ruleManager *documents.RuleManager, processor *documents.Processor, logger *slog.Logger) *AITRDGenerator {
+func NewAITRDGenerator(aiService Service, ruleManager *documents.RuleManager, processor *documents.Processor, logger *slog.Logger) *AITRDGenerator {
 	return &AITRDGenerator{
 		aiService:   aiService,
 		ruleManager: ruleManager,
@@ -63,7 +63,7 @@ func (g *AITRDGenerator) GenerateTRDFromPRD(ctx context.Context, prd *documents.
 				Content: prompt,
 			},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			Repository: prd.Repository,
 			Tags:       []string{"trd_generation", "document_generation"},
 		},
@@ -80,7 +80,12 @@ func (g *AITRDGenerator) GenerateTRDFromPRD(ctx context.Context, prd *documents.
 	g.logger.Info("AI TRD generation completed",
 		slog.Duration("duration", duration),
 		slog.String("model", string(resp.Model)),
-		slog.Int("tokens", resp.TokensUsed.Total))
+		slog.Int("tokens", func() int {
+			if resp.TokensUsed != nil {
+				return resp.TokensUsed.Total
+			}
+			return 0
+		}()))
 
 	// Parse AI response into TRD
 	trd, err := g.parseTRDResponse(resp.Content, prd, options)
@@ -281,7 +286,7 @@ Return as JSON:
 				Content: prompt,
 			},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			Repository: trd.Repository,
 			Tags:       []string{"technical_analysis", "trd_enhancement"},
 		},
@@ -347,7 +352,7 @@ Return as valid OpenAPI 3.0 YAML specification.`,
 				Content: prompt,
 			},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			Repository: trd.Repository,
 			Tags:       []string{"api_generation", "openapi"},
 		},

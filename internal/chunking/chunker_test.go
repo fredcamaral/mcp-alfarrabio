@@ -11,8 +11,20 @@ import (
 // MockEmbeddingService implements a mock embedding service for testing
 type MockEmbeddingService struct{}
 
+func (m *MockEmbeddingService) Generate(_ context.Context, text string) ([]float64, error) {
+	return []float64{0.1, 0.2, 0.3, 0.4, 0.5}, nil
+}
+
 func (m *MockEmbeddingService) GenerateEmbedding(_ context.Context, content string) ([]float64, error) {
 	return []float64{0.1, 0.2, 0.3, 0.4, 0.5}, nil
+}
+
+func (m *MockEmbeddingService) GenerateBatch(_ context.Context, texts []string) ([][]float64, error) {
+	embeddings := make([][]float64, len(texts))
+	for i := range texts {
+		embeddings[i] = []float64{0.1, 0.2, 0.3, 0.4, 0.5}
+	}
+	return embeddings, nil
 }
 
 func (m *MockEmbeddingService) GenerateBatchEmbeddings(_ context.Context, contents []string) ([][]float64, error) {
@@ -25,6 +37,10 @@ func (m *MockEmbeddingService) GenerateBatchEmbeddings(_ context.Context, conten
 
 func (m *MockEmbeddingService) HealthCheck(_ context.Context) error {
 	return nil
+}
+
+func (m *MockEmbeddingService) GetDimensions() int {
+	return 5
 }
 
 func (m *MockEmbeddingService) GetDimension() int {

@@ -19,16 +19,16 @@ const (
 	relationshipsCollection = "memory_relationships"
 )
 
-// RelationshipStore manages memory relationships in Qdrant
-type RelationshipStore struct {
+// QdrantRelationshipStore manages memory relationships in Qdrant
+type QdrantRelationshipStore struct {
 	client         *qdrant.Client
 	collectionName string
 	metrics        *StorageMetrics
 }
 
-// NewRelationshipStore creates a new relationship store
-func NewRelationshipStore(client *qdrant.Client) *RelationshipStore {
-	return &RelationshipStore{
+// NewQdrantRelationshipStore creates a new relationship store
+func NewQdrantRelationshipStore(client *qdrant.Client) *QdrantRelationshipStore {
+	return &QdrantRelationshipStore{
 		client:         client,
 		collectionName: relationshipsCollection,
 		metrics: &StorageMetrics{
@@ -41,7 +41,7 @@ func NewRelationshipStore(client *qdrant.Client) *RelationshipStore {
 }
 
 // Initialize creates the relationships collection if it doesn't exist
-func (rs *RelationshipStore) Initialize(ctx context.Context) error {
+func (rs *QdrantRelationshipStore) Initialize(ctx context.Context) error {
 	start := time.Now()
 	defer rs.updateMetrics("initialize", start)
 
@@ -82,7 +82,7 @@ func (rs *RelationshipStore) Initialize(ctx context.Context) error {
 }
 
 // Store saves a memory relationship
-func (rs *RelationshipStore) Store(ctx context.Context, relationship *types.MemoryRelationship) error {
+func (rs *QdrantRelationshipStore) Store(ctx context.Context, relationship *types.MemoryRelationship) error {
 	start := time.Now()
 	defer rs.updateMetrics("store", start)
 
@@ -107,7 +107,7 @@ func (rs *RelationshipStore) Store(ctx context.Context, relationship *types.Memo
 }
 
 // StoreRelationship creates and stores a new relationship
-func (rs *RelationshipStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
+func (rs *QdrantRelationshipStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {
 	relationship, err := types.NewMemoryRelationship(sourceID, targetID, relationType, confidence, source)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
@@ -132,7 +132,7 @@ func (rs *RelationshipStore) StoreRelationship(ctx context.Context, sourceID, ta
 }
 
 // GetRelationships finds relationships for a chunk
-func (rs *RelationshipStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
+func (rs *QdrantRelationshipStore) GetRelationships(ctx context.Context, query *types.RelationshipQuery) ([]types.RelationshipResult, error) {
 	start := time.Now()
 	defer rs.updateMetrics("get_relationships", start)
 
@@ -200,7 +200,7 @@ func (rs *RelationshipStore) GetRelationships(ctx context.Context, query *types.
 }
 
 // TraverseGraph traverses the knowledge graph starting from a chunk
-func (rs *RelationshipStore) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) {
+func (rs *QdrantRelationshipStore) TraverseGraph(ctx context.Context, startChunkID string, maxDepth int, relationTypes []types.RelationType) (*types.GraphTraversalResult, error) {
 	start := time.Now()
 	defer rs.updateMetrics("traverse_graph", start)
 
@@ -316,7 +316,7 @@ func (rs *RelationshipStore) TraverseGraph(ctx context.Context, startChunkID str
 }
 
 // UpdateRelationship updates an existing relationship
-func (rs *RelationshipStore) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error {
+func (rs *QdrantRelationshipStore) UpdateRelationship(ctx context.Context, relationshipID string, confidence float64, factors types.ConfidenceFactors) error {
 	start := time.Now()
 	defer rs.updateMetrics("update_relationship", start)
 
@@ -336,7 +336,7 @@ func (rs *RelationshipStore) UpdateRelationship(ctx context.Context, relationshi
 }
 
 // GetByID retrieves a relationship by ID
-func (rs *RelationshipStore) GetByID(ctx context.Context, id string) (*types.MemoryRelationship, error) {
+func (rs *QdrantRelationshipStore) GetByID(ctx context.Context, id string) (*types.MemoryRelationship, error) {
 	start := time.Now()
 	defer rs.updateMetrics("get_by_id", start)
 
@@ -359,7 +359,7 @@ func (rs *RelationshipStore) GetByID(ctx context.Context, id string) (*types.Mem
 }
 
 // Delete removes a relationship
-func (rs *RelationshipStore) Delete(ctx context.Context, id string) error {
+func (rs *QdrantRelationshipStore) Delete(ctx context.Context, id string) error {
 	start := time.Now()
 	defer rs.updateMetrics("delete", start)
 
@@ -380,7 +380,7 @@ func (rs *RelationshipStore) Delete(ctx context.Context, id string) error {
 // Helper methods
 
 // relationshipToPoint converts a MemoryRelationship to Qdrant point
-func (rs *RelationshipStore) relationshipToPoint(relationship *types.MemoryRelationship) *qdrant.PointStruct {
+func (rs *QdrantRelationshipStore) relationshipToPoint(relationship *types.MemoryRelationship) *qdrant.PointStruct {
 	payload := map[string]*qdrant.Value{
 		"source_chunk_id":   rs.stringToValue(relationship.SourceChunkID),
 		"target_chunk_id":   rs.stringToValue(relationship.TargetChunkID),
@@ -423,7 +423,7 @@ func (rs *RelationshipStore) relationshipToPoint(relationship *types.MemoryRelat
 }
 
 // pointToRelationship converts a Qdrant point to MemoryRelationship
-func (rs *RelationshipStore) pointToRelationship(point *qdrant.RetrievedPoint) (*types.MemoryRelationship, error) {
+func (rs *QdrantRelationshipStore) pointToRelationship(point *qdrant.RetrievedPoint) (*types.MemoryRelationship, error) {
 	payload := point.GetPayload()
 	id := rs.pointIDToString(point.GetId())
 
@@ -493,7 +493,7 @@ func (rs *RelationshipStore) pointToRelationship(point *qdrant.RetrievedPoint) (
 }
 
 // buildRelationshipFilter creates a filter for relationship queries
-func (rs *RelationshipStore) buildRelationshipFilter(query *types.RelationshipQuery) *qdrant.Filter {
+func (rs *QdrantRelationshipStore) buildRelationshipFilter(query *types.RelationshipQuery) *qdrant.Filter {
 	conditions := make([]*qdrant.Condition, 0)
 
 	// Direction-based filtering
@@ -560,48 +560,48 @@ func (rs *RelationshipStore) buildRelationshipFilter(query *types.RelationshipQu
 }
 
 // Utility methods
-func (rs *RelationshipStore) stringToValue(s string) *qdrant.Value {
+func (rs *QdrantRelationshipStore) stringToValue(s string) *qdrant.Value {
 	return &qdrant.Value{Kind: &qdrant.Value_StringValue{StringValue: s}}
 }
 
-func (rs *RelationshipStore) float64ToValue(f float64) *qdrant.Value {
+func (rs *QdrantRelationshipStore) float64ToValue(f float64) *qdrant.Value {
 	return &qdrant.Value{Kind: &qdrant.Value_DoubleValue{DoubleValue: f}}
 }
 
-func (rs *RelationshipStore) int64ToValue(i int64) *qdrant.Value {
+func (rs *QdrantRelationshipStore) int64ToValue(i int64) *qdrant.Value {
 	return &qdrant.Value{Kind: &qdrant.Value_IntegerValue{IntegerValue: i}}
 }
 
-func (rs *RelationshipStore) stringToPointID(s string) *qdrant.PointId {
+func (rs *QdrantRelationshipStore) stringToPointID(s string) *qdrant.PointId {
 	return &qdrant.PointId{PointIdOptions: &qdrant.PointId_Uuid{Uuid: s}}
 }
 
-func (rs *RelationshipStore) pointIDToString(id *qdrant.PointId) string {
+func (rs *QdrantRelationshipStore) pointIDToString(id *qdrant.PointId) string {
 	return id.GetUuid()
 }
 
-func (rs *RelationshipStore) getStringFromPayload(payload map[string]*qdrant.Value, key string) string {
+func (rs *QdrantRelationshipStore) getStringFromPayload(payload map[string]*qdrant.Value, key string) string {
 	if value, ok := payload[key]; ok {
 		return value.GetStringValue()
 	}
 	return ""
 }
 
-func (rs *RelationshipStore) getFloat64FromPayload(payload map[string]*qdrant.Value, key string) float64 {
+func (rs *QdrantRelationshipStore) getFloat64FromPayload(payload map[string]*qdrant.Value, key string) float64 {
 	if value, ok := payload[key]; ok {
 		return value.GetDoubleValue()
 	}
 	return 0.0
 }
 
-func (rs *RelationshipStore) getInt64FromPayload(payload map[string]*qdrant.Value, key string) int64 {
+func (rs *QdrantRelationshipStore) getInt64FromPayload(payload map[string]*qdrant.Value, key string) int64 {
 	if value, ok := payload[key]; ok {
 		return value.GetIntegerValue()
 	}
 	return 0
 }
 
-func (rs *RelationshipStore) calculateLimit(limit int) *uint32 {
+func (rs *QdrantRelationshipStore) calculateLimit(limit int) *uint32 {
 	if limit <= 0 {
 		return qdrant.PtrOf(uint32(100)) // Default limit
 	}
@@ -612,7 +612,7 @@ func (rs *RelationshipStore) calculateLimit(limit int) *uint32 {
 	return qdrant.PtrOf(uint32(limit))
 }
 
-func (rs *RelationshipStore) sortRelationships(relationships []types.RelationshipResult, sortBy, sortOrder string) {
+func (rs *QdrantRelationshipStore) sortRelationships(relationships []types.RelationshipResult, sortBy, sortOrder string) {
 	if sortBy == "" {
 		sortBy = "confidence"
 	}
@@ -640,7 +640,7 @@ func (rs *RelationshipStore) sortRelationships(relationships []types.Relationshi
 	})
 }
 
-func (rs *RelationshipStore) determinePathType(chunkIDs []string, relationships []types.RelationshipResult) string {
+func (rs *QdrantRelationshipStore) determinePathType(chunkIDs []string, relationships []types.RelationshipResult) string {
 	if len(relationships) == 0 {
 		return "unknown"
 	}
@@ -684,7 +684,7 @@ func (rs *RelationshipStore) determinePathType(chunkIDs []string, relationships 
 	return "general"
 }
 
-func (rs *RelationshipStore) calculateCentrality(nodes map[string]*types.GraphNode) {
+func (rs *QdrantRelationshipStore) calculateCentrality(nodes map[string]*types.GraphNode) {
 	totalDegree := 0
 	for _, node := range nodes {
 		totalDegree += node.Degree
@@ -698,7 +698,7 @@ func (rs *RelationshipStore) calculateCentrality(nodes map[string]*types.GraphNo
 	}
 }
 
-func (rs *RelationshipStore) updateMetrics(operation string, start time.Time) {
+func (rs *QdrantRelationshipStore) updateMetrics(operation string, start time.Time) {
 	duration := time.Since(start)
 
 	rs.metrics.OperationCounts[operation]++

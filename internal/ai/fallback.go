@@ -53,7 +53,7 @@ func (fr *FallbackRouter) ProcessWithFallback(ctx context.Context, req *Request)
 	}
 
 	// Get fallback chain based on strategy and requested model
-	chain := fr.getFallbackChain(req.Model)
+	chain := fr.getFallbackChain(Model(req.Model))
 	if len(chain) == 0 {
 		return nil, fmt.Errorf("no available models for fallback")
 	}
@@ -79,7 +79,7 @@ func (fr *FallbackRouter) ProcessWithFallback(ctx context.Context, req *Request)
 
 		// Create request copy with current model
 		modelReq := *req
-		modelReq.Model = model
+		modelReq.Model = string(model)
 
 		// Attempt to process with current model
 		response, err := client.ProcessRequest(modelCtx, &modelReq)
@@ -200,7 +200,11 @@ func (fr *FallbackRouter) IsModelAvailable(model Model) bool {
 func (fr *FallbackRouter) HealthCheck(ctx context.Context) map[Model]error {
 	results := make(map[Model]error)
 	for model, client := range fr.clients {
-		results[model] = client.IsHealthy(ctx)
+		if !client.IsHealthy() {
+			results[model] = fmt.Errorf("client for model %s is unhealthy", model)
+		} else {
+			results[model] = nil
+		}
 	}
 	return results
 }

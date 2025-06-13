@@ -1,20 +1,17 @@
-// migrate is a command-line tool for database schema migrations with validation,
-// rollback capabilities, and comprehensive safety checks for the MCP Memory Server.
+// Package main provides the database migration CLI utility with safety mechanisms
 package main
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"flag"
 	"fmt"
-	"log"
 	"os"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"time"
 
 	"lerian-mcp-memory/internal/config"
+	"lerian-mcp-memory/internal/logging"
 	"lerian-mcp-memory/internal/migration"
 
 	_ "github.com/lib/pq" // PostgreSQL driver
@@ -30,495 +27,308 @@ func main() {
 
 func run() int {
 	var (
-		action        = flag.String("action", "up", "Migration action: up, down, status, validate, create")
-		migrationsDir = flag.String("migrations-dir", "./migrations", "Path to migrations directory")
-		environment   = flag.String("environment", "dev", "Target environment (dev, staging, production)")
-		dryRun        = flag.Bool("dry-run", false, "Perform dry run without executing migrations")
-		validateOnly  = flag.Bool("validate-only", false, "Only validate migrations, don't execute")
-		force         = flag.Bool("force", false, "Force migration execution (skip some safety checks)")
+		configFile    = flag.String("config", "", "Path to configuration file")
+		migrationsDir = flag.String("migrations", "./migrations", "Path to migrations directory")
+		backupDir     = flag.String("backup", "./backups", "Path to backup directory")
+		command       = flag.String("command", "status", "Command to execute: status, plan, migrate, rollback")
+		targetVersion = flag.String("target", "", "Target version for rollback")
+		dryRun        = flag.Bool("dry-run", false, "Execute in dry run mode")
+		force         = flag.Bool("force", false, "Force execution without confirmation")
 		verbose       = flag.Bool("verbose", false, "Enable verbose logging")
-		target        = flag.String("target", "", "Target migration version or ID (for up/down actions)")
-		steps         = flag.Int("steps", 0, "Number of migration steps (for up/down actions)")
-		createName    = flag.String("name", "", "Migration name (for create action)")
-		_             = flag.String("config", "configs/dev/config.yaml", "Path to configuration file")
 	)
 	flag.Parse()
 
-	// Setup logging
+	// Initialize logger
+	logger := logging.NewEnhancedLogger("migrate")
 	if *verbose {
-		log.SetFlags(log.LstdFlags | log.Lshortfile)
+		// TODO: Implement log level setting if needed by EnhancedLogger
+		fmt.Println("Verbose logging enabled")
 	}
 
 	// Load configuration
-	cfg, err := config.LoadConfig()
+	cfg, err := loadConfig(*configFile)
 	if err != nil {
-		log.Printf("Failed to load config: %v", err)
+		logger.Fatal("Failed to load configuration", "error", err)
 		return 1
 	}
 
-	// Create database connection
-	db, err := createDatabaseConnection(cfg)
+	// Connect to database
+	db, err := connectToDatabase(cfg)
 	if err != nil {
-		log.Printf("Failed to connect to database: %v", err)
+		logger.Fatal("Failed to connect to database", "error", err)
 		return 1
 	}
-	defer func() {
-		if closeErr := db.Close(); closeErr != nil {
-			log.Printf("Failed to close database connection: %v", closeErr)
-		}
-	}()
+	defer db.Close()
 
-	// Create migrator
-	migrator := migration.NewMigrator(db, *migrationsDir, *environment)
+	// Create migration safety manager
+	safetyManager := migration.NewMigrationSafetyManager(db, *migrationsDir, *backupDir, logger)
+	safetyManager.SetDryRun(*dryRun)
 
-	// Execute action
+	// Initialize migration infrastructure
 	ctx := context.Background()
-	switch *action {
-	case "up":
-		err = executeUpMigrations(ctx, migrator, *target, *steps, *dryRun, *validateOnly)
-	case "down":
-		err = executeDownMigrations(ctx, migrator, *target, *steps, *dryRun, *force)
+	if err := safetyManager.Initialize(ctx); err != nil {
+		logger.Fatal("Failed to initialize migration infrastructure", "error", err)
+		return 1
+	}
+
+	// Execute command
+	switch *command {
 	case "status":
-		err = showMigrationStatus(ctx, migrator)
-	case "validate":
-		err = validateMigrations(ctx, migrator)
-	case "create":
-		err = createMigration(*migrationsDir, *createName)
+		err = executeStatus(ctx, safetyManager, logger)
+	case "plan":
+		err = executePlan(ctx, safetyManager, logger)
+	case "migrate":
+		err = executeMigrate(ctx, safetyManager, logger, *force, *dryRun)
+	case "rollback":
+		err = executeRollback(ctx, safetyManager, logger, *targetVersion, *force, *dryRun)
 	default:
-		err = fmt.Errorf("unknown action: %s. Available actions: up, down, status, validate, create", *action)
+		logger.Fatal("Unknown command", "command", *command)
+		return 1
 	}
 
 	if err != nil {
-		log.Printf("Migration action failed: %v", err)
+		logger.Fatal("Command execution failed", "error", err)
 		return 1
 	}
 
 	return 0
 }
 
-// createDatabaseConnection creates a PostgreSQL database connection
-func createDatabaseConnection(cfg *config.Config) (*sql.DB, error) {
-	// Build connection string from config
-	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=disable",
+func loadConfig(configFile string) (*config.Config, error) {
+	if configFile != "" {
+		// Load from specified file (implementation depends on your config system)
+		return config.LoadConfig()
+	}
+	return config.LoadConfig()
+}
+
+func connectToDatabase(cfg *config.Config) (*sql.DB, error) {
+	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Database.Host,
 		cfg.Database.Port,
 		cfg.Database.User,
 		cfg.Database.Password,
 		cfg.Database.Name,
+		cfg.Database.SSLMode,
 	)
 
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database: %w", err)
+		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
+
+	// Configure connection pool
+	db.SetMaxOpenConns(cfg.Database.MaxOpenConns)
+	db.SetMaxIdleConns(cfg.Database.MaxIdleConns)
+	db.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.Database.ConnMaxIdleTime)
 
 	// Test connection
-	if err := db.Ping(); err != nil {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	if err := db.PingContext(ctx); err != nil {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
-
-	// Set connection pool settings
-	db.SetMaxOpenConns(10)
-	db.SetMaxIdleConns(5)
-	db.SetConnMaxLifetime(time.Hour)
 
 	return db, nil
 }
 
-// executeUpMigrations runs pending migrations
-func executeUpMigrations(ctx context.Context, migrator *migration.Migrator, target string, steps int, dryRun, validateOnly bool) error {
-	log.Printf("Executing up migrations: dry_run=%v, validate_only=%v", dryRun, validateOnly)
+func executeStatus(ctx context.Context, safetyManager *migration.MigrationSafetyManager, logger *logging.EnhancedLogger) error {
+	logger.Info("Getting migration status")
 
-	// Get pending migrations
-	pending, err := migrator.GetPendingMigrations(ctx)
+	status, err := safetyManager.GetMigrationStatus(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get pending migrations: %w", err)
+		return fmt.Errorf("failed to get migration status: %w", err)
 	}
 
-	if len(pending) == 0 {
-		log.Printf("No pending migrations found")
-		return nil
+	fmt.Printf("Migration Status:\n")
+	fmt.Printf("  Applied migrations: %d\n", status.AppliedCount)
+	fmt.Printf("  Pending migrations: %d\n", status.PendingCount)
+	fmt.Printf("  Total migration files: %d\n", status.TotalFiles)
+	fmt.Printf("  Last migration: %s\n", status.LastMigration)
+	if status.LastAppliedAt != nil {
+		fmt.Printf("  Last applied at: %s\n", status.LastAppliedAt.Format(time.RFC3339))
 	}
+	fmt.Printf("  Health status: %s\n", status.HealthStatus)
 
-	log.Printf("Found %d pending migrations", len(pending))
-
-	// Filter migrations based on target and steps
-	toExecute := filterMigrations(pending, target, steps, true)
-
-	if len(toExecute) == 0 {
-		log.Printf("No migrations to execute after filtering")
-		return nil
-	}
-
-	log.Printf("Executing %d migrations", len(toExecute))
-
-	// Execute migrations
-	for _, mig := range toExecute {
-		log.Printf("Processing migration: %s - %s", mig.ID, mig.Description)
-
-		if validateOnly {
-			// Validate only
-			validator := migration.NewMigrationValidator(migrator.GetDB())
-			result, err := validator.ValidateMigration(ctx, mig)
-			if err != nil {
-				return fmt.Errorf("validation failed for %s: %w", mig.ID, err)
-			}
-
-			log.Printf("Validation result for %s: passed=%v, warnings=%d, errors=%d",
-				mig.ID, result.Passed, result.Warnings, result.Errors)
-
-			if !result.Passed {
-				for _, issue := range result.Issues {
-					if issue.Severity == migration.SeverityError {
-						log.Printf("  ERROR: %s", issue.Message)
-					}
-				}
-				return fmt.Errorf("migration %s failed validation", mig.ID)
-			}
-			continue
-		}
-
-		// Execute migration
-		result, err := migrator.ExecuteMigration(ctx, mig, dryRun)
-		if err != nil {
-			return fmt.Errorf("failed to execute migration %s: %w", mig.ID, err)
-		}
-
-		if dryRun {
-			log.Printf("DRY RUN: Migration %s would execute successfully", mig.ID)
-		} else {
-			log.Printf("Migration %s executed successfully in %v", mig.ID, result.ExecutionTime)
-		}
-	}
-
-	log.Printf("Up migrations completed successfully")
 	return nil
 }
 
-// executeDownMigrations runs rollback migrations
-func executeDownMigrations(ctx context.Context, migrator *migration.Migrator, target string, steps int, dryRun, force bool) error {
-	log.Printf("Executing down migrations: dry_run=%v, force=%v", dryRun, force)
+func executePlan(ctx context.Context, safetyManager *migration.MigrationSafetyManager, logger *logging.EnhancedLogger) error {
+	logger.Info("Creating migration plan")
 
-	// Get executed migrations
-	executed, err := migrator.GetExecutedMigrations(ctx)
+	plan, err := safetyManager.PlanMigration(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get executed migrations: %w", err)
+		return fmt.Errorf("failed to create migration plan: %w", err)
 	}
 
-	if len(executed) == 0 {
-		log.Printf("No executed migrations found")
+	fmt.Printf("Migration Plan:\n")
+	fmt.Printf("  Total migrations: %d\n", plan.TotalCount)
+	fmt.Printf("  Estimated time: %s\n", plan.EstimatedTime.String())
+	fmt.Printf("  Risk level: %s\n", plan.RiskLevel)
+	fmt.Printf("  Estimated backup size: %d bytes\n", plan.BackupSize)
+
+	if len(plan.Warnings) > 0 {
+		fmt.Printf("  Warnings:\n")
+		for _, warning := range plan.Warnings {
+			fmt.Printf("    - %s\n", warning)
+		}
+	}
+
+	if len(plan.Dependencies) > 0 {
+		fmt.Printf("  Dependencies:\n")
+		for _, dep := range plan.Dependencies {
+			fmt.Printf("    - %s\n", dep)
+		}
+	}
+
+	fmt.Printf("\nMigrations to execute:\n")
+	for i, migration := range plan.Migrations {
+		fmt.Printf("  %d. %s (%s)\n", i+1, migration.Name, migration.Version)
+		fmt.Printf("     Risk: %s, Time: %s, Rollback: %t\n",
+			migration.RiskLevel, migration.EstimatedTime.String(), migration.HasRollback)
+		if len(migration.Operations) > 0 {
+			fmt.Printf("     Operations: %v\n", migration.Operations)
+		}
+	}
+
+	// Output plan as JSON for programmatic use
+	if os.Getenv("OUTPUT_JSON") == "true" {
+		planJSON, _ := json.MarshalIndent(plan, "", "  ")
+		fmt.Printf("\nJSON Plan:\n%s\n", string(planJSON))
+	}
+
+	return nil
+}
+
+func executeMigrate(ctx context.Context, safetyManager *migration.MigrationSafetyManager, logger *logging.EnhancedLogger, force, dryRun bool) error {
+	logger.Info("Executing migration", "dry_run", dryRun, "force", force)
+
+	// Create migration plan
+	plan, err := safetyManager.PlanMigration(ctx)
+	if err != nil {
+		return fmt.Errorf("failed to create migration plan: %w", err)
+	}
+
+	if plan.TotalCount == 0 {
+		fmt.Println("No migrations to execute")
 		return nil
 	}
 
-	// Reverse order for rollback
-	for i, j := 0, len(executed)-1; i < j; i, j = i+1, j-1 {
-		executed[i], executed[j] = executed[j], executed[i]
+	// Show plan summary
+	fmt.Printf("Migration Plan Summary:\n")
+	fmt.Printf("  Migrations: %d\n", plan.TotalCount)
+	fmt.Printf("  Estimated time: %s\n", plan.EstimatedTime.String())
+	fmt.Printf("  Risk level: %s\n", plan.RiskLevel)
+
+	// Confirmation prompt (unless force or dry run)
+	if !force && !dryRun {
+		fmt.Printf("\nProceed with migration? [y/N]: ")
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			fmt.Println("Migration cancelled")
+			return nil
+		}
 	}
 
-	// Filter migrations based on target and steps
-	toRollback := filterMigrations(executed, target, steps, false)
+	// Configure safety settings
+	safetyConfig := migration.SafetyConfig{
+		EnableBackups:       true,
+		BackupBeforeMigrate: true,
+		MaxRollbackTime:     24 * time.Hour,
+		RequireConfirmation: !force,
+		DryRunFirst:         false,
+		ParallelSafe:        false,
+	}
 
-	if len(toRollback) == 0 {
-		log.Printf("No migrations to rollback after filtering")
+	// Execute migration
+	err = safetyManager.ExecuteMigrationPlan(ctx, plan, safetyConfig)
+	if err != nil {
+		return fmt.Errorf("migration execution failed: %w", err)
+	}
+
+	if dryRun {
+		fmt.Println("DRY RUN: Migration would have been executed successfully")
+	} else {
+		fmt.Println("Migration executed successfully")
+	}
+
+	return nil
+}
+
+func executeRollback(ctx context.Context, safetyManager *migration.MigrationSafetyManager, logger *logging.EnhancedLogger, targetVersion string, force, dryRun bool) error {
+	if targetVersion == "" {
+		return fmt.Errorf("target version is required for rollback")
+	}
+
+	logger.Info("Executing rollback", "target_version", targetVersion, "dry_run", dryRun, "force", force)
+
+	// Create rollback plan
+	plan, err := safetyManager.PlanRollback(ctx, targetVersion)
+	if err != nil {
+		return fmt.Errorf("failed to create rollback plan: %w", err)
+	}
+
+	if plan.TotalCount == 0 {
+		fmt.Printf("No rollbacks needed to reach version %s\n", targetVersion)
 		return nil
 	}
 
-	log.Printf("Rolling back %d migrations", len(toRollback))
+	// Show rollback plan summary
+	fmt.Printf("Rollback Plan Summary:\n")
+	fmt.Printf("  Target version: %s\n", plan.TargetVersion)
+	fmt.Printf("  Rollbacks: %d\n", plan.TotalCount)
+	fmt.Printf("  Estimated time: %s\n", plan.EstimatedTime.String())
+	fmt.Printf("  Data loss risk: %s\n", plan.DataLossRisk)
 
-	// Check for destructive operations
-	if !force {
-		for _, mig := range toRollback {
-			if mig.IsDestructive && !dryRun {
-				return fmt.Errorf("migration %s is destructive and cannot be rolled back without --force", mig.ID)
-			}
-			if mig.DownSQL == "" {
-				return fmt.Errorf("migration %s has no rollback script", mig.ID)
-			}
+	if len(plan.Warnings) > 0 {
+		fmt.Printf("  Warnings:\n")
+		for _, warning := range plan.Warnings {
+			fmt.Printf("    - %s\n", warning)
 		}
 	}
 
-	// Execute rollbacks
-	for _, mig := range toRollback {
-		log.Printf("Rolling back migration: %s - %s", mig.ID, mig.Description)
-
-		if dryRun {
-			log.Printf("DRY RUN: Migration %s would be rolled back", mig.ID)
-			continue
-		}
-
-		// Execute rollback (this would need to be implemented in migrator)
-		log.Printf("Rolling back migration %s", mig.ID)
-		// TODO: Implement rollback execution in migrator
+	fmt.Printf("\nRollbacks to execute:\n")
+	for i, rollback := range plan.Migrations {
+		fmt.Printf("  %d. %s (%s) - Risk: %s\n",
+			i+1, rollback.Name, rollback.Version, rollback.DataLossRisk)
 	}
 
-	log.Printf("Down migrations completed successfully")
+	// Special confirmation for rollbacks (unless force or dry run)
+	if !force && !dryRun {
+		fmt.Printf("\nWARNING: Rollback may cause data loss (Risk: %s)\n", plan.DataLossRisk)
+		fmt.Printf("Proceed with rollback? [y/N]: ")
+		var response string
+		fmt.Scanln(&response)
+		if response != "y" && response != "Y" {
+			fmt.Println("Rollback cancelled")
+			return nil
+		}
+	}
+
+	// Configure safety settings for rollback
+	safetyConfig := migration.SafetyConfig{
+		EnableBackups:       true,
+		BackupBeforeMigrate: true,
+		MaxRollbackTime:     24 * time.Hour,
+		RequireConfirmation: !force,
+		DryRunFirst:         false,
+		ParallelSafe:        false,
+	}
+
+	// Execute rollback
+	err = safetyManager.ExecuteRollback(ctx, plan, safetyConfig)
+	if err != nil {
+		return fmt.Errorf("rollback execution failed: %w", err)
+	}
+
+	if dryRun {
+		fmt.Printf("DRY RUN: Rollback to version %s would have been executed successfully\n", targetVersion)
+	} else {
+		fmt.Printf("Rollback to version %s executed successfully\n", targetVersion)
+	}
+
 	return nil
-}
-
-// showMigrationStatus displays the current migration status
-func showMigrationStatus(ctx context.Context, migrator *migration.Migrator) error {
-	log.Printf("Checking migration status")
-
-	// Get current version
-	currentVersion, err := migrator.GetCurrentVersion(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get current version: %w", err)
-	}
-
-	// Get executed migrations
-	executed, err := migrator.GetExecutedMigrations(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get executed migrations: %w", err)
-	}
-
-	// Get pending migrations
-	pending, err := migrator.GetPendingMigrations(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get pending migrations: %w", err)
-	}
-
-	// Get statistics
-	stats, err := migrator.GetMigrationStatistics(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to get migration statistics: %w", err)
-	}
-
-	// Display status
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Println("MIGRATION STATUS")
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("Current Version: %d\n", currentVersion)
-	fmt.Printf("Executed Migrations: %d\n", len(executed))
-	fmt.Printf("Pending Migrations: %d\n", len(pending))
-	fmt.Printf("Last Migration: %v\n", stats.LastMigrationDate.Format(time.RFC3339))
-	fmt.Printf("Avg Execution Time: %.2f ms\n", stats.AvgExecutionTimeMs)
-	fmt.Printf("Destructive Migrations: %d\n", stats.DestructiveMigrations)
-	fmt.Printf("Rollback Migrations: %d\n", stats.RolledBackMigrations)
-
-	if len(pending) > 0 {
-		fmt.Println("\nPending Migrations:")
-		for _, mig := range pending {
-			fmt.Printf("  %s - %s\n", mig.ID, mig.Description)
-		}
-	}
-
-	if len(executed) > 0 {
-		fmt.Println("\nRecent Executed Migrations:")
-		count := 5
-		if len(executed) < count {
-			count = len(executed)
-		}
-		for i := len(executed) - count; i < len(executed); i++ {
-			mig := executed[i]
-			fmt.Printf("  %s - %s\n", mig.ID, mig.Description)
-		}
-	}
-
-	fmt.Println(strings.Repeat("=", 60))
-	return nil
-}
-
-// validateMigrations validates all migrations without executing them
-func validateMigrations(ctx context.Context, migrator *migration.Migrator) error {
-	log.Printf("Validating all migrations")
-
-	// Load all migrations
-	migrations, err := migrator.LoadMigrations(ctx)
-	if err != nil {
-		return fmt.Errorf("failed to load migrations: %w", err)
-	}
-
-	if len(migrations) == 0 {
-		log.Printf("No migrations found")
-		return nil
-	}
-
-	// Create validator
-	validator := migration.NewMigrationValidator(migrator.GetDB())
-
-	// Validate all migrations
-	results, err := validator.ValidateMigrationBatch(ctx, migrations)
-	if err != nil {
-		return fmt.Errorf("batch validation failed: %w", err)
-	}
-
-	// Report results
-	totalErrors := 0
-	totalWarnings := 0
-
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Println("MIGRATION VALIDATION RESULTS")
-	fmt.Println(strings.Repeat("=", 60))
-
-	for _, result := range results {
-		status := "PASS"
-		if !result.Passed {
-			status = "FAIL"
-		}
-
-		fmt.Printf("%s - %s [%s]\n", result.Migration.ID, result.Migration.Description, status)
-
-		if result.Errors > 0 {
-			totalErrors += result.Errors
-			for _, issue := range result.Issues {
-				if issue.Severity == migration.SeverityError {
-					fmt.Printf("  ERROR: %s\n", issue.Message)
-				}
-			}
-		}
-
-		if result.Warnings > 0 {
-			totalWarnings += result.Warnings
-			for _, issue := range result.Issues {
-				if issue.Severity == migration.SeverityWarning {
-					fmt.Printf("  WARNING: %s\n", issue.Message)
-				}
-			}
-		}
-
-		if len(result.Suggestions) > 0 {
-			fmt.Printf("  Suggestions:\n")
-			for _, suggestion := range result.Suggestions {
-				fmt.Printf("    - %s\n", suggestion)
-			}
-		}
-	}
-
-	fmt.Println(strings.Repeat("=", 60))
-	fmt.Printf("Total: %d migrations, %d errors, %d warnings\n", len(results), totalErrors, totalWarnings)
-
-	if totalErrors > 0 {
-		return fmt.Errorf("validation failed with %d errors", totalErrors)
-	}
-
-	log.Printf("All migrations validated successfully")
-	return nil
-}
-
-// createMigration creates a new migration file
-func createMigration(migrationsDir, name string) error {
-	if name == "" {
-		return fmt.Errorf("migration name is required")
-	}
-
-	// Create migrations directory if it doesn't exist
-	if err := os.MkdirAll(migrationsDir, 0o750); err != nil {
-		return fmt.Errorf("failed to create migrations directory: %w", err)
-	}
-
-	// Find the next migration number
-	entries, err := os.ReadDir(migrationsDir)
-	if err != nil {
-		return fmt.Errorf("failed to read migrations directory: %w", err)
-	}
-
-	nextNumber := 1
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		filename := entry.Name()
-		if strings.HasSuffix(filename, ".sql") {
-			parts := strings.Split(filename, "_")
-			if len(parts) > 0 {
-				if num, err := strconv.Atoi(parts[0]); err == nil && num >= nextNumber {
-					nextNumber = num + 1
-				}
-			}
-		}
-	}
-
-	// Create migration filename
-	cleanName := strings.ReplaceAll(strings.ToLower(name), " ", "_")
-	filename := fmt.Sprintf("%03d_%s.sql", nextNumber, cleanName)
-	filePath := filepath.Join(migrationsDir, filename)
-
-	// Create migration template
-	template := fmt.Sprintf(`-- Migration %03d: %s
--- Description: %s
--- Created: %s
--- Version: %s
-
--- DESTRUCTIVE: false
--- DEPENDS: 
--- TAGS: schema
--- PRIORITY: normal
--- TYPE: schema
--- NOTES: Add description here
-
--- UP
--- Add your migration SQL here
-
-
--- DOWN
--- Add your rollback SQL here
-
-`, nextNumber, name, name, time.Now().Format("2006-01-02"), migrationVersion)
-
-	// Write migration file
-	if err := os.WriteFile(filePath, []byte(template), 0o600); err != nil {
-		return fmt.Errorf("failed to write migration file: %w", err)
-	}
-
-	log.Printf("Created migration: %s", filePath)
-	return nil
-}
-
-// filterMigrations filters migrations based on target and steps
-func filterMigrations(migrations []*migration.Migration, target string, steps int, forward bool) []*migration.Migration {
-	if target == "" && steps == 0 {
-		return migrations
-	}
-
-	if target != "" {
-		return filterByTarget(migrations, target, forward)
-	}
-
-	if steps > 0 {
-		return filterBySteps(migrations, steps)
-	}
-
-	return migrations
-}
-
-// filterByTarget filters migrations by target version or ID
-func filterByTarget(migrations []*migration.Migration, target string, forward bool) []*migration.Migration {
-	targetVersion, err := strconv.Atoi(target)
-	if err == nil {
-		return filterByVersion(migrations, targetVersion, forward)
-	}
-	return filterByID(migrations, target)
-}
-
-// filterByVersion filters migrations by version number
-func filterByVersion(migrations []*migration.Migration, targetVersion int, forward bool) []*migration.Migration {
-	var filtered []*migration.Migration
-	for _, mig := range migrations {
-		if forward && mig.Version <= targetVersion {
-			filtered = append(filtered, mig)
-		} else if !forward && mig.Version >= targetVersion {
-			filtered = append(filtered, mig)
-		}
-	}
-	return filtered
-}
-
-// filterByID filters migrations by ID
-func filterByID(migrations []*migration.Migration, targetID string) []*migration.Migration {
-	filtered := make([]*migration.Migration, 0, len(migrations))
-	for _, mig := range migrations {
-		filtered = append(filtered, mig)
-		if mig.ID == targetID {
-			break
-		}
-	}
-	return filtered
-}
-
-// filterBySteps filters migrations by number of steps
-func filterBySteps(migrations []*migration.Migration, steps int) []*migration.Migration {
-	if steps > len(migrations) {
-		steps = len(migrations)
-	}
-	return migrations[:steps]
 }

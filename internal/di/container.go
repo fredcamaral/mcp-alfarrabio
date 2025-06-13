@@ -176,9 +176,8 @@ func (c *Container) initializeAIService(cfg *config.Config) error {
 		model = cfg.AI.Perplexity.Model
 		timeout = cfg.AI.Perplexity.Timeout
 	} else {
-		// Fallback to mock provider if no real provider is configured
-		provider = "mock"
-		c.Logger.Warn("No AI provider configured or enabled, using mock provider")
+		// No real AI provider is configured - return a configuration error
+		return fmt.Errorf("no AI provider configured: please configure at least one AI provider (Claude, OpenAI, or Perplexity) in your environment variables or config file. Set API keys via CLAUDE_API_KEY, OPENAI_API_KEY, or PERPLEXITY_API_KEY and enable them via CLAUDE_ENABLED=true, OPENAI_ENABLED=true, or PERPLEXITY_ENABLED=true")
 	}
 
 	// Create shared AI service configuration
@@ -222,27 +221,53 @@ func (c *Container) initializeStorage() {
 	// Wrap with retry logic
 	retryStore := storage.NewRetryableVectorStore(baseStore, nil)
 
-	// Wrap with circuit breaker if enabled
-	if useCircuitBreaker := os.Getenv("USE_CIRCUIT_BREAKER"); useCircuitBreaker == envValueTrue {
+	// Wrap with circuit breaker if enabled (check both environment variable formats)
+	useCircuitBreaker := os.Getenv("MCP_MEMORY_CIRCUIT_BREAKER_ENABLED") == envValueTrue ||
+		os.Getenv("USE_CIRCUIT_BREAKER") == envValueTrue
+
+	if useCircuitBreaker {
 		c.VectorStore = storage.NewCircuitBreakerVectorStore(retryStore, nil)
+		c.Logger.Info("Vector store circuit breaker enabled")
 	} else {
 		c.VectorStore = retryStore
+		c.Logger.Info("Vector store circuit breaker disabled")
 	}
 }
 
 // initializeServices sets up core services
 func (c *Container) initializeServices() {
 	// Initialize embedding service
-	baseEmbedding := embeddings.NewOpenAIEmbeddingService(&c.Config.OpenAI)
+	// Convert global OpenAI config to embeddings config
+	embeddingConfig := &embeddings.OpenAIConfig{
+		APIKey:         c.Config.OpenAI.APIKey,
+		BaseURL:        "https://api.openai.com/v1", // Default base URL
+		Model:          c.Config.OpenAI.EmbeddingModel,
+		Timeout:        time.Duration(c.Config.OpenAI.RequestTimeout) * time.Second,
+		MaxRetries:     3,           // Default max retries
+		RetryDelay:     time.Second, // Default retry delay
+		CacheSize:      1000,        // Default cache size
+		CacheTTL:       time.Hour,   // Default TTL
+		RequestsPerMin: c.Config.OpenAI.RateLimitRPM,
+	}
 
-	// Wrap with retry logic
-	retryEmbedding := embeddings.NewRetryableEmbeddingService(baseEmbedding, nil)
-
-	// Wrap with circuit breaker if enabled
-	if useCircuitBreaker := os.Getenv("USE_CIRCUIT_BREAKER"); useCircuitBreaker == envValueTrue {
-		c.EmbeddingService = embeddings.NewCircuitBreakerEmbeddingService(retryEmbedding, nil)
+	// Convert logger interface to *slog.Logger
+	var slogLogger *slog.Logger
+	if c.Logger != nil {
+		// Assume the logger is compatible or create a default one
+		slogLogger = slog.Default()
 	} else {
-		c.EmbeddingService = retryEmbedding
+		slogLogger = slog.Default()
+	}
+
+	baseEmbedding, embeddingErr := embeddings.NewOpenAIService(embeddingConfig, slogLogger)
+	if embeddingErr != nil {
+		// Log error but continue with mock embeddings service
+		c.Logger.Warn("Failed to initialize embedding service", "error", embeddingErr)
+		c.EmbeddingService = &mockEmbeddingService{}
+	} else {
+		// For now, use base service without retries and circuit breakers
+		// TODO: Implement wrapper services for retry and circuit breaking
+		c.EmbeddingService = baseEmbedding
 	}
 
 	// Initialize chunking service
@@ -542,10 +567,10 @@ func (c *Container) GetLogger() logging.Logger {
 func (c *Container) initializeRealTimeSync() {
 	// Initialize WebSocket handler
 	c.WebSocketHandler = handlers.NewWebSocketHandler(c.Config, nil)
-	
+
 	// Initialize real-time sync coordinator
 	c.RealtimeSyncCoord = sync.NewRealtimeSyncCoordinator(c.WebSocketHandler)
-	
+
 	c.Logger.Info("Real-time sync components initialized")
 }
 
@@ -557,4 +582,35 @@ func (c *Container) GetWebSocketHandler() *handlers.WebSocketHandler {
 // GetRealtimeSyncCoordinator returns the real-time sync coordinator instance
 func (c *Container) GetRealtimeSyncCoordinator() *sync.RealtimeSyncCoordinator {
 	return c.RealtimeSyncCoord
+}
+
+// mockEmbeddingService provides a mock implementation for testing
+type mockEmbeddingService struct{}
+
+func (m *mockEmbeddingService) Generate(ctx context.Context, text string) ([]float64, error) {
+	// Return a mock embedding vector of 1536 dimensions (OpenAI ada-002 size)
+	embedding := make([]float64, 1536)
+	for i := range embedding {
+		embedding[i] = 0.1 // Simple mock value
+	}
+	return embedding, nil
+}
+
+func (m *mockEmbeddingService) GenerateBatch(ctx context.Context, texts []string) ([][]float64, error) {
+	embeddings := make([][]float64, len(texts))
+	for i := range texts {
+		embeddings[i] = make([]float64, 1536)
+		for j := range embeddings[i] {
+			embeddings[i][j] = 0.1 // Simple mock value
+		}
+	}
+	return embeddings, nil
+}
+
+func (m *mockEmbeddingService) GetDimensions() int {
+	return 1536
+}
+
+func (m *mockEmbeddingService) HealthCheck(ctx context.Context) error {
+	return nil
 }

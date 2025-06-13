@@ -98,14 +98,17 @@ func (c *HTTPMCPClient) SyncTask(ctx context.Context, task *entities.Task) error
 
 	request := MCPRequest{
 		JSONRPC: "2.0",
-		Method:  "memory_store",
+		Method:  "memory_create",
 		Params: map[string]interface{}{
-			"operation":  "store_content",
-			"project_id": task.Repository, // Repository becomes project_id
-			"session_id": c.getSessionID(task.Repository), // Generate or get session ID
-			"content":    mcpTask["content"],
-			"type":       "task",
-			"metadata":   mcpTask,
+			"operation": "store_chunk",
+			"scope":     "single",
+			"options": map[string]interface{}{
+				"repository": task.Repository,
+				"session_id": c.getSessionID(task.Repository),
+				"content":    mcpTask["content"],
+				"type":       "task",
+				"metadata":   mcpTask,
+			},
 		},
 		ID: 1,
 	}
@@ -124,14 +127,16 @@ func (c *HTTPMCPClient) GetTasks(ctx context.Context, repository string) ([]*ent
 
 	request := MCPRequest{
 		JSONRPC: "2.0",
-		Method:  "memory_retrieve",
+		Method:  "memory_read",
 		Params: map[string]interface{}{
-			"operation":  "search",
-			"project_id": repository, // Repository becomes project_id
-			"session_id": c.getSessionID(repository), // Optional session for expanded access
-			"query":      "type:task", // Search for task-type content
-			"types":      []string{"task"},
-			"limit":      100,
+			"operation": "search",
+			"scope":     "single",
+			"options": map[string]interface{}{
+				"repository": repository,
+				"session_id": c.getSessionID(repository),
+				"query":      "type:task",
+				"limit":      100,
+			},
 		},
 		ID: 2,
 	}
@@ -161,14 +166,17 @@ func (c *HTTPMCPClient) UpdateTaskStatus(ctx context.Context, taskID string, sta
 
 	request := MCPRequest{
 		JSONRPC: "2.0",
-		Method:  "memory_store",
+		Method:  "memory_update",
 		Params: map[string]interface{}{
-			"operation":  "update_content",
-			"project_id": projectID,
-			"session_id": c.getSessionID(projectID), // Session required for write operations
-			"content_id": taskID,
-			"metadata": map[string]interface{}{
-				"status": string(status),
+			"operation": "update_thread",
+			"scope":     "single",
+			"options": map[string]interface{}{
+				"repository": projectID,
+				"session_id": c.getSessionID(projectID),
+				"thread_id":  taskID,
+				"metadata": map[string]interface{}{
+					"status": string(status),
+				},
 			},
 		},
 		ID: 3,
@@ -192,25 +200,28 @@ func (c *HTTPMCPClient) QueryIntelligence(ctx context.Context, operation string,
 		projectID = "default" // Fallback for legacy calls
 	}
 
-	// Build request params with new parameter system
-	params := map[string]interface{}{
-		"operation":  operation,
-		"project_id": projectID,
-		"session_id": c.getSessionID(projectID), // Optional for read operations
+	// Build options for the analyze operation
+	analyzeOptions := map[string]interface{}{
+		"repository": projectID,
+		"session_id": c.getSessionID(projectID),
 	}
 
 	// Copy other options
 	for key, value := range options {
 		if key != "project_id" && key != "repository" {
-			params[key] = value
+			analyzeOptions[key] = value
 		}
 	}
 
 	request := MCPRequest{
 		JSONRPC: "2.0",
 		Method:  "memory_analyze",
-		Params:  params,
-		ID:      4,
+		Params: map[string]interface{}{
+			"operation": operation,
+			"scope":     "single",
+			"options":   analyzeOptions,
+		},
+		ID: 4,
 	}
 
 	var response MCPResponse
@@ -236,9 +247,13 @@ func (c *HTTPMCPClient) QueryIntelligence(ctx context.Context, operation string,
 func (c *HTTPMCPClient) TestConnection(ctx context.Context) error {
 	request := MCPRequest{
 		JSONRPC: "2.0",
-		Method:  "memory_system/health",
-		Params:  map[string]interface{}{},
-		ID:      99,
+		Method:  "memory_system",
+		Params: map[string]interface{}{
+			"operation": "health",
+			"scope":     "system",
+			"options":   map[string]interface{}{},
+		},
+		ID: 99,
 	}
 
 	var response MCPResponse

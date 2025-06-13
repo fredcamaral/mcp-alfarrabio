@@ -158,7 +158,11 @@ func (c *Cache) generateKey(req *Request) string {
 	if req.Context != nil {
 		for k, v := range req.Context {
 			h.Write([]byte(k))
-			h.Write([]byte(v))
+			if s, ok := v.(string); ok {
+				h.Write([]byte(s))
+			} else {
+				h.Write([]byte(fmt.Sprintf("%v", v)))
+			}
 		}
 	}
 
@@ -245,7 +249,7 @@ func (c *Cache) GetWithContext(ctx context.Context, req *Request) (*Response, bo
 	// Create a copy of the request to avoid modifying the original
 	reqCopy := *req
 	if reqCopy.Context == nil {
-		reqCopy.Context = make(map[string]string)
+		reqCopy.Context = make(map[string]interface{})
 	}
 
 	// Extract context values - check for common keys
@@ -264,7 +268,7 @@ func (c *Cache) SetWithContext(ctx context.Context, req *Request, resp *Response
 	// Create a copy of the request to avoid modifying the original
 	reqCopy := *req
 	if reqCopy.Context == nil {
-		reqCopy.Context = make(map[string]string)
+		reqCopy.Context = make(map[string]interface{})
 	}
 
 	// Extract context values - check for common keys

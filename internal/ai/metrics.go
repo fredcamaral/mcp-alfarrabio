@@ -39,7 +39,7 @@ func (m *Metrics) RecordRequest(model Model, latency time.Duration, tokens Token
 
 	metrics := m.requests[model]
 	metrics.totalRequests++
-	metrics.totalTokens += int64(tokens.Total)
+	metrics.totalTokens += int64(tokens.TotalTokens)
 	metrics.totalLatency += latency
 	metrics.lastRequestTime = time.Now()
 }

@@ -197,7 +197,7 @@ func (cs *Service) CreateChunk(ctx context.Context, sessionID, content string, m
 	chunk.Summary = summary
 
 	// Generate embeddings
-	embedding, err := cs.embeddingService.GenerateEmbedding(ctx, cs.prepareContentForEmbedding(chunk))
+	embedding, err := cs.embeddingService.Generate(ctx, cs.prepareContentForEmbedding(chunk))
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate embeddings: %w", err)
 	}

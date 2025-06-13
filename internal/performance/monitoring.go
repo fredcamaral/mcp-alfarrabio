@@ -12,131 +12,131 @@ import (
 
 // Monitor provides comprehensive performance monitoring and observability
 type Monitor struct {
-	config      *MonitorConfig
-	metrics     *SystemMetrics
-	collectors  map[string]MetricCollector
-	alerts      *AlertManager
-	mutex       sync.RWMutex
-	ctx         context.Context
-	cancel      context.CancelFunc
-	running     bool
+	config     *MonitorConfig
+	metrics    *SystemMetrics
+	collectors map[string]MetricCollector
+	alerts     *AlertManager
+	mutex      sync.RWMutex
+	ctx        context.Context
+	cancel     context.CancelFunc
+	running    bool
 }
 
 // MonitorConfig defines monitoring configuration
 type MonitorConfig struct {
 	// Collection settings
-	CollectionInterval   time.Duration `json:"collection_interval"`
-	MetricRetention      time.Duration `json:"metric_retention"`
-	EnableSystemMetrics  bool          `json:"enable_system_metrics"`
-	EnableCustomMetrics  bool          `json:"enable_custom_metrics"`
-	
+	CollectionInterval  time.Duration `json:"collection_interval"`
+	MetricRetention     time.Duration `json:"metric_retention"`
+	EnableSystemMetrics bool          `json:"enable_system_metrics"`
+	EnableCustomMetrics bool          `json:"enable_custom_metrics"`
+
 	// Performance settings
-	MetricBufferSize     int           `json:"metric_buffer_size"`
-	BatchSize            int           `json:"batch_size"`
-	FlushInterval        time.Duration `json:"flush_interval"`
-	
+	MetricBufferSize int           `json:"metric_buffer_size"`
+	BatchSize        int           `json:"batch_size"`
+	FlushInterval    time.Duration `json:"flush_interval"`
+
 	// Alert settings
-	EnableAlerting       bool          `json:"enable_alerting"`
-	AlertThresholds      map[string]float64 `json:"alert_thresholds"`
-	AlertCooldown        time.Duration `json:"alert_cooldown"`
-	
+	EnableAlerting  bool               `json:"enable_alerting"`
+	AlertThresholds map[string]float64 `json:"alert_thresholds"`
+	AlertCooldown   time.Duration      `json:"alert_cooldown"`
+
 	// Export settings
-	EnableExport         bool          `json:"enable_export"`
-	ExportFormat         string        `json:"export_format"`
-	ExportDestination    string        `json:"export_destination"`
+	EnableExport      bool   `json:"enable_export"`
+	ExportFormat      string `json:"export_format"`
+	ExportDestination string `json:"export_destination"`
 }
 
 // DefaultMonitorConfig returns optimized default configuration
 func DefaultMonitorConfig() *MonitorConfig {
 	return &MonitorConfig{
-		CollectionInterval:   10 * time.Second,
-		MetricRetention:      24 * time.Hour,
-		EnableSystemMetrics:  true,
-		EnableCustomMetrics:  true,
-		MetricBufferSize:     10000,
-		BatchSize:            100,
-		FlushInterval:        30 * time.Second,
-		EnableAlerting:       true,
+		CollectionInterval:  10 * time.Second,
+		MetricRetention:     24 * time.Hour,
+		EnableSystemMetrics: true,
+		EnableCustomMetrics: true,
+		MetricBufferSize:    10000,
+		BatchSize:           100,
+		FlushInterval:       30 * time.Second,
+		EnableAlerting:      true,
 		AlertThresholds: map[string]float64{
-			"cpu_usage":      80.0,
-			"memory_usage":   85.0,
-			"response_time":  1000.0, // milliseconds
-			"error_rate":     5.0,    // percentage
+			"cpu_usage":     80.0,
+			"memory_usage":  85.0,
+			"response_time": 1000.0, // milliseconds
+			"error_rate":    5.0,    // percentage
 		},
-		AlertCooldown:         5 * time.Minute,
-		EnableExport:          false,
-		ExportFormat:          "json",
-		ExportDestination:     "/tmp/metrics",
+		AlertCooldown:     5 * time.Minute,
+		EnableExport:      false,
+		ExportFormat:      "json",
+		ExportDestination: "/tmp/metrics",
 	}
 }
 
 // SystemMetrics represents comprehensive system performance metrics
 type SystemMetrics struct {
-	mutex           sync.RWMutex
-	Timestamp       time.Time             `json:"timestamp"`
-	
+	mutex     sync.RWMutex
+	Timestamp time.Time `json:"timestamp"`
+
 	// System resources
-	CPUUsage        float64               `json:"cpu_usage"`
-	MemoryUsage     MemoryMetrics         `json:"memory_usage"`
-	DiskUsage       DiskMetrics           `json:"disk_usage"`
-	NetworkUsage    NetworkMetrics        `json:"network_usage"`
-	
+	CPUUsage     float64        `json:"cpu_usage"`
+	MemoryUsage  MemoryMetrics  `json:"memory_usage"`
+	DiskUsage    DiskMetrics    `json:"disk_usage"`
+	NetworkUsage NetworkMetrics `json:"network_usage"`
+
 	// Application metrics
-	Goroutines      int                   `json:"goroutines"`
-	HeapObjects     uint64                `json:"heap_objects"`
-	GCPauses        []time.Duration       `json:"gc_pauses"`
-	
+	Goroutines  int             `json:"goroutines"`
+	HeapObjects uint64          `json:"heap_objects"`
+	GCPauses    []time.Duration `json:"gc_pauses"`
+
 	// Performance metrics
-	ResponseTimes   ResponseTimeMetrics   `json:"response_times"`
+	ResponseTimes     ResponseTimeMetrics `json:"response_times"`
 	ThroughputMetrics ThroughputMetrics   `json:"throughput"`
-	ErrorMetrics    ErrorMetrics          `json:"errors"`
-	
+	ErrorMetrics      ErrorMetrics        `json:"errors"`
+
 	// Custom metrics
-	CustomMetrics   map[string]interface{} `json:"custom_metrics"`
+	CustomMetrics map[string]interface{} `json:"custom_metrics"`
 }
 
 // MemoryMetrics represents memory usage statistics
 type MemoryMetrics struct {
-	TotalAlloc      uint64  `json:"total_alloc"`
-	Sys             uint64  `json:"sys"`
-	Mallocs         uint64  `json:"mallocs"`
-	Frees           uint64  `json:"frees"`
-	LiveObjects     uint64  `json:"live_objects"`
-	HeapAlloc       uint64  `json:"heap_alloc"`
-	HeapSys         uint64  `json:"heap_sys"`
-	HeapInuse       uint64  `json:"heap_inuse"`
-	StackInuse      uint64  `json:"stack_inuse"`
-	UsagePercent    float64 `json:"usage_percent"`
+	TotalAlloc   uint64  `json:"total_alloc"`
+	Sys          uint64  `json:"sys"`
+	Mallocs      uint64  `json:"mallocs"`
+	Frees        uint64  `json:"frees"`
+	LiveObjects  uint64  `json:"live_objects"`
+	HeapAlloc    uint64  `json:"heap_alloc"`
+	HeapSys      uint64  `json:"heap_sys"`
+	HeapInuse    uint64  `json:"heap_inuse"`
+	StackInuse   uint64  `json:"stack_inuse"`
+	UsagePercent float64 `json:"usage_percent"`
 }
 
 // DiskMetrics represents disk usage statistics
 type DiskMetrics struct {
-	TotalSpace      uint64  `json:"total_space"`
-	UsedSpace       uint64  `json:"used_space"`
-	FreeSpace       uint64  `json:"free_space"`
-	UsagePercent    float64 `json:"usage_percent"`
-	IOOperations    uint64  `json:"io_operations"`
-	IOBytes         uint64  `json:"io_bytes"`
+	TotalSpace   uint64  `json:"total_space"`
+	UsedSpace    uint64  `json:"used_space"`
+	FreeSpace    uint64  `json:"free_space"`
+	UsagePercent float64 `json:"usage_percent"`
+	IOOperations uint64  `json:"io_operations"`
+	IOBytes      uint64  `json:"io_bytes"`
 }
 
 // NetworkMetrics represents network usage statistics
 type NetworkMetrics struct {
-	BytesReceived   uint64  `json:"bytes_received"`
-	BytesSent       uint64  `json:"bytes_sent"`
-	PacketsReceived uint64  `json:"packets_received"`
-	PacketsSent     uint64  `json:"packets_sent"`
-	Connections     int     `json:"connections"`
+	BytesReceived   uint64 `json:"bytes_received"`
+	BytesSent       uint64 `json:"bytes_sent"`
+	PacketsReceived uint64 `json:"packets_received"`
+	PacketsSent     uint64 `json:"packets_sent"`
+	Connections     int    `json:"connections"`
 }
 
 // ResponseTimeMetrics represents response time statistics
 type ResponseTimeMetrics struct {
-	Mean            float64 `json:"mean"`
-	Median          float64 `json:"median"`
-	P95             float64 `json:"p95"`
-	P99             float64 `json:"p99"`
-	Min             float64 `json:"min"`
-	Max             float64 `json:"max"`
-	Count           int64   `json:"count"`
+	Mean   float64 `json:"mean"`
+	Median float64 `json:"median"`
+	P95    float64 `json:"p95"`
+	P99    float64 `json:"p99"`
+	Min    float64 `json:"min"`
+	Max    float64 `json:"max"`
+	Count  int64   `json:"count"`
 }
 
 // ThroughputMetrics represents throughput statistics
@@ -149,11 +149,11 @@ type ThroughputMetrics struct {
 
 // ErrorMetrics represents error statistics
 type ErrorMetrics struct {
-	TotalErrors     int64   `json:"total_errors"`
-	ErrorRate       float64 `json:"error_rate"`
-	ErrorsByType    map[string]int64 `json:"errors_by_type"`
-	ErrorsByCode    map[int]int64    `json:"errors_by_code"`
-	Last5MinErrors  int64   `json:"last_5min_errors"`
+	TotalErrors    int64            `json:"total_errors"`
+	ErrorRate      float64          `json:"error_rate"`
+	ErrorsByType   map[string]int64 `json:"errors_by_type"`
+	ErrorsByCode   map[int]int64    `json:"errors_by_code"`
+	Last5MinErrors int64            `json:"last_5min_errors"`
 }
 
 // MetricCollector defines interface for collecting specific metrics
@@ -166,24 +166,24 @@ type MetricCollector interface {
 
 // AlertManager manages performance alerts and notifications
 type AlertManager struct {
-	config      *MonitorConfig
-	alerts      map[string]*Alert
-	cooldowns   map[string]time.Time
-	mutex       sync.RWMutex
-	handlers    []AlertHandler
+	config    *MonitorConfig
+	alerts    map[string]*Alert
+	cooldowns map[string]time.Time
+	mutex     sync.RWMutex
+	handlers  []AlertHandler
 }
 
 // Alert represents a performance alert
 type Alert struct {
-	ID          string                 `json:"id"`
-	Type        AlertType              `json:"type"`
-	Severity    AlertSeverity          `json:"severity"`
-	Message     string                 `json:"message"`
-	Metric      string                 `json:"metric"`
-	Threshold   float64                `json:"threshold"`
-	CurrentValue float64               `json:"current_value"`
-	Timestamp   time.Time              `json:"timestamp"`
-	Metadata    map[string]interface{} `json:"metadata"`
+	ID           string                 `json:"id"`
+	Type         AlertType              `json:"type"`
+	Severity     AlertSeverity          `json:"severity"`
+	Message      string                 `json:"message"`
+	Metric       string                 `json:"metric"`
+	Threshold    float64                `json:"threshold"`
+	CurrentValue float64                `json:"current_value"`
+	Timestamp    time.Time              `json:"timestamp"`
+	Metadata     map[string]interface{} `json:"metadata"`
 }
 
 // AlertType defines the type of alert
@@ -217,9 +217,9 @@ func NewMonitor(config *MonitorConfig) *Monitor {
 	if config == nil {
 		config = DefaultMonitorConfig()
 	}
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
-	
+
 	monitor := &Monitor{
 		config:     config,
 		metrics:    &SystemMetrics{CustomMetrics: make(map[string]interface{})},
@@ -229,10 +229,10 @@ func NewMonitor(config *MonitorConfig) *Monitor {
 		cancel:     cancel,
 		running:    false,
 	}
-	
+
 	// Initialize built-in collectors
 	monitor.initializeCollectors()
-	
+
 	return monitor
 }
 
@@ -240,33 +240,33 @@ func NewMonitor(config *MonitorConfig) *Monitor {
 func (m *Monitor) Start() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	if m.running {
 		return fmt.Errorf("monitor already running")
 	}
-	
+
 	// Initialize all collectors
 	for name, collector := range m.collectors {
 		if err := collector.Initialize(); err != nil {
 			return fmt.Errorf("failed to initialize collector %s: %w", name, err)
 		}
 	}
-	
+
 	m.running = true
-	
+
 	// Start collection goroutine
 	go m.collectionLoop()
-	
+
 	// Start alert processing if enabled
 	if m.config.EnableAlerting {
 		go m.alertLoop()
 	}
-	
+
 	// Start export if enabled
 	if m.config.EnableExport {
 		go m.exportLoop()
 	}
-	
+
 	return nil
 }
 
@@ -274,19 +274,19 @@ func (m *Monitor) Start() error {
 func (m *Monitor) Stop() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	if !m.running {
 		return nil
 	}
-	
+
 	m.running = false
 	m.cancel()
-	
+
 	// Cleanup all collectors
 	for _, collector := range m.collectors {
 		collector.Cleanup()
 	}
-	
+
 	return nil
 }
 
@@ -294,15 +294,29 @@ func (m *Monitor) Stop() error {
 func (m *Monitor) GetMetrics() SystemMetrics {
 	m.metrics.mutex.RLock()
 	defer m.metrics.mutex.RUnlock()
-	
-	return *m.metrics
+
+	// Return a copy without the mutex to avoid lock value copying
+	return SystemMetrics{
+		Timestamp:         m.metrics.Timestamp,
+		CPUUsage:          m.metrics.CPUUsage,
+		MemoryUsage:       m.metrics.MemoryUsage,
+		DiskUsage:         m.metrics.DiskUsage,
+		NetworkUsage:      m.metrics.NetworkUsage,
+		Goroutines:        m.metrics.Goroutines,
+		HeapObjects:       m.metrics.HeapObjects,
+		GCPauses:          m.metrics.GCPauses,
+		ResponseTimes:     m.metrics.ResponseTimes,
+		ThroughputMetrics: m.metrics.ThroughputMetrics,
+		ErrorMetrics:      m.metrics.ErrorMetrics,
+		CustomMetrics:     m.metrics.CustomMetrics,
+	}
 }
 
 // RecordCustomMetric records a custom application metric
 func (m *Monitor) RecordCustomMetric(name string, value interface{}) {
 	m.metrics.mutex.Lock()
 	defer m.metrics.mutex.Unlock()
-	
+
 	m.metrics.CustomMetrics[name] = value
 }
 
@@ -310,7 +324,7 @@ func (m *Monitor) RecordCustomMetric(name string, value interface{}) {
 func (m *Monitor) AddCollector(collector MetricCollector) {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	m.collectors[collector.Name()] = collector
 }
 
@@ -325,10 +339,10 @@ func (m *Monitor) initializeCollectors() {
 	if m.config.EnableSystemMetrics {
 		m.collectors["system"] = &SystemCollector{}
 	}
-	
+
 	// Memory metrics collector
 	m.collectors["memory"] = &MemoryCollector{}
-	
+
 	// Performance metrics collector
 	m.collectors["performance"] = &PerformanceCollector{}
 }
@@ -337,7 +351,7 @@ func (m *Monitor) initializeCollectors() {
 func (m *Monitor) collectionLoop() {
 	ticker := time.NewTicker(m.config.CollectionInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -352,20 +366,20 @@ func (m *Monitor) collectionLoop() {
 func (m *Monitor) collectMetrics() {
 	m.metrics.mutex.Lock()
 	defer m.metrics.mutex.Unlock()
-	
+
 	m.metrics.Timestamp = time.Now()
-	
+
 	// Collect from all registered collectors
 	for name, collector := range m.collectors {
 		ctx, cancel := context.WithTimeout(m.ctx, 5*time.Second)
 		metrics, err := collector.Collect(ctx)
 		cancel()
-		
+
 		if err != nil {
 			// Log error in production
 			continue
 		}
-		
+
 		// Merge metrics based on collector type
 		m.mergeMetrics(name, metrics)
 	}
@@ -398,7 +412,7 @@ func (m *Monitor) mergeMetrics(collectorName string, metrics map[string]interfac
 func (m *Monitor) alertLoop() {
 	ticker := time.NewTicker(m.config.CollectionInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -412,7 +426,7 @@ func (m *Monitor) alertLoop() {
 // processAlerts checks metrics against thresholds and generates alerts
 func (m *Monitor) processAlerts() {
 	metrics := m.GetMetrics()
-	
+
 	// Check CPU usage
 	if threshold, exists := m.config.AlertThresholds["cpu_usage"]; exists {
 		if metrics.CPUUsage > threshold {
@@ -429,7 +443,7 @@ func (m *Monitor) processAlerts() {
 			m.alerts.TriggerAlert(alert)
 		}
 	}
-	
+
 	// Check memory usage
 	if threshold, exists := m.config.AlertThresholds["memory_usage"]; exists {
 		if metrics.MemoryUsage.UsagePercent > threshold {
@@ -446,7 +460,7 @@ func (m *Monitor) processAlerts() {
 			m.alerts.TriggerAlert(alert)
 		}
 	}
-	
+
 	// Check response time
 	if threshold, exists := m.config.AlertThresholds["response_time"]; exists {
 		if metrics.ResponseTimes.P95 > threshold {
@@ -463,7 +477,7 @@ func (m *Monitor) processAlerts() {
 			m.alerts.TriggerAlert(alert)
 		}
 	}
-	
+
 	// Check error rate
 	if threshold, exists := m.config.AlertThresholds["error_rate"]; exists {
 		if metrics.ErrorMetrics.ErrorRate > threshold {
@@ -486,7 +500,7 @@ func (m *Monitor) processAlerts() {
 func (m *Monitor) exportLoop() {
 	ticker := time.NewTicker(m.config.FlushInterval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:
@@ -500,14 +514,14 @@ func (m *Monitor) exportLoop() {
 // exportMetrics exports metrics to configured destination
 func (m *Monitor) exportMetrics() {
 	metrics := m.GetMetrics()
-	
+
 	switch m.config.ExportFormat {
 	case "json":
 		data, err := json.Marshal(metrics)
 		if err != nil {
 			return
 		}
-		
+
 		// In production, would write to configured destination
 		_ = data
 	}
@@ -543,7 +557,7 @@ func (c *MemoryCollector) Cleanup() error { return nil }
 func (c *MemoryCollector) Collect(ctx context.Context) (map[string]interface{}, error) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	
+
 	memMetrics := MemoryMetrics{
 		TotalAlloc:   m.TotalAlloc,
 		Sys:          m.Sys,
@@ -556,7 +570,7 @@ func (c *MemoryCollector) Collect(ctx context.Context) (map[string]interface{}, 
 		StackInuse:   m.StackInuse,
 		UsagePercent: float64(m.HeapInuse) / float64(m.HeapSys) * 100,
 	}
-	
+
 	return map[string]interface{}{
 		"memory": memMetrics,
 	}, nil
@@ -582,7 +596,7 @@ func (c *PerformanceCollector) Collect(ctx context.Context) (map[string]interfac
 		Max:    500.0,
 		Count:  1000,
 	}
-	
+
 	return map[string]interface{}{
 		"response_times": respTimeMetrics,
 	}, nil
@@ -604,18 +618,18 @@ func NewAlertManager(config *MonitorConfig) *AlertManager {
 func (am *AlertManager) TriggerAlert(alert *Alert) {
 	am.mutex.Lock()
 	defer am.mutex.Unlock()
-	
+
 	// Check cooldown
 	if lastAlert, exists := am.cooldowns[alert.Metric]; exists {
 		if time.Since(lastAlert) < am.config.AlertCooldown {
 			return // Still in cooldown
 		}
 	}
-	
+
 	// Store alert
 	am.alerts[alert.ID] = alert
 	am.cooldowns[alert.Metric] = time.Now()
-	
+
 	// Send to all handlers
 	for _, handler := range am.handlers {
 		go handler.HandleAlert(alert)
@@ -626,7 +640,7 @@ func (am *AlertManager) TriggerAlert(alert *Alert) {
 func (am *AlertManager) AddHandler(handler AlertHandler) {
 	am.mutex.Lock()
 	defer am.mutex.Unlock()
-	
+
 	am.handlers = append(am.handlers, handler)
 }
 
@@ -634,12 +648,12 @@ func (am *AlertManager) AddHandler(handler AlertHandler) {
 func (am *AlertManager) GetAlerts() []*Alert {
 	am.mutex.RLock()
 	defer am.mutex.RUnlock()
-	
+
 	alerts := make([]*Alert, 0, len(am.alerts))
 	for _, alert := range am.alerts {
 		alerts = append(alerts, alert)
 	}
-	
+
 	return alerts
 }
 

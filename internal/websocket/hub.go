@@ -51,6 +51,19 @@ type Client struct {
 	Repository string              // Filter events by repository
 	SessionID  string              // Filter events by session
 	Metadata   *ConnectionMetadata // Connection metadata for enhanced features
+	closed     bool                // Flag to prevent double closing
+	mu         sync.Mutex          // Mutex to protect closed flag
+}
+
+// SafeClose safely closes the client's send channel
+func (c *Client) SafeClose() {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if !c.closed && c.Send != nil {
+		close(c.Send)
+		c.closed = true
+	}
 }
 
 // Hub manages WebSocket connections and broadcasts
@@ -78,7 +91,7 @@ func (h *Hub) Run(ctx context.Context) {
 		// Close all client connections when shutting down
 		h.mutex.Lock()
 		for client := range h.clients {
-			close(client.Send)
+			client.SafeClose()
 			if err := client.Connection.Close(); err != nil {
 				log.Printf("Error closing client connection: %v", err)
 			}
@@ -149,7 +162,7 @@ func (h *Hub) removeClient(client *Client) {
 func (h *Hub) removeClientUnsafe(client *Client) {
 	if _, ok := h.clients[client]; ok {
 		delete(h.clients, client)
-		close(client.Send)
+		client.SafeClose()
 		if err := client.Connection.Close(); err != nil {
 			log.Printf("Error closing client connection: %v", err)
 		}

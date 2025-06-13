@@ -150,10 +150,8 @@ func (p *ConnectionPool) CloseAll() {
 			}
 		}
 
-		// Close the send channel
-		if client.Send != nil {
-			close(client.Send)
-		}
+		// Close the send channel safely
+		client.SafeClose()
 
 		// Update metrics
 		if client.Metadata != nil {

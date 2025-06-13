@@ -273,8 +273,8 @@ func (s *CircuitBreakerVectorStore) StoreChunk(ctx context.Context, chunk *types
 }
 
 // BatchStore stores chunks in batch with circuit breaker protection
-func (s *CircuitBreakerVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
-	var result *BatchResult
+func (s *CircuitBreakerVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*LegacyBatchResult, error) {
+	var result *LegacyBatchResult
 
 	err := s.cb.ExecuteWithFallback(ctx,
 		func(ctx context.Context) error {
@@ -284,7 +284,7 @@ func (s *CircuitBreakerVectorStore) BatchStore(ctx context.Context, chunks []*ty
 		},
 		func(ctx context.Context, cbErr error) error {
 			// Return failed result on circuit breaker failure
-			result = &BatchResult{
+			result = &LegacyBatchResult{
 				Success:      0,
 				Failed:       len(chunks),
 				Errors:       []string{"circuit breaker open"},
@@ -298,8 +298,8 @@ func (s *CircuitBreakerVectorStore) BatchStore(ctx context.Context, chunks []*ty
 }
 
 // BatchDelete deletes chunks in batch with circuit breaker protection
-func (s *CircuitBreakerVectorStore) BatchDelete(ctx context.Context, ids []string) (*BatchResult, error) {
-	var result *BatchResult
+func (s *CircuitBreakerVectorStore) BatchDelete(ctx context.Context, ids []string) (*LegacyBatchResult, error) {
+	var result *LegacyBatchResult
 
 	err := s.cb.ExecuteWithFallback(ctx,
 		func(ctx context.Context) error {
@@ -309,7 +309,7 @@ func (s *CircuitBreakerVectorStore) BatchDelete(ctx context.Context, ids []strin
 		},
 		func(ctx context.Context, cbErr error) error {
 			// Return failed result on circuit breaker failure
-			result = &BatchResult{
+			result = &LegacyBatchResult{
 				Success:      0,
 				Failed:       len(ids),
 				Errors:       []string{"circuit breaker open"},

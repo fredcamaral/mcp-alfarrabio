@@ -171,8 +171,8 @@ func (m *MockStore) StoreChunk(ctx context.Context, chunk *types.ConversationChu
 	return m.storeChunk(chunk)
 }
 
-func (m *MockStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*storage.BatchResult, error) {
-	result := &storage.BatchResult{
+func (m *MockStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*storage.LegacyBatchResult, error) {
+	result := &storage.LegacyBatchResult{
 		Success:      0,
 		Failed:       0,
 		Errors:       []string{},
@@ -192,8 +192,8 @@ func (m *MockStore) BatchStore(ctx context.Context, chunks []*types.Conversation
 	return result, nil
 }
 
-func (m *MockStore) BatchDelete(ctx context.Context, ids []string) (*storage.BatchResult, error) {
-	result := &storage.BatchResult{
+func (m *MockStore) BatchDelete(ctx context.Context, ids []string) (*storage.LegacyBatchResult, error) {
+	result := &storage.LegacyBatchResult{
 		Success:      0,
 		Failed:       0,
 		Errors:       []string{},

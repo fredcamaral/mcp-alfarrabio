@@ -89,26 +89,28 @@ func (a *OpenAIAdapter) ProcessRequest(ctx context.Context, req *Request) (*Resp
 	// Convert CompletionResponse to Response
 	return &Response{
 		ID:      req.ID,
-		Model:   ModelOpenAI,
+		Model:   string(ModelOpenAI),
 		Content: resp.Content,
-		TokensUsed: TokenUsage{
-			Input:  resp.Usage.Input,
-			Output: resp.Usage.Output,
-			Total:  resp.Usage.Total,
+		TokensUsed: &TokenUsage{
+			PromptTokens:     resp.Usage.PromptTokens,
+			CompletionTokens: resp.Usage.CompletionTokens,
+			TotalTokens:      resp.Usage.Total,
+			Total:            resp.Usage.Total,
 		},
-		Latency:      latency,
-		CacheHit:     false,
-		FallbackUsed: false,
-		Quality: QualityMetrics{
-			Confidence: 0.9, // Default high confidence for OpenAI
-			Relevance:  0.9,
-			Clarity:    0.9,
-			Score:      0.9,
+		Usage: resp.Usage,
+		Quality: &UnifiedQualityMetrics{
+			Confidence:   0.9, // Default high confidence for OpenAI
+			Relevance:    0.9,
+			Clarity:      0.9,
+			Completeness: 0.85,
+			Score:        0.9,
+			OverallScore: 0.89,
 		},
-		Metadata: ResponseMetadata{
-			ProcessedAt: time.Now(),
-			ServerID:    "openai-adapter",
-			Version:     "1.0.0",
+		Metadata: map[string]interface{}{
+			"processed_at": time.Now(),
+			"server_id":    "openai-adapter",
+			"version":      "1.0.0",
+			"latency_ms":   latency.Milliseconds(),
 		},
 	}, nil
 }
@@ -137,9 +139,8 @@ func (a *OpenAIAdapter) IsHealthy(ctx context.Context) error {
 // GetLimits implements the Client interface
 func (a *OpenAIAdapter) GetLimits() RateLimits {
 	return RateLimits{
-		RequestsPerMinute:  500,    // OpenAI GPT-4 tier limits
-		TokensPerMinute:    200000, // Approximate for GPT-4
-		ConcurrentRequests: 50,
-		ResetTime:          time.Minute,
+		RequestsPerMinute: 500,    // OpenAI GPT-4 tier limits
+		TokensPerMinute:   200000, // Approximate for GPT-4
+		RequestsPerDay:    10000,  // Daily limit estimate
 	}
 }

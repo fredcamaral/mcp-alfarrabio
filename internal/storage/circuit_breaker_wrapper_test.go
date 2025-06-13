@@ -105,14 +105,14 @@ func (m *MockVectorStore) StoreChunk(ctx context.Context, chunk *types.Conversat
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
+func (m *MockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*LegacyBatchResult, error) {
 	args := m.Called(ctx, chunks)
-	return args.Get(0).(*BatchResult), args.Error(1)
+	return args.Get(0).(*LegacyBatchResult), args.Error(1)
 }
 
-func (m *MockVectorStore) BatchDelete(ctx context.Context, ids []string) (*BatchResult, error) {
+func (m *MockVectorStore) BatchDelete(ctx context.Context, ids []string) (*LegacyBatchResult, error) {
 	args := m.Called(ctx, ids)
-	return args.Get(0).(*BatchResult), args.Error(1)
+	return args.Get(0).(*LegacyBatchResult), args.Error(1)
 }
 
 // Relationship management methods
@@ -434,7 +434,7 @@ func TestCircuitBreakerWrapper_AllMethods(t *testing.T) {
 		chunks := []*types.ConversationChunk{
 			{ID: "batch1"}, {ID: "batch2"},
 		}
-		expectedResult := &BatchResult{
+		expectedResult := &LegacyBatchResult{
 			Success:      2,
 			Failed:       0,
 			ProcessedIDs: []string{"batch1", "batch2"},
@@ -450,7 +450,7 @@ func TestCircuitBreakerWrapper_AllMethods(t *testing.T) {
 
 	t.Run("BatchDelete", func(t *testing.T) {
 		ids := []string{"delete1", "delete2"}
-		expectedResult := &BatchResult{
+		expectedResult := &LegacyBatchResult{
 			Success:      2,
 			Failed:       0,
 			ProcessedIDs: ids,

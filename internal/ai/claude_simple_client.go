@@ -134,12 +134,14 @@ func (c *ClaudeSimpleClient) ValidateRequest(request CompletionRequest) error {
 // GetCapabilities returns the capabilities of the Claude client
 func (c *ClaudeSimpleClient) GetCapabilities() ClientCapabilities {
 	return ClientCapabilities{
-		Provider:              "anthropic",
 		SupportedModels:       []string{"claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240307"},
 		MaxTokens:             200000, // Claude's 200k context window
 		SupportsStreaming:     true,
-		SupportsSystemMessage: true,
-		SupportsFunctionCalls: false, // Claude doesn't support function calling yet
+		SupportsSystemMsg:     true,
+		SupportsSystemMessage: true, // For backward compatibility
+		SupportsJSONMode:      false,
+		SupportsToolCalling:   false, // Claude doesn't support function calling yet
+		Provider:              "anthropic",
 	}
 }
 
@@ -225,14 +227,13 @@ func (c *ClaudeSimpleClient) processResponse(resp *http.Response, request Comple
 	return &CompletionResponse{
 		Content: content,
 		Model:   request.Model,
-		Usage: TokenUsage{
-			Input:  apiResp.Usage.InputTokens,
-			Output: apiResp.Usage.OutputTokens,
-			Total:  apiResp.Usage.InputTokens + apiResp.Usage.OutputTokens,
+		Usage: &UsageStats{
+			PromptTokens:     apiResp.Usage.InputTokens,
+			CompletionTokens: apiResp.Usage.OutputTokens,
+			Total:            apiResp.Usage.InputTokens + apiResp.Usage.OutputTokens,
 		},
-		Metadata:     request.Metadata,
-		FinishReason: apiResp.StopReason,
-		Provider:     "anthropic",
+		Metadata:    request.Metadata, // Propagate metadata from request
+		GeneratedAt: time.Now(),
 	}, nil
 }
 

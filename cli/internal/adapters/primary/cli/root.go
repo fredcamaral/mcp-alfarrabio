@@ -32,6 +32,7 @@ type CLI struct {
 	taskService        *services.TaskService
 	configMgr          ports.ConfigManager
 	logger             *slog.Logger
+	storage            ports.Storage
 	outputFormat       string
 	verbose            bool
 	documentChain      services.DocumentChainService
@@ -52,6 +53,7 @@ func NewCLI(
 	taskService *services.TaskService,
 	configMgr ports.ConfigManager,
 	logger *slog.Logger,
+	storage ports.Storage,
 	documentChain services.DocumentChainService,
 	aiService ports.AIService,
 	repositoryDetector ports.RepositoryDetector,
@@ -61,6 +63,7 @@ func NewCLI(
 		taskService,
 		configMgr,
 		logger,
+		storage,
 		documentChain,
 		aiService,
 		repositoryDetector,
@@ -74,6 +77,7 @@ func NewCLIWithIntelligence(
 	taskService *services.TaskService,
 	configMgr ports.ConfigManager,
 	logger *slog.Logger,
+	storage ports.Storage,
 	documentChain services.DocumentChainService,
 	aiService ports.AIService,
 	repositoryDetector ports.RepositoryDetector,
@@ -84,6 +88,7 @@ func NewCLIWithIntelligence(
 		taskService:        taskService,
 		configMgr:          configMgr,
 		logger:             logger,
+		storage:            storage,
 		documentChain:      documentChain,
 		aiService:          aiService,
 		repositoryDetector: repositoryDetector,
@@ -159,6 +164,7 @@ func (c *CLI) setupCommands() {
 		c.createWorkflowCommand(),
 		c.createREPLCommand(), // TUI with comprehensive dashboards
 		c.createSyncCommand(),
+		c.createAICommand(),         // AI-powered task processing and memory management
 		c.createCompletionCommand(), // Shell completion support
 		c.createVersionCommand(),    // Version information
 		c.createUpdateCommand(),     // Self-update mechanism
@@ -248,7 +254,20 @@ func (c *CLI) getContext() context.Context {
 // createAnalyticsCommand creates the analytics command when intelligence services are available
 func (c *CLI) createAnalyticsCommand() *cobra.Command {
 	// Create dependencies for analytics command
-	config, _ := c.configMgr.Load() // Use loaded config or create minimal config
+	var config *entities.Config
+	if c.configMgr != nil {
+		config, _ = c.configMgr.Load() // Use loaded config or create minimal config
+	}
+	if config == nil {
+		// Create minimal config if none available
+		config = &entities.Config{
+			CLI: entities.CLIConfig{
+				DefaultRepository: "default",
+				OutputFormat:      "table",
+			},
+		}
+	}
+
 	deps := commands.CommandDeps{
 		TaskService:      c.taskService,
 		Logger:           c.logger,

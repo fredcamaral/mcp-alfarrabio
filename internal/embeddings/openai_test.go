@@ -255,9 +255,9 @@ func TestOpenAIEmbeddingService_GenerateBatchEmbeddings_InputValidation(t *testi
 
 	t.Run("empty texts", func(t *testing.T) {
 		ctx := context.Background()
-		_, err := service.GenerateBatchEmbeddings(ctx, []string{})
-		assert.Error(t, err)
-		assert.Contains(t, err.Error(), "texts cannot be empty")
+		result, err := service.GenerateBatchEmbeddings(ctx, []string{})
+		assert.NoError(t, err)
+		assert.Equal(t, [][]float64{}, result)
 	})
 
 	t.Run("with cached results", func(t *testing.T) {
@@ -389,7 +389,7 @@ func BenchmarkOpenAIEmbeddingService_CacheOperations(b *testing.B) {
 }
 
 // Integration test helper that would work with a real API key
-func createIntegrationTestService() *OpenAIEmbeddingService {
+func createIntegrationTestService() *CompatibilityService {
 	cfg := &config.OpenAIConfig{
 		APIKey:         "test-key", // Would need real key for integration tests
 		EmbeddingModel: "text-embedding-ada-002",

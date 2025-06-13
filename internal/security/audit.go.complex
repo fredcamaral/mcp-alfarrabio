@@ -1,0 +1,690 @@
+// Package security provides comprehensive audit logging and compliance
+package security
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"sync"
+	"time"
+)
+
+// AuditLogger provides comprehensive security audit logging
+type AuditLogger struct {
+	config   *AuditConfig
+	writer   AuditWriter
+	buffer   []*AuditEvent
+	bufferMu sync.RWMutex
+	flushCh  chan struct{}
+	stopCh   chan struct{}
+	wg       sync.WaitGroup
+}
+
+// AuditConfig defines audit logging configuration
+type AuditConfig struct {
+	// General settings
+	Enabled       bool          `json:"enabled"`
+	Level         AuditLevel    `json:"level"`
+	Format        AuditFormat   `json:"format"`
+	BufferSize    int           `json:"buffer_size"`
+	FlushInterval time.Duration `json:"flush_interval"`
+
+	// Storage settings
+	OutputType  string `json:"output_type"` // file, syslog, database
+	OutputPath  string `json:"output_path"`
+	MaxFileSize int64  `json:"max_file_size"` // bytes
+	MaxFiles    int    `json:"max_files"`
+	Compression bool   `json:"compression"`
+
+	// Retention settings
+	RetentionPeriod time.Duration `json:"retention_period"`
+	ArchiveOldLogs  bool          `json:"archive_old_logs"`
+
+	// Security settings
+	EncryptLogs  bool   `json:"encrypt_logs"`
+	SignLogs     bool   `json:"sign_logs"`
+	RemoteSyslog string `json:"remote_syslog"`
+
+	// Compliance settings
+	IncludeMetadata bool     `json:"include_metadata"`
+	RedactSensitive bool     `json:"redact_sensitive"`
+	SensitiveFields []string `json:"sensitive_fields"`
+}
+
+// DefaultAuditConfig returns secure default configuration
+func DefaultAuditConfig() *AuditConfig {
+	return &AuditConfig{
+		Enabled:         true,
+		Level:           AuditLevelInfo,
+		Format:          AuditFormatJSON,
+		BufferSize:      1000,
+		FlushInterval:   30 * time.Second,
+		OutputType:      "file",
+		OutputPath:      "./logs/audit.log",
+		MaxFileSize:     100 * 1024 * 1024, // 100MB
+		MaxFiles:        10,
+		Compression:     true,
+		RetentionPeriod: 90 * 24 * time.Hour, // 90 days
+		ArchiveOldLogs:  true,
+		EncryptLogs:     true,
+		SignLogs:        true,
+		IncludeMetadata: true,
+		RedactSensitive: true,
+		SensitiveFields: []string{
+			"password", "token", "secret", "key", "credential",
+			"ssn", "credit_card", "bank_account", "api_key",
+		},
+	}
+}
+
+// AuditEvent represents a security audit event
+type AuditEvent struct {
+	ID         string                 `json:"id"`
+	Timestamp  time.Time              `json:"timestamp"`
+	Level      AuditLevel             `json:"level"`
+	EventType  string                 `json:"event_type"`
+	Category   AuditCategory          `json:"category"`
+	Actor      *AuditActor            `json:"actor"`
+	Resource   *AuditResource         `json:"resource"`
+	Action     string                 `json:"action"`
+	Result     AuditResult            `json:"result"`
+	Message    string                 `json:"message"`
+	Details    map[string]interface{} `json:"details"`
+	Context    *AuditContext          `json:"context"`
+	Risk       AuditRisk              `json:"risk"`
+	Compliance []string               `json:"compliance,omitempty"`
+	Signature  string                 `json:"signature,omitempty"`
+}
+
+// AuditActor represents the entity performing an action
+type AuditActor struct {
+	Type      ActorType `json:"type"`
+	ID        string    `json:"id"`
+	Username  string    `json:"username,omitempty"`
+	Email     string    `json:"email,omitempty"`
+	IPAddress string    `json:"ip_address,omitempty"`
+	UserAgent string    `json:"user_agent,omitempty"`
+	SessionID string    `json:"session_id,omitempty"`
+	Roles     []string  `json:"roles,omitempty"`
+}
+
+// AuditResource represents the resource being accessed
+type AuditResource struct {
+	Type       string            `json:"type"`
+	ID         string            `json:"id"`
+	Name       string            `json:"name,omitempty"`
+	Path       string            `json:"path,omitempty"`
+	Owner      string            `json:"owner,omitempty"`
+	Attributes map[string]string `json:"attributes,omitempty"`
+}
+
+// AuditContext provides additional context for the event
+type AuditContext struct {
+	RequestID     string            `json:"request_id,omitempty"`
+	CorrelationID string            `json:"correlation_id,omitempty"`
+	TraceID       string            `json:"trace_id,omitempty"`
+	Source        string            `json:"source"`
+	Environment   string            `json:"environment"`
+	Application   string            `json:"application"`
+	Version       string            `json:"version"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+}
+
+// Enums for audit logging
+
+type AuditLevel string
+
+const (
+	AuditLevelDebug    AuditLevel = "debug"
+	AuditLevelInfo     AuditLevel = "info"
+	AuditLevelWarning  AuditLevel = "warning"
+	AuditLevelError    AuditLevel = "error"
+	AuditLevelCritical AuditLevel = "critical"
+)
+
+type AuditFormat string
+
+const (
+	AuditFormatJSON   AuditFormat = "json"
+	AuditFormatCEF    AuditFormat = "cef"
+	AuditFormatSyslog AuditFormat = "syslog"
+)
+
+type AuditCategory string
+
+const (
+	CategoryAuthentication   AuditCategory = "authentication"
+	CategoryAuthorization    AuditCategory = "authorization"
+	CategoryDataAccess       AuditCategory = "data_access"
+	CategoryDataModification AuditCategory = "data_modification"
+	CategorySystemChange     AuditCategory = "system_change"
+	CategorySecurity         AuditCategory = "security"
+	CategoryCompliance       AuditCategory = "compliance"
+	CategoryError            AuditCategory = "error"
+)
+
+type ActorType string
+
+const (
+	ActorTypeUser    ActorType = "user"
+	ActorTypeService ActorType = "service"
+	ActorTypeSystem  ActorType = "system"
+	ActorTypeAPI     ActorType = "api"
+)
+
+type AuditResult string
+
+const (
+	ResultSuccess AuditResult = "success"
+	ResultFailure AuditResult = "failure"
+	ResultError   AuditResult = "error"
+	ResultDenied  AuditResult = "denied"
+)
+
+type AuditRisk string
+
+const (
+	RiskLow      AuditRisk = "low"
+	RiskMedium   AuditRisk = "medium"
+	RiskHigh     AuditRisk = "high"
+	RiskCritical AuditRisk = "critical"
+)
+
+// AuditWriter defines interface for audit log output
+type AuditWriter interface {
+	Write(event *AuditEvent) error
+	Flush() error
+	Close() error
+}
+
+// NewAuditLogger creates a new comprehensive audit logger
+func NewAuditLogger(config *AuditConfig) (*AuditLogger, error) {
+	if config == nil {
+		config = DefaultAuditConfig()
+	}
+
+	if !config.Enabled {
+		return &AuditLogger{config: config}, nil
+	}
+
+	// Create audit writer based on output type
+	var writer AuditWriter
+	var err error
+
+	switch config.OutputType {
+	case "file":
+		writer, err = NewFileAuditWriter(config)
+	case "syslog":
+		writer, err = NewSyslogAuditWriter(config)
+	default:
+		writer, err = NewFileAuditWriter(config)
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create audit writer: %w", err)
+	}
+
+	logger := &AuditLogger{
+		config:  config,
+		writer:  writer,
+		buffer:  make([]*AuditEvent, 0, config.BufferSize),
+		flushCh: make(chan struct{}, 1),
+		stopCh:  make(chan struct{}),
+	}
+
+	// Start background flusher
+	logger.wg.Add(1)
+	go logger.flusher()
+
+	return logger, nil
+}
+
+// LogEvent logs a security audit event
+func (al *AuditLogger) LogEvent(ctx context.Context, eventType string, details map[string]interface{}) {
+	if !al.config.Enabled {
+		return
+	}
+
+	event := &AuditEvent{
+		ID:         generateEventID(),
+		Timestamp:  time.Now(),
+		Level:      al.determineLevel(eventType),
+		EventType:  eventType,
+		Category:   al.determineCategory(eventType),
+		Actor:      al.extractActor(ctx),
+		Resource:   al.extractResource(ctx, details),
+		Action:     al.extractAction(eventType, details),
+		Result:     al.determineResult(details),
+		Message:    al.formatMessage(eventType, details),
+		Details:    al.sanitizeDetails(details),
+		Context:    al.extractContext(ctx),
+		Risk:       al.assessRisk(eventType, details),
+		Compliance: al.getComplianceTags(eventType),
+	}
+
+	// Sign event if enabled
+	if al.config.SignLogs {
+		event.Signature = al.signEvent(event)
+	}
+
+	al.addToBuffer(event)
+}
+
+// LogAuthentication logs authentication events
+func (al *AuditLogger) LogAuthentication(ctx context.Context, result AuditResult, username, method string, details map[string]interface{}) {
+	enrichedDetails := make(map[string]interface{})
+	for k, v := range details {
+		enrichedDetails[k] = v
+	}
+	enrichedDetails["username"] = username
+	enrichedDetails["auth_method"] = method
+	enrichedDetails["result"] = result
+
+	eventType := "authentication_attempt"
+	if result == ResultSuccess {
+		eventType = "authentication_success"
+	} else {
+		eventType = "authentication_failure"
+	}
+
+	al.LogEvent(ctx, eventType, enrichedDetails)
+}
+
+// LogAuthorization logs authorization events
+func (al *AuditLogger) LogAuthorization(ctx context.Context, result AuditResult, resource, action string, details map[string]interface{}) {
+	enrichedDetails := make(map[string]interface{})
+	for k, v := range details {
+		enrichedDetails[k] = v
+	}
+	enrichedDetails["resource"] = resource
+	enrichedDetails["action"] = action
+	enrichedDetails["result"] = result
+
+	eventType := "authorization_check"
+	al.LogEvent(ctx, eventType, enrichedDetails)
+}
+
+// LogDataAccess logs data access events
+func (al *AuditLogger) LogDataAccess(ctx context.Context, resource, operation string, details map[string]interface{}) {
+	enrichedDetails := make(map[string]interface{})
+	for k, v := range details {
+		enrichedDetails[k] = v
+	}
+	enrichedDetails["resource"] = resource
+	enrichedDetails["operation"] = operation
+
+	al.LogEvent(ctx, "data_access", enrichedDetails)
+}
+
+// LogSecurityEvent logs security-related events
+func (al *AuditLogger) LogSecurityEvent(ctx context.Context, eventType string, risk AuditRisk, details map[string]interface{}) {
+	enrichedDetails := make(map[string]interface{})
+	for k, v := range details {
+		enrichedDetails[k] = v
+	}
+	enrichedDetails["risk_level"] = risk
+
+	al.LogEvent(ctx, eventType, enrichedDetails)
+}
+
+// Flush flushes pending audit events
+func (al *AuditLogger) Flush() error {
+	if !al.config.Enabled {
+		return nil
+	}
+
+	select {
+	case al.flushCh <- struct{}{}:
+	default:
+		// Channel full, flush already pending
+	}
+
+	return nil
+}
+
+// Close closes the audit logger
+func (al *AuditLogger) Close() error {
+	if !al.config.Enabled {
+		return nil
+	}
+
+	close(al.stopCh)
+	al.wg.Wait()
+
+	if al.writer != nil {
+		return al.writer.Close()
+	}
+
+	return nil
+}
+
+// Private methods
+
+func (al *AuditLogger) addToBuffer(event *AuditEvent) {
+	al.bufferMu.Lock()
+	defer al.bufferMu.Unlock()
+
+	al.buffer = append(al.buffer, event)
+
+	// Trigger flush if buffer is full
+	if len(al.buffer) >= al.config.BufferSize {
+		select {
+		case al.flushCh <- struct{}{}:
+		default:
+		}
+	}
+}
+
+func (al *AuditLogger) flusher() {
+	defer al.wg.Done()
+
+	ticker := time.NewTicker(al.config.FlushInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-al.flushCh:
+			al.flushBuffer()
+		case <-ticker.C:
+			al.flushBuffer()
+		case <-al.stopCh:
+			al.flushBuffer() // Final flush
+			return
+		}
+	}
+}
+
+func (al *AuditLogger) flushBuffer() {
+	al.bufferMu.Lock()
+	events := al.buffer
+	al.buffer = make([]*AuditEvent, 0, al.config.BufferSize)
+	al.bufferMu.Unlock()
+
+	if al.writer == nil {
+		return
+	}
+
+	for _, event := range events {
+		if err := al.writer.Write(event); err != nil {
+			// In production, would handle write errors more gracefully
+			continue
+		}
+	}
+
+	al.writer.Flush()
+}
+
+func (al *AuditLogger) determineLevel(eventType string) AuditLevel {
+	switch {
+	case contains(eventType, "failure") || contains(eventType, "error"):
+		return AuditLevelError
+	case contains(eventType, "security") || contains(eventType, "breach"):
+		return AuditLevelCritical
+	case contains(eventType, "warning") || contains(eventType, "suspicious"):
+		return AuditLevelWarning
+	default:
+		return AuditLevelInfo
+	}
+}
+
+func (al *AuditLogger) determineCategory(eventType string) AuditCategory {
+	switch {
+	case contains(eventType, "auth"):
+		return CategoryAuthentication
+	case contains(eventType, "authz") || contains(eventType, "permission"):
+		return CategoryAuthorization
+	case contains(eventType, "access") || contains(eventType, "read"):
+		return CategoryDataAccess
+	case contains(eventType, "create") || contains(eventType, "update") || contains(eventType, "delete"):
+		return CategoryDataModification
+	case contains(eventType, "security") || contains(eventType, "breach"):
+		return CategorySecurity
+	case contains(eventType, "compliance"):
+		return CategoryCompliance
+	case contains(eventType, "error") || contains(eventType, "failure"):
+		return CategoryError
+	default:
+		return CategorySecurity
+	}
+}
+
+func (al *AuditLogger) extractActor(ctx context.Context) *AuditActor {
+	// Extract actor information from context
+	// In production, would extract from authentication context
+	return &AuditActor{
+		Type:      ActorTypeUser,
+		ID:        "unknown",
+		IPAddress: "127.0.0.1",
+		Source:    "mcp-memory-server",
+	}
+}
+
+func (al *AuditLogger) extractResource(ctx context.Context, details map[string]interface{}) *AuditResource {
+	resource := &AuditResource{
+		Type: "unknown",
+		ID:   "unknown",
+	}
+
+	if resourceType, ok := details["resource_type"].(string); ok {
+		resource.Type = resourceType
+	}
+
+	if resourceID, ok := details["resource_id"].(string); ok {
+		resource.ID = resourceID
+	}
+
+	return resource
+}
+
+func (al *AuditLogger) extractAction(eventType string, details map[string]interface{}) string {
+	if action, ok := details["action"].(string); ok {
+		return action
+	}
+	return eventType
+}
+
+func (al *AuditLogger) determineResult(details map[string]interface{}) AuditResult {
+	if result, ok := details["result"].(string); ok {
+		switch result {
+		case "success":
+			return ResultSuccess
+		case "failure", "failed":
+			return ResultFailure
+		case "error":
+			return ResultError
+		case "denied":
+			return ResultDenied
+		}
+	}
+
+	if success, ok := details["success"].(bool); ok {
+		if success {
+			return ResultSuccess
+		}
+		return ResultFailure
+	}
+
+	return ResultSuccess // Default
+}
+
+func (al *AuditLogger) formatMessage(eventType string, details map[string]interface{}) string {
+	if msg, ok := details["message"].(string); ok {
+		return msg
+	}
+
+	return fmt.Sprintf("Audit event: %s", eventType)
+}
+
+func (al *AuditLogger) sanitizeDetails(details map[string]interface{}) map[string]interface{} {
+	if !al.config.RedactSensitive {
+		return details
+	}
+
+	sanitized := make(map[string]interface{})
+	for k, v := range details {
+		if al.isSensitiveField(k) {
+			sanitized[k] = "[REDACTED]"
+		} else {
+			sanitized[k] = v
+		}
+	}
+
+	return sanitized
+}
+
+func (al *AuditLogger) isSensitiveField(field string) bool {
+	lowerField := strings.ToLower(field)
+	for _, sensitive := range al.config.SensitiveFields {
+		if contains(lowerField, sensitive) {
+			return true
+		}
+	}
+	return false
+}
+
+func (al *AuditLogger) extractContext(ctx context.Context) *AuditContext {
+	return &AuditContext{
+		Source:      "mcp-memory-server",
+		Environment: "development",
+		Application: "mcp-memory-server",
+		Version:     "2.0.0",
+	}
+}
+
+func (al *AuditLogger) assessRisk(eventType string, details map[string]interface{}) AuditRisk {
+	switch {
+	case contains(eventType, "security") || contains(eventType, "breach"):
+		return RiskCritical
+	case contains(eventType, "failure") && contains(eventType, "auth"):
+		return RiskHigh
+	case contains(eventType, "suspicious") || contains(eventType, "anomaly"):
+		return RiskMedium
+	default:
+		return RiskLow
+	}
+}
+
+func (al *AuditLogger) getComplianceTags(eventType string) []string {
+	var tags []string
+
+	// Add compliance tags based on event type
+	if contains(eventType, "auth") {
+		tags = append(tags, "SOX", "PCI-DSS")
+	}
+
+	if contains(eventType, "data") {
+		tags = append(tags, "GDPR", "CCPA")
+	}
+
+	return tags
+}
+
+func (al *AuditLogger) signEvent(event *AuditEvent) string {
+	// Simplified event signing - in production would use proper cryptographic signing
+	data, _ := json.Marshal(event)
+	return fmt.Sprintf("sig_%x", len(data))
+}
+
+// FileAuditWriter writes audit logs to files
+type FileAuditWriter struct {
+	config  *AuditConfig
+	file    *os.File
+	encoder *json.Encoder
+	mutex   sync.Mutex
+}
+
+// NewFileAuditWriter creates a new file audit writer
+func NewFileAuditWriter(config *AuditConfig) (*FileAuditWriter, error) {
+	// Ensure directory exists
+	dir := filepath.Dir(config.OutputPath)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		return nil, fmt.Errorf("failed to create log directory: %w", err)
+	}
+
+	file, err := os.OpenFile(config.OutputPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to open audit log file: %w", err)
+	}
+
+	writer := &FileAuditWriter{
+		config:  config,
+		file:    file,
+		encoder: json.NewEncoder(file),
+	}
+
+	return writer, nil
+}
+
+// Write writes an audit event to file
+func (fw *FileAuditWriter) Write(event *AuditEvent) error {
+	fw.mutex.Lock()
+	defer fw.mutex.Unlock()
+
+	return fw.encoder.Encode(event)
+}
+
+// Flush flushes the file buffer
+func (fw *FileAuditWriter) Flush() error {
+	fw.mutex.Lock()
+	defer fw.mutex.Unlock()
+
+	return fw.file.Sync()
+}
+
+// Close closes the file
+func (fw *FileAuditWriter) Close() error {
+	fw.mutex.Lock()
+	defer fw.mutex.Unlock()
+
+	return fw.file.Close()
+}
+
+// SyslogAuditWriter writes audit logs to syslog
+type SyslogAuditWriter struct {
+	config *AuditConfig
+}
+
+// NewSyslogAuditWriter creates a new syslog audit writer
+func NewSyslogAuditWriter(config *AuditConfig) (*SyslogAuditWriter, error) {
+	return &SyslogAuditWriter{config: config}, nil
+}
+
+// Write writes an audit event to syslog
+func (sw *SyslogAuditWriter) Write(event *AuditEvent) error {
+	// Simplified syslog writing - in production would use proper syslog library
+	return nil
+}
+
+// Flush flushes syslog buffer
+func (sw *SyslogAuditWriter) Flush() error {
+	return nil
+}
+
+// Close closes syslog connection
+func (sw *SyslogAuditWriter) Close() error {
+	return nil
+}
+
+// Utility functions
+
+func generateEventID() string {
+	return fmt.Sprintf("audit_%d", time.Now().UnixNano())
+}
+
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s[:len(substr)] == substr ||
+		s[len(s)-len(substr):] == substr ||
+		findSubstring(s, substr))
+}
+
+func findSubstring(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}

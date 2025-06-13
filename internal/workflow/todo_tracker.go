@@ -64,6 +64,13 @@ func (tt *TodoTracker) createSessionKey(repository, sessionID string) string {
 func (tt *TodoTracker) ProcessTodoWrite(ctx context.Context, sessionID, repository string, todos []TodoItem) error {
 	session := tt.getOrCreateSession(sessionID, repository)
 
+	// Generate IDs for todos that don't have them and assign sequential numbers
+	for i := range todos {
+		if todos[i].ID == "" {
+			todos[i].ID = fmt.Sprintf("%d", i+1)
+		}
+	}
+
 	// Track todo changes
 	previousTodos := make(map[string]TodoItem)
 	for _, todo := range session.Todos {

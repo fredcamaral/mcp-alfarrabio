@@ -98,30 +98,36 @@ func (c *ClaudeResponseConverter) ConvertResponse(data []byte, startTime time.Ti
 	}
 
 	// Calculate quality metrics (simplified for now)
-	quality := QualityMetrics{
-		Confidence: 0.9, // Claude typically has high confidence
-		Relevance:  0.85,
-		Clarity:    0.9,
-		Score:      0.88,
+	quality := &UnifiedQualityMetrics{
+		Confidence:   0.9, // Claude typically has high confidence
+		Relevance:    0.85,
+		Clarity:      0.9,
+		Score:        0.88,
+		Completeness: 0.85,
+		OverallScore: 0.88,
 	}
 
 	return &Response{
 		ID:      claudeResp.ID,
-		Model:   ModelClaude,
+		Model:   string(ModelClaude),
 		Content: content,
-		TokensUsed: TokenUsage{
-			Input:  claudeResp.Usage.InputTokens,
-			Output: claudeResp.Usage.OutputTokens,
-			Total:  claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
+		TokensUsed: &TokenUsage{
+			PromptTokens:     claudeResp.Usage.InputTokens,
+			CompletionTokens: claudeResp.Usage.OutputTokens,
+			TotalTokens:      claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
+			Total:            claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
 		},
-		Latency:      time.Since(startTime),
-		CacheHit:     false,
-		FallbackUsed: false,
-		Quality:      quality,
-		Metadata: ResponseMetadata{
-			ProcessedAt: time.Now(),
-			ServerID:    "claude-client",
-			Version:     "1.0.0",
+		Usage: &UsageStats{
+			PromptTokens:     claudeResp.Usage.InputTokens,
+			CompletionTokens: claudeResp.Usage.OutputTokens,
+			Total:            claudeResp.Usage.InputTokens + claudeResp.Usage.OutputTokens,
+		},
+		Quality: quality,
+		Metadata: map[string]interface{}{
+			"processed_at": time.Now(),
+			"server_id":    "claude-client",
+			"version":      "1.0.0",
+			"latency_ms":   time.Since(startTime).Milliseconds(),
 		},
 	}, nil
 }
@@ -149,7 +155,7 @@ func NewClaudeClient(cfg *config.ClaudeClientConfig) (*ClaudeClient, error) {
 		RateLimits: RateLimits{
 			RequestsPerMinute: 50, // Claude rate limits
 			TokensPerMinute:   100000,
-			ResetTime:         time.Minute,
+			RequestsPerDay:    1000, // Daily limit
 		},
 	}
 

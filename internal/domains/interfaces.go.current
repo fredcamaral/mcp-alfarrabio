@@ -1,0 +1,78 @@
+// Package domains provides clean domain interfaces and separation
+// for the refactored MCP Memory Server architecture.
+//
+// This package establishes clear boundaries between different domains:
+// - Memory Domain: Content storage, search, and knowledge management
+// - Task Domain: Task management, workflows, and productivity features
+// - System Domain: Administrative operations and system management
+package domains
+
+import (
+	"context"
+
+	domainTypes "lerian-mcp-memory/internal/domains/types"
+)
+
+// MemoryDomain handles all memory and knowledge management operations
+// This domain is responsible for content storage, search, relationships, and intelligence
+type MemoryDomain interface {
+	// Content Management
+	StoreContent(ctx context.Context, req *domainTypes.StoreContentRequest) (*domainTypes.StoreContentResponse, error)
+	UpdateContent(ctx context.Context, req *domainTypes.UpdateContentRequest) (*domainTypes.UpdateContentResponse, error)
+	DeleteContent(ctx context.Context, req *domainTypes.DeleteContentRequest) error
+	GetContent(ctx context.Context, req *domainTypes.GetContentRequest) (*domainTypes.GetContentResponse, error)
+	
+	// Search and Discovery
+	SearchContent(ctx context.Context, req *domainTypes.SearchContentRequest) (*domainTypes.SearchContentResponse, error)
+	FindSimilarContent(ctx context.Context, req *domainTypes.FindSimilarRequest) (*domainTypes.FindSimilarResponse, error)
+	FindRelatedContent(ctx context.Context, req *domainTypes.FindRelatedRequest) (*domainTypes.FindRelatedResponse, error)
+	
+	// Relationships
+	CreateRelationship(ctx context.Context, req *domainTypes.CreateRelationshipRequest) (*domainTypes.CreateRelationshipResponse, error)
+	GetRelationships(ctx context.Context, req *domainTypes.GetRelationshipsRequest) (*domainTypes.GetRelationshipsResponse, error)
+	DeleteRelationship(ctx context.Context, req *domainTypes.DeleteRelationshipRequest) error
+	
+	// Intelligence and Analysis
+	DetectPatterns(ctx context.Context, req *domainTypes.DetectPatternsRequest) (*domainTypes.DetectPatternsResponse, error)
+	GenerateInsights(ctx context.Context, req *domainTypes.GenerateInsightsRequest) (*domainTypes.GenerateInsightsResponse, error)
+	AnalyzeQuality(ctx context.Context, req *domainTypes.AnalyzeQualityRequest) (*domainTypes.AnalyzeQualityResponse, error)
+	DetectConflicts(ctx context.Context, req *domainTypes.DetectConflictsRequest) (*domainTypes.DetectConflictsResponse, error)
+}
+
+// TaskDomain handles all task management and productivity operations
+// This domain is responsible for task lifecycle, workflows, and project management
+type TaskDomain interface {
+	// NOTE: Task domain interface will be defined as we implement it
+	// Placeholder for now to avoid compilation errors
+}
+
+// SystemDomain handles system-level operations and administration
+// This domain is responsible for health monitoring, metrics, and system management
+type SystemDomain interface {
+	// NOTE: System domain interface will be defined as we implement it
+	// Placeholder for now to avoid compilation errors
+}
+
+// DomainCoordinator handles cross-domain operations and coordination
+// This interface enables communication between domains while maintaining separation
+type DomainCoordinator interface {
+	// NOTE: Coordinator interface will be defined as we implement it
+	// Placeholder for now to avoid compilation errors
+}
+
+// DomainRegistry provides access to all domains and coordination
+// This is the main entry point for domain operations
+type DomainRegistry interface {
+	// Domain Access
+	Memory() MemoryDomain
+	Task() TaskDomain  
+	System() SystemDomain
+	
+	// Cross-Domain Operations
+	Coordinator() DomainCoordinator
+	
+	// Lifecycle
+	Start() error
+	Stop() error
+	Health() error
+}

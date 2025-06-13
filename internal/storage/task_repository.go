@@ -11,6 +11,8 @@ import (
 
 	"lerian-mcp-memory/internal/tasks"
 	"lerian-mcp-memory/pkg/types"
+
+	"github.com/google/uuid"
 )
 
 // TaskRepository implements task data access using SQL database
@@ -23,47 +25,69 @@ type TaskRepository struct {
 func (tr *TaskRepository) scanTaskFromRows(rows *sql.Rows) (*types.Task, error) {
 	var task types.Task
 	var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
-	var repository, branch sql.NullString
+	var repository, sessionID sql.NullString
+	var content, complexityStr, typeStr, priorityStr, statusStr string
 
 	err := rows.Scan(
-		&task.ID, &task.Title, &task.Description, &task.Type, &task.Priority, &task.Status, &task.Assignee,
-		&task.SourcePRDID, &task.DueDate, &task.Timestamps.Created, &task.Timestamps.Updated,
+		&task.ID, &task.Title, &task.Description, &content, &typeStr, &priorityStr, &statusStr, &task.Assignee,
+		&repository, &sessionID, &task.Timestamps.Created, &task.Timestamps.Updated,
 		&task.Timestamps.Started, &task.Timestamps.Completed,
 		&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
-		&task.Complexity.Level, &task.Complexity.Score, &task.QualityScore.OverallScore,
-		&metadataJSON, &repository, &branch,
+		&complexityStr, &task.Complexity.Score, &task.QualityScore.OverallScore,
+		&metadataJSON,
 	)
 
 	if err != nil {
 		return nil, err
 	}
 
-	// Deserialize complex fields
-	if err := json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal acceptance criteria: %w", err)
+	// Convert enum strings to typed values
+	task.Type = types.TaskType(typeStr)
+	task.Priority = types.TaskPriority(priorityStr)
+	task.Status = types.TaskStatus(statusStr)
+	task.Complexity.Level = types.ComplexityLevel(complexityStr)
+
+	// Deserialize JSONB fields
+	if len(acceptanceCriteriaJSON) > 0 {
+		if err := json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal acceptance criteria: %w", err)
+		}
 	}
-	if err := json.Unmarshal(dependenciesJSON, &task.Dependencies); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal dependencies: %w", err)
+	if len(dependenciesJSON) > 0 {
+		if err := json.Unmarshal(dependenciesJSON, &task.Dependencies); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal dependencies: %w", err)
+		}
 	}
-	if err := json.Unmarshal(tagsJSON, &task.Tags); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal tags: %w", err)
+	if len(tagsJSON) > 0 {
+		if err := json.Unmarshal(tagsJSON, &task.Tags); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal tags: %w", err)
+		}
 	}
-	if err := json.Unmarshal(metadataJSON, &task.Metadata); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+	if len(metadataJSON) > 0 {
+		if err := json.Unmarshal(metadataJSON, &task.Metadata); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		}
 	}
 
-	// Handle nullable fields
+	// Initialize metadata if nil
 	if task.Metadata.ExtendedData == nil {
 		task.Metadata.ExtendedData = make(map[string]interface{})
 	}
+
+	// Store repository in metadata for compatibility
 	if repository.Valid {
 		task.Metadata.ExtendedData["repository"] = repository.String
 	}
-	if branch.Valid {
-		task.Metadata.ExtendedData["branch"] = branch.String
+	if sessionID.Valid {
+		task.Metadata.ExtendedData["session_id"] = sessionID.String
 	}
 
 	return &task, nil
+}
+
+// generateUUID generates a new UUID string
+func generateUUID() string {
+	return uuid.New().String()
 }
 
 // NewTaskRepository creates a new task repository
@@ -76,22 +100,28 @@ func NewTaskRepository(db *sql.DB) *TaskRepository {
 
 // Create creates a new task in the database
 func (tr *TaskRepository) Create(ctx context.Context, task *types.Task) error {
+	// Use UUID generation if ID is empty
+	taskID := task.ID
+	if taskID == "" {
+		taskID = generateUUID()
+	}
+
 	query := `
 		INSERT INTO tasks (
-			id, title, description, type, priority, status, assignee, 
-			source_prd_id, due_date, created_at, updated_at, 
+			id, title, description, content, type, priority, status, assignee, 
+			repository, session_id, created_at, updated_at, 
 			acceptance_criteria, dependencies, tags, estimated_hours,
-			complexity_level, complexity_score, quality_score,
-			metadata, repository, branch
+			complexity, complexity_score, quality_score,
+			metadata
 		) VALUES (
-			$1, $2, $3, $4, $5, $6, $7, 
-			$8, $9, $10, $11, 
-			$12, $13, $14, $15,
-			$16, $17, $18,
-			$19, $20, $21
+			$1, $2, $3, $4, $5::task_type, $6::task_priority, $7::task_status, $8,
+			$9, $10, $11, $12,
+			$13, $14, $15, $16,
+			$17::task_complexity, $18, $19,
+			$20
 		)`
 
-	// Serialize complex fields
+	// Serialize JSONB fields
 	acceptanceCriteriaJSON, err := json.Marshal(task.AcceptanceCriteria)
 	if err != nil {
 		return fmt.Errorf("failed to marshal acceptance criteria: %w", err)
@@ -109,63 +139,110 @@ func (tr *TaskRepository) Create(ctx context.Context, task *types.Task) error {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
+	// Extract repository from metadata or set default
+	repository := "default"
+	if task.Metadata.ExtendedData != nil {
+		if repo, ok := task.Metadata.ExtendedData["repository"].(string); ok && repo != "" {
+			repository = repo
+		}
+	}
+
+	// Set content to description as that's what the database expects
+	content := task.Description
+	if content == "" {
+		content = task.Title
+	}
+
 	_, err = tr.db.ExecContext(ctx, query,
-		task.ID, task.Title, task.Description, task.Type, task.Priority, task.Status, task.Assignee,
-		task.SourcePRDID, task.DueDate, task.Timestamps.Created, task.Timestamps.Updated,
+		taskID, task.Title, task.Description, content,
+		string(task.Type), string(task.Priority), string(task.Status), task.Assignee,
+		repository, nil, // session_id can be null
+		task.Timestamps.Created, task.Timestamps.Updated,
 		acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, task.EstimatedEffort.Hours,
-		task.Complexity.Level, task.Complexity.Score, task.QualityScore.OverallScore,
-		metadataJSON, task.Metadata.ExtendedData["repository"], task.Metadata.ExtendedData["branch"],
+		string(task.Complexity.Level), task.Complexity.Score, task.QualityScore.OverallScore,
+		metadataJSON,
 	)
 
-	return err
+	if err != nil {
+		return fmt.Errorf("failed to create task: %w", err)
+	}
+
+	// Update the task ID in case it was generated
+	task.ID = taskID
+	return nil
 }
 
 // GetByID retrieves a task by ID
 func (tr *TaskRepository) GetByID(ctx context.Context, id string) (*types.Task, error) {
 	query := `
-		SELECT id, title, description, type, priority, status, assignee,
-			   source_prd_id, due_date, created_at, updated_at, started_at, completed_at,
+		SELECT id, title, description, content, type, priority, status, assignee,
+			   repository, session_id, created_at, updated_at, started_at, completed_at,
 			   acceptance_criteria, dependencies, tags, estimated_hours,
-			   complexity_level, complexity_score, quality_score,
-			   metadata, repository, branch
+			   complexity, complexity_score, quality_score,
+			   metadata
 		FROM tasks 
-		WHERE id = $1`
+		WHERE id = $1 AND deleted_at IS NULL`
 
 	var task types.Task
 	var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
-	var repository, branch sql.NullString
+	var repository, sessionID sql.NullString
+	var content, complexityStr, typeStr, priorityStr, statusStr string
 
 	err := tr.db.QueryRowContext(ctx, query, id).Scan(
-		&task.ID, &task.Title, &task.Description, &task.Type, &task.Priority, &task.Status, &task.Assignee,
-		&task.SourcePRDID, &task.DueDate, &task.Timestamps.Created, &task.Timestamps.Updated,
+		&task.ID, &task.Title, &task.Description, &content, &typeStr, &priorityStr, &statusStr, &task.Assignee,
+		&repository, &sessionID, &task.Timestamps.Created, &task.Timestamps.Updated,
 		&task.Timestamps.Started, &task.Timestamps.Completed,
 		&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
-		&task.Complexity.Level, &task.Complexity.Score, &task.QualityScore.OverallScore,
-		&metadataJSON, &repository, &branch,
+		&complexityStr, &task.Complexity.Score, &task.QualityScore.OverallScore,
+		&metadataJSON,
 	)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, fmt.Errorf("task not found: %s", id)
 		}
-		return nil, err
+		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
 
-	// Deserialize complex fields
-	_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
-	_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
-	_ = json.Unmarshal(tagsJSON, &task.Tags)
-	_ = json.Unmarshal(metadataJSON, &task.Metadata)
+	// Convert enum strings to typed values
+	task.Type = types.TaskType(typeStr)
+	task.Priority = types.TaskPriority(priorityStr)
+	task.Status = types.TaskStatus(statusStr)
+	task.Complexity.Level = types.ComplexityLevel(complexityStr)
 
-	// Handle nullable fields
+	// Deserialize JSONB fields
+	if len(acceptanceCriteriaJSON) > 0 {
+		if err := json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal acceptance criteria: %w", err)
+		}
+	}
+	if len(dependenciesJSON) > 0 {
+		if err := json.Unmarshal(dependenciesJSON, &task.Dependencies); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal dependencies: %w", err)
+		}
+	}
+	if len(tagsJSON) > 0 {
+		if err := json.Unmarshal(tagsJSON, &task.Tags); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal tags: %w", err)
+		}
+	}
+	if len(metadataJSON) > 0 {
+		if err := json.Unmarshal(metadataJSON, &task.Metadata); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
+		}
+	}
+
+	// Initialize metadata if nil
 	if task.Metadata.ExtendedData == nil {
 		task.Metadata.ExtendedData = make(map[string]interface{})
 	}
+
+	// Store repository in metadata for compatibility
 	if repository.Valid {
 		task.Metadata.ExtendedData["repository"] = repository.String
 	}
-	if branch.Valid {
-		task.Metadata.ExtendedData["branch"] = branch.String
+	if sessionID.Valid {
+		task.Metadata.ExtendedData["session_id"] = sessionID.String
 	}
 
 	return &task, nil
@@ -175,14 +252,14 @@ func (tr *TaskRepository) GetByID(ctx context.Context, id string) (*types.Task, 
 func (tr *TaskRepository) Update(ctx context.Context, task *types.Task) error {
 	query := `
 		UPDATE tasks SET 
-			title = $2, description = $3, type = $4, priority = $5, status = $6, 
-			assignee = $7, due_date = $8, updated_at = $9, started_at = $10, completed_at = $11,
-			acceptance_criteria = $12, dependencies = $13, tags = $14, estimated_hours = $15,
-			complexity_level = $16, complexity_score = $17, quality_score = $18,
-			metadata = $19, repository = $20, branch = $21
-		WHERE id = $1`
+			title = $2, description = $3, content = $4, type = $5::task_type, priority = $6::task_priority, 
+			status = $7::task_status, assignee = $8, due_date = $9, updated_at = $10, 
+			started_at = $11, completed_at = $12, acceptance_criteria = $13, dependencies = $14, 
+			tags = $15, estimated_hours = $16, complexity = $17::task_complexity, 
+			complexity_score = $18, quality_score = $19, metadata = $20
+		WHERE id = $1 AND deleted_at IS NULL`
 
-	// Serialize complex fields
+	// Serialize JSONB fields
 	acceptanceCriteriaJSON, err := json.Marshal(task.AcceptanceCriteria)
 	if err != nil {
 		return fmt.Errorf("failed to marshal acceptance criteria: %w", err)
@@ -200,22 +277,23 @@ func (tr *TaskRepository) Update(ctx context.Context, task *types.Task) error {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	var repository, branch interface{}
-	if task.Metadata.ExtendedData != nil {
-		repository = task.Metadata.ExtendedData["repository"]
-		branch = task.Metadata.ExtendedData["branch"]
+	// Set content to description as that's what the database expects
+	content := task.Description
+	if content == "" {
+		content = task.Title
 	}
 
 	result, err := tr.db.ExecContext(ctx, query,
-		task.ID, task.Title, task.Description, task.Type, task.Priority, task.Status,
+		task.ID, task.Title, task.Description, content,
+		string(task.Type), string(task.Priority), string(task.Status),
 		task.Assignee, task.DueDate, task.Timestamps.Updated, task.Timestamps.Started, task.Timestamps.Completed,
 		acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, task.EstimatedEffort.Hours,
-		task.Complexity.Level, task.Complexity.Score, task.QualityScore.OverallScore,
-		metadataJSON, repository, branch,
+		string(task.Complexity.Level), task.Complexity.Score, task.QualityScore.OverallScore,
+		metadataJSON,
 	)
 
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to update task: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -230,13 +308,13 @@ func (tr *TaskRepository) Update(ctx context.Context, task *types.Task) error {
 	return nil
 }
 
-// Delete deletes a task by ID
+// Delete deletes a task by ID (soft delete)
 func (tr *TaskRepository) Delete(ctx context.Context, id string) error {
-	query := `DELETE FROM tasks WHERE id = $1`
+	query := `UPDATE tasks SET deleted_at = CURRENT_TIMESTAMP WHERE id = $1 AND deleted_at IS NULL`
 
 	result, err := tr.db.ExecContext(ctx, query, id)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to delete task: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
@@ -253,63 +331,108 @@ func (tr *TaskRepository) Delete(ctx context.Context, id string) error {
 
 // List retrieves tasks with filtering and pagination
 func (tr *TaskRepository) List(ctx context.Context, filters *tasks.TaskFilters) ([]types.Task, error) {
-	// Build query with filters
-	baseQuery := `
-		SELECT id, title, description, type, priority, status, assignee,
-			   source_prd_id, due_date, created_at, updated_at, started_at, completed_at,
+	// Simple query without complex filtering for now - can be enhanced later
+	query := `
+		SELECT id, title, description, content, type, priority, status, assignee,
+			   repository, session_id, created_at, updated_at, started_at, completed_at,
 			   acceptance_criteria, dependencies, tags, estimated_hours,
-			   complexity_level, complexity_score, quality_score,
-			   metadata, repository, branch
-		FROM tasks`
+			   complexity, complexity_score, quality_score,
+			   metadata
+		FROM tasks
+		WHERE deleted_at IS NULL
+		ORDER BY created_at DESC`
 
-	whereClause, args := tr.filter.BuildWhereClause(filters)
-	orderClause := tr.filter.BuildOrderClause(filters.SortBy)
-
-	query := fmt.Sprintf("%s %s %s", baseQuery, whereClause, orderClause)
-
-	// Add pagination
-	if filters.Limit > 0 {
-		query += fmt.Sprintf(" LIMIT %d", filters.Limit)
+	// Add pagination if specified
+	if filters != nil {
+		if filters.Limit > 0 {
+			query += fmt.Sprintf(" LIMIT %d", filters.Limit)
+		}
+		if filters.Offset > 0 {
+			query += fmt.Sprintf(" OFFSET %d", filters.Offset)
+		}
 	}
-	if filters.Offset > 0 {
-		query += fmt.Sprintf(" OFFSET %d", filters.Offset)
-	}
 
-	rows, err := tr.db.QueryContext(ctx, query, args...)
+	rows, err := tr.db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to query tasks: %w", err)
 	}
 	defer func() {
-		// Ignore close errors in defer
 		_ = rows.Close()
 	}()
 
 	var taskList []types.Task
 	for rows.Next() {
-		task, err := tr.scanTaskFromRows(rows)
+		var task types.Task
+		var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
+		var repository, sessionID sql.NullString
+		var content, complexityStr, typeStr, priorityStr, statusStr string
+
+		err := rows.Scan(
+			&task.ID, &task.Title, &task.Description, &content, &typeStr, &priorityStr, &statusStr, &task.Assignee,
+			&repository, &sessionID, &task.Timestamps.Created, &task.Timestamps.Updated,
+			&task.Timestamps.Started, &task.Timestamps.Completed,
+			&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
+			&complexityStr, &task.Complexity.Score, &task.QualityScore.OverallScore,
+			&metadataJSON,
+		)
+
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to scan task: %w", err)
 		}
-		taskList = append(taskList, *task)
+
+		// Convert enum strings to typed values
+		task.Type = types.TaskType(typeStr)
+		task.Priority = types.TaskPriority(priorityStr)
+		task.Status = types.TaskStatus(statusStr)
+		task.Complexity.Level = types.ComplexityLevel(complexityStr)
+
+		// Deserialize JSONB fields
+		if len(acceptanceCriteriaJSON) > 0 {
+			_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
+		}
+		if len(dependenciesJSON) > 0 {
+			_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
+		}
+		if len(tagsJSON) > 0 {
+			_ = json.Unmarshal(tagsJSON, &task.Tags)
+		}
+		if len(metadataJSON) > 0 {
+			_ = json.Unmarshal(metadataJSON, &task.Metadata)
+		}
+
+		// Initialize metadata if nil
+		if task.Metadata.ExtendedData == nil {
+			task.Metadata.ExtendedData = make(map[string]interface{})
+		}
+
+		// Store repository in metadata for compatibility
+		if repository.Valid {
+			task.Metadata.ExtendedData["repository"] = repository.String
+		}
+		if sessionID.Valid {
+			task.Metadata.ExtendedData["session_id"] = sessionID.String
+		}
+
+		taskList = append(taskList, task)
 	}
 
 	return taskList, rows.Err()
 }
 
 // Search performs full-text search on tasks
-func (tr *TaskRepository) Search(ctx context.Context, query *tasks.SearchQuery) (interface{}, error) {
+func (tr *TaskRepository) Search(ctx context.Context, query *tasks.SearchQuery) (*tasks.SearchResults, error) {
 	startTime := time.Now()
 
 	// Build search query with full-text search capabilities
 	searchQuery := `
-		SELECT id, title, description, type, priority, status, assignee,
-			   source_prd_id, due_date, created_at, updated_at, started_at, completed_at,
+		SELECT id, title, description, content, type, priority, status, assignee,
+			   repository, session_id, created_at, updated_at, started_at, completed_at,
 			   acceptance_criteria, dependencies, tags, estimated_hours,
-			   complexity_level, complexity_score, quality_score,
-			   metadata, repository, branch,
+			   complexity, complexity_score, quality_score,
+			   metadata,
 			   ts_rank(search_vector, plainto_tsquery($1)) as rank
 		FROM tasks
-		WHERE search_vector @@ plainto_tsquery($1)`
+		WHERE search_vector @@ plainto_tsquery($1) AND deleted_at IS NULL`
 
 	// Add additional filters
 	whereClause, args := tr.filter.BuildWhereClause(&query.Filters)
@@ -341,37 +464,54 @@ func (tr *TaskRepository) Search(ctx context.Context, query *tasks.SearchQuery) 
 	for rows.Next() {
 		var task types.Task
 		var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
-		var repository, branch sql.NullString
+		var repository, sessionID sql.NullString
+		var content, complexityStr, typeStr, priorityStr, statusStr string
 		var rank float64
 
 		err := rows.Scan(
-			&task.ID, &task.Title, &task.Description, &task.Type, &task.Priority, &task.Status, &task.Assignee,
-			&task.SourcePRDID, &task.DueDate, &task.Timestamps.Created, &task.Timestamps.Updated,
+			&task.ID, &task.Title, &task.Description, &content, &typeStr, &priorityStr, &statusStr, &task.Assignee,
+			&repository, &sessionID, &task.Timestamps.Created, &task.Timestamps.Updated,
 			&task.Timestamps.Started, &task.Timestamps.Completed,
 			&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
-			&task.Complexity.Level, &task.Complexity.Score, &task.QualityScore.OverallScore,
-			&metadataJSON, &repository, &branch, &rank,
+			&complexityStr, &task.Complexity.Score, &task.QualityScore.OverallScore,
+			&metadataJSON, &rank,
 		)
 
 		if err != nil {
 			return nil, err
 		}
 
-		// Deserialize complex fields
-		_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
-		_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
-		_ = json.Unmarshal(tagsJSON, &task.Tags)
-		_ = json.Unmarshal(metadataJSON, &task.Metadata)
+		// Convert enum strings to typed values
+		task.Type = types.TaskType(typeStr)
+		task.Priority = types.TaskPriority(priorityStr)
+		task.Status = types.TaskStatus(statusStr)
+		task.Complexity.Level = types.ComplexityLevel(complexityStr)
 
-		// Handle nullable fields
+		// Deserialize JSONB fields
+		if len(acceptanceCriteriaJSON) > 0 {
+			_ = json.Unmarshal(acceptanceCriteriaJSON, &task.AcceptanceCriteria)
+		}
+		if len(dependenciesJSON) > 0 {
+			_ = json.Unmarshal(dependenciesJSON, &task.Dependencies)
+		}
+		if len(tagsJSON) > 0 {
+			_ = json.Unmarshal(tagsJSON, &task.Tags)
+		}
+		if len(metadataJSON) > 0 {
+			_ = json.Unmarshal(metadataJSON, &task.Metadata)
+		}
+
+		// Initialize metadata if nil
 		if task.Metadata.ExtendedData == nil {
 			task.Metadata.ExtendedData = make(map[string]interface{})
 		}
+
+		// Store repository in metadata for compatibility
 		if repository.Valid {
 			task.Metadata.ExtendedData["repository"] = repository.String
 		}
-		if branch.Valid {
-			task.Metadata.ExtendedData["branch"] = branch.String
+		if sessionID.Valid {
+			task.Metadata.ExtendedData["session_id"] = sessionID.String
 		}
 
 		taskList = append(taskList, task)
@@ -381,16 +521,17 @@ func (tr *TaskRepository) Search(ctx context.Context, query *tasks.SearchQuery) 
 		return nil, err
 	}
 
-	results := map[string]interface{}{
-		"tasks":         taskList,
-		"total_results": len(taskList),
-		"search_time":   time.Since(startTime),
-		"query":         query.Query,
+	// Create SearchResults struct
+	results := &tasks.SearchResults{
+		Tasks:        taskList,
+		TotalResults: len(taskList),
+		SearchTime:   time.Since(startTime),
+		Query:        query.Query,
 	}
 
 	// Add highlights if requested
 	if query.Options.HighlightMatches {
-		results["highlights"] = tr.generateHighlights(taskList, query.Query)
+		results.Highlights = tr.generateHighlights(taskList, query.Query)
 	}
 
 	return results, nil
@@ -468,13 +609,13 @@ func (tr *TaskRepository) GetByIDs(ctx context.Context, ids []string) ([]types.T
 
 	// #nosec G201 - This is safe as it uses parameterized placeholders ($1, $2, etc.)
 	query := fmt.Sprintf(`
-		SELECT id, title, description, type, priority, status, assignee,
-			   source_prd_id, due_date, created_at, updated_at, started_at, completed_at,
+		SELECT id, title, description, content, type, priority, status, assignee,
+			   repository, session_id, created_at, updated_at, started_at, completed_at,
 			   acceptance_criteria, dependencies, tags, estimated_hours,
-			   complexity_level, complexity_score, quality_score,
-			   metadata, repository, branch
+			   complexity, complexity_score, quality_score,
+			   metadata
 		FROM tasks 
-		WHERE id IN (%s)`, strings.Join(placeholders, ", "))
+		WHERE id IN (%s) AND deleted_at IS NULL`, strings.Join(placeholders, ", "))
 
 	rows, err := tr.db.QueryContext(ctx, query, args...)
 	if err != nil {

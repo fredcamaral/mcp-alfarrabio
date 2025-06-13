@@ -49,26 +49,34 @@ func (m *MockClient) ProcessRequest(ctx context.Context, req *Request) (*Respons
 
 	response := generateMockResponse(lastMessage)
 
+	totalTokens := (len(lastMessage) + len(response)) / 4
 	return &Response{
 		ID:      req.ID,
-		Model:   m.Model,
+		Model:   string(m.Model),
 		Content: response,
-		TokensUsed: TokenUsage{
-			Input:  len(lastMessage) / 4, // Rough token estimate
-			Output: len(response) / 4,
-			Total:  (len(lastMessage) + len(response)) / 4,
+		TokensUsed: &TokenUsage{
+			PromptTokens:     len(lastMessage) / 4,
+			CompletionTokens: len(response) / 4,
+			TotalTokens:      totalTokens,
+			Total:            totalTokens,
 		},
-		Latency: 100 * time.Millisecond,
-		Quality: QualityMetrics{
-			Confidence: 0.95,
-			Relevance:  0.90,
-			Clarity:    0.92,
-			Score:      0.92,
+		Usage: &UsageStats{
+			PromptTokens:     len(lastMessage) / 4,
+			CompletionTokens: len(response) / 4,
+			Total:            totalTokens,
 		},
-		Metadata: ResponseMetadata{
-			ProcessedAt: time.Now(),
-			ServerID:    "mock-server-1",
-			Version:     "1.0.0",
+		Quality: &UnifiedQualityMetrics{
+			Confidence:   0.95,
+			Relevance:    0.90,
+			Clarity:      0.92,
+			Completeness: 0.88,
+			Score:        0.92,
+			OverallScore: 0.91,
+		},
+		Metadata: map[string]interface{}{
+			"processed_at": time.Now(),
+			"server_id":    "mock-server-1",
+			"version":      "1.0.0",
 		},
 	}, nil
 }
@@ -86,9 +94,9 @@ func (m *MockClient) IsHealthy(ctx context.Context) error {
 // GetLimits implements the Client interface
 func (m *MockClient) GetLimits() RateLimits {
 	return RateLimits{
-		RequestsPerMinute:  1000,
-		TokensPerMinute:    100000,
-		ConcurrentRequests: 100,
+		RequestsPerMinute: 1000,
+		TokensPerMinute:   100000,
+		RequestsPerDay:    10000,
 	}
 }
 

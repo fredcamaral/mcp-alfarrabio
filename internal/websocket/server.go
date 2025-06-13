@@ -169,7 +169,8 @@ func (s *Server) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	if s.config.EnableAuth {
 		if err := s.authenticateConnection(r); err != nil {
 			// Connection rejected due to authentication failure
-			http.Error(w, "Authentication failed", http.StatusUnauthorized)
+			log.Printf("Authentication failed for %s: %v", r.RemoteAddr, err)
+			http.Error(w, fmt.Sprintf("Authentication failed: %v", err), http.StatusUnauthorized)
 			return
 		}
 	}
@@ -178,7 +179,7 @@ func (s *Server) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Connection upgrade failed
-		log.Printf("WebSocket upgrade failed: %v", err)
+			log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
 

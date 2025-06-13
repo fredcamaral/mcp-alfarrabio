@@ -26,12 +26,15 @@ BLUE := \033[34m
 RESET := \033[0m
 
 .PHONY: help build build-all clean test lint fmt vet dev docker-build docker-up docker-down \
-	setup-env deps tidy ensure-env test-coverage test-integration test-race benchmark ci \
+	setup-env deps tidy ensure-env test-coverage test-integration test-integration-all \
+	test-integration-storage test-integration-ai test-integration-templates test-integration-workflows \
+	test-race benchmark ci \
 	dev-docker-up dev-docker-down dev-docker-logs dev-docker-rebuild dev-docker-shell \
 	dev-docker-restart dev-logs docker-logs docker-restart docker-rebuild docker-clean \
 	monitoring-start monitoring-stop monitoring-restart monitoring-status monitoring-logs \
 	monitoring-backup monitoring-cleanup health-check prod-deploy security-scan \
-	cli-build cli-install cli-test cli-clean cli-run
+	cli-build cli-install cli-test cli-clean cli-run \
+	migrate-status migrate-plan migrate-up migrate-down migrate-build
 
 # Default target - show help
 help: ## Show this help message
@@ -103,7 +106,27 @@ test-coverage: ## Run tests with coverage (70% threshold)
 
 test-integration: ## Run integration tests
 	@echo "$(GREEN)Running integration tests...$(RESET)"
-	go test -tags=integration -v ./...
+	@./scripts/run-integration-tests.sh integration
+
+test-integration-all: ## Run all integration tests with full setup
+	@echo "$(GREEN)Running comprehensive integration test suite...$(RESET)"
+	@./scripts/run-integration-tests.sh all
+
+test-integration-storage: ## Run storage-specific integration tests
+	@echo "$(GREEN)Running storage integration tests...$(RESET)"
+	@./scripts/run-integration-tests.sh storage
+
+test-integration-ai: ## Run AI-specific integration tests
+	@echo "$(GREEN)Running AI integration tests...$(RESET)"
+	@./scripts/run-integration-tests.sh ai
+
+test-integration-templates: ## Run template system integration tests
+	@echo "$(GREEN)Running template integration tests...$(RESET)"
+	@./scripts/run-integration-tests.sh templates
+
+test-integration-workflows: ## Run cross-tool workflow integration tests
+	@echo "$(GREEN)Running workflow integration tests...$(RESET)"
+	@./scripts/run-integration-tests.sh cross-tool
 
 test-race: ## Run tests with race detector
 	@echo "$(GREEN)Running tests with race detector...$(RESET)"
@@ -335,3 +358,53 @@ ensure-env: ## Ensure .env file exists (internal)
 		echo "$(YELLOW)⚠️  Run 'make setup-env' to continue$(RESET)"; \
 		exit 1; \
 	fi
+
+## Migration targets
+migrate-build: ## Build migration utility
+	@echo "$(GREEN)Building migration utility...$(RESET)"
+	@mkdir -p $(BUILD_DIR)
+	@go build -o $(BUILD_DIR)/migrate ./cmd/migrate/main.go
+
+migrate-status: migrate-build ## Show migration status
+	@echo "$(GREEN)Checking migration status...$(RESET)"
+	@$(BUILD_DIR)/migrate -command=status -verbose
+
+migrate-plan: migrate-build ## Show migration plan (dry run)
+	@echo "$(GREEN)Creating migration plan...$(RESET)"
+	@$(BUILD_DIR)/migrate -command=plan -verbose
+
+migrate-up: migrate-build ## Execute pending migrations with safety checks
+	@echo "$(GREEN)Executing migrations with safety checks...$(RESET)"
+	@$(BUILD_DIR)/migrate -command=migrate -verbose
+
+migrate-up-dry: migrate-build ## Dry run migration execution
+	@echo "$(GREEN)Dry run: migration execution...$(RESET)"
+	@$(BUILD_DIR)/migrate -command=migrate -dry-run -verbose
+
+migrate-down: migrate-build ## Rollback to specific version (requires VERSION=target)
+	@echo "$(GREEN)Rolling back to version $(VERSION)...$(RESET)"
+	@if [ -z "$(VERSION)" ]; then \
+		echo "$(YELLOW)Usage: make migrate-down VERSION=target_version$(RESET)"; \
+		exit 1; \
+	fi
+	@$(BUILD_DIR)/migrate -command=rollback -target=$(VERSION) -verbose
+
+migrate-down-dry: migrate-build ## Dry run rollback to specific version (requires VERSION=target)
+	@echo "$(GREEN)Dry run: rollback to version $(VERSION)...$(RESET)"
+	@if [ -z "$(VERSION)" ]; then \
+		echo "$(YELLOW)Usage: make migrate-down-dry VERSION=target_version$(RESET)"; \
+		exit 1; \
+	fi
+	@$(BUILD_DIR)/migrate -command=rollback -target=$(VERSION) -dry-run -verbose
+
+migrate-force: migrate-build ## Force migration execution without confirmation (DANGEROUS)
+	@echo "$(YELLOW)⚠️  FORCE MIGRATION - Use with extreme caution!$(RESET)"
+	@$(BUILD_DIR)/migrate -command=migrate -force -verbose
+
+migrate-force-rollback: migrate-build ## Force rollback without confirmation (DANGEROUS, requires VERSION=target)
+	@echo "$(YELLOW)⚠️  FORCE ROLLBACK - Use with extreme caution!$(RESET)"
+	@if [ -z "$(VERSION)" ]; then \
+		echo "$(YELLOW)Usage: make migrate-force-rollback VERSION=target_version$(RESET)"; \
+		exit 1; \
+	fi
+	@$(BUILD_DIR)/migrate -command=rollback -target=$(VERSION) -force -verbose

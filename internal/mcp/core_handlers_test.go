@@ -60,9 +60,9 @@ func (m *MockVectorStore) Close() error {
 	return args.Error(0)
 }
 
-func (m *MockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*storage.BatchResult, error) {
+func (m *MockVectorStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*storage.LegacyBatchResult, error) {
 	args := m.Called(ctx, chunks)
-	return args.Get(0).(*storage.BatchResult), args.Error(1)
+	return args.Get(0).(*storage.LegacyBatchResult), args.Error(1)
 }
 
 func (m *MockVectorStore) UpdateChunk(ctx context.Context, id string, updates map[string]interface{}) error {
@@ -203,9 +203,9 @@ func (m *MockVectorStore) FindSimilar(ctx context.Context, content string, chunk
 	return args.Get(0).([]types.ConversationChunk), args.Error(1)
 }
 
-func (m *MockVectorStore) BatchDelete(ctx context.Context, ids []string) (*storage.BatchResult, error) {
+func (m *MockVectorStore) BatchDelete(ctx context.Context, ids []string) (*storage.LegacyBatchResult, error) {
 	args := m.Called(ctx, ids)
-	return args.Get(0).(*storage.BatchResult), args.Error(1)
+	return args.Get(0).(*storage.LegacyBatchResult), args.Error(1)
 }
 
 func (m *MockVectorStore) StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error) {

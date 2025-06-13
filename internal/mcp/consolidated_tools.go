@@ -7,6 +7,8 @@ import (
 	"errors"
 	"fmt"
 	"lerian-mcp-memory/internal/logging"
+	"lerian-mcp-memory/internal/templates"
+	"lerian-mcp-memory/pkg/types"
 	"strings"
 
 	mcp "github.com/fredcamaral/gomcp-sdk"
@@ -19,7 +21,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 1. memory_create - All creation operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_create",
-		"Handle all memory creation operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; store_chunk/store_decision require session_id+repository; create_thread requires name+description+chunk_ids+repository; create_relationship requires source_chunk_id+target_chunk_id+relation_type+repository. Use repository='global' for cross-project architecture decisions.",
+		"Store and create new memory content, decisions, threads, and relationships. This tool handles ALL content creation operations in the memory system. USE THIS WHEN: You need to save conversation snippets, store architectural decisions, create knowledge threads, or link related content. PARAMETER GUIDE: Always include 'repository' (your project URL like 'github.com/user/repo' or 'global' for cross-project knowledge). For storing content, include 'session_id' to group related memories. EXAMPLES: Save bug fix → use 'store_chunk' operation; Save design decision → use 'store_decision' operation; Group related memories → use 'create_thread' operation.",
 		mcp.ObjectSchema("Memory creation parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -27,67 +29,67 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					OperationStoreChunk, OperationStoreDecision, "create_thread", "create_alias",
 					"create_relationship", "auto_detect_relationships", "import_context", "bulk_import",
 				},
-				"description": "Type of creation operation to perform",
+				"description": "What you want to create: 'store_chunk' = save conversation/code snippets; 'store_decision' = save architectural choices; 'create_thread' = group related memories; 'create_relationship' = link memories; 'import_context' = import external data; 'bulk_import' = create many items at once",
 			},
 			"scope": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"single", "bulk"},
 				"default":     "single",
-				"description": "Operation scope",
+				"description": "Single item or bulk operation",
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations; store_chunk/store_decision require session_id+repository; create_thread requires name+description+chunk_ids+repository; create_relationship requires source_chunk_id+target_chunk_id+relation_type+repository",
+				"description":          "Parameters for the creation operation. ALWAYS REQUIRED: 'repository' field. COMMONLY REQUIRED: 'session_id' field to group related work. See property descriptions for specific requirements per operation type.",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-project architecture decisions and knowledge.",
+						"description": "🔒 REQUIRED: Your project identifier. Use full repository URL like 'github.com/user/repo' or 'global' for cross-project knowledge. This ensures your data is isolated and organized properly.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Session ID (required for store_chunk, store_decision, import_context)",
+						"description": "💡 REQUIRED for store_chunk/store_decision: Groups related work together. Use the same session_id for memories that belong to the same conversation or work session. Example: 'auth-feature-2024' or 'bug-fix-session-1'",
 					},
 					"content": map[string]interface{}{
 						"type":        "string",
-						"description": "Content to store (required for store_chunk)",
+						"description": "📝 REQUIRED for store_chunk: The actual content to remember. Can be conversation snippets, code examples, problem solutions, or any text you want to save for later retrieval.",
 					},
 					"decision": map[string]interface{}{
 						"type":        "string",
-						"description": "Decision text (required for store_decision)",
+						"description": "🎯 REQUIRED for store_decision: The actual decision made. Example: 'Use PostgreSQL instead of MySQL for user data' or 'Implement JWT tokens for authentication'",
 					},
 					"rationale": map[string]interface{}{
 						"type":        "string",
-						"description": "Decision rationale (required for store_decision)",
+						"description": "🤔 REQUIRED for store_decision: Why this decision was made. Include factors considered, alternatives rejected, and reasoning. This helps future decisions and prevents repeated discussions.",
 					},
 					"name": map[string]interface{}{
 						"type":        "string",
-						"description": "Thread name (required for create_thread)",
+						"description": "🏷️ REQUIRED for create_thread: A descriptive name for the thread. Example: 'Authentication Implementation' or 'Database Design Decisions'",
 					},
 					"description": map[string]interface{}{
 						"type":        "string",
-						"description": "Thread description (required for create_thread)",
+						"description": "📋 REQUIRED for create_thread: What this thread is about. Explain the common theme that links these memories together.",
 					},
 					"chunk_ids": map[string]interface{}{
 						"type":        "array",
-						"description": "Array of chunk IDs (required for create_thread)",
+						"description": "🔗 REQUIRED for create_thread: List of memory chunk IDs to group together. Get these IDs from previous store_chunk operations. Example: ['chunk-123', 'chunk-456']",
 						"items":       map[string]interface{}{"type": "string"},
 					},
 					"source_chunk_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Source chunk ID (required for create_relationship)",
+						"description": "🎯 REQUIRED for create_relationship: The ID of the first memory to connect. This is where the relationship starts from.",
 					},
 					"target_chunk_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Target chunk ID (required for create_relationship)",
+						"description": "🎯 REQUIRED for create_relationship: The ID of the second memory to connect. This is where the relationship points to.",
 					},
 					"relation_type": map[string]interface{}{
 						"type":        "string",
-						"description": "Relationship type (required for create_relationship)",
+						"description": "🔄 REQUIRED for create_relationship: Type of connection. Examples: 'depends_on', 'follows_from', 'contradicts', 'supports', 'implements'",
 					},
 					"data": map[string]interface{}{
 						"type":        "string",
-						"description": "Data to import (required for import_context)",
+						"description": "📦 REQUIRED for import_context: The external data to import. Can be JSON, text, or structured data from other systems.",
 					},
 				},
 			},
@@ -97,7 +99,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 2. memory_read - All read/query operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_read",
-		"Handle all memory read operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository parameter is mandatory for ALL operations for multi-tenant isolation; search requires query+repository; get_context requires repository; find_similar requires problem+repository; get_relationships requires chunk_id+repository; search_multi_repo requires query+session_id+repository.",
+		"Search and retrieve stored memories, find similar content, and explore knowledge connections. This tool handles ALL memory retrieval operations. USE THIS WHEN: You want to find past conversations, search for similar problems, get project overview, or explore memory relationships. PARAMETER GUIDE: Always include 'repository' to specify which project to search. Use 'query' for text searches, 'problem' to find similar issues. EXAMPLES: Find past bug fixes → use 'search' operation; Find similar problems → use 'find_similar' operation; Get project overview → use 'get_context' operation; Explore connections → use 'get_relationships' operation.",
 		mcp.ObjectSchema("Memory read parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -106,50 +108,50 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					"traverse_graph", "get_threads", "search_explained", "search_multi_repo",
 					"resolve_alias", "list_aliases", "get_bulk_progress",
 				},
-				"description": "Type of read operation to perform",
+				"description": "What you want to retrieve: 'search' = find memories by text; 'get_context' = project overview; 'find_similar' = find related problems; 'get_patterns' = discover recurring themes; 'get_relationships' = explore connections; 'get_threads' = grouped memories; 'search_multi_repo' = cross-project search",
 			},
 			"scope": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"single", "cross_repo", "global"},
 				"default":     "single",
-				"description": "Search scope",
+				"description": "Where to search: 'single' = current project only; 'cross_repo' = across related projects; 'global' = all accessible knowledge",
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; search requires query+repository; get_context requires repository; find_similar requires problem+repository; get_relationships requires chunk_id+repository; search_multi_repo requires query+session_id+repository",
+				"description":          "Parameters for the search operation. ALWAYS REQUIRED: 'repository' field. OPERATION-SPECIFIC: See property descriptions for what each operation needs.",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"query": map[string]interface{}{
 						"type":        "string",
-						"description": "Search query (required for search, search_multi_repo)",
+						"description": "🔍 REQUIRED for search/search_multi_repo: What you're looking for. Use natural language. Examples: 'authentication bugs', 'database connection issues', 'React component patterns'",
 					},
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-project architecture decisions.",
+						"description": "🔒 REQUIRED: Your project identifier. Use full repository URL like 'github.com/user/repo' or 'global' for cross-project search. This determines which memories to search through.",
 					},
 					"problem": map[string]interface{}{
 						"type":        "string",
-						"description": "Problem description (required for find_similar)",
+						"description": "🤔 REQUIRED for find_similar: Describe the problem you're facing. The system will find memories about similar issues you've encountered before. Example: 'Users can't log in after password reset'",
 					},
 					"chunk_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Chunk ID (required for get_relationships)",
+						"description": "🔗 REQUIRED for get_relationships: The ID of a memory chunk to explore connections from. Get this from previous search results or store operations.",
 					},
 					"start_chunk_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Starting chunk ID (required for traverse_graph)",
+						"description": "🚀 REQUIRED for traverse_graph: Starting point for exploring the knowledge graph. The system will show you connected memories from this point.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Session ID (required for search_multi_repo)",
+						"description": "💡 REQUIRED for search_multi_repo: Current session identifier to personalize cross-project search results based on your recent activity.",
 					},
 					"alias_name": map[string]interface{}{
 						"type":        "string",
-						"description": "Alias name (required for resolve_alias)",
+						"description": "🏷️ REQUIRED for resolve_alias: Name of the alias to look up. Aliases are shortcuts to frequently accessed memories or concepts.",
 					},
 					"operation_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Operation ID (required for get_bulk_progress)",
+						"description": "⏳ REQUIRED for get_bulk_progress: ID of a bulk operation to check status. Get this from previous bulk import/export operations.",
 					},
 				},
 			},
@@ -260,7 +262,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 5. memory_analyze - All analysis operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_analyze",
-		"Handle memory analysis operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; health_dashboard requires repository+session_id; cross_repo_patterns requires session_id+repository; find_similar_repositories requires repository+session_id.",
+		"Analyze patterns, detect insights, and generate intelligence from stored memories. This tool uses AI to understand your knowledge base. USE THIS WHEN: You want to discover patterns across conversations, detect conflicting decisions, get health insights, or find similar repositories. PARAMETER GUIDE: Always include 'repository' to analyze specific projects. Include 'session_id' for personalized insights. EXAMPLES: Find recurring patterns → use 'cross_repo_patterns'; Check system health → use 'health_dashboard'; Detect conflicts → use 'detect_conflicts'; Get insights → use 'cross_repo_insights'.",
 		mcp.ObjectSchema("Memory analysis parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -268,26 +270,26 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					"cross_repo_patterns", "find_similar_repositories", "cross_repo_insights",
 					"detect_conflicts", "health_dashboard", "check_freshness", "detect_threads",
 				},
-				"description": "Type of analysis operation to perform",
+				"description": "What you want to analyze: 'cross_repo_patterns' = find patterns across projects; 'find_similar_repositories' = discover related projects; 'detect_conflicts' = find contradictory decisions; 'health_dashboard' = system insights; 'check_freshness' = identify stale memories; 'detect_threads' = auto-group related memories",
 			},
 			"scope": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"single", "cross_repo", "global"},
 				"default":     "single",
-				"description": "Analysis scope",
+				"description": "Analysis scope: 'single' = current project; 'cross_repo' = across related projects; 'global' = all accessible data",
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; health_dashboard requires repository+session_id; cross_repo_patterns requires session_id+repository; find_similar_repositories requires repository+session_id",
+				"description":          "Parameters for the analysis operation. ALWAYS REQUIRED: 'repository' field. COMMONLY REQUIRED: 'session_id' for personalized insights. See property descriptions for specific requirements.",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-repository insights and architecture analysis.",
+						"description": "🔒 REQUIRED: Your project identifier. Use full repository URL like 'github.com/user/repo' or 'global' for cross-repository analysis. This determines which data to analyze.",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Session ID (required for health_dashboard, cross_repo_patterns, find_similar_repositories)",
+						"description": "💡 REQUIRED for health_dashboard/cross_repo_patterns/find_similar_repositories: Current session to personalize analysis results based on your recent activity and context.",
 					},
 				},
 			},
@@ -297,39 +299,39 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 6. memory_intelligence - AI-powered operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_intelligence",
-		"Handle AI-powered operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; suggest_related requires current_context+session_id+repository; auto_insights requires repository+session_id; pattern_prediction requires context+repository+session_id.",
+		"Get AI-powered suggestions and intelligent insights from your memory data. This tool uses advanced AI to provide smart recommendations and predictions. USE THIS WHEN: You want AI to suggest related content, generate automatic insights, or predict patterns based on current context. PARAMETER GUIDE: Always include 'repository' and 'session_id' for personalized AI responses. Provide 'current_context' to get relevant suggestions. EXAMPLES: Get related suggestions → use 'suggest_related'; Get AI insights → use 'auto_insights'; Predict patterns → use 'pattern_prediction'.",
 		mcp.ObjectSchema("Memory intelligence parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"suggest_related", "auto_insights", "pattern_prediction"},
-				"description": "Type of intelligence operation to perform",
+				"description": "What AI intelligence you want: 'suggest_related' = get AI suggestions for related content; 'auto_insights' = generate automatic insights from your data; 'pattern_prediction' = AI predictions based on patterns",
 			},
 			"scope": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"single", "cross_repo"},
 				"default":     "single",
-				"description": "Intelligence scope",
+				"description": "Intelligence scope: 'single' = current project only; 'cross_repo' = insights across related projects",
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: repository is mandatory for ALL operations for multi-tenant isolation; suggest_related requires current_context+session_id+repository; auto_insights requires repository+session_id; pattern_prediction requires context+repository+session_id",
+				"description":          "Parameters for AI intelligence operations. ALWAYS REQUIRED: 'repository' and 'session_id' for personalized AI responses. OPERATION-SPECIFIC: See property descriptions for additional requirements.",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Use 'global' for cross-repository AI insights and architecture patterns.",
+						"description": "🔒 REQUIRED: Your project identifier. Use full repository URL like 'github.com/user/repo' or 'global' for cross-repository AI insights. This determines the knowledge base for AI analysis.",
 					},
 					"current_context": map[string]interface{}{
 						"type":        "string",
-						"description": "Current context (required for suggest_related)",
+						"description": "📍 REQUIRED for suggest_related: Describe what you're currently working on. The AI will suggest related memories and insights. Example: 'Working on user authentication feature'",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Session ID (required for suggest_related, auto_insights, pattern_prediction)",
+						"description": "💡 REQUIRED for ALL operations: Current session to personalize AI responses based on your recent activity and learning patterns.",
 					},
 					"context": map[string]interface{}{
 						"type":        "string",
-						"description": "Context for prediction (required for pattern_prediction)",
+						"description": "🔮 REQUIRED for pattern_prediction: Context for AI predictions. Describe the situation and the AI will predict likely patterns or outcomes. Example: 'Planning new microservice architecture'",
 					},
 				},
 			},
@@ -401,7 +403,7 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 8. memory_tasks - Task and workflow management operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_tasks",
-		"Handle task management and workflow tracking operations. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). DECISION GUIDE for session_id: OMIT session_id for cross-session task continuity (RECOMMENDED - allows access to todos from previous conversations). INCLUDE session_id only when you need session-specific task isolation. BEHAVIORAL DIFFERENCE: Without session_id = repository-wide todos visible across all LLM sessions; With session_id = session-isolated todos.",
+		"Manage tasks, todos, and workflow tracking across your projects. This tool handles task lifecycle management and workflow analysis. USE THIS WHEN: You need to create, read, or update tasks and todos, manage work sessions, or analyze workflow patterns. PARAMETER GUIDE: Always include 'repository'. For todos: OMIT 'session_id' to see all project tasks (recommended), INCLUDE 'session_id' for session-specific isolation. EXAMPLES: Create todos → use 'todo_write'; Read current tasks → use 'todo_read'; Update task status → use 'todo_update'; Analyze workflow → use 'workflow_analyze'.",
 		mcp.ObjectSchema("Memory tasks parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type": "string",
@@ -409,34 +411,34 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 					"todo_write", "todo_read", "todo_update", "session_create", "session_end",
 					"session_list", "workflow_analyze", "task_completion_stats",
 				},
-				"description": "Type of task operation to perform",
+				"description": "What task operation you need: 'todo_write' = create new tasks; 'todo_read' = get current tasks; 'todo_update' = modify task status; 'session_create' = start work session; 'session_end' = finish session; 'workflow_analyze' = analyze patterns",
 			},
 			"scope": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"session", "workflow", "global"},
 				"default":     "session",
-				"description": "Task operation scope",
+				"description": "Task scope: 'session' = current session tasks; 'workflow' = project workflow; 'global' = cross-project tasks",
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED: repository for all operations. TODO OPERATIONS DECISION: For todo_write/todo_read/todo_update, OMIT session_id for cross-session continuity (recommended), INCLUDE session_id for session isolation. SESSION OPERATIONS: session_create, session_end, workflow_analyze require session_id.",
+				"description":          "Parameters for task operations. ALWAYS REQUIRED: 'repository'. TASK VISIBILITY CHOICE: OMIT 'session_id' to see all project tasks (recommended for continuity), INCLUDE 'session_id' for session isolation.",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"todos": map[string]interface{}{
 						"type":        "array",
-						"description": "Array of todo items (required for todo_write)",
+						"description": "✅ REQUIRED for todo_write: List of task objects to create. Each should have content, status, and priority. Example: [{'content': 'Fix login bug', 'status': 'pending', 'priority': 'high'}]",
 					},
 					"session_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Session ID - LLM DECISION GUIDE: OMIT for cross-session task continuity (RECOMMENDED - see todos from previous conversations). INCLUDE only for session-specific task isolation. BEHAVIOR: Without session_id = repository-wide todos across all sessions; With session_id = session-isolated todos. Required for session_create, session_end, workflow_analyze.",
+						"description": "🔄 CHOICE for todos: OMIT to see ALL project tasks across sessions (RECOMMENDED for continuity). INCLUDE for session-specific task isolation. REQUIRED for session operations (create/end/analyze). BEHAVIOR: No session_id = all project tasks; With session_id = session-only tasks.",
 					},
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (REQUIRED for ALL operations for multi-tenant isolation). Example: 'github.com/user/repo'",
+						"description": "🔒 REQUIRED: Your project identifier. Use full repository URL like 'github.com/user/repo'. This determines which project's tasks to manage.",
 					},
 					"tool_name": map[string]interface{}{
 						"type":        "string",
-						"description": "Tool name (required for todo_update)",
+						"description": "🔧 REQUIRED for todo_update: Name of the tool or feature the task relates to. Used for organizing and filtering task updates.",
 					},
 				},
 			},
@@ -446,44 +448,44 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 	// 9. memory_system - System operations
 	ms.mcpServer.AddTool(mcp.NewTool(
 		"memory_system",
-		"Handle system-level memory operations including health checks, status reports, and citation management. CRITICAL: 'options' parameter MUST be a JSON object (not a JSON string). REQUIRED fields: repository parameter for status operations; health checks are global by default.",
+		"System administration, health monitoring, and utility operations for the memory server. This tool handles system-level operations and administrative tasks. USE THIS WHEN: You need to check system health, get status reports, export data, generate citations, or manage system operations. PARAMETER GUIDE: 'health' checks work globally, 'status' requires repository, citations need repository and content IDs. EXAMPLES: Check if system is working → use 'health'; Get project status → use 'status'; Export project data → use 'export_project'; Create citations → use 'generate_citations'.",
 		mcp.ObjectSchema("Memory system parameters", map[string]interface{}{
 			"operation": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{OperationHealth, OperationStatus, "generate_citations", "create_inline_citation", "get_documentation"},
-				"description": "Type of system operation to perform",
+				"description": "What system operation you need: 'health' = check if system is working; 'status' = get project status report; 'generate_citations' = create formatted citations; 'create_inline_citation' = create inline references; 'get_documentation' = access system docs",
 			},
 			"scope": map[string]interface{}{
 				"type":        "string",
 				"enum":        []string{"system", "repository"},
 				"default":     "system",
-				"description": "System operation scope",
+				"description": "Operation scope: 'system' = global system operations; 'repository' = project-specific operations",
 			},
 			"options": map[string]interface{}{
 				"type":                 "object",
-				"description":          "Operation-specific parameters. REQUIRED fields: status requires repository; generate_citations requires query+chunk_ids+repository; create_inline_citation requires text+response_id; health checks are global by default",
+				"description":          "Parameters for system operations. REQUIREMENTS VARY: 'health' needs no params; 'status' needs repository; citations need repository and content details. See property descriptions for specifics.",
 				"additionalProperties": true,
 				"properties": map[string]interface{}{
 					"repository": map[string]interface{}{
 						"type":        "string",
-						"description": "Repository URL (required for status and citation operations) - must include full URL like 'github.com/user/repo', 'gitlab.com/user/repo', etc. Optional for health checks (defaults to global system health).",
+						"description": "🔒 REQUIRED for status/citations: Your project identifier. Use full repository URL like 'github.com/user/repo'. Not needed for health checks which are global.",
 					},
 					"query": map[string]interface{}{
 						"type":        "string",
-						"description": "Query text (required for generate_citations)",
+						"description": "🔍 REQUIRED for generate_citations: The original query or search that led to the content you want to cite. This provides context for the citation.",
 					},
 					"chunk_ids": map[string]interface{}{
 						"type":        "array",
-						"description": "Array of chunk IDs (required for generate_citations)",
+						"description": "📚 REQUIRED for generate_citations: List of memory chunk IDs to create citations for. Get these from search results. Example: ['chunk-123', 'chunk-456']",
 						"items":       map[string]interface{}{"type": "string"},
 					},
 					"text": map[string]interface{}{
 						"type":        "string",
-						"description": "Text content (required for create_inline_citation)",
+						"description": "📝 REQUIRED for create_inline_citation: The text content that you want to create an inline citation for. This will be formatted with proper references.",
 					},
 					"response_id": map[string]interface{}{
 						"type":        "string",
-						"description": "Response ID (required for create_inline_citation)",
+						"description": "🆔 REQUIRED for create_inline_citation: Unique identifier for this response. Used to link citations back to specific conversations or contexts.",
 					},
 				},
 			},
@@ -546,6 +548,89 @@ func (ms *MemoryServer) registerConsolidatedTools() {
 			},
 		}, []string{"operation", "options"}),
 	), mcp.ToolHandlerFunc(ms.handleDocumentGeneration))
+
+	// 11. template_management - Template-based task generation
+	ms.mcpServer.AddTool(mcp.NewTool(
+		"template_management",
+		"Manage and instantiate task templates to streamline development workflows. This tool provides access to built-in templates for common development tasks and allows you to generate structured task lists. USE THIS WHEN: You need to start a new feature, fix bugs, set up projects, or follow standard development workflows. PARAMETER GUIDE: Always include 'repository' for context. Use 'list_templates' to explore available templates, 'get_template' for details, 'instantiate_template' to generate tasks. EXAMPLES: See available templates → use 'list_templates'; Get template details → use 'get_template'; Create tasks from template → use 'instantiate_template'.",
+		mcp.ObjectSchema("Template management parameters", map[string]interface{}{
+			"operation": map[string]interface{}{
+				"type":        "string",
+				"enum":        []string{"list_templates", "get_template", "instantiate_template"},
+				"description": "What template operation you need: 'list_templates' = browse available templates with filtering; 'get_template' = get detailed template information; 'instantiate_template' = generate tasks from a template",
+			},
+			"scope": map[string]interface{}{
+				"type":        "string",
+				"enum":        []string{"builtin", "project", "global"},
+				"default":     "builtin",
+				"description": "Template scope: 'builtin' = system templates; 'project' = project-specific templates; 'global' = cross-project templates",
+			},
+			"options": map[string]interface{}{
+				"type":                 "object",
+				"description":          "Parameters for template operations. ALWAYS REQUIRED: 'repository' for context. OPERATION-SPECIFIC: See property descriptions for additional requirements per operation type.",
+				"additionalProperties": true,
+				"properties": map[string]interface{}{
+					"repository": map[string]interface{}{
+						"type":        "string",
+						"description": "🔒 REQUIRED: Your project identifier. Use full repository URL like 'github.com/user/repo' or 'global' for cross-project templates. This ensures templates are contextually relevant.",
+					},
+					"project_id": map[string]interface{}{
+						"type":        "string",
+						"description": "📋 REQUIRED for instantiate_template: Project identifier where tasks will be created. Usually same as repository but can be different for sub-projects.",
+					},
+					"session_id": map[string]interface{}{
+						"type":        "string",
+						"description": "🔄 OPTIONAL: Session identifier for grouping generated tasks. Use same session_id for related work. Example: 'auth-feature-impl' or 'bug-fix-session'",
+					},
+					"template_id": map[string]interface{}{
+						"type":        "string",
+						"description": "🎯 REQUIRED for get_template/instantiate_template: ID of the template to retrieve or instantiate. Get valid IDs from list_templates operation.",
+					},
+					"variables": map[string]interface{}{
+						"type":                 "object",
+						"description":          "🔧 REQUIRED for instantiate_template: Variables to substitute in the template. Each template has specific required variables. Check template details first with get_template.",
+						"additionalProperties": true,
+					},
+					"project_type": map[string]interface{}{
+						"type":        "string",
+						"description": "🏗️ OPTIONAL for list_templates: Filter by project type. Options: 'web', 'api', 'backend', 'frontend', 'mobile', 'desktop', 'library', 'cli', 'any'",
+						"enum":        []string{"web", "api", "backend", "frontend", "mobile", "desktop", "library", "cli", "any"},
+					},
+					"category": map[string]interface{}{
+						"type":        "string",
+						"description": "📂 OPTIONAL for list_templates: Filter by template category. Options: 'feature', 'api', 'maintenance', 'testing', 'documentation', 'deployment', 'security', 'optimization', 'refactoring', 'infrastructure'",
+						"enum":        []string{"feature", "api", "maintenance", "testing", "documentation", "deployment", "security", "optimization", "refactoring", "infrastructure"},
+					},
+					"tags": map[string]interface{}{
+						"type":        "array",
+						"description": "🏷️ OPTIONAL for list_templates: Filter by tags. Example: ['web', 'api', 'authentication'] to find templates related to web API authentication.",
+						"items":       map[string]interface{}{"type": "string"},
+					},
+					"popular_only": map[string]interface{}{
+						"type":        "boolean",
+						"description": "⭐ OPTIONAL for list_templates: Show only popular templates based on usage statistics. Default: false",
+						"default":     false,
+					},
+					"limit": map[string]interface{}{
+						"type":        "integer",
+						"description": "📊 OPTIONAL for list_templates: Maximum number of templates to return. Default: 20, Max: 100",
+						"default":     20,
+						"minimum":     1,
+						"maximum":     100,
+					},
+					"metadata": map[string]interface{}{
+						"type":                 "object",
+						"description":          "📝 OPTIONAL for instantiate_template: Additional metadata to attach to generated tasks. Useful for tracking or categorization.",
+						"additionalProperties": true,
+					},
+					"prefix": map[string]interface{}{
+						"type":        "string",
+						"description": "🔖 OPTIONAL for instantiate_template: Prefix to add to task names. Example: 'Sprint 1: ' or 'Auth Feature: '",
+					},
+				},
+			},
+		}, []string{"operation", "options"}),
+	), mcp.ToolHandlerFunc(ms.handleTemplateManagement))
 }
 
 // Consolidated tool handlers
@@ -1058,4 +1143,213 @@ func (ms *MemoryServer) handleDocumentGeneration(ctx context.Context, args map[s
 		validOps := []string{"generate_prd", "generate_trd", "generate_main_tasks", "generate_sub_tasks", "start_session", "continue_session", "end_session"}
 		return nil, fmt.Errorf("unsupported document generation operation '%s'. Valid operations: %s", operation, strings.Join(validOps, ", "))
 	}
+}
+
+// handleTemplateManagement routes template management operations to appropriate handlers
+func (ms *MemoryServer) handleTemplateManagement(ctx context.Context, args map[string]interface{}) (interface{}, error) {
+	operation, ok := args["operation"].(string)
+	if !ok {
+		return nil, errors.New("operation parameter is required. Example: {\"operation\": \"list_templates\", \"options\": {\"repository\": \"github.com/user/repo\"}}")
+	}
+
+	options, ok := args["options"].(map[string]interface{})
+	if !ok {
+		return nil, errors.New("options parameter is required and MUST be a JSON object (not a JSON string). Must contain repository for context. Example: {\"repository\": \"github.com/user/repo\"}")
+	}
+
+	// Repository parameter is required for context
+	repository, ok := options["repository"].(string)
+	if !ok || repository == "" {
+		return nil, errors.New("repository parameter is required for all template operations for context. Example: {\"repository\": \"github.com/user/repo\"}")
+	}
+
+	// Get or create template service if not available
+	if ms.templateService == nil {
+		return nil, errors.New("template service not available - check server configuration")
+	}
+
+	switch operation {
+	case "list_templates":
+		return ms.handleListTemplates(ctx, options)
+	case "get_template":
+		return ms.handleGetTemplate(ctx, options)
+	case "instantiate_template":
+		return ms.handleInstantiateTemplate(ctx, options)
+	default:
+		validOps := []string{"list_templates", "get_template", "instantiate_template"}
+		return nil, fmt.Errorf("unsupported template operation '%s'. Valid operations: %s", operation, strings.Join(validOps, ", "))
+	}
+}
+
+// handleListTemplates handles template listing with filtering
+func (ms *MemoryServer) handleListTemplates(ctx context.Context, options map[string]interface{}) (interface{}, error) {
+	// Create request from options
+	req := &templates.ListTemplatesRequest{}
+
+	// Parse project type
+	if projectType, ok := options["project_type"].(string); ok && projectType != "" {
+		req.ProjectType = types.ProjectType(projectType)
+	}
+
+	// Parse category
+	if category, ok := options["category"].(string); ok {
+		req.Category = category
+	}
+
+	// Parse tags
+	if tagsRaw, ok := options["tags"]; ok {
+		if tagsSlice, ok := tagsRaw.([]interface{}); ok {
+			for _, tagRaw := range tagsSlice {
+				if tag, ok := tagRaw.(string); ok {
+					req.Tags = append(req.Tags, tag)
+				}
+			}
+		}
+	}
+
+	// Parse popular only
+	if popularOnly, ok := options["popular_only"].(bool); ok {
+		req.PopularOnly = popularOnly
+	}
+
+	// Parse limit
+	if limit, ok := options["limit"].(float64); ok {
+		req.Limit = int(limit)
+	} else if limit, ok := options["limit"].(int); ok {
+		req.Limit = limit
+	}
+
+	// Call template service
+	result, err := ms.templateService.ListTemplates(ctx, req)
+	if err != nil {
+		return map[string]interface{}{
+			"status":    "error",
+			"message":   "Failed to list templates: " + err.Error(),
+			"templates": []interface{}{},
+			"total":     0,
+			"filtered":  0,
+		}, nil
+	}
+
+	return map[string]interface{}{
+		"status":    "success",
+		"message":   fmt.Sprintf("Found %d templates (showing %d)", result.Total, result.Filtered),
+		"templates": result.Templates,
+		"total":     result.Total,
+		"filtered":  result.Filtered,
+	}, nil
+}
+
+// handleGetTemplate handles getting specific template details
+func (ms *MemoryServer) handleGetTemplate(ctx context.Context, options map[string]interface{}) (interface{}, error) {
+	// Get template ID
+	templateID, ok := options["template_id"].(string)
+	if !ok || templateID == "" {
+		return map[string]interface{}{
+			"status":   "error",
+			"message":  "template_id is required",
+			"template": nil,
+		}, nil
+	}
+
+	// Call template service
+	template, err := ms.templateService.GetTemplate(ctx, templateID)
+	if err != nil {
+		return map[string]interface{}{
+			"status":   "error",
+			"message":  "Failed to get template: " + err.Error(),
+			"template": nil,
+		}, nil
+	}
+
+	return map[string]interface{}{
+		"status":   "success",
+		"message":  "Template retrieved successfully",
+		"template": template,
+	}, nil
+}
+
+// handleInstantiateTemplate handles creating tasks from a template
+func (ms *MemoryServer) handleInstantiateTemplate(ctx context.Context, options map[string]interface{}) (interface{}, error) {
+	// Get required parameters
+	templateID, ok := options["template_id"].(string)
+	if !ok || templateID == "" {
+		return map[string]interface{}{
+			"status":  "error",
+			"message": "template_id is required",
+			"result":  nil,
+		}, nil
+	}
+
+	projectID, ok := options["project_id"].(string)
+	if !ok || projectID == "" {
+		// Use repository as project_id if not provided
+		if repo, repoOk := options["repository"].(string); repoOk {
+			projectID = repo
+		} else {
+			return map[string]interface{}{
+				"status":  "error",
+				"message": "project_id is required",
+				"result":  nil,
+			}, nil
+		}
+	}
+
+	// Get optional parameters
+	sessionID, _ := options["session_id"].(string)
+	prefix, _ := options["prefix"].(string)
+
+	// Parse variables
+	variables := make(map[string]interface{})
+	if varsRaw, ok := options["variables"]; ok {
+		if varsMap, ok := varsRaw.(map[string]interface{}); ok {
+			variables = varsMap
+		}
+	}
+
+	// Parse metadata
+	metadata := make(map[string]interface{})
+	if metaRaw, ok := options["metadata"]; ok {
+		if metaMap, ok := metaRaw.(map[string]interface{}); ok {
+			metadata = metaMap
+		}
+	}
+
+	// Create instantiation request
+	req := &templates.TemplateInstantiationRequest{
+		TemplateID: templateID,
+		ProjectID:  projectID,
+		SessionID:  sessionID,
+		Variables:  variables,
+		Metadata:   metadata,
+		Prefix:     prefix,
+	}
+
+	// Call template service
+	result, err := ms.templateService.InstantiateTemplate(ctx, req)
+	if err != nil {
+		return map[string]interface{}{
+			"status":  "error",
+			"message": "Failed to instantiate template: " + err.Error(),
+			"result":  nil,
+		}, nil
+	}
+
+	// Build success message
+	message := "Template instantiated successfully"
+	if result.TaskCount > 0 {
+		message += fmt.Sprintf(" with %d tasks", result.TaskCount)
+	}
+	if result.EstimatedTime != "" {
+		message += fmt.Sprintf(" (estimated time: %s)", result.EstimatedTime)
+	}
+	if len(result.Warnings) > 0 {
+		message += fmt.Sprintf(" with %d warnings", len(result.Warnings))
+	}
+
+	return map[string]interface{}{
+		"status":  "success",
+		"message": message,
+		"result":  result,
+	}, nil
 }

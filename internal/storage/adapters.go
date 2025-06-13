@@ -15,11 +15,11 @@ import (
 // This enables gradual migration from the old system to the new one
 type StorageAdapter struct {
 	oldStore VectorStore // Legacy store
-	config   *types.StorageConfig
+	config   *StorageConfig
 }
 
 // NewStorageAdapter creates a new storage adapter
-func NewStorageAdapter(oldStore VectorStore, config *types.StorageConfig) *StorageAdapter {
+func NewStorageAdapter(oldStore VectorStore, config *StorageConfig) *StorageAdapter {
 	return &StorageAdapter{
 		oldStore: oldStore,
 		config:   config,
@@ -79,8 +79,8 @@ func (sa *StorageAdapter) BatchStore(ctx context.Context, contents []*types.Cont
 	result.Success = batchResult.Success
 	result.Failed = batchResult.Failed
 	result.ProcessedIDs = batchResult.ProcessedIDs
-	
-	// Convert errors
+
+	// Convert errors - old format uses []string, new format uses []BatchError
 	for i, errStr := range batchResult.Errors {
 		result.Errors = append(result.Errors, BatchError{
 			Index: i,
@@ -162,11 +162,12 @@ func (sa *StorageAdapter) BatchDelete(ctx context.Context, projectID types.Proje
 // Search content within project scope
 func (sa *StorageAdapter) Search(ctx context.Context, query *types.SearchQuery) (*types.SearchResults, error) {
 	// Convert new search query to old format
+	repo := string(query.ProjectID)
 	oldQuery := &pkgTypes.MemoryQuery{
 		Query:      query.Query,
-		Repository: string(query.ProjectID),
+		Repository: &repo,
 		Limit:      query.Limit,
-		ChunkTypes: sa.convertTypesToChunkTypes(query.Types),
+		Types:      sa.convertTypesToChunkTypes(query.Types),
 	}
 
 	// Perform search using old store
@@ -177,16 +178,16 @@ func (sa *StorageAdapter) Search(ctx context.Context, query *types.SearchQuery) 
 
 	// Convert results to new format
 	results := &types.SearchResults{
-		Results:   make([]*types.SearchResult, len(oldResults.Results)),
-		Total:     len(oldResults.Results),
-		Query:     query.Query,
-		Duration:  time.Since(time.Now()), // TODO: Track actual duration
+		Results:  make([]*types.SearchResult, len(oldResults.Results)),
+		Total:    len(oldResults.Results),
+		Query:    query.Query,
+		Duration: time.Since(time.Now()), // TODO: Track actual duration
 	}
 
 	for i, oldResult := range oldResults.Results {
 		results.Results[i] = &types.SearchResult{
 			Content:   sa.convertChunkToContent(&oldResult.Chunk),
-			Relevance: oldResult.Similarity,
+			Relevance: oldResult.Score,
 		}
 	}
 
@@ -238,7 +239,7 @@ func (sa *StorageAdapter) GetBySession(ctx context.Context, projectID types.Proj
 	// Filter by project
 	var filteredChunks []pkgTypes.ConversationChunk
 	for _, chunk := range chunks {
-		if chunk.Repository == string(projectID) {
+		if chunk.Metadata.Repository == string(projectID) {
 			filteredChunks = append(filteredChunks, chunk)
 		}
 	}
@@ -262,24 +263,26 @@ func (sa *StorageAdapter) GetHistory(ctx context.Context, projectID types.Projec
 
 // convertContentToChunk converts new Content to old ConversationChunk
 func (sa *StorageAdapter) convertContentToChunk(content *types.Content) *pkgTypes.ConversationChunk {
-	chunk := &pkgTypes.ConversationChunk{
-		ID:         content.ID,
+	// Build metadata from content
+	metadata := pkgTypes.ChunkMetadata{
 		Repository: string(content.ProjectID),
-		SessionID:  string(content.SessionID),
-		Content:    content.Content,
-		Summary:    content.Summary,
 		Tags:       content.Tags,
-		Metadata:   content.Metadata,
-		CreatedAt:  content.CreatedAt,
-		UpdatedAt:  content.UpdatedAt,
-		Embeddings: content.Embeddings,
 	}
 
-	// Convert type
-	if content.Type != "" {
-		if chunkType := sa.convertTypeToChunkType(content.Type); chunkType != "" {
-			chunk.ChunkType = chunkType
-		}
+	// Convert extended metadata if present
+	if content.Metadata != nil {
+		metadata.ExtendedMetadata = content.Metadata
+	}
+
+	chunk := &pkgTypes.ConversationChunk{
+		ID:         content.ID,
+		SessionID:  string(content.SessionID),
+		Timestamp:  content.CreatedAt,
+		Type:       sa.convertTypeToChunkType(content.Type),
+		Content:    content.Content,
+		Summary:    content.Summary,
+		Metadata:   metadata,
+		Embeddings: content.Embeddings,
 	}
 
 	return chunk
@@ -289,20 +292,57 @@ func (sa *StorageAdapter) convertContentToChunk(content *types.Content) *pkgType
 func (sa *StorageAdapter) convertChunkToContent(chunk *pkgTypes.ConversationChunk) *types.Content {
 	content := &types.Content{
 		ID:         chunk.ID,
-		ProjectID:  types.ProjectID(chunk.Repository),
+		ProjectID:  types.ProjectID(chunk.Metadata.Repository),
 		SessionID:  types.SessionID(chunk.SessionID),
-		Type:       sa.convertChunkTypeToType(chunk.ChunkType),
+		Type:       sa.convertChunkTypeToType(chunk.Type),
 		Content:    chunk.Content,
 		Summary:    chunk.Summary,
-		Tags:       chunk.Tags,
-		Metadata:   chunk.Metadata,
-		CreatedAt:  chunk.CreatedAt,
-		UpdatedAt:  chunk.UpdatedAt,
+		Tags:       chunk.Metadata.Tags,
+		Metadata:   sa.convertChunkMetadata(chunk.Metadata),
+		CreatedAt:  chunk.Timestamp, // Use timestamp as created time
+		UpdatedAt:  chunk.Timestamp, // Default to same as created time
 		Embeddings: chunk.Embeddings,
 		Version:    1, // Default version
 	}
 
 	return content
+}
+
+// convertChunkMetadata converts ChunkMetadata to map[string]interface{}
+func (sa *StorageAdapter) convertChunkMetadata(metadata pkgTypes.ChunkMetadata) map[string]interface{} {
+	result := make(map[string]interface{})
+
+	if metadata.Repository != "" {
+		result["repository"] = metadata.Repository
+	}
+	if metadata.Branch != "" {
+		result["branch"] = metadata.Branch
+	}
+	if len(metadata.FilesModified) > 0 {
+		result["files_modified"] = metadata.FilesModified
+	}
+	if len(metadata.ToolsUsed) > 0 {
+		result["tools_used"] = metadata.ToolsUsed
+	}
+	if metadata.Outcome != "" {
+		result["outcome"] = string(metadata.Outcome)
+	}
+	if len(metadata.Tags) > 0 {
+		result["tags"] = metadata.Tags
+	}
+	if metadata.Difficulty != "" {
+		result["difficulty"] = string(metadata.Difficulty)
+	}
+	if metadata.TimeSpent != nil {
+		result["time_spent"] = *metadata.TimeSpent
+	}
+
+	// Merge extended metadata
+	for k, v := range metadata.ExtendedMetadata {
+		result[k] = v
+	}
+
+	return result
 }
 
 // convertTypeToChunkType converts new type string to old ChunkType
@@ -477,11 +517,11 @@ func (sa *StorageAdapter) GetStats(ctx context.Context) (*types.StorageStats, er
 	}
 
 	return &types.StorageStats{
-		TotalContent:    oldStats.TotalChunks,
-		ContentByType:   sa.convertChunksByType(oldStats.ChunksByType),
+		TotalContent:     oldStats.TotalChunks,
+		ContentByType:    sa.convertChunksByType(oldStats.ChunksByType),
 		ContentByProject: oldStats.ChunksByRepo,
-		StorageSize:     oldStats.StorageSize,
-		LastUpdated:     time.Now(),
+		StorageSize:      oldStats.StorageSize,
+		LastUpdated:      time.Now(),
 		Performance: types.PerformanceMetrics{
 			RequestsTotal:   1000, // Mock data
 			RequestsPerSec:  10.5,
@@ -493,15 +533,15 @@ func (sa *StorageAdapter) GetStats(ctx context.Context) (*types.StorageStats, er
 
 func (sa *StorageAdapter) GetProjectStats(ctx context.Context, projectID types.ProjectID) (*types.ProjectStats, error) {
 	return &types.ProjectStats{
-		ProjectID:       projectID,
-		TotalContent:    100, // Mock data
-		ContentByType:   map[string]int64{"memory": 50, "task": 30, "decision": 20},
-		TotalSessions:   10,
-		ActiveSessions:  3,
-		StorageSize:     1024 * 1024, // 1MB
-		CreatedAt:       time.Now().Add(-30 * 24 * time.Hour),
-		LastActivity:    time.Now(),
-		QualityScore:    0.85,
+		ProjectID:      projectID,
+		TotalContent:   100, // Mock data
+		ContentByType:  map[string]int64{"memory": 50, "task": 30, "decision": 20},
+		TotalSessions:  10,
+		ActiveSessions: 3,
+		StorageSize:    1024 * 1024, // 1MB
+		CreatedAt:      time.Now().Add(-30 * 24 * time.Hour),
+		LastActivity:   time.Now(),
+		QualityScore:   0.85,
 	}, nil
 }
 

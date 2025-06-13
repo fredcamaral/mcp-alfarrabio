@@ -63,8 +63,8 @@ type VectorStore interface {
 	StoreChunk(ctx context.Context, chunk *types.ConversationChunk) error
 
 	// Batch operations
-	BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error)
-	BatchDelete(ctx context.Context, ids []string) (*BatchResult, error)
+	BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*LegacyBatchResult, error)
+	BatchDelete(ctx context.Context, ids []string) (*LegacyBatchResult, error)
 
 	// Relationship management
 	StoreRelationship(ctx context.Context, sourceID, targetID string, relationType types.RelationType, confidence float64, source types.ConfidenceSource) (*types.MemoryRelationship, error)
@@ -110,8 +110,8 @@ type BatchOperation struct {
 	IDs       []string                   `json:"ids,omitempty"` // For delete operations
 }
 
-// BatchResult represents the result of a batch operation
-type BatchResult struct {
+// LegacyBatchResult represents the result of a batch operation (legacy interface)
+type LegacyBatchResult struct {
 	Success      int      `json:"success"`
 	Failed       int      `json:"failed"`
 	Errors       []string `json:"errors,omitempty"`

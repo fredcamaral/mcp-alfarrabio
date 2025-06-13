@@ -2,7 +2,6 @@
 package performance
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"sync"
@@ -11,46 +10,46 @@ import (
 
 // Cache provides a high-performance, thread-safe caching layer
 type Cache struct {
-	store      map[string]*CacheEntry
-	mutex      sync.RWMutex
-	config     *CacheConfig
-	janitor    *janitor
-	stats      *CacheStats
-	closed     bool
+	store   map[string]*CacheEntry
+	mutex   sync.RWMutex
+	config  *CacheConfig
+	janitor *janitor
+	stats   *CacheStats
+	closed  bool
 }
 
 // CacheEntry represents a cached item with metadata
 type CacheEntry struct {
-	Key        string      `json:"key"`
-	Value      interface{} `json:"value"`
-	CreatedAt  time.Time   `json:"created_at"`
-	AccessedAt time.Time   `json:"accessed_at"`
-	ExpiresAt  time.Time   `json:"expires_at"`
-	AccessCount int64      `json:"access_count"`
-	Size       int64       `json:"size"`
-	TTL        time.Duration `json:"ttl"`
+	Key         string        `json:"key"`
+	Value       interface{}   `json:"value"`
+	CreatedAt   time.Time     `json:"created_at"`
+	AccessedAt  time.Time     `json:"accessed_at"`
+	ExpiresAt   time.Time     `json:"expires_at"`
+	AccessCount int64         `json:"access_count"`
+	Size        int64         `json:"size"`
+	TTL         time.Duration `json:"ttl"`
 }
 
 // CacheConfig defines cache configuration
 type CacheConfig struct {
 	// Size limits
-	MaxSize        int64         `json:"max_size"`         // Max cache size in bytes
-	MaxItems       int           `json:"max_items"`        // Max number of items
-	
+	MaxSize  int64 `json:"max_size"`  // Max cache size in bytes
+	MaxItems int   `json:"max_items"` // Max number of items
+
 	// TTL settings
-	DefaultTTL     time.Duration `json:"default_ttl"`      // Default time-to-live
-	MaxTTL         time.Duration `json:"max_ttl"`          // Maximum allowed TTL
-	
+	DefaultTTL time.Duration `json:"default_ttl"` // Default time-to-live
+	MaxTTL     time.Duration `json:"max_ttl"`     // Maximum allowed TTL
+
 	// Cleanup settings
 	CleanupInterval time.Duration `json:"cleanup_interval"` // How often to clean expired items
-	CleanupBatch   int           `json:"cleanup_batch"`    // Max items to clean per batch
-	
+	CleanupBatch    int           `json:"cleanup_batch"`    // Max items to clean per batch
+
 	// Performance settings
-	PreComputeSize bool          `json:"precompute_size"`  // Pre-compute item sizes
-	TrackStats     bool          `json:"track_stats"`      // Track detailed statistics
-	
+	PreComputeSize bool `json:"precompute_size"` // Pre-compute item sizes
+	TrackStats     bool `json:"track_stats"`     // Track detailed statistics
+
 	// Eviction settings
-	EvictionPolicy string        `json:"eviction_policy"`  // "lru", "lfu", "ttl"
+	EvictionPolicy string `json:"eviction_policy"` // "lru", "lfu", "ttl"
 }
 
 // DefaultCacheConfig returns optimized default configuration
@@ -70,16 +69,16 @@ func DefaultCacheConfig() *CacheConfig {
 
 // CacheStats provides cache performance statistics
 type CacheStats struct {
-	mutex        sync.RWMutex
-	Hits         int64 `json:"hits"`
-	Misses       int64 `json:"misses"`
-	Sets         int64 `json:"sets"`
-	Deletes      int64 `json:"deletes"`
-	Evictions    int64 `json:"evictions"`
-	Size         int64 `json:"size"`
-	Items        int   `json:"items"`
-	HitRate      float64 `json:"hit_rate"`
-	LastCleanup  time.Time `json:"last_cleanup"`
+	mutex       sync.RWMutex
+	Hits        int64     `json:"hits"`
+	Misses      int64     `json:"misses"`
+	Sets        int64     `json:"sets"`
+	Deletes     int64     `json:"deletes"`
+	Evictions   int64     `json:"evictions"`
+	Size        int64     `json:"size"`
+	Items       int       `json:"items"`
+	HitRate     float64   `json:"hit_rate"`
+	LastCleanup time.Time `json:"last_cleanup"`
 }
 
 // janitor handles background cleanup operations
@@ -94,13 +93,13 @@ func NewCache(config *CacheConfig) *Cache {
 	if config == nil {
 		config = DefaultCacheConfig()
 	}
-	
+
 	cache := &Cache{
 		store:  make(map[string]*CacheEntry),
 		config: config,
 		stats:  &CacheStats{},
 	}
-	
+
 	// Start janitor for cleanup
 	if config.CleanupInterval > 0 {
 		cache.janitor = &janitor{
@@ -110,7 +109,7 @@ func NewCache(config *CacheConfig) *Cache {
 		}
 		go cache.janitor.run()
 	}
-	
+
 	return cache
 }
 
@@ -118,17 +117,17 @@ func NewCache(config *CacheConfig) *Cache {
 func (c *Cache) Get(key string) (interface{}, bool) {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	
+
 	if c.closed {
 		return nil, false
 	}
-	
+
 	entry, exists := c.store[key]
 	if !exists {
 		c.incrementMisses()
 		return nil, false
 	}
-	
+
 	// Check if expired
 	if time.Now().After(entry.ExpiresAt) {
 		c.mutex.RUnlock()
@@ -139,11 +138,11 @@ func (c *Cache) Get(key string) (interface{}, bool) {
 		c.incrementMisses()
 		return nil, false
 	}
-	
+
 	// Update access metadata
 	entry.AccessedAt = time.Now()
 	entry.AccessCount++
-	
+
 	c.incrementHits()
 	return entry.Value, true
 }
@@ -158,47 +157,47 @@ func (c *Cache) SetWithTTL(key string, value interface{}, ttl time.Duration) err
 	if c.closed {
 		return fmt.Errorf("cache is closed")
 	}
-	
+
 	// Validate TTL
 	if ttl > c.config.MaxTTL {
 		ttl = c.config.MaxTTL
 	}
-	
+
 	// Calculate size if enabled
 	var size int64
 	if c.config.PreComputeSize {
 		size = c.calculateSize(value)
 	}
-	
+
 	entry := &CacheEntry{
-		Key:        key,
-		Value:      value,
-		CreatedAt:  time.Now(),
-		AccessedAt: time.Now(),
-		ExpiresAt:  time.Now().Add(ttl),
+		Key:         key,
+		Value:       value,
+		CreatedAt:   time.Now(),
+		AccessedAt:  time.Now(),
+		ExpiresAt:   time.Now().Add(ttl),
 		AccessCount: 1,
-		Size:       size,
-		TTL:        ttl,
+		Size:        size,
+		TTL:         ttl,
 	}
-	
+
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	// Check if we need to evict items
 	if err := c.ensureCapacity(entry); err != nil {
 		return fmt.Errorf("failed to ensure capacity: %w", err)
 	}
-	
+
 	// Remove existing entry if it exists
 	if existing, exists := c.store[key]; exists {
 		c.updateStats(-existing.Size, false)
 	}
-	
+
 	// Store the entry
 	c.store[key] = entry
 	c.updateStats(entry.Size, true)
 	c.incrementSets()
-	
+
 	return nil
 }
 
@@ -206,20 +205,20 @@ func (c *Cache) SetWithTTL(key string, value interface{}, ttl time.Duration) err
 func (c *Cache) Delete(key string) bool {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	if c.closed {
 		return false
 	}
-	
+
 	entry, exists := c.store[key]
 	if !exists {
 		return false
 	}
-	
+
 	delete(c.store, key)
 	c.updateStats(-entry.Size, false)
 	c.incrementDeletes()
-	
+
 	return true
 }
 
@@ -227,7 +226,7 @@ func (c *Cache) Delete(key string) bool {
 func (c *Cache) Clear() {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	c.store = make(map[string]*CacheEntry)
 	c.stats.Size = 0
 	c.stats.Items = 0
@@ -237,12 +236,12 @@ func (c *Cache) Clear() {
 func (c *Cache) Keys() []string {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	
+
 	keys := make([]string, 0, len(c.store))
 	for key := range c.store {
 		keys = append(keys, key)
 	}
-	
+
 	return keys
 }
 
@@ -250,7 +249,7 @@ func (c *Cache) Keys() []string {
 func (c *Cache) Size() int {
 	c.mutex.RLock()
 	defer c.mutex.RUnlock()
-	
+
 	return len(c.store)
 }
 
@@ -258,15 +257,26 @@ func (c *Cache) Size() int {
 func (c *Cache) Stats() CacheStats {
 	c.stats.mutex.RLock()
 	defer c.stats.mutex.RUnlock()
-	
-	stats := *c.stats
-	
+
+	// Return a copy without the mutex to avoid lock value copying
+	stats := CacheStats{
+		Hits:        c.stats.Hits,
+		Misses:      c.stats.Misses,
+		Sets:        c.stats.Sets,
+		Deletes:     c.stats.Deletes,
+		Evictions:   c.stats.Evictions,
+		Size:        c.stats.Size,
+		Items:       c.stats.Items,
+		HitRate:     c.stats.HitRate,
+		LastCleanup: c.stats.LastCleanup,
+	}
+
 	// Calculate hit rate
 	total := stats.Hits + stats.Misses
 	if total > 0 {
 		stats.HitRate = float64(stats.Hits) / float64(total)
 	}
-	
+
 	return stats
 }
 
@@ -274,19 +284,19 @@ func (c *Cache) Stats() CacheStats {
 func (c *Cache) Close() error {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	if c.closed {
 		return nil
 	}
-	
+
 	c.closed = true
-	
+
 	if c.janitor != nil {
 		close(c.janitor.stop)
 	}
-	
+
 	c.store = nil
-	
+
 	return nil
 }
 
@@ -294,34 +304,34 @@ func (c *Cache) Close() error {
 func (c *Cache) Cleanup() int {
 	c.mutex.Lock()
 	defer c.mutex.Unlock()
-	
+
 	if c.closed {
 		return 0
 	}
-	
+
 	now := time.Now()
 	removed := 0
 	batch := 0
-	
+
 	for key, entry := range c.store {
 		if now.After(entry.ExpiresAt) {
 			delete(c.store, key)
 			c.updateStats(-entry.Size, false)
 			removed++
 			batch++
-			
+
 			// Limit batch size to avoid blocking
 			if batch >= c.config.CleanupBatch {
 				break
 			}
 		}
 	}
-	
+
 	c.stats.mutex.Lock()
 	c.stats.Evictions += int64(removed)
 	c.stats.LastCleanup = now
 	c.stats.mutex.Unlock()
-	
+
 	return removed
 }
 
@@ -331,19 +341,19 @@ func (c *Cache) GetOrCompute(key string, compute func() (interface{}, error)) (i
 	if value, found := c.Get(key); found {
 		return value, nil
 	}
-	
+
 	// Compute the value
 	value, err := compute()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Store in cache
 	if err := c.Set(key, value); err != nil {
 		// Log error but don't fail the operation
 		// In production, would use proper logging
 	}
-	
+
 	return value, nil
 }
 
@@ -353,18 +363,18 @@ func (c *Cache) GetOrComputeWithTTL(key string, ttl time.Duration, compute func(
 	if value, found := c.Get(key); found {
 		return value, nil
 	}
-	
+
 	// Compute the value
 	value, err := compute()
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Store in cache with specific TTL
 	if err := c.SetWithTTL(key, value, ttl); err != nil {
 		// Log error but don't fail the operation
 	}
-	
+
 	return value, nil
 }
 
@@ -377,16 +387,16 @@ func (c *Cache) ensureCapacity(newEntry *CacheEntry) error {
 			return fmt.Errorf("failed to evict items for count limit: %w", err)
 		}
 	}
-	
+
 	// Check size limit
-	if c.config.PreComputeSize && c.stats.Size + newEntry.Size > c.config.MaxSize {
+	if c.config.PreComputeSize && c.stats.Size+newEntry.Size > c.config.MaxSize {
 		// Calculate how much space we need
 		needed := (c.stats.Size + newEntry.Size) - c.config.MaxSize
 		if err := c.evictSize(needed); err != nil {
 			return fmt.Errorf("failed to evict items for size limit: %w", err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -394,7 +404,7 @@ func (c *Cache) evictItems(count int) error {
 	if count <= 0 {
 		return nil
 	}
-	
+
 	switch c.config.EvictionPolicy {
 	case "lru":
 		return c.evictLRU(count)
@@ -410,39 +420,39 @@ func (c *Cache) evictItems(count int) error {
 func (c *Cache) evictSize(targetSize int64) error {
 	var evicted int64
 	var count int
-	
+
 	for evicted < targetSize && len(c.store) > 0 {
 		if err := c.evictItems(1); err != nil {
 			return err
 		}
 		count++
-		
+
 		// Safety check to avoid infinite loops
 		if count > len(c.store) {
 			break
 		}
 	}
-	
+
 	return nil
 }
 
 func (c *Cache) evictLRU(count int) error {
 	// Find oldest accessed items
 	type entryAge struct {
-		key       string
-		entry     *CacheEntry
+		key        string
+		entry      *CacheEntry
 		accessTime time.Time
 	}
-	
+
 	var candidates []entryAge
 	for key, entry := range c.store {
 		candidates = append(candidates, entryAge{
-			key:       key,
-			entry:     entry,
+			key:        key,
+			entry:      entry,
 			accessTime: entry.AccessedAt,
 		})
 	}
-	
+
 	// Sort by access time (oldest first)
 	for i := 0; i < len(candidates)-1; i++ {
 		for j := i + 1; j < len(candidates); j++ {
@@ -451,7 +461,7 @@ func (c *Cache) evictLRU(count int) error {
 			}
 		}
 	}
-	
+
 	// Evict oldest items
 	evicted := 0
 	for i := 0; i < len(candidates) && evicted < count; i++ {
@@ -459,11 +469,11 @@ func (c *Cache) evictLRU(count int) error {
 		c.updateStats(-candidates[i].entry.Size, false)
 		evicted++
 	}
-	
+
 	c.stats.mutex.Lock()
 	c.stats.Evictions += int64(evicted)
 	c.stats.mutex.Unlock()
-	
+
 	return nil
 }
 
@@ -474,7 +484,7 @@ func (c *Cache) evictLFU(count int) error {
 		entry *CacheEntry
 		freq  int64
 	}
-	
+
 	var candidates []entryFreq
 	for key, entry := range c.store {
 		candidates = append(candidates, entryFreq{
@@ -483,7 +493,7 @@ func (c *Cache) evictLFU(count int) error {
 			freq:  entry.AccessCount,
 		})
 	}
-	
+
 	// Sort by frequency (lowest first)
 	for i := 0; i < len(candidates)-1; i++ {
 		for j := i + 1; j < len(candidates); j++ {
@@ -492,7 +502,7 @@ func (c *Cache) evictLFU(count int) error {
 			}
 		}
 	}
-	
+
 	// Evict least frequent items
 	evicted := 0
 	for i := 0; i < len(candidates) && evicted < count; i++ {
@@ -500,11 +510,11 @@ func (c *Cache) evictLFU(count int) error {
 		c.updateStats(-candidates[i].entry.Size, false)
 		evicted++
 	}
-	
+
 	c.stats.mutex.Lock()
 	c.stats.Evictions += int64(evicted)
 	c.stats.mutex.Unlock()
-	
+
 	return nil
 }
 
@@ -515,7 +525,7 @@ func (c *Cache) evictTTL(count int) error {
 		entry     *CacheEntry
 		remaining time.Duration
 	}
-	
+
 	now := time.Now()
 	var candidates []entryTTL
 	for key, entry := range c.store {
@@ -526,7 +536,7 @@ func (c *Cache) evictTTL(count int) error {
 			remaining: remaining,
 		})
 	}
-	
+
 	// Sort by remaining TTL (shortest first)
 	for i := 0; i < len(candidates)-1; i++ {
 		for j := i + 1; j < len(candidates); j++ {
@@ -535,7 +545,7 @@ func (c *Cache) evictTTL(count int) error {
 			}
 		}
 	}
-	
+
 	// Evict items with shortest TTL
 	evicted := 0
 	for i := 0; i < len(candidates) && evicted < count; i++ {
@@ -543,11 +553,11 @@ func (c *Cache) evictTTL(count int) error {
 		c.updateStats(-candidates[i].entry.Size, false)
 		evicted++
 	}
-	
+
 	c.stats.mutex.Lock()
 	c.stats.Evictions += int64(evicted)
 	c.stats.mutex.Unlock()
-	
+
 	return nil
 }
 
@@ -562,7 +572,7 @@ func (c *Cache) calculateSize(value interface{}) int64 {
 func (c *Cache) updateStats(sizeChange int64, itemAdded bool) {
 	c.stats.mutex.Lock()
 	defer c.stats.mutex.Unlock()
-	
+
 	c.stats.Size += sizeChange
 	if itemAdded {
 		c.stats.Items++
@@ -575,7 +585,7 @@ func (c *Cache) incrementHits() {
 	if !c.config.TrackStats {
 		return
 	}
-	
+
 	c.stats.mutex.Lock()
 	c.stats.Hits++
 	c.stats.mutex.Unlock()
@@ -585,7 +595,7 @@ func (c *Cache) incrementMisses() {
 	if !c.config.TrackStats {
 		return
 	}
-	
+
 	c.stats.mutex.Lock()
 	c.stats.Misses++
 	c.stats.mutex.Unlock()
@@ -595,7 +605,7 @@ func (c *Cache) incrementSets() {
 	if !c.config.TrackStats {
 		return
 	}
-	
+
 	c.stats.mutex.Lock()
 	c.stats.Sets++
 	c.stats.mutex.Unlock()
@@ -605,17 +615,36 @@ func (c *Cache) incrementDeletes() {
 	if !c.config.TrackStats {
 		return
 	}
-	
+
 	c.stats.mutex.Lock()
 	c.stats.Deletes++
 	c.stats.mutex.Unlock()
+}
+
+// GetStats returns a copy of cache statistics
+func (c *Cache) GetStats() *CacheStats {
+	c.stats.mutex.RLock()
+	defer c.stats.mutex.RUnlock()
+
+	// Return a copy to avoid race conditions
+	return &CacheStats{
+		Hits:        c.stats.Hits,
+		Misses:      c.stats.Misses,
+		Sets:        c.stats.Sets,
+		Deletes:     c.stats.Deletes,
+		Evictions:   c.stats.Evictions,
+		Size:        c.stats.Size,
+		Items:       c.stats.Items,
+		HitRate:     c.stats.HitRate,
+		LastCleanup: c.stats.LastCleanup,
+	}
 }
 
 // janitor background cleanup routine
 func (j *janitor) run() {
 	ticker := time.NewTicker(j.interval)
 	defer ticker.Stop()
-	
+
 	for {
 		select {
 		case <-ticker.C:

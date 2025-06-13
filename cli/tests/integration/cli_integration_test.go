@@ -201,7 +201,7 @@ func (s *CLIIntegrationSuite) TestTaskFiltering() {
 		services.WithTags("feature"))
 	s.Require().NoError(err)
 
-	task3, err := s.container.TaskService.CreateTask(ctx, "Medium priority task",
+	_, err = s.container.TaskService.CreateTask(ctx, "Medium priority task",
 		services.WithPriority(entities.PriorityMedium))
 	s.Require().NoError(err)
 
@@ -211,7 +211,7 @@ func (s *CLIIntegrationSuite) TestTaskFiltering() {
 
 	// Test filtering by priority
 	highPriority := entities.PriorityHigh
-	tasks, err := s.container.TaskService.ListTasks(ctx, ports.TaskFilters{
+	tasks, err := s.container.TaskService.ListTasks(ctx, &ports.TaskFilters{
 		Priority: &highPriority,
 	})
 	s.Require().NoError(err)
@@ -220,7 +220,7 @@ func (s *CLIIntegrationSuite) TestTaskFiltering() {
 
 	// Test filtering by status
 	inProgressStatus := entities.StatusInProgress
-	tasks, err = s.container.TaskService.ListTasks(ctx, ports.TaskFilters{
+	tasks, err = s.container.TaskService.ListTasks(ctx, &ports.TaskFilters{
 		Status: &inProgressStatus,
 	})
 	s.Require().NoError(err)
@@ -228,7 +228,7 @@ func (s *CLIIntegrationSuite) TestTaskFiltering() {
 	s.Assert().Equal(task2.ID, tasks[0].ID)
 
 	// Test filtering by tags
-	tasks, err = s.container.TaskService.ListTasks(ctx, ports.TaskFilters{
+	tasks, err = s.container.TaskService.ListTasks(ctx, &ports.TaskFilters{
 		Tags: []string{"urgent"},
 	})
 	s.Require().NoError(err)
@@ -265,7 +265,7 @@ func (s *CLIIntegrationSuite) TestConcurrentTaskOperations() {
 	}
 
 	// Verify all tasks were created
-	tasks, err := s.container.TaskService.ListTasks(ctx, ports.TaskFilters{})
+	tasks, err := s.container.TaskService.ListTasks(ctx, &ports.TaskFilters{})
 	s.Require().NoError(err)
 	s.Assert().Len(tasks, numGoroutines)
 }

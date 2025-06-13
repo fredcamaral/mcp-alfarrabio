@@ -125,7 +125,7 @@ func TestProcessRequestWithEmptyModel(t *testing.T) {
 		Messages: []Message{
 			{Role: "user", Content: "Hello"},
 		},
-		Metadata: RequestMetadata{
+		Metadata: &RequestMetadata{
 			CreatedAt: time.Now(),
 		},
 	}
@@ -139,7 +139,7 @@ func TestProcessRequestWithEmptyModel(t *testing.T) {
 	// Should fail at the API call level, not before
 	assert.Error(t, err)
 	// The request should have the primary model set
-	assert.Equal(t, ModelClaude, req.Model)
+	assert.Equal(t, string(ModelClaude), req.Model)
 }
 
 func TestServiceClose(t *testing.T) {

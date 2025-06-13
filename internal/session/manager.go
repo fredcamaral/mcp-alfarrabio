@@ -37,11 +37,11 @@ const (
 	// AccessReadOnly: No session_id provided - limited project data access
 	// User can read basic project information but not session-specific data
 	AccessReadOnly AccessLevel = "read_only"
-	
+
 	// AccessSession: With session_id - full session + project data access
 	// User can read/write both session-specific and project-wide data
 	AccessSession AccessLevel = "session"
-	
+
 	// AccessProject: Project scope - all project data but no session writes
 	// User can read all project data but cannot create session-specific content
 	AccessProject AccessLevel = "project"
@@ -80,7 +80,7 @@ func (m *Manager) GetAccessLevel(projectID types.ProjectID, sessionID types.Sess
 		}
 		return AccessReadOnly // Project data but no session access
 	}
-	
+
 	// With session ID, user gets full access to both session and project data
 	return AccessSession
 }
@@ -93,26 +93,26 @@ func (m *Manager) CreateSession(ctx context.Context, projectID types.ProjectID, 
 	if sessionID.IsEmpty() {
 		return nil, fmt.Errorf("session_id is required to create a session")
 	}
-	
+
 	if err := projectID.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid project_id: %w", err)
 	}
 	if err := sessionID.Validate(); err != nil {
 		return nil, fmt.Errorf("invalid session_id: %w", err)
 	}
-	
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	sessionKey := m.getSessionKey(projectID, sessionID)
-	
+
 	// Check if session already exists
 	if existing, exists := m.sessions[sessionKey]; exists {
 		existing.LastAccess = time.Now()
 		existing.AccessCount++
 		return existing, nil
 	}
-	
+
 	// Create new session
 	sessionInfo := &SessionInfo{
 		SessionID:   sessionID,
@@ -123,9 +123,9 @@ func (m *Manager) CreateSession(ctx context.Context, projectID types.ProjectID, 
 		IsActive:    true,
 		Metadata:    make(map[string]string),
 	}
-	
+
 	m.sessions[sessionKey] = sessionInfo
-	
+
 	return sessionInfo, nil
 }
 
@@ -134,20 +134,20 @@ func (m *Manager) GetSession(projectID types.ProjectID, sessionID types.SessionI
 	if projectID.IsEmpty() || sessionID.IsEmpty() {
 		return nil, fmt.Errorf("both project_id and session_id are required")
 	}
-	
+
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	sessionKey := m.getSessionKey(projectID, sessionID)
 	sessionInfo, exists := m.sessions[sessionKey]
 	if !exists {
 		return nil, fmt.Errorf("session not found")
 	}
-	
+
 	if !sessionInfo.IsActive {
 		return nil, fmt.Errorf("session is not active")
 	}
-	
+
 	return sessionInfo, nil
 }
 
@@ -156,10 +156,10 @@ func (m *Manager) UpdateSessionAccess(projectID types.ProjectID, sessionID types
 	if projectID.IsEmpty() || sessionID.IsEmpty() {
 		return nil // No session to update
 	}
-	
+
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	sessionKey := m.getSessionKey(projectID, sessionID)
 	sessionInfo, exists := m.sessions[sessionKey]
 	if !exists {
@@ -176,32 +176,32 @@ func (m *Manager) UpdateSessionAccess(projectID types.ProjectID, sessionID types
 		m.sessions[sessionKey] = sessionInfo
 		return nil
 	}
-	
+
 	sessionInfo.LastAccess = time.Now()
 	sessionInfo.AccessCount++
-	
+
 	return nil
 }
 
 // ValidateAccess validates if the requested operation is allowed with current access level
 func (m *Manager) ValidateAccess(projectID types.ProjectID, sessionID types.SessionID, operation string, requiresWrite bool) error {
 	accessLevel := m.GetAccessLevel(projectID, sessionID)
-	
+
 	// Check write access
 	if requiresWrite && !accessLevel.CanWrite() {
 		return fmt.Errorf("operation '%s' requires session access for write operations, but only %s access provided", operation, accessLevel)
 	}
-	
+
 	// Check project access
 	if !accessLevel.CanReadProject() {
 		return fmt.Errorf("operation '%s' requires project access", operation)
 	}
-	
+
 	// For session-specific operations, ensure session access
 	if (operation == "get_session_data" || operation == "store_session_data") && !accessLevel.CanReadSession() {
 		return fmt.Errorf("operation '%s' requires session access", operation)
 	}
-	
+
 	return nil
 }
 
@@ -210,17 +210,17 @@ func (m *Manager) GetProjectSessions(projectID types.ProjectID) ([]*SessionInfo,
 	if projectID.IsEmpty() {
 		return nil, fmt.Errorf("project_id is required")
 	}
-	
+
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	var sessions []*SessionInfo
 	for _, sessionInfo := range m.sessions {
 		if sessionInfo.ProjectID == projectID && sessionInfo.IsActive {
 			sessions = append(sessions, sessionInfo)
 		}
 	}
-	
+
 	return sessions, nil
 }
 
@@ -228,15 +228,15 @@ func (m *Manager) GetProjectSessions(projectID types.ProjectID) ([]*SessionInfo,
 func (m *Manager) DeactivateSession(projectID types.ProjectID, sessionID types.SessionID) error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	sessionKey := m.getSessionKey(projectID, sessionID)
 	sessionInfo, exists := m.sessions[sessionKey]
 	if !exists {
 		return fmt.Errorf("session not found")
 	}
-	
+
 	sessionInfo.IsActive = false
-	
+
 	return nil
 }
 
@@ -244,17 +244,17 @@ func (m *Manager) DeactivateSession(projectID types.ProjectID, sessionID types.S
 func (m *Manager) CleanupExpiredSessions(maxAge time.Duration) int {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
-	
+
 	cutoff := time.Now().Add(-maxAge)
 	removed := 0
-	
+
 	for key, sessionInfo := range m.sessions {
 		if sessionInfo.LastAccess.Before(cutoff) {
 			delete(m.sessions, key)
 			removed++
 		}
 	}
-	
+
 	return removed
 }
 
@@ -262,18 +262,18 @@ func (m *Manager) CleanupExpiredSessions(maxAge time.Duration) int {
 func (m *Manager) GetSessionStats() map[string]interface{} {
 	m.mutex.RLock()
 	defer m.mutex.RUnlock()
-	
+
 	totalSessions := len(m.sessions)
 	activeSessions := 0
 	projectCounts := make(map[types.ProjectID]int)
-	
+
 	for _, sessionInfo := range m.sessions {
 		if sessionInfo.IsActive {
 			activeSessions++
 		}
 		projectCounts[sessionInfo.ProjectID]++
 	}
-	
+
 	return map[string]interface{}{
 		"total_sessions":  totalSessions,
 		"active_sessions": activeSessions,
@@ -289,25 +289,25 @@ func (m *Manager) getSessionKey(projectID types.ProjectID, sessionID types.Sessi
 // IsWriteOperation returns true if the operation requires write access
 func IsWriteOperation(operation string) bool {
 	writeOperations := map[string]bool{
-		"store_content":     true,
-		"store_decision":    true,
-		"update_content":    true,
-		"delete_content":    true,
-		"create_thread":     true,
+		"store_content":       true,
+		"store_decision":      true,
+		"update_content":      true,
+		"delete_content":      true,
+		"create_thread":       true,
 		"create_relationship": true,
-		"import_project":    true,
+		"import_project":      true,
 	}
-	
+
 	return writeOperations[operation]
 }
 
 // IsSessionOperation returns true if the operation requires session-specific access
 func IsSessionOperation(operation string) bool {
 	sessionOperations := map[string]bool{
-		"get_session_data":   true,
-		"store_session_data": true,
+		"get_session_data":    true,
+		"store_session_data":  true,
 		"get_session_history": true,
 	}
-	
+
 	return sessionOperations[operation]
 }

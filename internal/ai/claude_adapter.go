@@ -89,26 +89,32 @@ func (a *ClaudeAdapter) ProcessRequest(ctx context.Context, req *Request) (*Resp
 	// Convert CompletionResponse to Response
 	return &Response{
 		ID:      req.ID,
-		Model:   ModelClaude,
+		Model:   string(ModelClaude),
 		Content: resp.Content,
-		TokensUsed: TokenUsage{
-			Input:  resp.Usage.Input,
-			Output: resp.Usage.Output,
-			Total:  resp.Usage.Total,
+		TokensUsed: &TokenUsage{
+			PromptTokens:     resp.Usage.PromptTokens,
+			CompletionTokens: resp.Usage.CompletionTokens,
+			TotalTokens:      resp.Usage.Total,
+			Total:            resp.Usage.Total,
 		},
-		Latency:      latency,
-		CacheHit:     false,
-		FallbackUsed: false,
-		Quality: QualityMetrics{
-			Confidence: 0.95, // Claude typically has high confidence
-			Relevance:  0.9,
-			Clarity:    0.95,
-			Score:      0.93,
+		Usage: &UsageStats{
+			PromptTokens:     resp.Usage.PromptTokens,
+			CompletionTokens: resp.Usage.CompletionTokens,
+			Total:            resp.Usage.Total,
 		},
-		Metadata: ResponseMetadata{
-			ProcessedAt: time.Now(),
-			ServerID:    "claude-adapter",
-			Version:     "1.0.0",
+		Quality: &UnifiedQualityMetrics{
+			Confidence:   0.95, // Claude typically has high confidence
+			Relevance:    0.9,
+			Clarity:      0.95,
+			Score:        0.93,
+			Completeness: 0.9,
+			OverallScore: 0.93,
+		},
+		Metadata: map[string]interface{}{
+			"processed_at": time.Now(),
+			"server_id":    "claude-adapter",
+			"version":      "1.0.0",
+			"latency_ms":   latency.Milliseconds(),
 		},
 	}, nil
 }
@@ -137,9 +143,8 @@ func (a *ClaudeAdapter) IsHealthy(ctx context.Context) error {
 // GetLimits implements the Client interface
 func (a *ClaudeAdapter) GetLimits() RateLimits {
 	return RateLimits{
-		RequestsPerMinute:  50,     // Claude rate limits
-		TokensPerMinute:    100000, // Approximate for Claude
-		ConcurrentRequests: 10,
-		ResetTime:          time.Minute,
+		RequestsPerMinute: 50,     // Claude rate limits
+		TokensPerMinute:   100000, // Approximate for Claude
+		RequestsPerDay:    1000,   // Daily limit
 	}
 }

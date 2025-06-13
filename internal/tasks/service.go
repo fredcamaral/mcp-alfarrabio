@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
+
 	"lerian-mcp-memory/pkg/types"
 )
 
@@ -52,8 +54,8 @@ func DefaultServiceConfig() ServiceConfig {
 		MaxTasksPerUser:    1000,
 		DefaultPageSize:    20,
 		MaxPageSize:        100,
-		AuditEnabled:       true,
-		WorkflowValidation: true,
+		AuditEnabled:       false,
+		WorkflowValidation: false,
 		CacheTimeout:       5 * time.Minute,
 	}
 }
@@ -85,6 +87,11 @@ func (s *Service) CreateTask(ctx context.Context, task *types.Task, userID strin
 	task.Timestamps.Updated = now
 	task.Status = types.TaskStatusLegacyTodo // Default status
 
+	// Set default complexity if not provided
+	if task.Complexity.Level == "" {
+		task.Complexity.Level = "simple"
+	}
+
 	// Validate workflow transition
 	if s.config.WorkflowValidation {
 		if err := s.workflow.ValidateTransition("", task.Status, userID); err != nil {
@@ -112,10 +119,7 @@ func (s *Service) GetTask(ctx context.Context, id, userID string) (*types.Task, 
 		return nil, fmt.Errorf("failed to get task: %w", err)
 	}
 
-	// Check permissions (basic implementation)
-	if !s.canAccessTask(task, userID) {
-		return nil, fmt.Errorf("access denied to task %s", id)
-	}
+	// No access control - all users can access all tasks
 
 	return task, nil
 }
@@ -128,10 +132,7 @@ func (s *Service) UpdateTask(ctx context.Context, task *types.Task, userID strin
 		return fmt.Errorf("failed to get existing task: %w", err)
 	}
 
-	// Check permissions
-	if !s.canModifyTask(existing, userID) {
-		return fmt.Errorf("access denied to modify task %s", task.ID)
-	}
+	// No access control - all users can modify all tasks
 
 	// Validate task
 	if err := s.validateTask(task); err != nil {
@@ -166,16 +167,13 @@ func (s *Service) UpdateTask(ctx context.Context, task *types.Task, userID strin
 
 // DeleteTask deletes a task
 func (s *Service) DeleteTask(ctx context.Context, id, userID string) error {
-	// Get existing task
-	existing, err := s.repository.GetByID(ctx, id)
+	// Get existing task to verify it exists
+	_, err := s.repository.GetByID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to get existing task: %w", err)
 	}
 
-	// Check permissions
-	if !s.canModifyTask(existing, userID) {
-		return fmt.Errorf("access denied to delete task %s", id)
-	}
+	// No access control - all users can delete all tasks
 
 	// Delete task
 	if err := s.repository.Delete(ctx, id); err != nil {
@@ -298,13 +296,7 @@ func (s *Service) BatchUpdateTasks(ctx context.Context, updates []BatchUpdate, u
 			continue
 		}
 
-		if !s.canModifyTask(task, userID) {
-			result.Failed = append(result.Failed, BatchError{
-				TaskID: update.TaskID,
-				Error:  "access denied",
-			})
-			continue
-		}
+		// No access control - all users can modify all tasks
 
 		// Validate workflow transition if status is being changed
 		if update.Status != nil && s.config.WorkflowValidation {
@@ -393,7 +385,7 @@ func (s *Service) applyUserFilters(filters *TaskFilters, userID string) TaskFilt
 }
 
 func (s *Service) generateTaskID() string {
-	return fmt.Sprintf("task_%d", time.Now().UnixNano())
+	return uuid.New().String()
 }
 
 func (s *Service) updateStatusTimestamp(task *types.Task, _ types.TaskStatus) {

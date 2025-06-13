@@ -302,13 +302,13 @@ func TestRetryWrapper_AllMethods(t *testing.T) {
 		chunks := []*types.ConversationChunk{
 			{ID: "batch-retry1"}, {ID: "batch-retry2"},
 		}
-		expectedResult := &BatchResult{
+		expectedResult := &LegacyBatchResult{
 			Success:      2,
 			Failed:       0,
 			ProcessedIDs: []string{"batch-retry1", "batch-retry2"},
 		}
 
-		mockStore.On("BatchStore", ctx, chunks).Return((*BatchResult)(nil), errors.New("batch store failed")).Once()
+		mockStore.On("BatchStore", ctx, chunks).Return((*LegacyBatchResult)(nil), errors.New("batch store failed")).Once()
 		mockStore.On("BatchStore", ctx, chunks).Return(expectedResult, nil).Once()
 
 		result, err := wrapper.BatchStore(ctx, chunks)
@@ -321,13 +321,13 @@ func TestRetryWrapper_AllMethods(t *testing.T) {
 		mockStore := new(MockVectorStore)
 		wrapper := NewRetryableVectorStore(mockStore, retryConfig)
 		ids := []string{"retry-delete1", "retry-delete2"}
-		expectedResult := &BatchResult{
+		expectedResult := &LegacyBatchResult{
 			Success:      2,
 			Failed:       0,
 			ProcessedIDs: ids,
 		}
 
-		mockStore.On("BatchDelete", ctx, ids).Return((*BatchResult)(nil), errors.New("batch delete failed")).Once()
+		mockStore.On("BatchDelete", ctx, ids).Return((*LegacyBatchResult)(nil), errors.New("batch delete failed")).Once()
 		mockStore.On("BatchDelete", ctx, ids).Return(expectedResult, nil).Once()
 
 		result, err := wrapper.BatchDelete(ctx, ids)

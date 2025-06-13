@@ -238,7 +238,7 @@ func (m *MockQdrantStore) BatchStore(ctx context.Context, chunks []types.Convers
 	result := &BatchResult{
 		Success:      0,
 		Failed:       0,
-		Errors:       []string{},
+		Errors:       []BatchError{},
 		ProcessedIDs: []string{},
 	}
 
@@ -246,7 +246,7 @@ func (m *MockQdrantStore) BatchStore(ctx context.Context, chunks []types.Convers
 		chunk := chunks[i]
 		if err := m.Store(ctx, chunk); err != nil {
 			result.Failed++
-			result.Errors = append(result.Errors, err.Error())
+			result.Errors = append(result.Errors, BatchError{Error: err.Error()})
 		} else {
 			result.Success++
 		}
@@ -260,14 +260,14 @@ func (m *MockQdrantStore) BatchDelete(ctx context.Context, ids []string) (*Batch
 	result := &BatchResult{
 		Success:      0,
 		Failed:       0,
-		Errors:       []string{},
+		Errors:       []BatchError{},
 		ProcessedIDs: ids,
 	}
 
 	for _, id := range ids {
 		if err := m.Delete(ctx, id); err != nil {
 			result.Failed++
-			result.Errors = append(result.Errors, err.Error())
+			result.Errors = append(result.Errors, BatchError{Error: err.Error()})
 		} else {
 			result.Success++
 		}

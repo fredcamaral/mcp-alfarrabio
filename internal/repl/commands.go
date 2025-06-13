@@ -187,7 +187,7 @@ func (r *REPL) generateTRD(ctx context.Context) (string, error) {
 		}
 	}
 
-	return "TRD generated successfully (Model: " + string(resp.ModelUsed) + ", Tokens: " + strconv.Itoa(resp.TokensUsed.Total) + ")", nil
+	return "TRD generated successfully (Model: " + string(resp.ModelUsed) + ", Tokens: " + strconv.Itoa(resp.TokensUsed.TotalTokens) + ")", nil
 }
 
 // generateTasks generates main tasks from PRD and TRD

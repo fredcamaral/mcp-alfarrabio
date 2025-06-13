@@ -32,7 +32,7 @@ type QdrantStore struct {
 	config            *config.QdrantConfig
 	metrics           *StorageMetrics
 	collectionName    string
-	relationshipStore *RelationshipStore
+	relationshipStore *QdrantRelationshipStore
 }
 
 // NewQdrantStore creates a new Qdrant vector store
@@ -74,7 +74,7 @@ func (qs *QdrantStore) Initialize(ctx context.Context) error {
 	qs.client = client
 
 	// Initialize relationship store
-	qs.relationshipStore = NewRelationshipStore(client)
+	qs.relationshipStore = NewQdrantRelationshipStore(client)
 	if err := qs.relationshipStore.Initialize(ctx); err != nil {
 		return fmt.Errorf("failed to initialize relationship store: %w", err)
 	}
@@ -1061,12 +1061,12 @@ func (qs *QdrantStore) StoreChunk(ctx context.Context, chunk *types.Conversation
 }
 
 // BatchStore stores multiple chunks in a single operation
-func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*BatchResult, error) {
+func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.ConversationChunk) (*LegacyBatchResult, error) {
 	start := time.Now()
 	defer qs.updateMetrics("batch_store", start)
 
 	if len(chunks) == 0 {
-		return &BatchResult{Success: 0, Failed: 0}, nil
+		return &LegacyBatchResult{Success: 0, Failed: 0}, nil
 	}
 
 	// Convert chunks to Qdrant points
@@ -1099,7 +1099,7 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.Conversat
 		})
 
 		if err != nil {
-			return &BatchResult{
+			return &LegacyBatchResult{
 				Success:      0,
 				Failed:       len(chunks),
 				Errors:       append(errorMessages, fmt.Sprintf("batch upsert failed: %v", err)),
@@ -1108,7 +1108,7 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.Conversat
 		}
 	}
 
-	result := &BatchResult{
+	result := &LegacyBatchResult{
 		Success:      len(points),
 		Failed:       len(chunks) - len(points),
 		Errors:       errorMessages,
@@ -1125,12 +1125,12 @@ func (qs *QdrantStore) BatchStore(ctx context.Context, chunks []*types.Conversat
 }
 
 // BatchDelete deletes multiple chunks by their IDs
-func (qs *QdrantStore) BatchDelete(ctx context.Context, ids []string) (*BatchResult, error) {
+func (qs *QdrantStore) BatchDelete(ctx context.Context, ids []string) (*LegacyBatchResult, error) {
 	start := time.Now()
 	defer qs.updateMetrics("batch_delete", start)
 
 	if len(ids) == 0 {
-		return &BatchResult{Success: 0, Failed: 0}, nil
+		return &LegacyBatchResult{Success: 0, Failed: 0}, nil
 	}
 
 	// Convert string IDs to PointIds
@@ -1152,7 +1152,7 @@ func (qs *QdrantStore) BatchDelete(ctx context.Context, ids []string) (*BatchRes
 	})
 
 	if err != nil {
-		return &BatchResult{
+		return &LegacyBatchResult{
 			Success:      0,
 			Failed:       len(ids),
 			Errors:       []string{fmt.Sprintf("batch delete failed: %v", err)},
@@ -1160,7 +1160,7 @@ func (qs *QdrantStore) BatchDelete(ctx context.Context, ids []string) (*BatchRes
 		}, fmt.Errorf("batch delete operation failed: %w", err)
 	}
 
-	result := &BatchResult{
+	result := &LegacyBatchResult{
 		Success:      len(ids),
 		Failed:       0,
 		Errors:       nil,

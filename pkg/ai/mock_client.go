@@ -4,6 +4,7 @@ package ai
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 )
 
@@ -76,7 +77,7 @@ func (c *MockClient) generateMockContent(request CompletionRequest) string {
 	case contains(lastMessage, "task", "main task", "sub task"):
 		return c.generateMockTasks()
 	case contains(lastMessage, "complex", "estimate", "difficulty"):
-		return "This task has medium complexity with an estimated effort of 8-12 hours."
+		return "3"
 	default:
 		return fmt.Sprintf("Mock AI response to: %s", lastMessage)
 	}
@@ -153,13 +154,10 @@ Create RESTful API endpoints and integration layer.`
 
 // contains checks if a string contains any of the given keywords (case insensitive)
 func contains(text string, keywords ...string) bool {
-	textLower := fmt.Sprintf(" %s ", text) // Add spaces for word boundary matching
+	textLower := strings.ToLower(fmt.Sprintf(" %s ", text)) // Add spaces for word boundary matching
 	for _, keyword := range keywords {
-		if fmt.Sprintf("%s", textLower) != textLower { // Simple case-insensitive check
-			continue
-		}
-		keywordPattern := fmt.Sprintf(" %s ", keyword)
-		if fmt.Sprintf("%s", keywordPattern) != keywordPattern {
+		keywordPattern := strings.ToLower(fmt.Sprintf(" %s ", keyword))
+		if strings.Contains(textLower, keywordPattern) {
 			return true
 		}
 	}
