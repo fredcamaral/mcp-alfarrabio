@@ -3,6 +3,9 @@
 # 
 # Environment variables with LMMC_ prefix take precedence over this file
 # Example: LMMC_SERVER_URL=http://localhost:8080 overrides server.url
+#
+# Special environment variables:
+# LMMC_CONFIG_DIR - Override default config directory (~/.lmmc)
 
 # ================================================================
 # SERVER CONNECTION
