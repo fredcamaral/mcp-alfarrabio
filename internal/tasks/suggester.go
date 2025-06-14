@@ -630,7 +630,7 @@ func (s *Suggester) suggestChallengeResolutionTasks(challenges []string, challen
 						EstimationMethod: "contextual_suggestion",
 					},
 					AcceptanceCriteria: []string{
-						fmt.Sprintf("%s cause identified", titleCaser.String(challengeType)),
+						titleCaser.String(challengeType) + " cause identified",
 						"Resolution plan implemented",
 						"Testing process improved",
 						"Future prevention measures in place",

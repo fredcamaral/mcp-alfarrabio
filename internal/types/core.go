@@ -3,6 +3,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -15,7 +16,7 @@ type ProjectID string
 // Validate ensures ProjectID follows consistent format rules
 func (p ProjectID) Validate() error {
 	if len(p) == 0 {
-		return fmt.Errorf("project_id cannot be empty")
+		return errors.New("project_id cannot be empty")
 	}
 	if len(p) > 100 {
 		return fmt.Errorf("project_id must be 100 characters or less, got %d", len(p))
@@ -25,7 +26,7 @@ func (p ProjectID) Validate() error {
 	// This covers Git URLs, folder names, and custom identifiers
 	validFormat := regexp.MustCompile(`^[a-zA-Z0-9\-_./:]+$`)
 	if !validFormat.MatchString(string(p)) {
-		return fmt.Errorf("project_id contains invalid characters, only alphanumeric, hyphens, underscores, dots, colons, and slashes allowed")
+		return errors.New("project_id contains invalid characters, only alphanumeric, hyphens, underscores, dots, colons, and slashes allowed")
 	}
 
 	return nil
@@ -57,7 +58,7 @@ func (s SessionID) Validate() error {
 	// Allow alphanumeric characters, hyphens, and underscores
 	validFormat := regexp.MustCompile(`^[a-zA-Z0-9\-_]+$`)
 	if !validFormat.MatchString(string(s)) {
-		return fmt.Errorf("session_id contains invalid characters, only alphanumeric, hyphens, and underscores allowed")
+		return errors.New("session_id contains invalid characters, only alphanumeric, hyphens, and underscores allowed")
 	}
 
 	return nil

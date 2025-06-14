@@ -4,6 +4,8 @@ go 1.23.0
 
 toolchain go1.24.3
 
+replace github.com/fredcamaral/gomcp-sdk => github.com/LerianStudio/gomcp-sdk v1.2.0
+
 require (
 	github.com/fatih/color v1.18.0
 	github.com/fredcamaral/gomcp-sdk v1.2.0

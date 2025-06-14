@@ -99,7 +99,7 @@ func NewRedisLimiter(config *Config) (*RedisLimiter, error) {
 // Check performs a rate limit check for the given key
 func (rl *RedisLimiter) Check(ctx context.Context, key string, limit *EndpointLimit) (*LimitResult, error) {
 	if limit == nil {
-		return nil, fmt.Errorf("endpoint limit configuration is required")
+		return nil, errors.New("endpoint limit configuration is required")
 	}
 
 	// Build the full key with prefix
@@ -123,7 +123,7 @@ func (rl *RedisLimiter) Check(ctx context.Context, key string, limit *EndpointLi
 // CheckMultiple performs rate limit checks for multiple keys
 func (rl *RedisLimiter) CheckMultiple(ctx context.Context, keys []string, limits []*EndpointLimit) ([]*LimitResult, error) {
 	if len(keys) != len(limits) {
-		return nil, fmt.Errorf("keys and limits slices must have the same length")
+		return nil, errors.New("keys and limits slices must have the same length")
 	}
 
 	results := make([]*LimitResult, len(keys))
@@ -263,7 +263,7 @@ func (rl *RedisLimiter) checkLeakyBucket(ctx context.Context, key string, limit 
 func (rl *RedisLimiter) parseScriptResult(result interface{}, key string, limit *EndpointLimit) (*LimitResult, error) {
 	values, ok := result.([]interface{})
 	if !ok || len(values) < 4 {
-		return nil, fmt.Errorf("invalid script result format")
+		return nil, errors.New("invalid script result format")
 	}
 
 	// Parse values from script result

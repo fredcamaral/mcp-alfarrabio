@@ -3,6 +3,7 @@ package prd
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -45,11 +46,11 @@ func NewInMemoryStorage() *InMemoryStorage {
 // Store stores a PRD document
 func (s *InMemoryStorage) Store(ctx context.Context, doc *types.PRDDocument) error {
 	if doc == nil {
-		return fmt.Errorf("document cannot be nil")
+		return errors.New("document cannot be nil")
 	}
 
 	if doc.ID == "" {
-		return fmt.Errorf("document ID cannot be empty")
+		return errors.New("document ID cannot be empty")
 	}
 
 	s.mutex.Lock()
@@ -67,7 +68,7 @@ func (s *InMemoryStorage) Store(ctx context.Context, doc *types.PRDDocument) err
 // Get retrieves a PRD document by ID
 func (s *InMemoryStorage) Get(ctx context.Context, id string) (*types.PRDDocument, error) {
 	if id == "" {
-		return nil, fmt.Errorf("document ID cannot be empty")
+		return nil, errors.New("document ID cannot be empty")
 	}
 
 	s.mutex.RLock()
@@ -115,11 +116,11 @@ func (s *InMemoryStorage) List(ctx context.Context, filters *StorageFilters) ([]
 // Update updates a PRD document
 func (s *InMemoryStorage) Update(ctx context.Context, doc *types.PRDDocument) error {
 	if doc == nil {
-		return fmt.Errorf("document cannot be nil")
+		return errors.New("document cannot be nil")
 	}
 
 	if doc.ID == "" {
-		return fmt.Errorf("document ID cannot be empty")
+		return errors.New("document ID cannot be empty")
 	}
 
 	s.mutex.Lock()
@@ -140,7 +141,7 @@ func (s *InMemoryStorage) Update(ctx context.Context, doc *types.PRDDocument) er
 // Delete deletes a PRD document
 func (s *InMemoryStorage) Delete(ctx context.Context, id string) error {
 	if id == "" {
-		return fmt.Errorf("document ID cannot be empty")
+		return errors.New("document ID cannot be empty")
 	}
 
 	s.mutex.Lock()

@@ -4,6 +4,7 @@ package di
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"lerian-mcp-memory/internal/analytics"
 	"lerian-mcp-memory/internal/api/handlers"
@@ -147,7 +148,7 @@ func (c *Container) initializeAIService(cfg *config.Config) error {
 		timeout = cfg.AI.Perplexity.Timeout
 	} else {
 		// No real AI provider is configured - return a configuration error
-		return fmt.Errorf("no AI provider configured: please configure at least one AI provider (Claude, OpenAI, or Perplexity) in your environment variables or config file. Set API keys via CLAUDE_API_KEY, OPENAI_API_KEY, or PERPLEXITY_API_KEY and enable them via CLAUDE_ENABLED=true, OPENAI_ENABLED=true, or PERPLEXITY_ENABLED=true")
+		return errors.New("no AI provider configured: please configure at least one AI provider (Claude, OpenAI, or Perplexity) in your environment variables or config file. Set API keys via CLAUDE_API_KEY, OPENAI_API_KEY, or PERPLEXITY_API_KEY and enable them via CLAUDE_ENABLED=true, OPENAI_ENABLED=true, or PERPLEXITY_ENABLED=true")
 	}
 
 	// Create shared AI service configuration

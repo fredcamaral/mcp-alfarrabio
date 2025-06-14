@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -547,7 +548,7 @@ func (pe *PatternEngine) parseAIPatternResponse(content string) ([]Pattern, erro
 		jsonStart = strings.Index(content, "{")
 		jsonEnd = strings.LastIndex(content, "}")
 		if jsonStart == -1 || jsonEnd == -1 {
-			return nil, fmt.Errorf("no JSON found in AI response")
+			return nil, errors.New("no JSON found in AI response")
 		}
 		content = "[" + content[jsonStart:jsonEnd+1] + "]"
 	} else {
@@ -629,7 +630,7 @@ func (pe *PatternEngine) LearnPattern(ctx context.Context, chunks []types.Conver
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-time.After(30 * time.Second):
-			return fmt.Errorf("pattern learning timeout")
+			return errors.New("pattern learning timeout")
 		}
 	}
 
@@ -833,7 +834,7 @@ func (pe *PatternEngine) parseAILearningResponse(content string, chunks []types.
 	jsonEnd := strings.LastIndex(content, "}")
 
 	if jsonStart == -1 || jsonEnd == -1 {
-		return nil, fmt.Errorf("no JSON found in AI response")
+		return nil, errors.New("no JSON found in AI response")
 	}
 
 	content = content[jsonStart : jsonEnd+1]

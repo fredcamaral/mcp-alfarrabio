@@ -33,7 +33,7 @@ func (s *SharedAIService) GeneratePRD(ctx context.Context, request *ports.PRDGen
 	}
 
 	// Call shared AI service
-	sharedResponse, err := s.aiService.GeneratePRD(ctx, sharedRequest)
+	sharedResponse, err := s.aiService.GeneratePRD(ctx, &sharedRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate PRD: %w", err)
 	}
@@ -62,7 +62,7 @@ func (s *SharedAIService) GenerateTRD(ctx context.Context, request *ports.TRDGen
 	}
 
 	// Call shared AI service
-	sharedResponse, err := s.aiService.GenerateTRD(ctx, sharedRequest)
+	sharedResponse, err := s.aiService.GenerateTRD(ctx, &sharedRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate TRD: %w", err)
 	}
@@ -94,7 +94,7 @@ func (s *SharedAIService) GenerateMainTasks(ctx context.Context, request *ports.
 	}
 
 	// Call shared AI service
-	sharedResponse, err := s.aiService.GenerateMainTasks(ctx, sharedRequest)
+	sharedResponse, err := s.aiService.GenerateMainTasks(ctx, &sharedRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate main tasks: %w", err)
 	}
@@ -133,7 +133,7 @@ func (s *SharedAIService) GenerateSubTasks(ctx context.Context, request *ports.S
 	}
 
 	// Call shared AI service
-	sharedResponse, err := s.aiService.GenerateSubTasks(ctx, sharedRequest)
+	sharedResponse, err := s.aiService.GenerateSubTasks(ctx, &sharedRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate sub-tasks: %w", err)
 	}

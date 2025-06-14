@@ -3,7 +3,6 @@ package templates
 
 import (
 	"context"
-	"fmt"
 
 	"lerian-mcp-memory/internal/storage"
 	"lerian-mcp-memory/internal/types"
@@ -30,7 +29,7 @@ func (m *MockContentStore) Store(ctx context.Context, content *types.Content) er
 		SessionID: string(content.SessionID),
 		Type:      pkgtypes.ChunkTypeDiscussion, // Use discussion type for template content
 		Content:   content.Content,
-		Summary:   fmt.Sprintf("Template content: %s", content.Type),
+		Summary:   "Template content: " + content.Type,
 		Metadata: pkgtypes.ChunkMetadata{
 			Repository: string(content.ProjectID),
 			Tags:       []string{content.Type, "template"},
@@ -50,7 +49,7 @@ func (m *MockContentStore) Update(ctx context.Context, content *types.Content) e
 		SessionID: string(content.SessionID),
 		Type:      pkgtypes.ChunkTypeDiscussion,
 		Content:   content.Content,
-		Summary:   fmt.Sprintf("Template content: %s", content.Type),
+		Summary:   "Template content: " + content.Type,
 		Metadata: pkgtypes.ChunkMetadata{
 			Repository: string(content.ProjectID),
 			Tags:       []string{content.Type, "template"},
@@ -103,7 +102,7 @@ func (m *MockContentStore) BatchStore(ctx context.Context, contents []*types.Con
 			SessionID: string(content.SessionID),
 			Type:      pkgtypes.ChunkTypeDiscussion,
 			Content:   content.Content,
-			Summary:   fmt.Sprintf("Template content: %s", content.Type),
+			Summary:   "Template content: " + content.Type,
 			Metadata: pkgtypes.ChunkMetadata{
 				Repository: string(content.ProjectID),
 				Tags:       []string{content.Type, "template"},

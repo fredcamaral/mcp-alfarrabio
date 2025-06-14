@@ -4,12 +4,14 @@ package documents
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/yuin/goldmark"
@@ -46,7 +48,7 @@ func (p *Processor) ProcessPRDFile(filePath, repository string) (*PRDEntity, err
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return nil, fmt.Errorf("invalid file path: path traversal not allowed")
+		return nil, errors.New("invalid file path: path traversal not allowed")
 	}
 
 	// Check if path is absolute and ensure it doesn't access system directories
@@ -54,14 +56,14 @@ func (p *Processor) ProcessPRDFile(filePath, repository string) (*PRDEntity, err
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return nil, fmt.Errorf("invalid file path: access to system directory not allowed")
+				return nil, errors.New("invalid file path: access to system directory not allowed")
 			}
 		}
 	}
 
 	content, err := os.ReadFile(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
-		return nil, fmt.Errorf("failed to read PRD file: %w", err)
+		return nil, errors.New("failed to read PRD file: " + err.Error())
 	}
 
 	// Determine file type
@@ -78,7 +80,7 @@ func (p *Processor) ProcessPRDFile(filePath, repository string) (*PRDEntity, err
 	case ".yaml", ".yml":
 		prd, err = p.ProcessYAMLPRD(content, repository)
 	default:
-		return nil, fmt.Errorf("unsupported file format: %s", ext)
+		return nil, errors.New("unsupported file format: " + ext)
 	}
 
 	if err != nil {
@@ -142,7 +144,7 @@ func (p *Processor) ProcessTextPRD(content []byte, repository string) (*PRDEntit
 	for i, para := range paragraphs {
 		if strings.TrimSpace(para) != "" {
 			prd.Sections = append(prd.Sections, Section{
-				Title:   fmt.Sprintf("Section %d", i+1),
+				Title:   "Section " + strconv.Itoa(i+1),
 				Content: strings.TrimSpace(para),
 				Level:   1,
 				Order:   i + 1,
@@ -193,13 +195,13 @@ func (p *Processor) ProcessJSONPRD(content []byte, repository string) (*PRDEntit
 func (p *Processor) ProcessYAMLPRD(content []byte, repository string) (*PRDEntity, error) {
 	var yamlData map[string]interface{}
 	if err := yaml.Unmarshal(content, &yamlData); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+		return nil, errors.New("failed to parse YAML: " + err.Error())
 	}
 
 	// Convert YAML to JSON and process
 	jsonBytes, err := json.Marshal(yamlData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert YAML to JSON: %w", err)
+		return nil, errors.New("failed to convert YAML to JSON: " + err.Error())
 	}
 
 	return p.ProcessJSONPRD(jsonBytes, repository)
@@ -351,7 +353,7 @@ func (p *Processor) validateRequiredSections(requiredSections string, sections [
 	for _, required := range sectionNames {
 		required = strings.TrimSpace(required)
 		if !p.sectionExists(required, sections) {
-			return fmt.Errorf("required section missing: %s", required)
+			return errors.New("required section missing: " + required)
 		}
 	}
 	return nil
@@ -439,7 +441,7 @@ func (p *Processor) ExportPRD(prd *PRDEntity, format string, writer io.Writer) e
 	case "yaml", "yml":
 		return p.exportPRDYAML(prd, writer)
 	default:
-		return fmt.Errorf("unsupported export format: %s", format)
+		return errors.New("unsupported export format: " + format)
 	}
 }
 
@@ -447,31 +449,31 @@ func (p *Processor) ExportPRD(prd *PRDEntity, format string, writer io.Writer) e
 func (p *Processor) exportPRDMarkdown(prd *PRDEntity, writer io.Writer) error {
 	// Write title
 	if _, err := fmt.Fprintf(writer, "# %s\n\n", prd.Title); err != nil {
-		return fmt.Errorf("failed to write title: %w", err)
+		return errors.New("failed to write title: " + err.Error())
 	}
 
 	// Write metadata
 	if _, err := fmt.Fprintf(writer, "**Generated:** %s\n", prd.GeneratedAt.Format("2006-01-02")); err != nil {
-		return fmt.Errorf("failed to write generated date: %w", err)
+		return errors.New("failed to write generated date: " + err.Error())
 	}
 	if _, err := fmt.Fprintf(writer, "**Status:** %s\n", prd.Status); err != nil {
-		return fmt.Errorf("failed to write status: %w", err)
+		return errors.New("failed to write status: " + err.Error())
 	}
 	if _, err := fmt.Fprintf(writer, "**Complexity:** %d/100\n", prd.ComplexityScore); err != nil {
-		return fmt.Errorf("failed to write complexity: %w", err)
+		return errors.New("failed to write complexity: " + err.Error())
 	}
 	if _, err := fmt.Fprintf(writer, "**Estimated Duration:** %s\n\n", prd.EstimatedDuration); err != nil {
-		return fmt.Errorf("failed to write duration: %w", err)
+		return errors.New("failed to write duration: " + err.Error())
 	}
 
 	// Write sections
 	for _, section := range prd.Sections {
 		prefix := strings.Repeat("#", section.Level)
 		if _, err := fmt.Fprintf(writer, "%s %s\n\n", prefix, section.Title); err != nil {
-			return fmt.Errorf("failed to write section title: %w", err)
+			return errors.New("failed to write section title: " + err.Error())
 		}
 		if _, err := fmt.Fprintf(writer, "%s\n\n", section.Content); err != nil {
-			return fmt.Errorf("failed to write section content: %w", err)
+			return errors.New("failed to write section content: " + err.Error())
 		}
 	}
 
@@ -500,7 +502,7 @@ func (p *Processor) exportPRDYAML(prd *PRDEntity, writer io.Writer) error {
 func (p *Processor) parseJSONContent(content []byte) (map[string]interface{}, error) {
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal(content, &jsonData); err != nil {
-		return nil, fmt.Errorf("failed to parse JSON: %w", err)
+		return nil, errors.New("failed to parse JSON: " + err.Error())
 	}
 	return jsonData, nil
 }

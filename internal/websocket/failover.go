@@ -3,6 +3,7 @@ package websocket
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -213,7 +214,7 @@ func (fm *FailoverManager) registerDefaultStrategies() {
 // RegisterConnection registers a connection for failover management
 func (fm *FailoverManager) RegisterConnection(id, primaryEndpoint string, fallbackEndpoints []string) error {
 	if id == "" {
-		return fmt.Errorf("connection ID cannot be empty")
+		return errors.New("connection ID cannot be empty")
 	}
 
 	fm.mu.Lock()
@@ -251,7 +252,7 @@ func (fm *FailoverManager) UnregisterConnection(id string) {
 // HandleConnectionFailure handles a connection failure
 func (fm *FailoverManager) HandleConnectionFailure(connectionID string, err error) error {
 	if !fm.config.EnableFailover {
-		return fmt.Errorf("failover is disabled")
+		return errors.New("failover is disabled")
 	}
 
 	fm.mu.RLock()
@@ -365,7 +366,7 @@ func (fm *FailoverManager) activateHTTPPolling(ctx context.Context, connection *
 		Client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
-		PollURL:      fmt.Sprintf("http://localhost:9080/api/v1/poll/%s", connection.ID),
+		PollURL:      "http://localhost:9080/api/v1/poll/" + connection.ID,
 		PollInterval: 5 * time.Second,
 		MessageQueue: make(chan []byte, 100),
 		ctx:          fallbackCtx,
@@ -401,7 +402,7 @@ func (fm *FailoverManager) activateSSE(_ context.Context, connection *FailoverCo
 	fallbackCtx, cancel := context.WithCancel(context.Background())
 
 	pollingFallback := &PollingFallback{
-		EventSource:  fmt.Sprintf("http://localhost:9080/api/v1/sse/%s", connection.ID),
+		EventSource:  "http://localhost:9080/api/v1/sse/" + connection.ID,
 		PollInterval: 1 * time.Second,
 		MessageQueue: make(chan []byte, 100),
 		ctx:          fallbackCtx,

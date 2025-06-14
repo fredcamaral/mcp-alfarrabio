@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,7 +21,7 @@ func NewOpenAIAdapter(cfg *config.OpenAIClientConfig) (*OpenAIAdapter, error) {
 	// Use API key from config or environment
 	apiKey := cfg.APIKey
 	if apiKey == "" {
-		return nil, fmt.Errorf("OpenAI API key is required")
+		return nil, errors.New("OpenAI API key is required")
 	}
 
 	// Use base URL from config or default
@@ -50,7 +51,7 @@ func NewOpenAIAdapter(cfg *config.OpenAIClientConfig) (*OpenAIAdapter, error) {
 // ProcessRequest implements the Client interface
 func (a *OpenAIAdapter) ProcessRequest(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, errors.New("request cannot be nil")
 	}
 
 	// Convert Request to CompletionRequest

@@ -734,7 +734,7 @@ func (r *REPL) saveSession(filename string) error {
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return fmt.Errorf("invalid file path: path traversal not allowed")
+		return errors.New("invalid file path: path traversal not allowed")
 	}
 
 	// If absolute path, ensure it's not accessing system directories
@@ -742,7 +742,7 @@ func (r *REPL) saveSession(filename string) error {
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return fmt.Errorf("invalid file path: access to system directory not allowed")
+				return errors.New("invalid file path: access to system directory not allowed")
 			}
 		}
 	}
@@ -769,7 +769,7 @@ func (r *REPL) loadSession(filename string) error {
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return fmt.Errorf("invalid file path: path traversal not allowed")
+		return errors.New("invalid file path: path traversal not allowed")
 	}
 
 	// If absolute path, ensure it's not accessing system directories
@@ -777,7 +777,7 @@ func (r *REPL) loadSession(filename string) error {
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return fmt.Errorf("invalid file path: access to system directory not allowed")
+				return errors.New("invalid file path: access to system directory not allowed")
 			}
 		}
 	}

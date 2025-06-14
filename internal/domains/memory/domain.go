@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -81,12 +82,12 @@ func (d *Domain) StoreContent(ctx context.Context, req *domainTypes.StoreContent
 
 	// Validate request
 	if req.Content == "" {
-		return nil, fmt.Errorf("content is required")
+		return nil, errors.New("content is required")
 	}
 
 	// Validate content size
 	if len(req.Content) > int(d.config.MaxContentSize) {
-		return nil, fmt.Errorf("content size exceeds maximum allowed size")
+		return nil, errors.New("content size exceeds maximum allowed size")
 	}
 
 	// Create content struct from request
@@ -235,7 +236,7 @@ func (d *Domain) updateVersionAndTimestamp(existing *coreTypes.Content) {
 // validateContentSize validates the updated content size
 func (d *Domain) validateContentSize(content *coreTypes.Content) error {
 	if len(content.Content) > int(d.config.MaxContentSize) {
-		return fmt.Errorf("updated content size exceeds maximum allowed size")
+		return errors.New("updated content size exceeds maximum allowed size")
 	}
 	return nil
 }
@@ -418,7 +419,7 @@ func (d *Domain) FindSimilarContent(ctx context.Context, req *domainTypes.FindSi
 		}
 		content = existingContent.Content
 	} else {
-		return nil, fmt.Errorf("either content or content_id must be provided")
+		return nil, errors.New("either content or content_id must be provided")
 	}
 
 	// Find similar content
@@ -510,7 +511,7 @@ func (d *Domain) CreateRelationship(ctx context.Context, req *domainTypes.Create
 			Message:   "Relationship creation not yet implemented",
 			Timestamp: time.Now(),
 		},
-	}, fmt.Errorf("relationship creation not yet implemented")
+	}, errors.New("relationship creation not yet implemented")
 }
 
 // GetRelationships retrieves relationships for content
@@ -522,13 +523,13 @@ func (d *Domain) GetRelationships(ctx context.Context, req *domainTypes.GetRelat
 			Message:   "Relationship retrieval not yet implemented",
 			Timestamp: time.Now(),
 		},
-	}, fmt.Errorf("relationship retrieval not yet implemented")
+	}, errors.New("relationship retrieval not yet implemented")
 }
 
 // DeleteRelationship removes a relationship
 func (d *Domain) DeleteRelationship(ctx context.Context, req *domainTypes.DeleteRelationshipRequest) error {
 	// TODO: Implement relationship deletion
-	return fmt.Errorf("relationship deletion not yet implemented")
+	return errors.New("relationship deletion not yet implemented")
 }
 
 // Intelligence and Analysis Operations
@@ -542,7 +543,7 @@ func (d *Domain) DetectPatterns(ctx context.Context, req *domainTypes.DetectPatt
 			Message:   "Pattern detection not yet implemented",
 			Timestamp: time.Now(),
 		},
-	}, fmt.Errorf("pattern detection not yet implemented")
+	}, errors.New("pattern detection not yet implemented")
 }
 
 // GenerateInsights generates insights from content analysis
@@ -554,7 +555,7 @@ func (d *Domain) GenerateInsights(ctx context.Context, req *domainTypes.Generate
 			Message:   "Insight generation not yet implemented",
 			Timestamp: time.Now(),
 		},
-	}, fmt.Errorf("insight generation not yet implemented")
+	}, errors.New("insight generation not yet implemented")
 }
 
 // AnalyzeQuality analyzes content quality
@@ -566,7 +567,7 @@ func (d *Domain) AnalyzeQuality(ctx context.Context, req *domainTypes.AnalyzeQua
 			Message:   "Quality analysis not yet implemented",
 			Timestamp: time.Now(),
 		},
-	}, fmt.Errorf("quality analysis not yet implemented")
+	}, errors.New("quality analysis not yet implemented")
 }
 
 // DetectConflicts identifies conflicting information
@@ -578,7 +579,7 @@ func (d *Domain) DetectConflicts(ctx context.Context, req *domainTypes.DetectCon
 			Message:   "Conflict detection not yet implemented",
 			Timestamp: time.Now(),
 		},
-	}, fmt.Errorf("conflict detection not yet implemented")
+	}, errors.New("conflict detection not yet implemented")
 }
 
 // Helper methods

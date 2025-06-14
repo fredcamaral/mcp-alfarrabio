@@ -2,7 +2,7 @@
 package ai
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"time"
 )
@@ -20,7 +20,7 @@ type OpenAIClient struct {
 // NewOpenAIClient creates a new OpenAI client
 func NewOpenAIClient(apiKey, model string) (*OpenAIClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("OpenAI API key cannot be empty")
+		return nil, errors.New("OpenAI API key cannot be empty")
 	}
 
 	if model == "" {

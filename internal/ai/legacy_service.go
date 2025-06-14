@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"lerian-mcp-memory/internal/config"
@@ -21,7 +22,7 @@ type LegacyService struct {
 // NewService creates a legacy service for test compatibility
 func NewService(cfg *config.Config, logger logging.Logger) (*LegacyService, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("config cannot be nil")
+		return nil, errors.New("config cannot be nil")
 	}
 
 	// Determine primary model based on available API keys
@@ -49,7 +50,7 @@ func (s *LegacyService) GetAvailableModels() []Model {
 // SetPrimaryModel sets the primary model
 func (s *LegacyService) SetPrimaryModel(model Model) error {
 	if s == nil {
-		return fmt.Errorf("service is nil")
+		return errors.New("service is nil")
 	}
 	// Validate that the model is available
 	availableModels := s.GetAvailableModels()
@@ -73,7 +74,7 @@ func (s *LegacyService) GetPrimaryModel() Model {
 // ProcessRequest processes an AI request
 func (s *LegacyService) ProcessRequest(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, errors.New("request cannot be nil")
 	}
 
 	// Set model if not specified
@@ -90,7 +91,7 @@ func (s *LegacyService) ProcessRequest(ctx context.Context, req *Request) (*Resp
 
 	// Simulate API call failure for test keys
 	if s.primaryModel == ModelClaude {
-		return nil, fmt.Errorf("authentication failed: invalid API key")
+		return nil, errors.New("authentication failed: invalid API key")
 	}
 
 	return &Response{

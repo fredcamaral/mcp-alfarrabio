@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -61,7 +62,7 @@ func DefaultOpenAIConfig() *OpenAIConfig {
 // NewOpenAIService creates a new OpenAI embeddings service
 func NewOpenAIService(config *OpenAIConfig, logger *slog.Logger) (*OpenAIService, error) {
 	if config.APIKey == "" {
-		return nil, fmt.Errorf("OpenAI API key is required")
+		return nil, errors.New("OpenAI API key is required")
 	}
 
 	if logger == nil {
@@ -98,7 +99,7 @@ func (s *OpenAIService) Generate(ctx context.Context, text string) ([]float64, e
 
 	if strings.TrimSpace(text) == "" {
 		s.incrementErrorCount("generate")
-		return nil, fmt.Errorf("text cannot be empty")
+		return nil, errors.New("text cannot be empty")
 	}
 
 	// Check cache first

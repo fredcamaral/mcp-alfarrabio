@@ -3,6 +3,7 @@ package push
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -107,7 +108,7 @@ func (ns *NotificationService) Start() error {
 	defer ns.mu.Unlock()
 
 	if ns.running {
-		return fmt.Errorf("notification service already running")
+		return errors.New("notification service already running")
 	}
 
 	log.Println("Starting push notification service...")
@@ -149,7 +150,7 @@ func (ns *NotificationService) Stop() error {
 	ns.mu.Lock()
 	if !ns.running {
 		ns.mu.Unlock()
-		return fmt.Errorf("notification service not running")
+		return errors.New("notification service not running")
 	}
 	ns.running = false
 	ns.mu.Unlock()
@@ -157,18 +158,18 @@ func (ns *NotificationService) Stop() error {
 	log.Println("Stopping push notification service...")
 
 	// Stop components in reverse order
-	var errors []error
+	var stopErrors []error
 
 	if err := ns.queue.Stop(); err != nil {
-		errors = append(errors, fmt.Errorf("queue stop error: %w", err))
+		stopErrors = append(stopErrors, fmt.Errorf("queue stop error: %w", err))
 	}
 
 	if err := ns.healthChecker.Stop(); err != nil {
-		errors = append(errors, fmt.Errorf("health checker stop error: %w", err))
+		stopErrors = append(stopErrors, fmt.Errorf("health checker stop error: %w", err))
 	}
 
 	if err := ns.dispatcher.Stop(); err != nil {
-		errors = append(errors, fmt.Errorf("dispatcher stop error: %w", err))
+		stopErrors = append(stopErrors, fmt.Errorf("dispatcher stop error: %w", err))
 	}
 
 	// Stop registry cleanup
@@ -177,9 +178,9 @@ func (ns *NotificationService) Stop() error {
 	// Cancel context
 	ns.cancel()
 
-	if len(errors) > 0 {
-		log.Printf("Errors during shutdown: %v", errors)
-		return fmt.Errorf("shutdown errors: %v", errors)
+	if len(stopErrors) > 0 {
+		log.Printf("Errors during shutdown: %v", stopErrors)
+		return fmt.Errorf("shutdown errors: %v", stopErrors)
 	}
 
 	log.Println("Push notification service stopped successfully")
@@ -196,7 +197,7 @@ func (ns *NotificationService) IsRunning() bool {
 // RegisterEndpoint registers a new CLI endpoint for push notifications
 func (ns *NotificationService) RegisterEndpoint(endpoint *CLIEndpoint) error {
 	if !ns.IsRunning() {
-		return fmt.Errorf("notification service not running")
+		return errors.New("notification service not running")
 	}
 
 	return ns.registry.Register(endpoint)
@@ -205,7 +206,7 @@ func (ns *NotificationService) RegisterEndpoint(endpoint *CLIEndpoint) error {
 // DeregisterEndpoint removes a CLI endpoint from push notifications
 func (ns *NotificationService) DeregisterEndpoint(endpointID string) error {
 	if !ns.IsRunning() {
-		return fmt.Errorf("notification service not running")
+		return errors.New("notification service not running")
 	}
 
 	return ns.registry.Deregister(endpointID)
@@ -214,7 +215,7 @@ func (ns *NotificationService) DeregisterEndpoint(endpointID string) error {
 // SendNotification sends a push notification to all active endpoints
 func (ns *NotificationService) SendNotification(notification *Notification) error {
 	if !ns.IsRunning() {
-		return fmt.Errorf("notification service not running")
+		return errors.New("notification service not running")
 	}
 
 	// Update metrics
@@ -229,7 +230,7 @@ func (ns *NotificationService) SendNotification(notification *Notification) erro
 // SendNotificationToEndpoint sends a push notification to a specific endpoint
 func (ns *NotificationService) SendNotificationToEndpoint(notification *Notification, endpointID string) error {
 	if !ns.IsRunning() {
-		return fmt.Errorf("notification service not running")
+		return errors.New("notification service not running")
 	}
 
 	// Set target endpoint
@@ -247,12 +248,12 @@ func (ns *NotificationService) SendNotificationToEndpoint(notification *Notifica
 // SendBatchNotifications sends multiple notifications efficiently
 func (ns *NotificationService) SendBatchNotifications(notifications []*Notification) []error {
 	if !ns.IsRunning() {
-		errors := make([]error, len(notifications))
-		serviceErr := fmt.Errorf("notification service not running")
-		for i := range errors {
-			errors[i] = serviceErr
+		errorList := make([]error, len(notifications))
+		serviceErr := errors.New("notification service not running")
+		for i := range errorList {
+			errorList[i] = serviceErr
 		}
-		return errors
+		return errorList
 	}
 
 	// Update metrics
@@ -282,7 +283,7 @@ func (ns *NotificationService) GetEndpoint(endpointID string) (*CLIEndpoint, boo
 // CheckEndpointHealth performs an immediate health check for an endpoint
 func (ns *NotificationService) CheckEndpointHealth(endpointID string) (*HealthCheckResult, error) {
 	if !ns.IsRunning() {
-		return nil, fmt.Errorf("notification service not running")
+		return nil, errors.New("notification service not running")
 	}
 
 	return ns.healthChecker.CheckEndpoint(endpointID)
@@ -647,7 +648,7 @@ func (n *WebSocketNotifier) Send(ctx context.Context, notification *Notification
 
 	// Check if server is running
 	if !n.server.IsRunning() {
-		return nil, fmt.Errorf("WebSocket server not running")
+		return nil, errors.New("WebSocket server not running")
 	}
 
 	// Convert notification to memory event
@@ -777,7 +778,7 @@ func (m *MultiNotifier) Send(ctx context.Context, notification *Notification, en
 	m.mu.RUnlock()
 
 	if len(notifiers) == 0 {
-		return nil, fmt.Errorf("no notifiers configured")
+		return nil, errors.New("no notifiers configured")
 	}
 
 	var successCount int

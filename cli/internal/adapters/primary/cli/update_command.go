@@ -255,11 +255,11 @@ func (c *CLI) downloadAndInstall(downloadURL, filename string) error {
 }
 
 // downloadFile downloads a file from URL to local path
-func (c *CLI) downloadFile(url, filepath string) error {
+func (c *CLI) downloadFile(url, filePath string) error {
 	// Clean and validate the file path
-	filepath = filepath.Clean(filepath)
-	if strings.Contains(filepath, "..") {
-		return fmt.Errorf("path traversal detected: %s", filepath)
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return fmt.Errorf("path traversal detected: %s", filePath)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
@@ -281,7 +281,7 @@ func (c *CLI) downloadFile(url, filepath string) error {
 		return fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
-	out, err := os.Create(filepath) // #nosec G304 -- Path is cleaned and validated above
+	out, err := os.Create(filePath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return err
 	}

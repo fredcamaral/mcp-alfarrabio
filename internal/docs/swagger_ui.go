@@ -85,7 +85,7 @@ func (h *SwaggerUIHandler) serveSwaggerUI(w http.ResponseWriter, r *http.Request
 
 	var buf bytes.Buffer
 	if err := h.template.Execute(&buf, cfg); err != nil {
-		http.Error(w, fmt.Sprintf("Template execution error: %v", err), http.StatusInternalServerError)
+		http.Error(w, "Template execution error: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -102,7 +102,7 @@ func (h *SwaggerUIHandler) serveOpenAPIJSON(w http.ResponseWriter, r *http.Reque
 	_ = r // unused parameter, kept for standard http.HandlerFunc signature
 	spec, err := h.generator.GenerateJSON()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to generate OpenAPI spec: %v", err), http.StatusInternalServerError)
+		http.Error(w, "Failed to generate OpenAPI spec: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -120,7 +120,7 @@ func (h *SwaggerUIHandler) serveOpenAPIYAML(w http.ResponseWriter, r *http.Reque
 	_ = r // unused parameter, kept for standard http.HandlerFunc signature
 	spec, err := h.generator.GenerateYAML()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to generate OpenAPI spec: %v", err), http.StatusInternalServerError)
+		http.Error(w, "Failed to generate OpenAPI spec: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -193,7 +193,7 @@ func getBaseURL(r *http.Request) string {
 		host = forwarded
 	}
 
-	return fmt.Sprintf("%s://%s", scheme, host)
+	return scheme + "://" + host
 }
 
 // getContentType returns the appropriate content type for a file

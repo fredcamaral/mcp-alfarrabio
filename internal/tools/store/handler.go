@@ -5,6 +5,7 @@ package store
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -140,7 +141,7 @@ func (h *Handler) handleStoreContent(ctx context.Context, params map[string]inte
 
 	// Validate request data
 	if req.Content == "" {
-		return nil, fmt.Errorf("content cannot be empty")
+		return nil, errors.New("content cannot be empty")
 	}
 	if !req.Type.Valid() {
 		return nil, fmt.Errorf("invalid content type: %s", req.Type)
@@ -303,7 +304,7 @@ func (h *Handler) validateUpdateContentRequest(req *UpdateContentRequest) error 
 	}
 
 	if req.ContentID == "" {
-		return fmt.Errorf("content_id is required for update operation")
+		return errors.New("content_id is required for update operation")
 	}
 
 	return nil
@@ -460,7 +461,7 @@ func (h *Handler) handleDeleteContent(ctx context.Context, params map[string]int
 	}
 
 	if req.ContentID == "" {
-		return nil, fmt.Errorf("content_id is required for delete operation")
+		return nil, errors.New("content_id is required for delete operation")
 	}
 
 	// Update session access
@@ -513,7 +514,7 @@ func (h *Handler) handleCreateThread(ctx context.Context, params map[string]inte
 	}
 
 	if req.Title == "" {
-		return nil, fmt.Errorf("title is required for create thread operation")
+		return nil, errors.New("title is required for create thread operation")
 	}
 
 	// Update session access
@@ -552,10 +553,10 @@ func (h *Handler) handleCreateRelation(ctx context.Context, params map[string]in
 	}
 
 	if req.FromContentID == "" || req.ToContentID == "" {
-		return nil, fmt.Errorf("both from_content_id and to_content_id are required")
+		return nil, errors.New("both from_content_id and to_content_id are required")
 	}
 	if req.RelationType == "" {
-		return nil, fmt.Errorf("relation_type is required")
+		return nil, errors.New("relation_type is required")
 	}
 
 	// Update session access

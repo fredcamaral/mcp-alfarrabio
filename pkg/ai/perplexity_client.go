@@ -2,7 +2,7 @@
 package ai
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"time"
 )
@@ -20,7 +20,7 @@ type PerplexityClient struct {
 // NewPerplexityClient creates a new Perplexity client
 func NewPerplexityClient(apiKey, model string) (*PerplexityClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("perplexity API key cannot be empty")
+		return nil, errors.New("perplexity API key cannot be empty")
 	}
 
 	if model == "" {

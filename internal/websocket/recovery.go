@@ -3,7 +3,7 @@ package websocket
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
 	"math"
 	"sync"
@@ -141,7 +141,7 @@ func DefaultRecoveryConfig() *RecoveryConfig {
 // RegisterClient registers a client for recovery management
 func (rm *RecoveryManager) RegisterClient(id, url string, conn *websocket.Conn, headers map[string]string) error {
 	if id == "" {
-		return fmt.Errorf("client ID cannot be empty")
+		return errors.New("client ID cannot be empty")
 	}
 
 	rm.mu.Lock()
@@ -266,7 +266,7 @@ func (rm *RecoveryManager) processRecoveryRequest(request *RecoveryRequest) {
 	if request.Callback != nil {
 		var err error
 		if !success {
-			err = fmt.Errorf("recovery failed after all retries")
+			err = errors.New("recovery failed after all retries")
 		}
 		request.Callback(success, err)
 	}

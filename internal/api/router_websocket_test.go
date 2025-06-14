@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -303,7 +302,7 @@ func TestWebSocketMetricsEndpoints(t *testing.T) {
 		},
 		{
 			name: "Time series metrics",
-			path: fmt.Sprintf("/ws/metrics?since=%s", time.Now().Add(-1*time.Hour).Format(time.RFC3339)),
+			path: "/ws/metrics?since=" + time.Now().Add(-1*time.Hour).Format(time.RFC3339),
 			wantFields: []string{
 				"time_series",
 				"since",

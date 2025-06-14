@@ -3,7 +3,7 @@ package docs
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"reflect"
 	"strings"
@@ -1015,7 +1015,7 @@ func (g *OpenAPIGenerator) convertTagsToSlice() []*Tag {
 func (g *OpenAPIGenerator) GenerateJSON() ([]byte, error) {
 	spec, err := g.Generate()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate OpenAPI spec: %w", err)
+		return nil, errors.New("failed to generate OpenAPI spec: " + err.Error())
 	}
 
 	return json.MarshalIndent(spec, "", "  ")
@@ -1025,23 +1025,18 @@ func (g *OpenAPIGenerator) GenerateJSON() ([]byte, error) {
 func (g *OpenAPIGenerator) GenerateYAML() ([]byte, error) {
 	spec, err := g.Generate()
 	if err != nil {
-		return nil, fmt.Errorf("failed to generate OpenAPI spec: %w", err)
+		return nil, errors.New("failed to generate OpenAPI spec: " + err.Error())
 	}
 
 	// Convert to YAML format using a simple JSON-to-YAML conversion
 	// In production, you would use gopkg.in/yaml.v3 or similar
 	jsonBytes, err := json.MarshalIndent(spec, "", "  ")
 	if err != nil {
-		return nil, fmt.Errorf("failed to marshal spec to JSON: %w", err)
+		return nil, errors.New("failed to marshal spec to JSON: " + err.Error())
 	}
 
 	// Simple YAML header and format conversion
-	yamlHeader := fmt.Sprintf(`# OpenAPI 3.0 specification for MCP Memory Server
-# Generated at: %s
-# This is a JSON representation in YAML format
-# For proper YAML formatting, use a dedicated YAML library
-
-`, time.Now().Format(time.RFC3339))
+	yamlHeader := "# OpenAPI 3.0 specification for MCP Memory Server\n# Generated at: " + time.Now().Format(time.RFC3339) + "\n# This is a JSON representation in YAML format\n# For proper YAML formatting, use a dedicated YAML library\n\n"
 
 	// For now, return JSON with YAML header (better than nothing)
 	// In production, implement proper YAML marshaling
@@ -1052,26 +1047,26 @@ func (g *OpenAPIGenerator) GenerateYAML() ([]byte, error) {
 func (g *OpenAPIGenerator) ValidateSpecification() error {
 	spec, err := g.Generate()
 	if err != nil {
-		return fmt.Errorf("failed to generate spec for validation: %w", err)
+		return errors.New("failed to generate spec for validation: " + err.Error())
 	}
 
 	// Basic validation checks
 	if spec.OpenAPI == "" {
-		return fmt.Errorf("missing OpenAPI version")
+		return errors.New("missing OpenAPI version")
 	}
 
 	if spec.Info == nil || spec.Info.Title == "" || spec.Info.Version == "" {
-		return fmt.Errorf("missing required info fields")
+		return errors.New("missing required info fields")
 	}
 
 	if len(spec.Paths) == 0 {
-		return fmt.Errorf("no paths defined")
+		return errors.New("no paths defined")
 	}
 
 	// Validate each path
 	for path, pathItem := range spec.Paths {
 		if err := g.validatePathItem(path, pathItem); err != nil {
-			return fmt.Errorf("path %s validation error: %w", path, err)
+			return errors.New("path " + path + " validation error: " + err.Error())
 		}
 	}
 
@@ -1091,13 +1086,13 @@ func (g *OpenAPIGenerator) validatePathItem(path string, pathItem *PathItem) err
 		if op != nil {
 			hasOperation = true
 			if len(op.Responses) == 0 {
-				return fmt.Errorf("operation missing responses")
+				return errors.New("operation missing responses")
 			}
 		}
 	}
 
 	if !hasOperation {
-		return fmt.Errorf("path has no operations defined")
+		return errors.New("path has no operations defined")
 	}
 
 	return nil
@@ -1152,7 +1147,7 @@ func generateTagDescription(tag string) string {
 	if desc, exists := descriptions[tag]; exists {
 		return desc
 	}
-	return fmt.Sprintf("%s related endpoints", tag)
+	return tag + " related endpoints"
 }
 
 func floatPtr(f float64) *float64 {

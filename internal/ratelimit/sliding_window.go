@@ -3,7 +3,7 @@ package ratelimit
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 )
@@ -65,7 +65,7 @@ func NewSlidingWindow(config *Config) *SlidingWindow {
 // Check performs a rate limit check using sliding window algorithm
 func (sw *SlidingWindow) Check(ctx context.Context, key string, limit *EndpointLimit) (*LimitResult, error) {
 	if limit == nil {
-		return nil, fmt.Errorf("endpoint limit configuration is required")
+		return nil, errors.New("endpoint limit configuration is required")
 	}
 
 	now := time.Now()
@@ -90,7 +90,7 @@ func (sw *SlidingWindow) Check(ctx context.Context, key string, limit *EndpointL
 // CheckMultiple performs rate limit checks for multiple keys
 func (sw *SlidingWindow) CheckMultiple(ctx context.Context, keys []string, limits []*EndpointLimit) ([]*LimitResult, error) {
 	if len(keys) != len(limits) {
-		return nil, fmt.Errorf("keys and limits slices must have the same length")
+		return nil, errors.New("keys and limits slices must have the same length")
 	}
 
 	results := make([]*LimitResult, len(keys))

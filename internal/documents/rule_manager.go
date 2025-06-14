@@ -43,13 +43,13 @@ func NewRuleManager(rulesDir string) (*RuleManager, error) {
 
 	// Load embedded rules first
 	if err := rm.loadEmbeddedRules(); err != nil {
-		return nil, fmt.Errorf("failed to load embedded rules: %w", err)
+		return nil, errors.New("failed to load embedded rules: " + err.Error())
 	}
 
 	// Load custom rules from directory if it exists
 	if rulesDir != "" {
 		if err := rm.loadCustomRules(rulesDir); err != nil {
-			return nil, fmt.Errorf("failed to load custom rules: %w", err)
+			return nil, errors.New("failed to load custom rules: " + err.Error())
 		}
 	}
 
@@ -69,12 +69,12 @@ func (rm *RuleManager) loadEmbeddedRules() error {
 
 		content, err := embeddedRules.ReadFile(path)
 		if err != nil {
-			return fmt.Errorf("failed to read embedded rule %s: %w", path, err)
+			return errors.New("failed to read embedded rule " + path + ": " + err.Error())
 		}
 
 		rule, err := rm.parseRuleFile(path, content)
 		if err != nil {
-			return fmt.Errorf("failed to parse embedded rule %s: %w", path, err)
+			return errors.New("failed to parse embedded rule " + path + ": " + err.Error())
 		}
 
 		rm.addRule(rule)
@@ -102,17 +102,17 @@ func (rm *RuleManager) loadCustomRules(dir string) error {
 
 		// Security check: ensure path is within the rules directory
 		if !strings.HasPrefix(cleanPath, filepath.Clean(dir)) {
-			return fmt.Errorf("invalid rule path: path traversal not allowed")
+			return errors.New("invalid rule path: path traversal not allowed")
 		}
 
 		content, err := os.ReadFile(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 		if err != nil {
-			return fmt.Errorf("failed to read custom rule %s: %w", path, err)
+			return errors.New("failed to read custom rule " + path + ": " + err.Error())
 		}
 
 		rule, err := rm.parseRuleFile(path, content)
 		if err != nil {
-			return fmt.Errorf("failed to parse custom rule %s: %w", path, err)
+			return errors.New("failed to parse custom rule " + path + ": " + err.Error())
 		}
 
 		// Custom rules override embedded rules with same name
@@ -265,7 +265,7 @@ func (rm *RuleManager) GetRule(id string) (*Rule, error) {
 
 	rule, ok := rm.rules[id]
 	if !ok {
-		return nil, fmt.Errorf("rule not found: %s", id)
+		return nil, errors.New("rule not found: " + id)
 	}
 
 	return rule, nil
@@ -282,7 +282,7 @@ func (rm *RuleManager) GetRuleByName(name string) (*Rule, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("rule not found: %s", name)
+	return nil, errors.New("rule not found: " + name)
 }
 
 // GetRulesByType retrieves all rules of a specific type
@@ -332,7 +332,7 @@ func (rm *RuleManager) UpdateRule(id string, updates map[string]interface{}) err
 
 	rule, ok := rm.rules[id]
 	if !ok {
-		return fmt.Errorf("rule not found: %s", id)
+		return errors.New("rule not found: " + id)
 	}
 
 	// Apply updates using field updaters
@@ -352,7 +352,7 @@ func (rm *RuleManager) SaveCustomRule(rule *Rule) error {
 
 	// Ensure directory exists
 	if err := os.MkdirAll(rm.rulesDir, 0o750); err != nil {
-		return fmt.Errorf("failed to create rules directory: %w", err)
+		return errors.New("failed to create rules directory: " + err.Error())
 	}
 
 	// Generate filename
@@ -374,12 +374,12 @@ func (rm *RuleManager) SaveCustomRule(rule *Rule) error {
 	// Marshal to YAML
 	content, err := yaml.Marshal(data)
 	if err != nil {
-		return fmt.Errorf("failed to marshal rule: %w", err)
+		return errors.New("failed to marshal rule: " + err.Error())
 	}
 
 	// Write file
 	if err := os.WriteFile(filePath, content, 0o600); err != nil {
-		return fmt.Errorf("failed to write rule file: %w", err)
+		return errors.New("failed to write rule file: " + err.Error())
 	}
 
 	// Add to manager
@@ -394,7 +394,7 @@ func (rm *RuleManager) DeleteCustomRule(id string) error {
 
 	rule, ok := rm.rules[id]
 	if !ok {
-		return fmt.Errorf("rule not found: %s", id)
+		return errors.New("rule not found: " + id)
 	}
 
 	// Only delete custom rules, not embedded ones
@@ -404,7 +404,7 @@ func (rm *RuleManager) DeleteCustomRule(id string) error {
 
 		if _, err := os.Stat(filePath); err == nil {
 			if err := os.Remove(filePath); err != nil {
-				return fmt.Errorf("failed to delete rule file: %w", err)
+				return errors.New("failed to delete rule file: " + err.Error())
 			}
 		}
 	}
@@ -441,12 +441,12 @@ func (rm *RuleManager) ExportRules() ([]byte, error) {
 func (rm *RuleManager) ImportRules(data []byte) error {
 	var rules []*Rule
 	if err := json.Unmarshal(data, &rules); err != nil {
-		return fmt.Errorf("failed to unmarshal rules: %w", err)
+		return errors.New("failed to unmarshal rules: " + err.Error())
 	}
 
 	for _, rule := range rules {
 		if err := rule.Validate(); err != nil {
-			return fmt.Errorf("invalid rule %s: %w", rule.Name, err)
+			return errors.New("invalid rule " + rule.Name + ": " + err.Error())
 		}
 		rm.addRule(rule)
 	}
@@ -458,7 +458,7 @@ func (rm *RuleManager) ImportRules(data []byte) error {
 func (rm *RuleManager) GetRuleContent(ruleType RuleType) (string, error) {
 	rules := rm.GetRulesByType(ruleType)
 	if len(rules) == 0 {
-		return "", fmt.Errorf("no rules found for type: %s", ruleType)
+		return "", errors.New("no rules found for type: " + string(ruleType))
 	}
 
 	// Return the highest priority rule content

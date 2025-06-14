@@ -5,6 +5,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -34,7 +35,7 @@ type UnifiedService struct {
 // NewAIService creates a new unified AI service (replaces conflicting constructors)
 func NewAIService(config *AIConfig, logger *slog.Logger) (AIService, error) {
 	if config == nil {
-		return nil, fmt.Errorf("AI config cannot be nil")
+		return nil, errors.New("AI config cannot be nil")
 	}
 
 	if logger == nil {
@@ -65,7 +66,7 @@ func NewAIService(config *AIConfig, logger *slog.Logger) (AIService, error) {
 // GenerateCompletion generates AI completions using the configured provider with circuit breaker protection
 func (s *UnifiedService) GenerateCompletion(ctx context.Context, prompt string, options *CompletionOptions) (*CompletionResponse, error) {
 	if prompt == "" {
-		return nil, fmt.Errorf("prompt cannot be empty")
+		return nil, errors.New("prompt cannot be empty")
 	}
 
 	// Set defaults if options not provided
@@ -93,7 +94,7 @@ func (s *UnifiedService) GenerateCompletion(ctx context.Context, prompt string, 
 				}
 				response = resp
 			} else {
-				return fmt.Errorf("OpenAI client not properly initialized")
+				return errors.New("OpenAI client not properly initialized")
 			}
 		case ProviderClaude:
 			if claudeClient, ok := s.client.(ClaudeClientInterface); ok {
@@ -103,12 +104,12 @@ func (s *UnifiedService) GenerateCompletion(ctx context.Context, prompt string, 
 				}
 				response = resp
 			} else {
-				return fmt.Errorf("claude client not properly initialized")
+				return errors.New("claude client not properly initialized")
 			}
 		case ProviderMock:
 			// Only use mock for testing environments
 			response = &CompletionResponse{
-				Content:     fmt.Sprintf("Mock AI Response to: %s", prompt),
+				Content:     "Mock AI Response to: " + prompt,
 				Model:       options.Model,
 				Usage:       &UsageStats{PromptTokens: 10, CompletionTokens: 20, Total: 30},
 				GeneratedAt: start,
@@ -142,7 +143,7 @@ func (s *UnifiedService) GenerateCompletion(ctx context.Context, prompt string, 
 // AssessQuality evaluates content quality using AI
 func (s *UnifiedService) AssessQuality(ctx context.Context, content string) (*UnifiedQualityMetrics, error) {
 	if content == "" {
-		return nil, fmt.Errorf("content cannot be empty")
+		return nil, errors.New("content cannot be empty")
 	}
 
 	// Use actual AI providers for quality assessment
@@ -228,7 +229,7 @@ func (s *UnifiedService) parseQualityResponse(aiResponse string) (*UnifiedQualit
 	end := strings.LastIndex(aiResponse, "}") + 1
 
 	if start == -1 || end <= start {
-		return nil, fmt.Errorf("no valid JSON found in AI response")
+		return nil, errors.New("no valid JSON found in AI response")
 	}
 
 	jsonStr := aiResponse[start:end]
@@ -336,7 +337,7 @@ func minInt(a, b int) int {
 func (s *UnifiedService) HealthCheck(ctx context.Context) error {
 	// Basic health check - ensure service is configured
 	if s.config == nil {
-		return fmt.Errorf("AI service not configured")
+		return errors.New("AI service not configured")
 	}
 
 	// Provider-specific health checks
@@ -381,7 +382,7 @@ func (s *UnifiedService) initializeProvider() error {
 	case ProviderOpenAI:
 		// Create real OpenAI client
 		if s.config.APIKey == "" {
-			return fmt.Errorf("OpenAI API key is required but not provided")
+			return errors.New("OpenAI API key is required but not provided")
 		}
 		// For now, we'll note that real client initialization would go here
 		// The actual implementation would create the real OpenAI client
@@ -392,7 +393,7 @@ func (s *UnifiedService) initializeProvider() error {
 	case ProviderClaude:
 		// Create real Claude client
 		if s.config.APIKey == "" {
-			return fmt.Errorf("claude API key is required but not provided")
+			return errors.New("claude API key is required but not provided")
 		}
 		// For now, we'll note that real client initialization would go here
 		// The actual implementation would create the real Claude client
@@ -425,7 +426,7 @@ func (s *UnifiedService) GetProvider() AIProvider {
 // ProcessRequest handles legacy AI requests (for compatibility)
 func (s *UnifiedService) ProcessRequest(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, errors.New("request cannot be nil")
 	}
 
 	// Convert legacy request to modern completion request

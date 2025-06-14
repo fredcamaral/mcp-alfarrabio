@@ -12,14 +12,42 @@
 #   - API keys (OPENAI_API_KEY, CLAUDE_API_KEY, etc.) are passed through automatically
 
 services:
+  # PostgreSQL Database - Core relational database
+  postgres:
+    image: postgres:latest
+    container_name: lerian-mcp-memory-postgres
+    restart: unless-stopped
+    environment:
+      - POSTGRES_DB=${DB_NAME:-lerian_mcp_memory}
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF-8 --lc-collate=C --lc-ctype=C
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init-postgres.sql:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-lerian_mcp_memory}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - lerian_network
+    profiles: ["dev", "prod"]
+
   # Qdrant Vector Database - Core service for all profiles
   qdrant:
     image: qdrant/qdrant:latest
     container_name: lerian-mcp-memory-qdrant
     restart: unless-stopped
     ports:
-      - "${QDRANT_HOST_PORT:-6333}:6333"  # HTTP API
-      - "${QDRANT_GRPC_PORT:-6334}:6334"  # gRPC API
+      - "${QDRANT_HOST_PORT:-6333}:6333" # HTTP API
+      - "${QDRANT_GRPC_PORT:-6334}:6334" # gRPC API
     environment:
       - QDRANT__SERVICE__HTTP_PORT=6333
       - QDRANT__SERVICE__GRPC_PORT=6334
@@ -37,16 +65,21 @@ services:
     container_name: lerian-mcp-memory-server
     restart: unless-stopped
     depends_on:
+      - postgres
       - qdrant
     ports:
-      - "${MCP_HOST_PORT:-9080}:9080"    # MCP API port
-      - "${MCP_HEALTH_PORT:-9081}:8081"  # Health check port
+      - "${MCP_HOST_PORT:-9080}:9080" # MCP API port
+      - "${MCP_HEALTH_PORT:-9081}:8081" # Health check port
       - "${MCP_METRICS_PORT:-9082}:8082" # Metrics port (optional)
     env_file:
       - .env
     environment:
       # Container networking overrides
       - MCP_MEMORY_QDRANT_HOST=qdrant
+      - MCP_MEMORY_QDRANT_PORT=6334
+      # Database connection overrides
+      - DB_HOST=postgres
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-lerian_mcp_memory}?sslmode=disable
       - MCP_MEMORY_DATA_DIR=/app/data
       - MCP_MEMORY_CONFIG_DIR=/app/config
       - MCP_MEMORY_HTTP_PORT=9080
@@ -107,6 +140,7 @@ services:
     container_name: lerian-mcp-memory-server
     restart: unless-stopped
     depends_on:
+      - postgres
       - qdrant
     ports:
       - "${MCP_HOST_PORT:-9080}:9080"
@@ -117,6 +151,10 @@ services:
     environment:
       # Development-specific overrides
       - MCP_MEMORY_QDRANT_HOST=qdrant
+      - MCP_MEMORY_QDRANT_PORT=6334
+      # Database connection overrides
+      - DB_HOST=postgres
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-lerian_mcp_memory}?sslmode=disable
       - MCP_MEMORY_DATA_DIR=/app/data
       - MCP_MEMORY_CONFIG_DIR=/app/config
       - MCP_MEMORY_LOG_LEVEL=debug
@@ -171,7 +209,6 @@ services:
       - lerian_network
     profiles: ["dev"]
 
-
 # Networks
 networks:
   lerian_network:
@@ -179,6 +216,11 @@ networks:
 
 # Volumes - CRITICAL: These contain all your memory data. NEVER DELETE!
 volumes:
+  # CRITICAL: PostgreSQL database - Contains all relational data
+  postgres_data:
+    driver: local
+    name: mcp_memory_postgres_db_NEVER_DELETE
+
   # CRITICAL: Qdrant vector database - Contains all embeddings and search indices
   qdrant_data:
     driver: local

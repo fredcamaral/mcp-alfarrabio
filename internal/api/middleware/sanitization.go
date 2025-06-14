@@ -158,7 +158,7 @@ func (s *SanitizationMiddleware) Handler() func(http.Handler) http.Handler {
 			if !s.isContentTypeAllowed(r) {
 				s.logThreat(r, &ThreatDetection{
 					Type:        ThreatInvalidFormat,
-					Description: fmt.Sprintf("Content-Type %s not allowed", r.Header.Get("Content-Type")),
+					Description: "Content-Type " + r.Header.Get("Content-Type") + " not allowed",
 					Severity:    "medium",
 				})
 				http.Error(w, "Unsupported content type", http.StatusUnsupportedMediaType)
@@ -168,7 +168,7 @@ func (s *SanitizationMiddleware) Handler() func(http.Handler) http.Handler {
 			// Check required headers
 			for _, header := range s.config.RequiredHeaders {
 				if r.Header.Get(header) == "" {
-					http.Error(w, fmt.Sprintf("Missing required header: %s", header), http.StatusBadRequest)
+					http.Error(w, "Missing required header: "+header, http.StatusBadRequest)
 					return
 				}
 			}
@@ -262,7 +262,7 @@ func (s *SanitizationMiddleware) sanitizeURL(r *http.Request) []ThreatDetection 
 		for i, value := range values {
 			// Check for XSS
 			if s.config.EnableXSSProtection {
-				if xssThreats := s.detectXSS(fmt.Sprintf("query_%s", key), value); len(xssThreats) > 0 {
+				if xssThreats := s.detectXSS("query_"+key, value); len(xssThreats) > 0 {
 					threats = append(threats, xssThreats...)
 					// Sanitize the value
 					values[i] = s.sanitizeXSS(value)
@@ -271,13 +271,13 @@ func (s *SanitizationMiddleware) sanitizeURL(r *http.Request) []ThreatDetection 
 
 			// Check for SQL injection
 			if s.config.EnableSQLInjectionCheck {
-				if sqlThreats := s.detectSQLInjection(fmt.Sprintf("query_%s", key), value); len(sqlThreats) > 0 {
+				if sqlThreats := s.detectSQLInjection("query_"+key, value); len(sqlThreats) > 0 {
 					threats = append(threats, sqlThreats...)
 				}
 			}
 
 			// Check denied patterns
-			if patternThreats := s.checkDeniedPatterns(fmt.Sprintf("query_%s", key), value); len(patternThreats) > 0 {
+			if patternThreats := s.checkDeniedPatterns("query_"+key, value); len(patternThreats) > 0 {
 				threats = append(threats, patternThreats...)
 			}
 		}
@@ -294,13 +294,13 @@ func (s *SanitizationMiddleware) sanitizeHeaders(r *http.Request) []ThreatDetect
 		for _, value := range values {
 			// Check for XSS in headers
 			if s.config.EnableXSSProtection {
-				if xssThreats := s.detectXSS(fmt.Sprintf("header_%s", name), value); len(xssThreats) > 0 {
+				if xssThreats := s.detectXSS("header_"+name, value); len(xssThreats) > 0 {
 					threats = append(threats, xssThreats...)
 				}
 			}
 
 			// Check denied patterns in headers
-			if patternThreats := s.checkDeniedPatterns(fmt.Sprintf("header_%s", name), value); len(patternThreats) > 0 {
+			if patternThreats := s.checkDeniedPatterns("header_"+name, value); len(patternThreats) > 0 {
 				threats = append(threats, patternThreats...)
 			}
 		}

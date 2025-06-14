@@ -3,6 +3,7 @@ package performance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sort"
@@ -311,7 +312,7 @@ func (pm *PartitionManager) QueryPartitions(query PartitionQuery) (*QueryResult,
 
 	// Query partitions concurrently
 	results := make(chan *PartitionQueryResult, len(partitions))
-	errors := make(chan error, len(partitions))
+	errorChan := make(chan error, len(partitions))
 
 	sem := make(chan struct{}, pm.config.ConcurrentOperations)
 
@@ -333,7 +334,7 @@ func (pm *PartitionManager) QueryPartitions(query PartitionQuery) (*QueryResult,
 		select {
 		case result := <-results:
 			allResults = append(allResults, result)
-		case err := <-errors:
+		case err := <-errorChan:
 			queryErrors = append(queryErrors, err)
 		}
 	}
@@ -447,7 +448,7 @@ func (pm *PartitionManager) findByHashStrategy(key interface{}) (*Partition, err
 		return partition, nil
 	}
 
-	return nil, fmt.Errorf("no partitions available")
+	return nil, errors.New("no partitions available")
 }
 
 // findByRangeStrategy finds partition using range strategy
@@ -501,7 +502,7 @@ func (pm *PartitionManager) findByRoundRobinStrategy(_ interface{}) (*Partition,
 		return partition, nil
 	}
 
-	return nil, fmt.Errorf("no partitions available")
+	return nil, errors.New("no partitions available")
 }
 
 // shouldSplitPartition determines if partition should be split

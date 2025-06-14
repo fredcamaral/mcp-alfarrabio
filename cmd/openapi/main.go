@@ -4,11 +4,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -101,7 +103,7 @@ func serveDocumentation() {
 		port = "8081"
 	}
 
-	fmt.Printf("Serving OpenAPI documentation at http://localhost:%s/docs\n", port)
+	fmt.Printf("Serving OpenAPI documentation at http://localhost:" + port + "/docs\n")
 	srv := &http.Server{Addr: ":" + port, Handler: router, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second}
 	log.Fatal(srv.ListenAndServe())
 }
@@ -123,9 +125,9 @@ func validateSpec() {
 
 	// Print statistics
 	fmt.Printf("\nAPI Statistics:\n")
-	fmt.Printf("- Paths: %d\n", doc.Paths.Len())
-	fmt.Printf("- Schemas: %d\n", len(doc.Components.Schemas))
-	fmt.Printf("- Operations: %d\n", countOperations(doc))
+	fmt.Printf("- Paths: " + strconv.Itoa(doc.Paths.Len()) + "\n")
+	fmt.Printf("- Schemas: " + strconv.Itoa(len(doc.Components.Schemas)) + "\n")
+	fmt.Printf("- Operations: " + strconv.Itoa(countOperations(doc)) + "\n")
 }
 
 func generateCode() {
@@ -149,7 +151,7 @@ func loadSpec() (*openapi3.T, error) {
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return nil, fmt.Errorf("invalid spec path: path traversal not allowed")
+		return nil, errors.New("invalid spec path: path traversal not allowed")
 	}
 
 	// If absolute path, ensure it's not accessing system directories
@@ -157,32 +159,32 @@ func loadSpec() (*openapi3.T, error) {
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return nil, fmt.Errorf("invalid spec path: access to system directory not allowed")
+				return nil, errors.New("invalid spec path: access to system directory not allowed")
 			}
 		}
 	}
 
 	data, err := os.ReadFile(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
-		return nil, fmt.Errorf("failed to read spec file: %w", err)
+		return nil, errors.New("failed to read spec file: " + err.Error())
 	}
 
 	// Parse YAML to JSON
 	var specData interface{}
 	if err := yaml.Unmarshal(data, &specData); err != nil {
-		return nil, fmt.Errorf("failed to parse YAML: %w", err)
+		return nil, errors.New("failed to parse YAML: " + err.Error())
 	}
 
 	jsonData, err := json.Marshal(specData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to convert to JSON: %w", err)
+		return nil, errors.New("failed to convert to JSON: " + err.Error())
 	}
 
 	// Load OpenAPI document
 	loader := openapi3.NewLoader()
 	doc, err := loader.LoadFromData(jsonData)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load OpenAPI document: %w", err)
+		return nil, errors.New("failed to load OpenAPI document: " + err.Error())
 	}
 
 	return doc, nil

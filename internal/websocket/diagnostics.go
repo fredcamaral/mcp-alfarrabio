@@ -2,6 +2,7 @@
 package websocket
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
@@ -364,7 +365,7 @@ func DefaultDiagnosticsConfig() *DiagnosticsConfig {
 // RegisterConnection registers a connection for diagnostics
 func (dm *DiagnosticsManager) RegisterConnection(id string, conn *websocket.Conn) error {
 	if id == "" {
-		return fmt.Errorf("connection ID cannot be empty")
+		return errors.New("connection ID cannot be empty")
 	}
 
 	dm.mu.Lock()
@@ -619,7 +620,7 @@ func (dm *DiagnosticsManager) StartDebugSession(connectionID string, features []
 	defer dm.mu.Unlock()
 
 	if len(dm.debugSessions) >= dm.config.MaxDebugSessions {
-		return "", fmt.Errorf("maximum debug sessions reached")
+		return "", errors.New("maximum debug sessions reached")
 	}
 
 	sessionID := fmt.Sprintf("debug_%s_%d", connectionID, time.Now().Unix())
@@ -711,7 +712,7 @@ func (dm *DiagnosticsManager) PerformHealthCheck(connectionID string, checkType 
 // performPingCheck performs a ping health check
 func (dm *DiagnosticsManager) performPingCheck(diag *ConnectionDiagnostics, check *HealthCheck) error {
 	if diag.Connection == nil {
-		return fmt.Errorf("connection is nil")
+		return errors.New("connection is nil")
 	}
 
 	err := diag.Connection.WriteControl(websocket.PingMessage, []byte{}, time.Now().Add(5*time.Second))

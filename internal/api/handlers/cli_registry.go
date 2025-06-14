@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -426,13 +427,13 @@ func (crh *CLIRegistryHandler) SendTestNotification(w http.ResponseWriter, r *ht
 // validateRegistrationRequest validates CLI registration request
 func (crh *CLIRegistryHandler) validateRegistrationRequest(req *CLIRegistrationRequest) error {
 	if req.ID == "" {
-		return fmt.Errorf("endpoint ID is required")
+		return errors.New("endpoint ID is required")
 	}
 	if req.URL == "" {
-		return fmt.Errorf("endpoint URL is required")
+		return errors.New("endpoint URL is required")
 	}
 	if req.Version == "" {
-		return fmt.Errorf("endpoint version is required")
+		return errors.New("endpoint version is required")
 	}
 	return nil
 }

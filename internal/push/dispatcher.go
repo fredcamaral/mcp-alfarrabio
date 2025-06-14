@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -149,7 +150,7 @@ func (d *Dispatcher) Start() error {
 	defer d.mu.Unlock()
 
 	if d.running {
-		return fmt.Errorf("dispatcher already running")
+		return errors.New("dispatcher already running")
 	}
 
 	log.Printf("Starting notification dispatcher with %d workers", d.workerCount)
@@ -169,7 +170,7 @@ func (d *Dispatcher) Stop() error {
 	d.mu.Lock()
 	if !d.running {
 		d.mu.Unlock()
-		return fmt.Errorf("dispatcher not running")
+		return errors.New("dispatcher not running")
 	}
 	d.running = false
 	d.mu.Unlock()
@@ -199,7 +200,7 @@ func (d *Dispatcher) IsRunning() bool {
 // Dispatch sends a notification to all active CLI endpoints
 func (d *Dispatcher) Dispatch(notification *Notification) error {
 	if !d.IsRunning() {
-		return fmt.Errorf("dispatcher not running")
+		return errors.New("dispatcher not running")
 	}
 
 	// Get active endpoints
@@ -238,7 +239,7 @@ func (d *Dispatcher) Dispatch(notification *Notification) error {
 // dispatchWithFilter is a helper function to reduce duplication in dispatch methods
 func (d *Dispatcher) dispatchWithFilter(notification *Notification, filterKey, filterValue, filterType string, getEndpoints func(string) []*CLIEndpoint) error {
 	if !d.IsRunning() {
-		return fmt.Errorf("dispatcher not running")
+		return errors.New("dispatcher not running")
 	}
 
 	// Add filter to notification metadata
@@ -292,7 +293,7 @@ func (d *Dispatcher) DispatchToSession(notification *Notification, sessionID str
 // DispatchWithFilter sends a notification to endpoints matching specific filters
 func (d *Dispatcher) DispatchWithFilter(notification *Notification, filters map[string]string) error {
 	if !d.IsRunning() {
-		return fmt.Errorf("dispatcher not running")
+		return errors.New("dispatcher not running")
 	}
 
 	// Get endpoints matching filters
@@ -330,7 +331,7 @@ func (d *Dispatcher) DispatchWithFilter(notification *Notification, filters map[
 // DispatchToEndpoint sends a notification to a specific CLI endpoint
 func (d *Dispatcher) DispatchToEndpoint(notification *Notification, endpointID string) error {
 	if !d.IsRunning() {
-		return fmt.Errorf("dispatcher not running")
+		return errors.New("dispatcher not running")
 	}
 
 	endpoint, exists := d.registry.Get(endpointID)
@@ -353,7 +354,7 @@ func (d *Dispatcher) DispatchToEndpoint(notification *Notification, endpointID s
 	case d.jobQueue <- job:
 		return nil
 	default:
-		return fmt.Errorf("job queue full")
+		return errors.New("job queue full")
 	}
 }
 
@@ -708,20 +709,20 @@ func CreateNotification(notificationType string, payload map[string]interface{})
 // DispatchBatch sends multiple notifications efficiently
 func (d *Dispatcher) DispatchBatch(notifications []*Notification) []error {
 	if !d.IsRunning() {
-		err := fmt.Errorf("dispatcher not running")
-		errors := make([]error, len(notifications))
-		for i := range errors {
-			errors[i] = err
+		err := errors.New("dispatcher not running")
+		errs := make([]error, len(notifications))
+		for i := range errs {
+			errs[i] = err
 		}
-		return errors
+		return errs
 	}
 
-	errors := make([]error, len(notifications))
+	errs := make([]error, len(notifications))
 	endpoints := d.registry.GetActive()
 
 	if len(endpoints) == 0 {
 		log.Printf("No active CLI endpoints for batch notification delivery")
-		return errors
+		return errs
 	}
 
 	// Process each notification
@@ -742,19 +743,19 @@ func (d *Dispatcher) DispatchBatch(notifications []*Notification) []error {
 					dispatched++
 				default:
 					// Queue full, record partial error
-					if errors[i] == nil {
-						errors[i] = fmt.Errorf("job queue full, partial delivery")
+					if errs[i] == nil {
+						errs[i] = errors.New("job queue full, partial delivery")
 					}
 				}
 			}
 		}
 
-		if dispatched == 0 && errors[i] == nil {
-			errors[i] = fmt.Errorf("no eligible endpoints for notification %s", notification.ID)
+		if dispatched == 0 && errs[i] == nil {
+			errs[i] = fmt.Errorf("no eligible endpoints for notification %s", notification.ID)
 		}
 	}
 
-	return errors
+	return errs
 }
 
 // GetPendingJobCount returns the number of jobs waiting in the queue

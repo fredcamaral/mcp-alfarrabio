@@ -3,6 +3,7 @@ package performance
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -178,9 +179,9 @@ func (p *AsyncProcessor) SubmitJob(job *Job) error {
 		p.incrementJobsQueued()
 		return nil
 	case <-p.ctx.Done():
-		return fmt.Errorf("processor is shutting down")
+		return errors.New("processor is shutting down")
 	default:
-		return fmt.Errorf("job queue is full")
+		return errors.New("job queue is full")
 	}
 }
 
@@ -274,7 +275,7 @@ func (p *AsyncProcessor) Shutdown(timeout time.Duration) error {
 	case <-done:
 		return nil
 	case <-time.After(timeout):
-		return fmt.Errorf("shutdown timeout exceeded")
+		return errors.New("shutdown timeout exceeded")
 	}
 }
 
@@ -411,7 +412,7 @@ func (w *worker) processEmbeddingJob(ctx context.Context, job *Job) (*Result, er
 	// Simulate embedding generation
 	content, ok := job.Payload["content"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid content in embedding job")
+		return nil, errors.New("invalid content in embedding job")
 	}
 
 	// Simulate processing time
@@ -436,7 +437,7 @@ func (w *worker) processAnalysisJob(ctx context.Context, job *Job) (*Result, err
 	// Simulate content analysis
 	content, ok := job.Payload["content"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid content in analysis job")
+		return nil, errors.New("invalid content in analysis job")
 	}
 
 	// Simulate processing time
@@ -461,7 +462,7 @@ func (w *worker) processIndexingJob(ctx context.Context, job *Job) (*Result, err
 	// Simulate search indexing
 	contentID, ok := job.Payload["content_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid content_id in indexing job")
+		return nil, errors.New("invalid content_id in indexing job")
 	}
 
 	// Simulate processing time
@@ -486,7 +487,7 @@ func (w *worker) processBulkOperationJob(ctx context.Context, job *Job) (*Result
 	// Simulate bulk operation
 	items, ok := job.Payload["items"].([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("invalid items in bulk operation job")
+		return nil, errors.New("invalid items in bulk operation job")
 	}
 
 	// Simulate processing time based on item count
@@ -512,7 +513,7 @@ func (w *worker) processQualityCheckJob(ctx context.Context, job *Job) (*Result,
 	// Simulate quality check
 	contentID, ok := job.Payload["content_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid content_id in quality check job")
+		return nil, errors.New("invalid content_id in quality check job")
 	}
 
 	// Simulate processing time
@@ -538,7 +539,7 @@ func (w *worker) processPatternDetectionJob(ctx context.Context, job *Job) (*Res
 	// Simulate pattern detection
 	projectID, ok := job.Payload["project_id"].(string)
 	if !ok {
-		return nil, fmt.Errorf("invalid project_id in pattern detection job")
+		return nil, errors.New("invalid project_id in pattern detection job")
 	}
 
 	// Simulate processing time

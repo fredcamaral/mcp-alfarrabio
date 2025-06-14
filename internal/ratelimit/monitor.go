@@ -460,13 +460,13 @@ func (m *Monitor) checkForAlerts(endpoint, key string, result *LimitResult, _ *E
 
 	// Rate limited alert
 	if !result.Allowed {
-		alertKey := fmt.Sprintf("rate_limited_%s", endpoint)
+		alertKey := "rate_limited_" + endpoint
 		if m.shouldSendAlert(alertKey) {
 			alert := &Alert{
 				ID:        fmt.Sprintf("limited_%s_%d", endpoint, time.Now().Unix()),
 				Type:      AlertTypeRateLimited,
 				Severity:  SeverityInfo,
-				Message:   fmt.Sprintf("Rate limit exceeded for endpoint %s", endpoint),
+				Message:   "Rate limit exceeded for endpoint " + endpoint,
 				Timestamp: time.Now(),
 				Endpoint:  endpoint,
 				Key:       key,

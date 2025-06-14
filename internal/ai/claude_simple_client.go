@@ -30,7 +30,7 @@ type ClaudeSimpleClient struct {
 // NewClaudeSimpleClient creates a new Claude client with simple API key and base URL
 func NewClaudeSimpleClient(apiKey, baseURL string) (*ClaudeSimpleClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("API key cannot be empty")
+		return nil, errors.New("API key cannot be empty")
 	}
 
 	if baseURL == "" {
@@ -159,16 +159,16 @@ func (c *ClaudeSimpleClient) closeResponseBody(resp *http.Response) {
 // ValidateRequest validates the completion request
 func (c *ClaudeSimpleClient) ValidateRequest(request *CompletionRequest) error {
 	if request.Prompt == "" {
-		return fmt.Errorf("prompt cannot be empty")
+		return errors.New("prompt cannot be empty")
 	}
 	if request.Model == "" {
-		return fmt.Errorf("model cannot be empty")
+		return errors.New("model cannot be empty")
 	}
 	if request.MaxTokens < 0 {
-		return fmt.Errorf("max tokens must be positive")
+		return errors.New("max tokens must be positive")
 	}
 	if request.Temperature < 0 || request.Temperature > 1 {
-		return fmt.Errorf("temperature must be between 0 and 1")
+		return errors.New("temperature must be between 0 and 1")
 	}
 	return nil
 }
@@ -260,7 +260,7 @@ func (c *ClaudeSimpleClient) processResponse(resp *http.Response, request *Compl
 	}
 
 	if len(apiResp.Content) == 0 {
-		return nil, fmt.Errorf("no content in response")
+		return nil, errors.New("no content in response")
 	}
 
 	// Extract text content

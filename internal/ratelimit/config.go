@@ -2,6 +2,7 @@
 package ratelimit
 
 import (
+	"errors"
 	"fmt"
 	"time"
 )
@@ -280,19 +281,19 @@ func DevelopmentConfig() *Config {
 // Validate validates the rate limiting configuration
 func (c *Config) Validate() error {
 	if c.RedisAddr == "" {
-		return fmt.Errorf("redis address is required")
+		return errors.New("redis address is required")
 	}
 
 	if c.DefaultLimit <= 0 {
-		return fmt.Errorf("default limit must be positive")
+		return errors.New("default limit must be positive")
 	}
 
 	if c.DefaultWindow <= 0 {
-		return fmt.Errorf("default window must be positive")
+		return errors.New("default window must be positive")
 	}
 
 	if c.DefaultBurst < 0 {
-		return fmt.Errorf("default burst cannot be negative")
+		return errors.New("default burst cannot be negative")
 	}
 
 	if c.KeyPrefix == "" {
@@ -304,7 +305,7 @@ func (c *Config) Validate() error {
 	}
 
 	if c.AlertThreshold < 0 || c.AlertThreshold > 1 {
-		return fmt.Errorf("alert threshold must be between 0 and 1")
+		return errors.New("alert threshold must be between 0 and 1")
 	}
 
 	// Validate endpoint limits
@@ -320,27 +321,27 @@ func (c *Config) Validate() error {
 // Validate validates an endpoint limit configuration
 func (el *EndpointLimit) Validate() error {
 	if el.Limit <= 0 {
-		return fmt.Errorf("limit must be positive")
+		return errors.New("limit must be positive")
 	}
 
 	if el.Window <= 0 {
-		return fmt.Errorf("window must be positive")
+		return errors.New("window must be positive")
 	}
 
 	if el.Burst < 0 {
-		return fmt.Errorf("burst cannot be negative")
+		return errors.New("burst cannot be negative")
 	}
 
 	if el.PerIPLimit < 0 {
-		return fmt.Errorf("per-IP limit cannot be negative")
+		return errors.New("per-IP limit cannot be negative")
 	}
 
 	if el.PerUserLimit < 0 {
-		return fmt.Errorf("per-user limit cannot be negative")
+		return errors.New("per-user limit cannot be negative")
 	}
 
 	if el.ResponseCode != 0 && (el.ResponseCode < 400 || el.ResponseCode >= 600) {
-		return fmt.Errorf("response code must be a valid HTTP error code (400-599)")
+		return errors.New("response code must be a valid HTTP error code (400-599)")
 	}
 
 	// Set defaults

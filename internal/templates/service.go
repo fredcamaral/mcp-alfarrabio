@@ -3,6 +3,7 @@ package templates
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -391,7 +392,7 @@ func (ts *TemplateService) GetTemplateUsageStats(ctx context.Context, templateID
 	ts.logger.Debug("getting template usage stats", slog.String("template_id", templateID))
 
 	if ts.storage == nil {
-		return nil, fmt.Errorf("storage not available")
+		return nil, errors.New("storage not available")
 	}
 
 	return ts.storage.GetTemplateUsage(ctx, templateID)

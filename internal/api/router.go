@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -78,8 +79,8 @@ func (r *Router) setupMiddleware() {
 	// Recovery middleware (should be first)
 	r.mux.Use(chimiddleware.Recoverer)
 
-	// Request timeout middleware
-	r.mux.Use(chimiddleware.Timeout(30 * time.Second))
+	// Request timeout middleware - exclude WebSocket endpoints
+	r.mux.Use(r.timeoutMiddleware())
 
 	// Logging middleware
 	loggingMiddleware := middleware.NewLoggingMiddleware()
@@ -178,8 +179,31 @@ func (r *Router) createCircuitBreakerMiddleware() *middleware.CircuitBreakerMana
 	return middleware.NewCircuitBreakerManager(&cbConfig)
 }
 
+// timeoutMiddleware creates a timeout middleware that excludes WebSocket endpoints
+func (r *Router) timeoutMiddleware() func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			// Skip timeout for WebSocket endpoints
+			if strings.HasPrefix(req.URL.Path, "/ws") {
+				next.ServeHTTP(w, req)
+				return
+			}
+
+			// Apply timeout for other endpoints
+			chimiddleware.Timeout(30*time.Second)(next).ServeHTTP(w, req)
+		})
+	}
+}
+
 // setupRoutes configures API routes
 func (r *Router) setupRoutes() {
+	// OAuth endpoints that provide working auth flow but don't require it for MCP operations
+	r.mux.Get("/.well-known/oauth-authorization-server", r.handleNoAuthDiscovery)
+	r.mux.Post("/register", r.handleNoAuthRegistration)
+	r.mux.Post("/token", r.handleNoAuthToken)
+	r.mux.Get("/authorize", r.handleNoAuthAuthorize)
+	r.mux.Post("/authorize", r.handleNoAuthAuthorize)
+
 	// Health check endpoints (no version prefix for load balancers)
 	healthHandler := handlers.NewHealthHandler(r.config)
 	r.mux.Get("/health", healthHandler.Handle)
@@ -484,12 +508,12 @@ func (m *MockTaskRepository) Create(ctx context.Context, task *types.Task) error
 // GetByID implements TaskRepository.GetByID
 func (m *MockTaskRepository) GetByID(ctx context.Context, id string) (*types.Task, error) {
 	if m.tasks == nil {
-		return nil, fmt.Errorf("task not found")
+		return nil, errors.New("task not found")
 	}
 
 	task, exists := m.tasks[id]
 	if !exists {
-		return nil, fmt.Errorf("task not found")
+		return nil, errors.New("task not found")
 	}
 
 	return task, nil
@@ -498,11 +522,11 @@ func (m *MockTaskRepository) GetByID(ctx context.Context, id string) (*types.Tas
 // Update implements TaskRepository.Update
 func (m *MockTaskRepository) Update(ctx context.Context, task *types.Task) error {
 	if m.tasks == nil {
-		return fmt.Errorf("task not found")
+		return errors.New("task not found")
 	}
 
 	if _, exists := m.tasks[task.ID]; !exists {
-		return fmt.Errorf("task not found")
+		return errors.New("task not found")
 	}
 
 	m.tasks[task.ID] = task
@@ -512,11 +536,11 @@ func (m *MockTaskRepository) Update(ctx context.Context, task *types.Task) error
 // Delete implements TaskRepository.Delete
 func (m *MockTaskRepository) Delete(ctx context.Context, id string) error {
 	if m.tasks == nil {
-		return fmt.Errorf("task not found")
+		return errors.New("task not found")
 	}
 
 	if _, exists := m.tasks[id]; !exists {
-		return fmt.Errorf("task not found")
+		return errors.New("task not found")
 	}
 
 	delete(m.tasks, id)
@@ -732,4 +756,136 @@ func connectToDatabase(ctx context.Context, cfg *config.Config) (*sql.DB, error)
 	}
 
 	return db, nil
+}
+
+// handleNoAuthDiscovery signals to MCP clients that authentication is not required
+func (r *Router) handleNoAuthDiscovery(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	// Use the actual server host and port - default to localhost:9080 for development
+	baseURL := "http://localhost:9080"
+	if r.config.Server.Host != "" && r.config.Server.Port > 0 {
+		baseURL = fmt.Sprintf("http://%s:%d", r.config.Server.Host, r.config.Server.Port)
+	}
+
+	// Complete OAuth discovery response that includes required fields but signals optional auth
+	metadata := map[string]interface{}{
+		"issuer":                                baseURL,
+		"authorization_endpoint":                baseURL + "/authorize",
+		"token_endpoint":                        baseURL + "/token",
+		"registration_endpoint":                 baseURL + "/register",
+		"response_types_supported":              []string{"code"},
+		"grant_types_supported":                 []string{"authorization_code", "client_credentials"},
+		"token_endpoint_auth_methods_supported": []string{"none", "client_secret_basic"},
+		"scopes_supported":                      []string{"mcp", "memory:read", "memory:write"},
+		"code_challenge_methods_supported":      []string{"S256", "plain"},
+		"pkce_required":                         false, // PKCE is optional
+		"authorization_required":                false, // Custom field: auth not required
+		"authentication_required":               false, // Custom field: auth not required
+		"service_documentation":                 "https://github.com/lerianstudio/lerian-mcp-memory",
+	}
+
+	if err := writeJSON(w, metadata); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// handleNoAuthRegistration provides working OAuth client registration
+func (r *Router) handleNoAuthRegistration(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Return a valid OAuth registration response
+	clientResponse := map[string]interface{}{
+		"client_id":                  "mcp-client-" + time.Now().Format("20060102150405"),
+		"client_secret":              "mcp-secret-not-required",
+		"client_id_issued_at":        time.Now().Unix(),
+		"client_secret_expires_at":   0, // Never expires
+		"redirect_uris":              []string{},
+		"token_endpoint_auth_method": "none",
+		"grant_types":                []string{"authorization_code", "client_credentials"},
+		"response_types":             []string{"code"},
+		"scope":                      "mcp memory:read memory:write",
+		"authentication_required":    false, // Custom field
+		"access_token_required":      false, // Custom field
+	}
+
+	w.WriteHeader(http.StatusCreated)
+	if err := writeJSON(w, clientResponse); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// handleNoAuthToken provides working OAuth token endpoint
+func (r *Router) handleNoAuthToken(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Return a valid OAuth token response
+	tokenResponse := map[string]interface{}{
+		"access_token":            "mcp-token-not-required-" + time.Now().Format("20060102150405"),
+		"token_type":              "Bearer",
+		"expires_in":              3600, // 1 hour
+		"scope":                   "mcp memory:read memory:write",
+		"refresh_token":           "mcp-refresh-not-required",
+		"authentication_required": false, // Custom field
+	}
+
+	w.WriteHeader(http.StatusOK)
+	if err := writeJSON(w, tokenResponse); err != nil {
+		http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+	}
+}
+
+// handleNoAuthAuthorize provides working OAuth authorization endpoint
+func (r *Router) handleNoAuthAuthorize(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Parse query parameters
+	responseType := req.URL.Query().Get("response_type")
+	clientID := req.URL.Query().Get("client_id")
+	redirectURI := req.URL.Query().Get("redirect_uri")
+	scope := req.URL.Query().Get("scope")
+	state := req.URL.Query().Get("state")
+	codeChallenge := req.URL.Query().Get("code_challenge")
+	codeChallengeMethod := req.URL.Query().Get("code_challenge_method")
+
+	// Log for debugging
+	_ = clientID
+	_ = scope
+	if codeChallenge != "" {
+		if codeChallengeMethod == "" {
+			codeChallengeMethod = "S256"
+		}
+		log.Printf("PKCE Challenge: %s, Method: %s", codeChallenge, codeChallengeMethod)
+	}
+
+	// Auto-approve all authorization requests
+	if responseType == "code" {
+		authCode := "mcp-auth-code-" + time.Now().Format("20060102150405")
+
+		// If redirect URI provided, redirect with the code
+		if redirectURI != "" {
+			redirectURL := redirectURI + "?code=" + authCode
+			if state != "" {
+				redirectURL += "&state=" + state
+			}
+			http.Redirect(w, req, redirectURL, http.StatusFound)
+			return
+		}
+
+		// Otherwise return code directly
+		response := map[string]interface{}{
+			"code":  authCode,
+			"state": state,
+		}
+
+		w.WriteHeader(http.StatusOK)
+		if err := writeJSON(w, response); err != nil {
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Unsupported response type
+	http.Error(w, "Unsupported response type", http.StatusBadRequest)
 }

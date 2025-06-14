@@ -2,6 +2,7 @@
 package middleware
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -288,14 +289,14 @@ func (s *SecurityHeadersMiddleware) ValidateConfig() error {
 	// Validate CSP policy format (basic check)
 	if s.config.ContentSecurityPolicy != "" {
 		if !strings.Contains(s.config.ContentSecurityPolicy, "default-src") {
-			return fmt.Errorf("content Security Policy must include default-src directive")
+			return errors.New("content Security Policy must include default-src directive")
 		}
 	}
 
 	// Validate HSTS format
 	if s.config.StrictTransportSecurity != "" {
 		if !strings.Contains(s.config.StrictTransportSecurity, "max-age=") {
-			return fmt.Errorf("Strict-Transport-Security must include max-age directive")
+			return errors.New("Strict-Transport-Security must include max-age directive")
 		}
 	}
 

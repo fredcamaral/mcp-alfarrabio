@@ -4,6 +4,7 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -47,7 +48,7 @@ type TaskGenerationOptions struct {
 // GenerateMainTasksFromTRD generates main tasks from a TRD using AI
 func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *documents.TRDEntity, prd *documents.PRDEntity, options *TaskGenerationOptions) ([]*documents.MainTask, error) {
 	if trd == nil {
-		return nil, fmt.Errorf("TRD cannot be nil")
+		return nil, errors.New("TRD cannot be nil")
 	}
 
 	g.logger.Info("generating main tasks from TRD using AI",
@@ -104,7 +105,7 @@ func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *doc
 
 	// Validate and enhance main tasks
 	for i, task := range mainTasks {
-		task.TaskID = fmt.Sprintf("MT-%03d", i+1)
+		task.TaskID = "MT-" + fmt.Sprintf("%03d", i+1)
 		if err := task.Validate(); err != nil {
 			return nil, fmt.Errorf("main task validation failed: %w", err)
 		}
@@ -120,7 +121,7 @@ func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *doc
 // GenerateSubTasksFromMainTask generates sub-tasks from a main task using AI
 func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, mainTask *documents.MainTask, trd *documents.TRDEntity, options *TaskGenerationOptions) ([]*documents.SubTask, error) {
 	if mainTask == nil {
-		return nil, fmt.Errorf("main task cannot be nil")
+		return nil, errors.New("main task cannot be nil")
 	}
 
 	g.logger.Info("generating sub-tasks from main task using AI",
@@ -177,7 +178,7 @@ func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, main
 
 	// Validate and enhance sub-tasks
 	for i, task := range subTasks {
-		task.SubTaskID = fmt.Sprintf("ST-%s-%03d", mainTask.TaskID, i+1)
+		task.SubTaskID = "ST-" + mainTask.TaskID + "-" + fmt.Sprintf("%03d", i+1)
 		task.MainTaskID = mainTask.ID
 		if err := task.Validate(); err != nil {
 			return nil, fmt.Errorf("sub-task validation failed: %w", err)
@@ -450,7 +451,7 @@ func (g *AITaskGenerator) parseSubTasksResponse(content string, mainTask *docume
 				}
 				techDetailsMap[key] = strings.Join(items, ", ")
 			default:
-				techDetailsMap[key] = fmt.Sprintf("%v", v)
+				techDetailsMap[key] = fmt.Sprint(v)
 			}
 		}
 

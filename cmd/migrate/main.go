@@ -5,9 +5,11 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
 	"lerian-mcp-memory/internal/config"
@@ -99,18 +101,11 @@ func loadConfig(configFile string) (*config.Config, error) {
 }
 
 func connectToDatabase(cfg *config.Config) (*sql.DB, error) {
-	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-		cfg.Database.Host,
-		cfg.Database.Port,
-		cfg.Database.User,
-		cfg.Database.Password,
-		cfg.Database.Name,
-		cfg.Database.SSLMode,
-	)
+	dsn := "host=" + cfg.Database.Host + " port=" + strconv.Itoa(cfg.Database.Port) + " user=" + cfg.Database.User + " password=" + cfg.Database.Password + " dbname=" + cfg.Database.Name + " sslmode=" + cfg.Database.SSLMode
 
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return nil, fmt.Errorf("failed to open database connection: %w", err)
+		return nil, errors.New("failed to open database connection: " + err.Error())
 	}
 
 	// Configure connection pool
@@ -124,7 +119,7 @@ func connectToDatabase(cfg *config.Config) (*sql.DB, error) {
 	defer cancel()
 
 	if err := db.PingContext(ctx); err != nil {
-		return nil, fmt.Errorf("failed to ping database: %w", err)
+		return nil, errors.New("failed to ping database: " + err.Error())
 	}
 
 	return db, nil
@@ -135,7 +130,7 @@ func executeStatus(ctx context.Context, safetyManager *migration.MigrationSafety
 
 	status, err := safetyManager.GetMigrationStatus(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get migration status: %w", err)
+		return errors.New("failed to get migration status: " + err.Error())
 	}
 
 	fmt.Printf("Migration Status:\n")
@@ -156,7 +151,7 @@ func executePlan(ctx context.Context, safetyManager *migration.MigrationSafetyMa
 
 	plan, err := safetyManager.PlanMigration(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create migration plan: %w", err)
+		return errors.New("failed to create migration plan: " + err.Error())
 	}
 
 	fmt.Printf("Migration Plan:\n")
@@ -205,7 +200,7 @@ func executeMigrate(ctx context.Context, safetyManager *migration.MigrationSafet
 	// Create migration plan
 	plan, err := safetyManager.PlanMigration(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to create migration plan: %w", err)
+		return errors.New("failed to create migration plan: " + err.Error())
 	}
 
 	if plan.TotalCount == 0 {
@@ -243,7 +238,7 @@ func executeMigrate(ctx context.Context, safetyManager *migration.MigrationSafet
 	// Execute migration
 	err = safetyManager.ExecuteMigrationPlan(ctx, plan, safetyConfig)
 	if err != nil {
-		return fmt.Errorf("migration execution failed: %w", err)
+		return errors.New("migration execution failed: " + err.Error())
 	}
 
 	if dryRun {
@@ -257,7 +252,7 @@ func executeMigrate(ctx context.Context, safetyManager *migration.MigrationSafet
 
 func executeRollback(ctx context.Context, safetyManager *migration.MigrationSafetyManager, logger *logging.EnhancedLogger, targetVersion string, force, dryRun bool) error {
 	if targetVersion == "" {
-		return fmt.Errorf("target version is required for rollback")
+		return errors.New("target version is required for rollback")
 	}
 
 	logger.Info("Executing rollback", "target_version", targetVersion, "dry_run", dryRun, "force", force)
@@ -265,11 +260,11 @@ func executeRollback(ctx context.Context, safetyManager *migration.MigrationSafe
 	// Create rollback plan
 	plan, err := safetyManager.PlanRollback(ctx, targetVersion)
 	if err != nil {
-		return fmt.Errorf("failed to create rollback plan: %w", err)
+		return errors.New("failed to create rollback plan: " + err.Error())
 	}
 
 	if plan.TotalCount == 0 {
-		fmt.Printf("No rollbacks needed to reach version %s\n", targetVersion)
+		fmt.Printf("No rollbacks needed to reach version " + targetVersion + "\n")
 		return nil
 	}
 
@@ -318,13 +313,13 @@ func executeRollback(ctx context.Context, safetyManager *migration.MigrationSafe
 	// Execute rollback
 	err = safetyManager.ExecuteRollback(ctx, plan, safetyConfig)
 	if err != nil {
-		return fmt.Errorf("rollback execution failed: %w", err)
+		return errors.New("rollback execution failed: " + err.Error())
 	}
 
 	if dryRun {
-		fmt.Printf("DRY RUN: Rollback to version %s would have been executed successfully\n", targetVersion)
+		fmt.Printf("DRY RUN: Rollback to version " + targetVersion + " would have been executed successfully\n")
 	} else {
-		fmt.Printf("Rollback to version %s executed successfully\n", targetVersion)
+		fmt.Printf("Rollback to version " + targetVersion + " executed successfully\n")
 	}
 
 	return nil

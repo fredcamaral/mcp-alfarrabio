@@ -62,17 +62,17 @@ func (ae *analyticsExporter) Export(
 
 	// Generate filename
 	filename := ae.generateFilename("workflow_metrics", format)
-	filepath := filepath.Join(ae.config.OutputDir, filename)
+	filePath := filepath.Join(ae.config.OutputDir, filename)
 
 	switch format {
 	case entities.ExportFormatJSON:
-		return ae.exportJSON(metrics, filepath)
+		return ae.exportJSON(metrics, filePath)
 	case entities.ExportFormatCSV:
-		return ae.exportCSV(metrics, filepath)
+		return ae.exportCSV(metrics, filePath)
 	case entities.ExportFormatHTML:
-		return ae.exportHTML(metrics, filepath)
+		return ae.exportHTML(metrics, filePath)
 	case entities.ExportFormatPDF:
-		return ae.exportPDF(metrics, filepath)
+		return ae.exportPDF(metrics, filePath)
 	default:
 		return "", fmt.Errorf("unsupported export format: %s", format)
 	}
@@ -90,15 +90,15 @@ func (ae *analyticsExporter) ExportReport(
 
 	// Generate filename
 	filename := ae.generateFilename("productivity_report", format)
-	filepath := filepath.Join(ae.config.OutputDir, filename)
+	filePath := filepath.Join(ae.config.OutputDir, filename)
 
 	switch format {
 	case entities.ExportFormatJSON:
-		return ae.exportReportJSON(report, filepath)
+		return ae.exportReportJSON(report, filePath)
 	case entities.ExportFormatHTML:
-		return ae.exportReportHTML(report, filepath)
+		return ae.exportReportHTML(report, filePath)
 	case entities.ExportFormatPDF:
-		return ae.exportReportPDF(report, filepath)
+		return ae.exportReportPDF(report, filePath)
 	default:
 		return "", fmt.Errorf("unsupported export format for reports: %s", format)
 	}
@@ -116,14 +116,14 @@ func (ae *analyticsExporter) GetSupportedFormats() []entities.ExportFormat {
 
 // JSON export implementations
 
-func (ae *analyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, filepath string) (string, error) {
+func (ae *analyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, filePath string) (string, error) {
 	// Clean and validate the file path
-	filepath = filepath.Clean(filepath)
-	if strings.Contains(filepath, "..") {
-		return "", fmt.Errorf("path traversal detected: %s", filepath)
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return "", fmt.Errorf("path traversal detected: %s", filePath)
 	}
 
-	file, err := os.Create(filepath) // #nosec G304 -- Path is cleaned and validated above
+	file, err := os.Create(filePath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
@@ -136,17 +136,17 @@ func (ae *analyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, filep
 		return "", fmt.Errorf("failed to encode metrics: %w", err)
 	}
 
-	return filepath, nil
+	return filePath, nil
 }
 
-func (ae *analyticsExporter) exportReportJSON(report *entities.ProductivityReport, filepath string) (string, error) {
+func (ae *analyticsExporter) exportReportJSON(report *entities.ProductivityReport, filePath string) (string, error) {
 	// Clean and validate the file path
-	filepath = filepath.Clean(filepath)
-	if strings.Contains(filepath, "..") {
-		return "", fmt.Errorf("path traversal detected: %s", filepath)
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return "", fmt.Errorf("path traversal detected: %s", filePath)
 	}
 
-	file, err := os.Create(filepath) // #nosec G304 -- Path is cleaned and validated above
+	file, err := os.Create(filePath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
@@ -159,19 +159,19 @@ func (ae *analyticsExporter) exportReportJSON(report *entities.ProductivityRepor
 		return "", fmt.Errorf("failed to encode report: %w", err)
 	}
 
-	return filepath, nil
+	return filePath, nil
 }
 
 // CSV export implementation
 
-func (ae *analyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filepath string) (string, error) {
+func (ae *analyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filePath string) (string, error) {
 	// Clean and validate the file path
-	filepath = filepath.Clean(filepath)
-	if strings.Contains(filepath, "..") {
-		return "", fmt.Errorf("path traversal detected: %s", filepath)
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return "", fmt.Errorf("path traversal detected: %s", filePath)
 	}
 
-	file, err := os.Create(filepath) // #nosec G304 -- Path is cleaned and validated above
+	file, err := os.Create(filePath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
@@ -202,7 +202,7 @@ func (ae *analyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filepa
 		return "", fmt.Errorf("failed to write bottlenecks: %w", err)
 	}
 
-	return filepath, nil
+	return filePath, nil
 }
 
 func (ae *analyticsExporter) writeProductivityCSV(writer *csv.Writer, metrics entities.ProductivityMetrics) error {
@@ -293,14 +293,14 @@ func (ae *analyticsExporter) writeBottlenecksCSV(writer *csv.Writer, bottlenecks
 
 // HTML export implementations
 
-func (ae *analyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, filepath string) (string, error) {
+func (ae *analyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, filePath string) (string, error) {
 	// Clean and validate the file path
-	filepath = filepath.Clean(filepath)
-	if strings.Contains(filepath, "..") {
-		return "", fmt.Errorf("path traversal detected: %s", filepath)
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return "", fmt.Errorf("path traversal detected: %s", filePath)
 	}
 
-	file, err := os.Create(filepath) // #nosec G304 -- Path is cleaned and validated above
+	file, err := os.Create(filePath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
@@ -311,17 +311,17 @@ func (ae *analyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, filep
 		return "", fmt.Errorf("failed to write HTML: %w", err)
 	}
 
-	return filepath, nil
+	return filePath, nil
 }
 
-func (ae *analyticsExporter) exportReportHTML(report *entities.ProductivityReport, filepath string) (string, error) {
+func (ae *analyticsExporter) exportReportHTML(report *entities.ProductivityReport, filePath string) (string, error) {
 	// Clean and validate the file path
-	filepath = filepath.Clean(filepath)
-	if strings.Contains(filepath, "..") {
-		return "", fmt.Errorf("path traversal detected: %s", filepath)
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return "", fmt.Errorf("path traversal detected: %s", filePath)
 	}
 
-	file, err := os.Create(filepath) // #nosec G304 -- Path is cleaned and validated above
+	file, err := os.Create(filePath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
@@ -332,7 +332,7 @@ func (ae *analyticsExporter) exportReportHTML(report *entities.ProductivityRepor
 		return "", fmt.Errorf("failed to write HTML: %w", err)
 	}
 
-	return filepath, nil
+	return filePath, nil
 }
 
 func (ae *analyticsExporter) generateMetricsHTML(metrics *entities.WorkflowMetrics) string {
@@ -711,9 +711,9 @@ func (ae *analyticsExporter) generateReportHTML(report *entities.ProductivityRep
 
 // PDF export implementations (simplified - would need PDF library)
 
-func (ae *analyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filepath string) (string, error) {
+func (ae *analyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filePath string) (string, error) {
 	// For now, export as HTML and note that PDF conversion is needed
-	htmlPath := strings.Replace(filepath, ".pdf", ".html", 1)
+	htmlPath := strings.Replace(filePath, ".pdf", ".html", 1)
 	_, err := ae.exportHTML(metrics, htmlPath)
 	if err != nil {
 		return "", err
@@ -727,9 +727,9 @@ func (ae *analyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filepa
 	return htmlPath, fmt.Errorf("PDF export not yet implemented - HTML file created at %s", htmlPath)
 }
 
-func (ae *analyticsExporter) exportReportPDF(report *entities.ProductivityReport, filepath string) (string, error) {
+func (ae *analyticsExporter) exportReportPDF(report *entities.ProductivityReport, filePath string) (string, error) {
 	// For now, export as HTML and note that PDF conversion is needed
-	htmlPath := strings.Replace(filepath, ".pdf", ".html", 1)
+	htmlPath := strings.Replace(filePath, ".pdf", ".html", 1)
 	_, err := ae.exportReportHTML(report, htmlPath)
 	if err != nil {
 		return "", err

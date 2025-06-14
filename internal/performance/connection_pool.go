@@ -5,6 +5,7 @@ package performance
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -85,7 +86,7 @@ func NewConnectionPool(config *PoolConfig) (*ConnectionPool, error) {
 // Get acquires a connection from the pool
 func (p *ConnectionPool) Get(ctx context.Context) (*sql.DB, error) {
 	if p.closed {
-		return nil, fmt.Errorf("connection pool is closed")
+		return nil, errors.New("connection pool is closed")
 	}
 
 	// Try to get connection with timeout

@@ -3,6 +3,7 @@ package push
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -100,7 +101,7 @@ func (hc *HealthChecker) Start() error {
 	defer hc.mu.Unlock()
 
 	if hc.running {
-		return fmt.Errorf("health checker already running")
+		return errors.New("health checker already running")
 	}
 
 	log.Printf("Starting CLI endpoint health checker (interval: %v)", hc.checkInterval)
@@ -117,7 +118,7 @@ func (hc *HealthChecker) Stop() error {
 	hc.mu.Lock()
 	if !hc.running {
 		hc.mu.Unlock()
-		return fmt.Errorf("health checker not running")
+		return errors.New("health checker not running")
 	}
 	hc.running = false
 	hc.mu.Unlock()

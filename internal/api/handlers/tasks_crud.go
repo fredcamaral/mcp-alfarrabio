@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -250,7 +251,7 @@ func (h *TaskCRUDHandler) GetTaskMetrics(w http.ResponseWriter, r *http.Request)
 
 func (h *TaskCRUDHandler) validateCreateRequest(req *CreateTaskRequest) error {
 	if req.Title == "" {
-		return fmt.Errorf("title is required")
+		return errors.New("title is required")
 	}
 	if len(req.Title) > h.config.MaxTitleLength {
 		return fmt.Errorf("title too long (max %d characters)", h.config.MaxTitleLength)
@@ -259,17 +260,17 @@ func (h *TaskCRUDHandler) validateCreateRequest(req *CreateTaskRequest) error {
 		return fmt.Errorf("description too long (max %d characters)", h.config.MaxDescriptionLength)
 	}
 	if req.Type == "" {
-		return fmt.Errorf("type is required")
+		return errors.New("type is required")
 	}
 	if req.Priority == "" {
-		return fmt.Errorf("priority is required")
+		return errors.New("priority is required")
 	}
 	return nil
 }
 
 func (h *TaskCRUDHandler) validateUpdateRequest(req *UpdateTaskRequest) error {
 	if req.Title != nil && *req.Title == "" {
-		return fmt.Errorf("title cannot be empty")
+		return errors.New("title cannot be empty")
 	}
 	if req.Title != nil && len(*req.Title) > h.config.MaxTitleLength {
 		return fmt.Errorf("title too long (max %d characters)", h.config.MaxTitleLength)

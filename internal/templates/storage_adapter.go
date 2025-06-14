@@ -67,7 +67,7 @@ func GetBuiltinTemplatesAsTemplates() []*Template {
 			Category:    builtins[i].Category,
 			ProjectType: string(builtins[i].ProjectType),
 			Complexity:  "medium", // Default complexity
-			Content:     fmt.Sprintf("Built-in template: %s", builtins[i].Description),
+			Content:     "Built-in template: " + builtins[i].Description,
 			Variables:   builtins[i].Variables,
 			Tags:        builtins[i].Tags,
 			Metadata:    builtins[i].Metadata,
@@ -154,7 +154,7 @@ func (sa *CleanStorageAdapter) StoreTemplate(ctx context.Context, template *Temp
 
 	// Store as content
 	contentData := &itypes.Content{
-		ID:        fmt.Sprintf("template_%s", template.ID),
+		ID:        "template_" + template.ID,
 		ProjectID: itypes.ProjectID("global"), // Templates are global
 		Type:      "template_definition",
 		Content:   string(templateData),
@@ -175,7 +175,7 @@ func (sa *CleanStorageAdapter) StoreTemplate(ctx context.Context, template *Temp
 // GetTemplate retrieves a template by ID
 func (sa *CleanStorageAdapter) GetTemplate(ctx context.Context, templateID string) (*Template, error) {
 	// Try to get template from content store
-	content, err := sa.contentStore.Get(ctx, itypes.ProjectID("global"), fmt.Sprintf("template_%s", templateID))
+	content, err := sa.contentStore.Get(ctx, itypes.ProjectID("global"), "template_"+templateID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get template %s: %w", templateID, err)
 	}
@@ -198,7 +198,7 @@ func (sa *CleanStorageAdapter) ListTemplates(ctx context.Context, filters map[st
 
 // DeleteTemplate removes a template
 func (sa *CleanStorageAdapter) DeleteTemplate(ctx context.Context, templateID string) error {
-	return sa.contentStore.Delete(ctx, itypes.ProjectID("global"), fmt.Sprintf("template_%s", templateID))
+	return sa.contentStore.Delete(ctx, itypes.ProjectID("global"), "template_"+templateID)
 }
 
 // StoreTaskGeneration stores task generation results

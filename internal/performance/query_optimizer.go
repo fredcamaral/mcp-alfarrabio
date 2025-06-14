@@ -129,7 +129,7 @@ func (qo *QueryOptimizer) AnalyzeQuery(ctx context.Context, query string, args .
 // getExecutionPlan retrieves the PostgreSQL execution plan
 func (qo *QueryOptimizer) getExecutionPlan(ctx context.Context, query string, args ...interface{}) (string, error) {
 	// Use EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) for detailed analysis
-	explainQuery := fmt.Sprintf("EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) %s", query)
+	explainQuery := "EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) " + query
 
 	rows, err := qo.db.QueryContext(ctx, explainQuery, args...)
 	if err != nil {

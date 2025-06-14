@@ -3,6 +3,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -290,7 +291,7 @@ func (cb *CircuitBreaker) Execute(fn func() error) *BreakerResult {
 			Success:  false,
 			State:    cb.state,
 			Rejected: true,
-			Error:    fmt.Errorf("circuit breaker is open"),
+			Error:    errors.New("circuit breaker is open"),
 		}
 	}
 

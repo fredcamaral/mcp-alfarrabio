@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"testing"
@@ -500,7 +501,7 @@ func (s *IntegrationTestSuite) createTestDB() (*sql.DB, error) {
 	// but with test-specific overrides
 
 	// For now, return error indicating not implemented - tests will use the server's DB through DI
-	return nil, fmt.Errorf("test database creation not implemented")
+	return nil, errors.New("test database creation not implemented")
 }
 
 func (s *IntegrationTestSuite) callTool(request protocol.ToolCallRequest) (*protocol.ToolCallResult, error) {
@@ -537,7 +538,7 @@ func (s *IntegrationTestSuite) callMemoryStoreTool(arguments map[string]interfac
 	// Create a proper MCP request and call the server's tool handler
 	operation, ok := arguments["operation"].(string)
 	if !ok {
-		return nil, fmt.Errorf("operation not specified or not a string")
+		return nil, errors.New("operation not specified or not a string")
 	}
 
 	// For integration testing, we'll call the tool handlers directly rather than through HandleToolCall

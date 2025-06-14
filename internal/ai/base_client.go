@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -95,7 +96,7 @@ func NewBaseClient(
 // ProcessRequest processes a request using the configured provider
 func (b *BaseClient) ProcessRequest(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, errors.New("request cannot be nil")
 	}
 
 	startTime := time.Now()

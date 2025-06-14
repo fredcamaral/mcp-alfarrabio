@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -99,7 +100,7 @@ func (s *SQLPatternStorage) GetPattern(ctx context.Context, id string) (*Pattern
 	)
 
 	if err == sql.ErrNoRows {
-		return nil, fmt.Errorf("pattern not found")
+		return nil, errors.New("pattern not found")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get pattern: %w", err)
@@ -227,7 +228,7 @@ func (s *SQLPatternStorage) UpdatePattern(ctx context.Context, pattern *Pattern)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("pattern not found")
+		return errors.New("pattern not found")
 	}
 
 	return nil
@@ -248,7 +249,7 @@ func (s *SQLPatternStorage) DeletePattern(ctx context.Context, id string) error 
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("pattern not found")
+		return errors.New("pattern not found")
 	}
 
 	return nil

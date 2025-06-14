@@ -403,12 +403,12 @@ func ExtractKeywords(content string) []string {
 
 // GenerateTaskID generates a task ID with the given prefix and number
 func GenerateTaskID(prefix string, number int) string {
-	return fmt.Sprintf("%s-%03d", prefix, number)
+	return prefix + "-" + fmt.Sprintf("%03d", number)
 }
 
 // GenerateSubTaskID generates a sub-task ID
 func GenerateSubTaskID(mainTaskID string, number int) string {
-	return fmt.Sprintf("ST-%s-%03d", mainTaskID, number)
+	return "ST-" + mainTaskID + "-" + fmt.Sprintf("%03d", number)
 }
 
 // ToJSON converts entity to JSON

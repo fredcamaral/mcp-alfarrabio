@@ -3,6 +3,7 @@ package websocket
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -154,7 +155,7 @@ func DefaultHealthConfig() *HealthConfig {
 // RegisterConnection registers a connection for health monitoring
 func (hm *HealthMonitor) RegisterConnection(id string, conn *websocket.Conn) error {
 	if id == "" {
-		return fmt.Errorf("connection ID cannot be empty")
+		return errors.New("connection ID cannot be empty")
 	}
 
 	hm.mu.Lock()
@@ -251,7 +252,7 @@ func (hm *HealthMonitor) checkConnectionHealth(health *ConnectionHealth) {
 		latency := time.Since(start)
 		hm.updateHealthMetrics(health, latency, pingErr)
 	case <-ctx.Done():
-		hm.updateHealthMetrics(health, hm.config.PingTimeout, fmt.Errorf("ping timeout"))
+		hm.updateHealthMetrics(health, hm.config.PingTimeout, errors.New("ping timeout"))
 	}
 
 	// Update health score and state

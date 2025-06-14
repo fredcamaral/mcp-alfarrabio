@@ -4,6 +4,7 @@ package middleware
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -314,7 +315,7 @@ func (erl *EnhancedRateLimit) checkRateLimit(ctx context.Context, key string, li
 		return erl.fallbackLimiter.Check(ctx, key, limit)
 	}
 
-	return nil, fmt.Errorf("no rate limiter available")
+	return nil, errors.New("no rate limiter available")
 }
 
 // handleRateLimited handles rate limited requests

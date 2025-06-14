@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -218,7 +219,7 @@ func (h *TaskSearchHandler) validateSearchQuery(query string) error {
 	queryLower := strings.ToLower(query)
 	for _, pattern := range maliciousPatterns {
 		if strings.Contains(queryLower, pattern) {
-			return fmt.Errorf("query contains potentially malicious content")
+			return errors.New("query contains potentially malicious content")
 		}
 	}
 
@@ -374,7 +375,7 @@ func (h *TaskSearchHandler) splitAndTrim(value string) []string {
 
 func (h *TaskSearchHandler) validateAdvancedSearchRequest(req *AdvancedSearchRequest) error {
 	if req.Query == "" {
-		return fmt.Errorf("search query is required")
+		return errors.New("search query is required")
 	}
 	if err := h.validateSearchQuery(req.Query); err != nil {
 		return err
@@ -404,11 +405,11 @@ func (h *TaskSearchHandler) generateSearchSuggestions(query string, results *tas
 		// Suggest removing words
 		words := strings.Fields(query)
 		if len(words) > 1 {
-			suggestions = append(suggestions, fmt.Sprintf("Try '%s'", strings.Join(words[:len(words)-1], " ")))
+			suggestions = append(suggestions, "Try '"+strings.Join(words[:len(words)-1], " ")+"'")
 		}
 	} else if len(results.Tasks) < 5 {
 		// Few results, suggest related terms
-		suggestions = append(suggestions, fmt.Sprintf("Try '%s tasks'", query), fmt.Sprintf("Search for '%s implementation'", query))
+		suggestions = append(suggestions, "Try '"+query+" tasks'", "Search for '"+query+" implementation'")
 	}
 
 	return suggestions

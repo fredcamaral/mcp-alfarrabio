@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -68,7 +69,7 @@ func NewBaseClient(config *BaseConfig, authProvider AuthProvider, requestConvert
 // Complete sends a completion request using the configured provider
 func (bc *BaseClient) Complete(ctx context.Context, request *CompletionRequest) (*CompletionResponse, error) {
 	if !bc.config.Enabled {
-		return nil, fmt.Errorf("AI client is disabled")
+		return nil, errors.New("AI client is disabled")
 	}
 
 	// Convert request to provider format

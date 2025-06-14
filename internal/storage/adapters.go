@@ -4,7 +4,7 @@ package storage
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"time"
 
 	"lerian-mcp-memory/internal/types"
@@ -410,65 +410,65 @@ func (sa *StorageAdapter) convertTypesToChunkTypes(typeStrings []string) []pkgTy
 
 // StorePattern stores a pattern in the analysis store (placeholder implementation)
 func (sa *StorageAdapter) StorePattern(ctx context.Context, pattern *types.Pattern) error {
-	return fmt.Errorf("pattern storage not yet implemented")
+	return errors.New("pattern storage not yet implemented")
 }
 
 func (sa *StorageAdapter) GetPatterns(ctx context.Context, projectID types.ProjectID, filters *types.PatternFilters) ([]*types.Pattern, error) {
-	return nil, fmt.Errorf("pattern retrieval not yet implemented")
+	return nil, errors.New("pattern retrieval not yet implemented")
 }
 
 func (sa *StorageAdapter) StoreInsight(ctx context.Context, insight *types.Insight) error {
-	return fmt.Errorf("insight storage not yet implemented")
+	return errors.New("insight storage not yet implemented")
 }
 
 func (sa *StorageAdapter) GetInsights(ctx context.Context, projectID types.ProjectID, filters *types.InsightFilters) ([]*types.Insight, error) {
-	return nil, fmt.Errorf("insight retrieval not yet implemented")
+	return nil, errors.New("insight retrieval not yet implemented")
 }
 
 func (sa *StorageAdapter) StoreConflict(ctx context.Context, conflict *types.Conflict) error {
-	return fmt.Errorf("conflict storage not yet implemented")
+	return errors.New("conflict storage not yet implemented")
 }
 
 func (sa *StorageAdapter) GetConflicts(ctx context.Context, projectID types.ProjectID, filters *types.ConflictFilters) ([]*types.Conflict, error) {
-	return nil, fmt.Errorf("conflict retrieval not yet implemented")
+	return nil, errors.New("conflict retrieval not yet implemented")
 }
 
 func (sa *StorageAdapter) StoreQualityAnalysis(ctx context.Context, analysis *types.QualityAnalysis) error {
-	return fmt.Errorf("quality analysis storage not yet implemented")
+	return errors.New("quality analysis storage not yet implemented")
 }
 
 func (sa *StorageAdapter) GetQualityAnalysis(ctx context.Context, projectID types.ProjectID, contentID string) (*types.QualityAnalysis, error) {
-	return nil, fmt.Errorf("quality analysis retrieval not yet implemented")
+	return nil, errors.New("quality analysis retrieval not yet implemented")
 }
 
 // StoreRelationship stores a relationship in the storage adapter.
 func (sa *StorageAdapter) StoreRelationship(ctx context.Context, relationship *types.Relationship) error {
-	return fmt.Errorf("relationship storage not yet implemented")
+	return errors.New("relationship storage not yet implemented")
 }
 
 func (sa *StorageAdapter) GetRelationships(ctx context.Context, projectID types.ProjectID, contentID string, relationTypes []string) ([]*types.Relationship, error) {
-	return nil, fmt.Errorf("relationship retrieval not yet implemented")
+	return nil, errors.New("relationship retrieval not yet implemented")
 }
 
 func (sa *StorageAdapter) FindRelated(ctx context.Context, projectID types.ProjectID, contentID string, maxDepth int) ([]*types.RelatedContent, error) {
-	return nil, fmt.Errorf("related content search not yet implemented")
+	return nil, errors.New("related content search not yet implemented")
 }
 
 func (sa *StorageAdapter) DeleteRelationship(ctx context.Context, relationshipID string) error {
-	return fmt.Errorf("relationship deletion not yet implemented")
+	return errors.New("relationship deletion not yet implemented")
 }
 
 func (sa *StorageAdapter) UpdateRelationshipConfidence(ctx context.Context, relationshipID string, confidence float64) error {
-	return fmt.Errorf("relationship confidence update not yet implemented")
+	return errors.New("relationship confidence update not yet implemented")
 }
 
 // CreateSession creates a new session in the storage adapter.
 func (sa *StorageAdapter) CreateSession(ctx context.Context, projectID types.ProjectID, sessionID types.SessionID, metadata map[string]interface{}) error {
-	return fmt.Errorf("session creation not yet implemented")
+	return errors.New("session creation not yet implemented")
 }
 
 func (sa *StorageAdapter) GetSession(ctx context.Context, projectID types.ProjectID, sessionID types.SessionID) (*types.Session, error) {
-	return nil, fmt.Errorf("session retrieval not yet implemented")
+	return nil, errors.New("session retrieval not yet implemented")
 }
 
 func (sa *StorageAdapter) UpdateSessionAccess(ctx context.Context, projectID types.ProjectID, sessionID types.SessionID) error {
@@ -477,15 +477,15 @@ func (sa *StorageAdapter) UpdateSessionAccess(ctx context.Context, projectID typ
 }
 
 func (sa *StorageAdapter) ListSessions(ctx context.Context, projectID types.ProjectID, filters *types.SessionFilters) ([]*types.Session, error) {
-	return nil, fmt.Errorf("session listing not yet implemented")
+	return nil, errors.New("session listing not yet implemented")
 }
 
 func (sa *StorageAdapter) DeleteSession(ctx context.Context, projectID types.ProjectID, sessionID types.SessionID) error {
-	return fmt.Errorf("session deletion not yet implemented")
+	return errors.New("session deletion not yet implemented")
 }
 
 func (sa *StorageAdapter) GetSessionStats(ctx context.Context, projectID types.ProjectID) (*types.SessionStats, error) {
-	return nil, fmt.Errorf("session stats not yet implemented")
+	return nil, errors.New("session stats not yet implemented")
 }
 
 // HealthCheck performs a health check on the storage adapter.
@@ -549,19 +549,19 @@ func (sa *StorageAdapter) GetProjectStats(ctx context.Context, projectID types.P
 }
 
 func (sa *StorageAdapter) ExportProject(ctx context.Context, projectID types.ProjectID, format string, options *types.ExportOptions) (*types.ExportResult, error) {
-	return nil, fmt.Errorf("project export not yet implemented")
+	return nil, errors.New("project export not yet implemented")
 }
 
 func (sa *StorageAdapter) ImportProject(ctx context.Context, projectID types.ProjectID, data, format string, options *types.ImportOptions) (*types.ImportResult, error) {
-	return nil, fmt.Errorf("project import not yet implemented")
+	return nil, errors.New("project import not yet implemented")
 }
 
 func (sa *StorageAdapter) ValidateIntegrity(ctx context.Context, projectID types.ProjectID) (*types.IntegrityReport, error) {
-	return nil, fmt.Errorf("integrity validation not yet implemented")
+	return nil, errors.New("integrity validation not yet implemented")
 }
 
 func (sa *StorageAdapter) Cleanup(ctx context.Context, projectID types.ProjectID, retentionDays int) (*types.CleanupResult, error) {
-	return nil, fmt.Errorf("cleanup not yet implemented")
+	return nil, errors.New("cleanup not yet implemented")
 }
 
 // Helper method to convert chunks by type

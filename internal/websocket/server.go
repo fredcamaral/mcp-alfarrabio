@@ -4,6 +4,7 @@ package websocket
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -104,7 +105,7 @@ func (s *Server) Start() error {
 	defer s.mu.Unlock()
 
 	if s.running {
-		return fmt.Errorf("WebSocket server is already running")
+		return errors.New("WebSocket server is already running")
 	}
 
 	log.Println("Starting WebSocket server...")
@@ -130,7 +131,7 @@ func (s *Server) Stop() error {
 	defer s.mu.Unlock()
 
 	if !s.running {
-		return fmt.Errorf("WebSocket server is not running")
+		return errors.New("WebSocket server is not running")
 	}
 
 	log.Println("Stopping WebSocket server...")
@@ -240,7 +241,7 @@ func (s *Server) authenticateConnection(r *http.Request) error {
 	// Check CLI version
 	cliVersion := r.Header.Get("X-CLI-Version")
 	if cliVersion == "" {
-		return fmt.Errorf("missing CLI version header")
+		return errors.New("missing CLI version header")
 	}
 
 	// Validate version (simplified - in production, use semantic versioning)

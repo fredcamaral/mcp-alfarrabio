@@ -5,6 +5,7 @@ package retrieve
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -199,7 +200,7 @@ func (h *Handler) validateSearchRequest(req *SearchRequest) error {
 	}
 
 	if req.Query == "" {
-		return fmt.Errorf("query cannot be empty")
+		return errors.New("query cannot be empty")
 	}
 
 	h.setSearchDefaults(req)
@@ -370,7 +371,7 @@ func (h *Handler) handleGetContent(ctx context.Context, params map[string]interf
 	}
 
 	if req.ContentID == "" {
-		return nil, fmt.Errorf("content_id is required")
+		return nil, errors.New("content_id is required")
 	}
 
 	// Update session access if session provided
@@ -472,7 +473,7 @@ func (h *Handler) validateFindSimilarRequest(req *FindSimilarRequest) error {
 	}
 
 	if req.Content == "" {
-		return fmt.Errorf("content is required for similarity search")
+		return errors.New("content is required for similarity search")
 	}
 
 	h.setFindSimilarDefaults(req)
@@ -652,7 +653,7 @@ func (h *Handler) handleGetHistory(ctx context.Context, params map[string]interf
 	}
 
 	if req.ContentID == "" {
-		return nil, fmt.Errorf("content_id is required for history retrieval")
+		return nil, errors.New("content_id is required for history retrieval")
 	}
 
 	// Update session access if session provided

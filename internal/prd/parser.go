@@ -3,6 +3,7 @@ package prd
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -47,12 +48,12 @@ func NewParser(config ParserConfig) *Parser {
 // ParseDocument parses a PRD document from content
 func (p *Parser) ParseDocument(content, format, encoding string) (*types.PRDDocument, error) {
 	if content == "" {
-		return nil, fmt.Errorf("content cannot be empty")
+		return nil, errors.New("content cannot be empty")
 	}
 
 	// Check file size
 	if int64(len(content)) > p.config.MaxFileSize {
-		return nil, fmt.Errorf("document size exceeds maximum allowed size")
+		return nil, errors.New("document size exceeds maximum allowed size")
 	}
 
 	startTime := time.Now()
@@ -436,7 +437,7 @@ func (p *Parser) addProcessingStep(doc *types.PRDDocument, name string, status t
 func (p *Parser) ValidateContent(content, format, encoding string) error {
 	// Check if content is empty
 	if strings.TrimSpace(content) == "" {
-		return fmt.Errorf("content is empty")
+		return errors.New("content is empty")
 	}
 
 	// Check file size
@@ -447,7 +448,7 @@ func (p *Parser) ValidateContent(content, format, encoding string) error {
 	// Check encoding
 	if encoding == "utf-8" || encoding == "" {
 		if !utf8.ValidString(content) {
-			return fmt.Errorf("content is not valid UTF-8")
+			return errors.New("content is not valid UTF-8")
 		}
 	}
 
@@ -467,7 +468,7 @@ func (p *Parser) validateMarkdown(content string) error {
 	// Check for basic markdown structure
 	if !strings.Contains(content, "#") && !strings.Contains(content, "**") && !strings.Contains(content, "*") {
 		if p.config.StrictMode {
-			return fmt.Errorf("content does not appear to be valid markdown")
+			return errors.New("content does not appear to be valid markdown")
 		}
 	}
 
@@ -481,7 +482,7 @@ func (p *Parser) validateText(content string) error {
 	for _, line := range lines {
 		if len(line) > 1000 {
 			if p.config.StrictMode {
-				return fmt.Errorf("line length exceeds reasonable limit")
+				return errors.New("line length exceeds reasonable limit")
 			}
 		}
 	}

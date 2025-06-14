@@ -2,7 +2,7 @@ package ai
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"strings"
 	"time"
 )
@@ -38,7 +38,7 @@ func (m *MockClient) ProcessRequest(ctx context.Context, req *Request) (*Respons
 	// Simulate errors based on error rate
 	m.responseCount++
 	if m.ErrorRate > 0 && float32(m.responseCount%100) < m.ErrorRate*100 {
-		return nil, fmt.Errorf("mock error: simulated failure")
+		return nil, errors.New("mock error: simulated failure")
 	}
 
 	// Generate mock response based on last message
@@ -120,7 +120,7 @@ func generateMockResponse(input string) string {
 	}
 
 	// Default response
-	return fmt.Sprintf("Mock response for: %s", input)
+	return "Mock response for: " + input
 }
 
 func generateMockPRD(input string) string {

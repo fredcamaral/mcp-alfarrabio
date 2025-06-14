@@ -142,11 +142,11 @@ func (m *Manager) GetSession(projectID types.ProjectID, sessionID types.SessionI
 	sessionKey := m.getSessionKey(projectID, sessionID)
 	sessionInfo, exists := m.sessions[sessionKey]
 	if !exists {
-		return nil, fmt.Errorf("session not found")
+		return nil, errors.New("session not found")
 	}
 
 	if !sessionInfo.IsActive {
-		return nil, fmt.Errorf("session is not active")
+		return nil, errors.New("session is not active")
 	}
 
 	return sessionInfo, nil
@@ -209,7 +209,7 @@ func (m *Manager) ValidateAccess(projectID types.ProjectID, sessionID types.Sess
 // GetProjectSessions returns all sessions for a project
 func (m *Manager) GetProjectSessions(projectID types.ProjectID) ([]*SessionInfo, error) {
 	if projectID.IsEmpty() {
-		return nil, fmt.Errorf("project_id is required")
+		return nil, errors.New("project_id is required")
 	}
 
 	m.mutex.RLock()
@@ -233,7 +233,7 @@ func (m *Manager) DeactivateSession(projectID types.ProjectID, sessionID types.S
 	sessionKey := m.getSessionKey(projectID, sessionID)
 	sessionInfo, exists := m.sessions[sessionKey]
 	if !exists {
-		return fmt.Errorf("session not found")
+		return errors.New("session not found")
 	}
 
 	sessionInfo.IsActive = false

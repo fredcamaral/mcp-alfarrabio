@@ -4,8 +4,10 @@ package ai
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -35,7 +37,7 @@ func NewAITRDGenerator(aiService Service, ruleManager *documents.RuleManager, pr
 // GenerateTRDFromPRD generates a TRD from a PRD using AI
 func (g *AITRDGenerator) GenerateTRDFromPRD(ctx context.Context, prd *documents.PRDEntity, options *TRDGenerationOptions) (*documents.TRDEntity, error) {
 	if prd == nil {
-		return nil, fmt.Errorf("PRD cannot be nil")
+		return nil, errors.New("PRD cannot be nil")
 	}
 
 	g.logger.Info("generating TRD from PRD using AI",
@@ -215,7 +217,7 @@ func (g *AITRDGenerator) parseTRDResponse(content string, prd *documents.PRDEnti
 	// Add metadata
 	trd.Metadata["source_prd"] = prd.ID
 	trd.Metadata["generation_model"] = "ai"
-	trd.Metadata["complexity_score"] = fmt.Sprintf("%d", prd.ComplexityScore)
+	trd.Metadata["complexity_score"] = strconv.Itoa(prd.ComplexityScore)
 
 	// Validate TRD
 	if err := trd.Validate(); err != nil {

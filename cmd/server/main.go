@@ -1,5 +1,5 @@
 // server is the main MCP Memory Server binary that provides persistent memory capabilities
-// for AI assistants through multiple transport protocols (stdio, HTTP, WebSocket, SSE).
+// for AI assistants through multiple transport protocols (stdio, HTTP, WebSocket).
 package main
 
 import (
@@ -166,15 +166,14 @@ func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwe
 	// Create a new mux that combines the API router with legacy endpoints
 	mux := http.NewServeMux()
 
-	// Mount the new API routes
+	// Register specific endpoints first (before catch-all patterns)
+	setupMCPHandler(mux, mcpServer)
+	setupWebSocketHandler(mux, ctx, wsHub)
+
+	// Mount the new API routes (with catch-all patterns last)
 	mux.Handle("/api/", apiRouter.Handler())
 	mux.Handle("/health", apiRouter.Handler())
 	mux.Handle("/", apiRouter.Handler())
-
-	// Keep legacy MCP endpoints for backward compatibility
-	setupMCPHandler(mux, mcpServer)
-	setupSSEHandler(mux, mcpServer)
-	setupWebSocketHandler(mux, ctx, wsHub)
 
 	return mux
 }
@@ -185,9 +184,6 @@ func setupLegacyHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub 
 
 	// Setup MCP endpoint
 	setupMCPHandler(mux, mcpServer)
-
-	// Setup SSE endpoint
-	setupSSEHandler(mux, mcpServer)
 
 	// Setup WebSocket endpoint
 	setupWebSocketHandler(mux, ctx, wsHub)
@@ -201,6 +197,14 @@ func setupLegacyHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub 
 // setupMCPHandler configures the MCP-over-HTTP endpoint
 func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+		// Debug: Log authorization header
+		authHeader := r.Header.Get("Authorization")
+		if authHeader != "" {
+			log.Printf("MCP request with Authorization: %s", authHeader)
+		} else {
+			log.Printf("MCP request without Authorization header")
+		}
+
 		// Set CORS headers with specific origin to allow credentials
 		origin := r.Header.Get("Origin")
 		if origin == "" {
@@ -208,7 +212,7 @@ func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
 		}
 		w.Header().Set("Access-Control-Allow-Origin", origin)
 		w.Header().Set("Access-Control-Allow-Methods", "POST, "+methodOptions)
-		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-CSRF-Token")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token")
 		w.Header().Set("Access-Control-Allow-Credentials", "true")
 		w.Header().Set("Content-Type", "application/json")
 
@@ -238,107 +242,6 @@ func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
 			log.Printf("Error encoding response: %v", err)
 		}
 	})
-}
-
-// setupSSEHandler configures the Server-Sent Events endpoint
-func setupSSEHandler(mux *http.ServeMux, mcpServer *server.Server) {
-	mux.HandleFunc("/sse", func(w http.ResponseWriter, r *http.Request) {
-		// Handle CORS preflight
-		if r.Method == methodOptions {
-			origin := r.Header.Get("Origin")
-			if origin == "" {
-				origin = defaultLocalOrigin
-			}
-			w.Header().Set("Access-Control-Allow-Origin", origin)
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, "+methodOptions)
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, Cache-Control, X-CSRF-Token")
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-
-		// Handle POST requests for MCP JSON-RPC
-		if r.Method == "POST" {
-			handleSSEPost(w, r, mcpServer)
-			return
-		}
-
-		// Handle GET requests for SSE stream
-		if r.Method != "GET" {
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		handleSSEStream(w, r)
-	})
-}
-
-// handleSSEPost handles POST requests to the SSE endpoint
-func handleSSEPost(w http.ResponseWriter, r *http.Request, mcpServer *server.Server) {
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		origin = defaultLocalOrigin
-	}
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-	w.Header().Set("Content-Type", "application/json")
-
-	// Parse JSON-RPC request
-	var req protocol.JSONRPCRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid JSON-RPC request", http.StatusBadRequest)
-		return
-	}
-
-	// Process MCP request
-	resp := mcpServer.HandleRequest(r.Context(), &req)
-
-	// Send JSON-RPC response
-	w.WriteHeader(http.StatusOK)
-	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Printf("Error encoding SSE response: %v", err)
-	}
-}
-
-// handleSSEStream handles GET requests for SSE streaming
-func handleSSEStream(w http.ResponseWriter, r *http.Request) {
-	// Set SSE headers
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
-	origin := r.Header.Get("Origin")
-	if origin == "" {
-		origin = defaultLocalOrigin
-	}
-	w.Header().Set("Access-Control-Allow-Origin", origin)
-	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control, X-CSRF-Token")
-	w.Header().Set("Access-Control-Allow-Credentials", "true")
-
-	// Keep connection alive
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
-		return
-	}
-
-	// Send initial connection message
-	_, _ = fmt.Fprintf(w, "data: {\"type\":\"connected\",\"server\":\"lerian-mcp-memory\",\"protocols\":[\"json-rpc\",\"sse\"]}\n\n")
-	flusher.Flush()
-
-	// Keep connection open and send periodic heartbeats
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			// Send heartbeat
-			_, _ = fmt.Fprintf(w, "data: {\"type\":\"heartbeat\",\"timestamp\":\"%s\"}\n\n", time.Now().UTC().Format(time.RFC3339))
-			flusher.Flush()
-		case <-r.Context().Done():
-			return
-		}
-	}
 }
 
 // setupWebSocketHandler configures the WebSocket endpoint
@@ -407,17 +310,18 @@ func startAndRunHTTPServer(ctx context.Context, handler http.Handler, addr strin
 		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      0, // Disable write timeout for WebSocket compatibility
 		IdleTimeout:       120 * time.Second,
 	}
 
 	// Start server in goroutine
 	go func() {
+		log.Printf("----- WELCOME TO LERIAN MCP MEMORY SERVER -----")
 		log.Printf("✅ MCP Memory Server listening on http://localhost%s", addr)
 		log.Printf("🔗 MCP endpoint: http://localhost%s/mcp", addr)
-		log.Printf("📡 SSE endpoint: http://localhost%s/sse", addr)
 		log.Printf("🔌 WebSocket endpoint: ws://localhost%s/ws", addr)
 		log.Printf("💚 Health check: http://localhost%s/health", addr)
+		log.Printf("📋 Use mcp-proxy.js for MCP stdio-to-HTTP communication")
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 			log.Printf("HTTP server error: %v", err)
 		}

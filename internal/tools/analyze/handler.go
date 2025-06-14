@@ -5,6 +5,7 @@ package analyze
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -444,7 +445,7 @@ func (h *Handler) validateSuggestRelatedRequest(req *SuggestRelatedRequest) erro
 	}
 
 	if req.ContentID == "" && req.Context == "" {
-		return fmt.Errorf("either content_id or context is required")
+		return errors.New("either content_id or context is required")
 	}
 
 	if req.Limit <= 0 {
@@ -471,7 +472,7 @@ func (h *Handler) getSuggestions(ctx context.Context, req *SuggestRelatedRequest
 	if req.Context != "" {
 		return h.getSuggestionsByContext(ctx, req)
 	}
-	return nil, fmt.Errorf("no valid suggestion source provided")
+	return nil, errors.New("no valid suggestion source provided")
 }
 
 // getSuggestionsByContentID gets suggestions based on content ID
@@ -964,8 +965,8 @@ func (h *Handler) extractQualityIssues(metrics *ai.UnifiedQualityMetrics, conten
 		issues = append(issues, QualityIssue{
 			Type:        "incomplete",
 			Severity:    "low",
-			Description: fmt.Sprintf("Missing element: %s", missing),
-			Suggestion:  fmt.Sprintf("Add %s to improve content quality", missing),
+			Description: "Missing element: " + missing,
+			Suggestion:  "Add " + missing + " to improve content quality",
 			ContentID:   contentID,
 		})
 	}

@@ -70,7 +70,7 @@ func (g *TaskGenerator) GenerateMainTasks(prd *PRDEntity, trd *TRDEntity) ([]*Ma
 		}
 
 		if err := task.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid main task %s: %w", task.TaskID, err)
+			return nil, errors.New("invalid main task " + task.TaskID + ": " + err.Error())
 		}
 
 		mainTasks = append(mainTasks, task)
@@ -115,7 +115,7 @@ func (g *TaskGenerator) GenerateSubTasks(mainTask *MainTask, prd *PRDEntity, trd
 		}
 
 		if err := subTask.Validate(); err != nil {
-			return nil, fmt.Errorf("invalid sub-task %s: %w", subTask.SubTaskID, err)
+			return nil, errors.New("invalid sub-task " + subTask.SubTaskID + ": " + err.Error())
 		}
 
 		subTasks = append(subTasks, subTask)
@@ -327,11 +327,11 @@ func (g *TaskGenerator) estimateTaskDuration(complexity int) string {
 
 	if weeks < 1 {
 		days := int(math.Ceil(weeks * 5))
-		return fmt.Sprintf("%d days", days)
+		return strconv.Itoa(days) + " days"
 	} else if weeks < 2 {
 		return fmt.Sprintf("%.1f weeks", weeks)
 	} else {
-		return fmt.Sprintf("%d-%d weeks", int(weeks), int(weeks)+1)
+		return strconv.Itoa(int(weeks)) + "-" + strconv.Itoa(int(weeks)+1) + " weeks"
 	}
 }
 
@@ -518,7 +518,7 @@ func (g *TaskGenerator) getCoreComponents(mainTask *MainTask, analysis *TaskAnal
 	for _, deliverable := range mainTask.Deliverables {
 		component := TaskComponent{
 			Name:           "Implement " + deliverable,
-			Description:    fmt.Sprintf("Complete implementation of %s feature", deliverable),
+			Description:    "Complete implementation of " + deliverable + " feature",
 			Type:           "feature",
 			EstimatedHours: 4, // Will be split if needed
 			TechnicalDetails: map[string]string{
@@ -636,7 +636,7 @@ func (g *TaskGenerator) getAdvancedComponents(mainTask *MainTask) []TaskComponen
 			!strings.Contains(strings.ToLower(deliverable), "error") {
 			components = append(components, TaskComponent{
 				Name:           "Implement " + deliverable,
-				Description:    fmt.Sprintf("Advanced implementation of %s", deliverable),
+				Description:    "Advanced implementation of " + deliverable,
 				Type:           "advanced",
 				EstimatedHours: 4,
 				TechnicalDetails: map[string]string{
@@ -644,7 +644,7 @@ func (g *TaskGenerator) getAdvancedComponents(mainTask *MainTask) []TaskComponen
 					"level":   "advanced",
 				},
 				AcceptanceCriteria: []string{
-					fmt.Sprintf("%s implemented", deliverable),
+					deliverable + " implemented",
 					"Performance optimized",
 					"Edge cases handled",
 				},
@@ -674,7 +674,7 @@ func (g *TaskGenerator) getGenericComponents(mainTask *MainTask, analysis *TaskA
 
 		component := TaskComponent{
 			Name:           "Implement " + deliverable,
-			Description:    fmt.Sprintf("Complete implementation of %s", deliverable),
+			Description:    "Complete implementation of " + deliverable,
 			Type:           "implementation",
 			EstimatedHours: hours,
 			TechnicalDetails: map[string]string{
@@ -682,7 +682,7 @@ func (g *TaskGenerator) getGenericComponents(mainTask *MainTask, analysis *TaskA
 				"complexity":  strconv.Itoa(analysis.DeliverableComplexity[deliverable]),
 			},
 			AcceptanceCriteria: []string{
-				fmt.Sprintf("%s complete", deliverable),
+				deliverable + " complete",
 				"Tests passing",
 				"Documentation updated",
 			},
@@ -707,18 +707,18 @@ func (g *TaskGenerator) splitLargeTasks(components []TaskComponent) []TaskCompon
 
 			for i := 0; i < parts; i++ {
 				part := TaskComponent{
-					Name:               fmt.Sprintf("%s (Part %d/%d)", component.Name, i+1, parts),
-					Description:        fmt.Sprintf("%s - Part %d of %d", component.Description, i+1, parts),
+					Name:               component.Name + " (Part " + strconv.Itoa(i+1) + "/" + strconv.Itoa(parts) + ")",
+					Description:        component.Description + " - Part " + strconv.Itoa(i+1) + " of " + strconv.Itoa(parts),
 					Type:               component.Type,
 					EstimatedHours:     hoursPerPart,
 					Dependencies:       component.Dependencies,
-					AcceptanceCriteria: []string{fmt.Sprintf("Part %d complete", i+1)},
+					AcceptanceCriteria: []string{"Part " + strconv.Itoa(i+1) + " complete"},
 					TechnicalDetails:   component.TechnicalDetails,
 				}
 
 				// Add dependency on previous part
 				if i > 0 {
-					prevPartName := fmt.Sprintf("%s (Part %d/%d)", component.Name, i, parts)
+					prevPartName := component.Name + " (Part " + strconv.Itoa(i) + "/" + strconv.Itoa(parts) + ")"
 					part.Dependencies = append(part.Dependencies, prevPartName)
 				}
 
@@ -1112,13 +1112,13 @@ func EstimateProjectTimeline(mainTasks []*MainTask) string {
 	totalWeeks *= 1.2
 
 	if totalWeeks < 4 {
-		return fmt.Sprintf("%d-%d weeks", int(totalWeeks), int(totalWeeks)+1)
+		return strconv.Itoa(int(totalWeeks)) + "-" + strconv.Itoa(int(totalWeeks)+1) + " weeks"
 	} else if totalWeeks < 12 {
 		months := totalWeeks / 4.0
 		return fmt.Sprintf("%.1f months", months)
 	} else {
 		months := totalWeeks / 4.0
-		return fmt.Sprintf("%d-%d months", int(months), int(months)+1)
+		return strconv.Itoa(int(months)) + "-" + strconv.Itoa(int(months)+1) + " months"
 	}
 }
 
@@ -1132,16 +1132,13 @@ func GenerateTaskDependencyGraph(mainTasks []*MainTask) string {
 
 	// Add nodes
 	for _, task := range mainTasks {
-		graph.WriteString(fmt.Sprintf("    %s[\"%s: %s\"]\n",
-			task.TaskID,
-			task.TaskID,
-			task.Name))
+		graph.WriteString("    " + task.TaskID + "[\"" + task.TaskID + ": " + task.Name + "\"]\n")
 	}
 
 	// Add edges
 	for _, task := range mainTasks {
 		for _, dep := range task.Dependencies {
-			graph.WriteString(fmt.Sprintf("    %s --> %s\n", dep, task.TaskID))
+			graph.WriteString("    " + dep + " --> " + task.TaskID + "\n")
 		}
 	}
 

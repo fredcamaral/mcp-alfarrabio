@@ -5,8 +5,6 @@
 // names that immediately explain what each operation does.
 package operations
 
-import "fmt"
-
 // Clear, descriptive operation names that explain what they do
 // These replace the cryptic names from the old system with intuitive names.
 
@@ -355,7 +353,7 @@ func GetOperationDescription(operation string) string {
 		return desc
 	}
 
-	return fmt.Sprintf("Perform operation: %s", clearOp)
+	return "Perform operation: " + clearOp
 }
 
 // GetOperationCategory returns the category of the operation (store, retrieve, analyze, system)

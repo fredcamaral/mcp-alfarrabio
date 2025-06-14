@@ -4,6 +4,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -285,11 +286,11 @@ func (h *TaskHandler) ScoreTask(w http.ResponseWriter, r *http.Request) {
 // validateSuggestionRequest validates the task suggestion request
 func (h *TaskHandler) validateSuggestionRequest(req *types.TaskSuggestionRequest) error {
 	if req.PRDID == "" && req.PRDContent == "" {
-		return fmt.Errorf("either PRD ID or PRD content must be provided")
+		return errors.New("either PRD ID or PRD content must be provided")
 	}
 
 	if req.Options.MaxTasks <= 0 {
-		return fmt.Errorf("max tasks must be positive")
+		return errors.New("max tasks must be positive")
 	}
 
 	if req.Options.MaxTasks > h.config.MaxTasksPerRequest {
@@ -297,7 +298,7 @@ func (h *TaskHandler) validateSuggestionRequest(req *types.TaskSuggestionRequest
 	}
 
 	if req.Options.MinQualityScore < 0 || req.Options.MinQualityScore > 1 {
-		return fmt.Errorf("min quality score must be between 0 and 1")
+		return errors.New("min quality score must be between 0 and 1")
 	}
 
 	return nil

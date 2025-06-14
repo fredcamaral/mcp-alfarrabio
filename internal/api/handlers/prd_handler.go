@@ -4,6 +4,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -308,15 +309,15 @@ func (h *PRDHandler) parseMultipartRequest(r *http.Request, req *types.PRDImport
 // validateImportRequest validates the import request
 func (h *PRDHandler) validateImportRequest(req *types.PRDImportRequest) error {
 	if req.Name == "" {
-		return fmt.Errorf("name is required")
+		return errors.New("name is required")
 	}
 
 	if req.Content == "" {
-		return fmt.Errorf("content is required")
+		return errors.New("content is required")
 	}
 
 	if len(req.Content) > int(h.config.MaxFileSize) {
-		return fmt.Errorf("content size exceeds maximum allowed size")
+		return errors.New("content size exceeds maximum allowed size")
 	}
 
 	// Validate format

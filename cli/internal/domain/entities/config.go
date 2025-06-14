@@ -12,7 +12,7 @@ type Config struct {
 
 // ServerConfig holds server-related configuration
 type ServerConfig struct {
-	URL     string `mapstructure:"url" validate:"required,url"`
+	URL     string `mapstructure:"url" validate:"omitempty,url"`
 	Version string `mapstructure:"version"`
 	Timeout int    `mapstructure:"timeout" validate:"min=1,max=300"`
 }
@@ -63,7 +63,7 @@ func DefaultConfig() *Config {
 			BackupCount:  3,
 		},
 		Logging: LoggingConfig{
-			Level:  "info",
+			Level:  "warn",
 			Format: "text",
 			File:   "",
 		},

@@ -3,6 +3,7 @@ package testing
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -551,7 +552,7 @@ func (jfs *JSONFixtureSource) Load(name string) (*Fixture, error) {
 
 func (jfs *JSONFixtureSource) List() ([]string, error) {
 	if jfs.directory == "" {
-		return nil, fmt.Errorf("directory not set")
+		return nil, errors.New("directory not set")
 	}
 
 	files, err := filepath.Glob(filepath.Join(jfs.directory, "*.json"))
@@ -590,7 +591,7 @@ func (yfs *YAMLFixtureSource) Load(name string) (*Fixture, error) {
 
 func (yfs *YAMLFixtureSource) List() ([]string, error) {
 	if yfs.directory == "" {
-		return nil, fmt.Errorf("directory not set")
+		return nil, errors.New("directory not set")
 	}
 
 	files, err := filepath.Glob(filepath.Join(yfs.directory, "*.yaml"))

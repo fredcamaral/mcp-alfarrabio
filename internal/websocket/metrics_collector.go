@@ -2,6 +2,7 @@
 package websocket
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -169,7 +170,7 @@ func DefaultMetricsConfig() *MetricsConfig {
 // RegisterConnection registers a connection for metrics collection
 func (mc *MetricsCollector) RegisterConnection(id string) error {
 	if id == "" {
-		return fmt.Errorf("connection ID cannot be empty")
+		return errors.New("connection ID cannot be empty")
 	}
 
 	mc.mu.Lock()

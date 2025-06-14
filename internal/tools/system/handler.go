@@ -5,6 +5,7 @@ package system
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"time"
@@ -330,10 +331,10 @@ func (h *Handler) handleImportProject(ctx context.Context, params map[string]int
 	}
 
 	if req.Source == "" {
-		return nil, fmt.Errorf("source is required for import")
+		return nil, errors.New("source is required for import")
 	}
 	if req.Format == "" {
-		return nil, fmt.Errorf("format is required for import")
+		return nil, errors.New("format is required for import")
 	}
 
 	// Update session access
@@ -372,7 +373,7 @@ func (h *Handler) handleGenerateCitation(ctx context.Context, params map[string]
 	}
 
 	if req.ContentID == "" {
-		return nil, fmt.Errorf("content_id is required for citation generation")
+		return nil, errors.New("content_id is required for citation generation")
 	}
 
 	// Set default style

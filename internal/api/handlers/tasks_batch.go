@@ -3,6 +3,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -214,7 +215,7 @@ func (h *TaskBatchHandler) GetBatchOperationStatus(w http.ResponseWriter, r *htt
 
 func (h *TaskBatchHandler) validateBatchUpdateRequest(req *BatchUpdateRequest) error {
 	if len(req.Updates) == 0 {
-		return fmt.Errorf("no updates provided")
+		return errors.New("no updates provided")
 	}
 	if len(req.Updates) > h.config.MaxBatchSize {
 		return fmt.Errorf("batch size %d exceeds maximum %d", len(req.Updates), h.config.MaxBatchSize)
@@ -235,7 +236,7 @@ func (h *TaskBatchHandler) validateBatchUpdateRequest(req *BatchUpdateRequest) e
 
 func (h *TaskBatchHandler) validateBatchCreateRequest(req *BatchCreateRequest) error {
 	if len(req.Tasks) == 0 {
-		return fmt.Errorf("no tasks provided")
+		return errors.New("no tasks provided")
 	}
 	if len(req.Tasks) > h.config.MaxBatchSize {
 		return fmt.Errorf("batch size %d exceeds maximum %d", len(req.Tasks), h.config.MaxBatchSize)
@@ -259,7 +260,7 @@ func (h *TaskBatchHandler) validateBatchCreateRequest(req *BatchCreateRequest) e
 
 func (h *TaskBatchHandler) validateBatchDeleteRequest(req *BatchDeleteRequest) error {
 	if len(req.TaskIDs) == 0 {
-		return fmt.Errorf("no task IDs provided")
+		return errors.New("no task IDs provided")
 	}
 	if len(req.TaskIDs) > h.config.MaxBatchSize {
 		return fmt.Errorf("batch size %d exceeds maximum %d", len(req.TaskIDs), h.config.MaxBatchSize)
@@ -276,7 +277,7 @@ func (h *TaskBatchHandler) validateBatchDeleteRequest(req *BatchDeleteRequest) e
 
 func (h *TaskBatchHandler) validateBatchStatusTransitionRequest(req *BatchStatusTransitionRequest) error {
 	if len(req.Transitions) == 0 {
-		return fmt.Errorf("no transitions provided")
+		return errors.New("no transitions provided")
 	}
 	if len(req.Transitions) > h.config.MaxBatchSize {
 		return fmt.Errorf("batch size %d exceeds maximum %d", len(req.Transitions), h.config.MaxBatchSize)

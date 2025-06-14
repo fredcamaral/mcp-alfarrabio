@@ -180,7 +180,7 @@ func (v *MigrationValidator) validateDependencies(ctx context.Context, migration
 			issue := ValidationIssue{
 				Rule:     "dependency_check",
 				Severity: SeverityError,
-				Message:  fmt.Sprintf("Dependency migration not found: %s", depID),
+				Message:  "Dependency migration not found: " + depID,
 			}
 			result.Issues = append(result.Issues, issue)
 			result.Errors++

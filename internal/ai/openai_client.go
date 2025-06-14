@@ -29,7 +29,7 @@ type OpenAIClient struct {
 // NewOpenAIClient creates a new OpenAI client with simple API key and base URL
 func NewOpenAIClient(apiKey, baseURL string) (*OpenAIClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("API key cannot be empty")
+		return nil, errors.New("API key cannot be empty")
 	}
 
 	if baseURL == "" {
@@ -128,16 +128,16 @@ func (c *OpenAIClient) Complete(ctx context.Context, request *CompletionRequest)
 // ValidateRequest validates the completion request
 func (c *OpenAIClient) ValidateRequest(request *CompletionRequest) error {
 	if request.Prompt == "" {
-		return fmt.Errorf("prompt cannot be empty")
+		return errors.New("prompt cannot be empty")
 	}
 	if request.Model == "" {
-		return fmt.Errorf("model cannot be empty")
+		return errors.New("model cannot be empty")
 	}
 	if request.MaxTokens < 0 {
-		return fmt.Errorf("max tokens must be positive")
+		return errors.New("max tokens must be positive")
 	}
 	if request.Temperature < 0 || request.Temperature > 2 {
-		return fmt.Errorf("temperature must be between 0 and 2")
+		return errors.New("temperature must be between 0 and 2")
 	}
 	return nil
 }
@@ -235,7 +235,7 @@ func (c *OpenAIClient) processResponse(resp *http.Response, request *CompletionR
 	}
 
 	if len(apiResp.Choices) == 0 {
-		return nil, fmt.Errorf("no choices in response")
+		return nil, errors.New("no choices in response")
 	}
 
 	return &CompletionResponse{

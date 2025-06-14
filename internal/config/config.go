@@ -365,6 +365,7 @@ func loadFromEnv(config *Config) {
 	loadQdrantConfig(config)
 	loadStorageAndOtherConfig(config)
 	loadOpenAIConfig(config)
+	loadAIConfig(config)
 	loadDecayConfig(config)
 	loadIntelligenceConfig(config)
 	loadPerformanceConfig(config)
@@ -667,6 +668,51 @@ func loadOpenAIConfig(config *Config) {
 		if rl, err := strconv.Atoi(rateLimitRPM); err == nil {
 			config.OpenAI.RateLimitRPM = rl
 		}
+	}
+}
+
+// loadAIConfig loads AI provider configuration from environment
+func loadAIConfig(config *Config) {
+	// Claude configuration
+	if claudeAPIKey := os.Getenv("CLAUDE_API_KEY"); claudeAPIKey != "" {
+		config.AI.Claude.APIKey = claudeAPIKey
+		config.AI.Claude.Enabled = true // Auto-enable if API key is provided
+	}
+	if claudeEnabled := os.Getenv("CLAUDE_ENABLED"); claudeEnabled != "" {
+		if enabled, err := strconv.ParseBool(claudeEnabled); err == nil {
+			config.AI.Claude.Enabled = enabled
+		}
+	}
+	if claudeModel := os.Getenv("CLAUDE_MODEL"); claudeModel != "" {
+		config.AI.Claude.Model = claudeModel
+	}
+
+	// OpenAI AI configuration (separate from embeddings)
+	if openaiAPIKey := os.Getenv("OPENAI_API_KEY"); openaiAPIKey != "" {
+		config.AI.OpenAI.APIKey = openaiAPIKey
+		config.AI.OpenAI.Enabled = true // Auto-enable if API key is provided
+	}
+	if openaiEnabled := os.Getenv("OPENAI_ENABLED"); openaiEnabled != "" {
+		if enabled, err := strconv.ParseBool(openaiEnabled); err == nil {
+			config.AI.OpenAI.Enabled = enabled
+		}
+	}
+	if openaiModel := os.Getenv("OPENAI_MODEL"); openaiModel != "" {
+		config.AI.OpenAI.Model = openaiModel
+	}
+
+	// Perplexity configuration
+	if perplexityAPIKey := os.Getenv("PERPLEXITY_API_KEY"); perplexityAPIKey != "" {
+		config.AI.Perplexity.APIKey = perplexityAPIKey
+		config.AI.Perplexity.Enabled = true // Auto-enable if API key is provided
+	}
+	if perplexityEnabled := os.Getenv("PERPLEXITY_ENABLED"); perplexityEnabled != "" {
+		if enabled, err := strconv.ParseBool(perplexityEnabled); err == nil {
+			config.AI.Perplexity.Enabled = enabled
+		}
+	}
+	if perplexityModel := os.Getenv("PERPLEXITY_MODEL"); perplexityModel != "" {
+		config.AI.Perplexity.Model = perplexityModel
 	}
 }
 

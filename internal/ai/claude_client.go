@@ -3,6 +3,7 @@ package ai
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -135,7 +136,7 @@ func (c *ClaudeResponseConverter) ConvertResponse(data []byte, startTime time.Ti
 // NewClaudeClient creates a new Claude API client
 func NewClaudeClient(cfg *config.ClaudeClientConfig) (*ClaudeClient, error) {
 	if cfg.APIKey == "" {
-		return nil, fmt.Errorf("claude API key is required")
+		return nil, errors.New("claude API key is required")
 	}
 
 	baseConfig := BaseConfig{

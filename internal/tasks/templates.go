@@ -439,7 +439,7 @@ func (tm *TemplateMatcher) getMatchReasons(task *types.Task, template *types.Tas
 func (tm *TemplateMatcher) getTypeMatchReason(task *types.Task, template *types.TaskTemplate) string {
 	if templateType, ok := template.TemplateData["type"].(string); ok {
 		if string(task.Type) == templateType {
-			return fmt.Sprintf("Task type matches: %s", templateType)
+			return "Task type matches: " + templateType
 		}
 	}
 	return ""

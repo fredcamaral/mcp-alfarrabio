@@ -2,6 +2,7 @@
 package push
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -111,11 +112,11 @@ func NewRegistry() *Registry {
 // Register registers a new CLI endpoint
 func (r *Registry) Register(endpoint *CLIEndpoint) error {
 	if endpoint.ID == "" {
-		return fmt.Errorf("endpoint ID is required")
+		return errors.New("endpoint ID is required")
 	}
 
 	if endpoint.URL == "" {
-		return fmt.Errorf("endpoint URL is required")
+		return errors.New("endpoint URL is required")
 	}
 
 	// Validate URL

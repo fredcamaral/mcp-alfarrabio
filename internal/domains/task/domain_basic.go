@@ -3,7 +3,7 @@
 package task
 
 import (
-	"fmt"
+	"errors"
 	"log"
 )
 
@@ -41,7 +41,7 @@ func NewDomain() *Domain {
 // Health checks if the task domain is operational
 func (d *Domain) Health() error {
 	if !d.config.Enabled {
-		return fmt.Errorf("task domain is disabled")
+		return errors.New("task domain is disabled")
 	}
 	return nil
 }

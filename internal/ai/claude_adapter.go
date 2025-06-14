@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,7 +21,7 @@ func NewClaudeAdapter(cfg *config.ClaudeClientConfig) (*ClaudeAdapter, error) {
 	// Use API key from config or environment
 	apiKey := cfg.APIKey
 	if apiKey == "" {
-		return nil, fmt.Errorf("claude API key is required")
+		return nil, errors.New("claude API key is required")
 	}
 
 	// Use base URL from config or default
@@ -50,7 +51,7 @@ func NewClaudeAdapter(cfg *config.ClaudeClientConfig) (*ClaudeAdapter, error) {
 // ProcessRequest implements the Client interface
 func (a *ClaudeAdapter) ProcessRequest(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, errors.New("request cannot be nil")
 	}
 
 	// Convert Request to CompletionRequest

@@ -3,7 +3,7 @@
 package system
 
 import (
-	"fmt"
+	"errors"
 	"log"
 )
 
@@ -44,10 +44,10 @@ func NewDomain() *Domain {
 // Health checks if the system domain is operational
 func (d *Domain) Health() error {
 	if !d.config.Enabled {
-		return fmt.Errorf("system domain is disabled")
+		return errors.New("system domain is disabled")
 	}
 	if !d.config.HealthCheck {
-		return fmt.Errorf("system domain health check is disabled")
+		return errors.New("system domain health check is disabled")
 	}
 	return nil
 }

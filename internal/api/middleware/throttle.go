@@ -3,6 +3,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"sync"
@@ -328,7 +329,7 @@ func (t *Throttler) handleQueueOverflow(queue *RequestQueue, newReq *ThrottledRe
 			select {
 			case oldReq.ResultChan <- &ThrottleResult{
 				Success: false,
-				Error:   fmt.Errorf("request dropped due to queue overflow"),
+				Error:   errors.New("request dropped due to queue overflow"),
 			}:
 			default:
 			}
@@ -437,7 +438,7 @@ func (t *Throttler) processRequest(req *ThrottledRequest) {
 		select {
 		case req.ResultChan <- &ThrottleResult{
 			Success: false,
-			Error:   fmt.Errorf("request timed out"),
+			Error:   errors.New("request timed out"),
 		}:
 		default:
 		}

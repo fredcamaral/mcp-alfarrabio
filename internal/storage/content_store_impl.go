@@ -609,11 +609,11 @@ func (s *PostgreSQLContentStore) updateContentInTx(ctx context.Context, tx *sql.
 // validateContent validates content before storing
 func (s *PostgreSQLContentStore) validateContent(content *types.Content) error {
 	if content == nil {
-		return fmt.Errorf("content cannot be nil")
+		return errors.New("content cannot be nil")
 	}
 
 	if content.ID == "" {
-		return fmt.Errorf("content ID cannot be empty")
+		return errors.New("content ID cannot be empty")
 	}
 
 	if err := content.ProjectID.Validate(); err != nil {
@@ -621,11 +621,11 @@ func (s *PostgreSQLContentStore) validateContent(content *types.Content) error {
 	}
 
 	if content.Type == "" {
-		return fmt.Errorf("content type cannot be empty")
+		return errors.New("content type cannot be empty")
 	}
 
 	if content.Content == "" {
-		return fmt.Errorf("content body cannot be empty")
+		return errors.New("content body cannot be empty")
 	}
 
 	if content.CreatedAt.IsZero() {

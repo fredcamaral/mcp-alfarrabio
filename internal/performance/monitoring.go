@@ -4,6 +4,7 @@ package performance
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"runtime"
 	"sync"
@@ -247,7 +248,7 @@ func (m *Monitor) Start() error {
 	defer m.mutex.Unlock()
 
 	if m.running {
-		return fmt.Errorf("monitor already running")
+		return errors.New("monitor already running")
 	}
 
 	// Initialize all collectors

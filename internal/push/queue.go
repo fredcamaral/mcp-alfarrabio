@@ -3,7 +3,7 @@ package push
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log"
 	"sort"
 	"sync"
@@ -119,7 +119,7 @@ func (nq *NotificationQueue) Start() error {
 	defer nq.mu.Unlock()
 
 	if nq.running {
-		return fmt.Errorf("notification queue already running")
+		return errors.New("notification queue already running")
 	}
 
 	log.Printf("Starting notification queue (batch size: %d, timeout: %v)",
@@ -142,7 +142,7 @@ func (nq *NotificationQueue) Stop() error {
 	nq.mu.Lock()
 	if !nq.running {
 		nq.mu.Unlock()
-		return fmt.Errorf("notification queue not running")
+		return errors.New("notification queue not running")
 	}
 	nq.running = false
 	nq.mu.Unlock()
@@ -177,7 +177,7 @@ func (nq *NotificationQueue) IsRunning() bool {
 // Enqueue adds a notification to the queue
 func (nq *NotificationQueue) Enqueue(notification *Notification) error {
 	if !nq.IsRunning() {
-		return fmt.Errorf("notification queue not running")
+		return errors.New("notification queue not running")
 	}
 
 	select {
@@ -192,19 +192,19 @@ func (nq *NotificationQueue) Enqueue(notification *Notification) error {
 		nq.updateMetrics(func(m *QueueMetrics) {
 			m.TotalDropped++
 		})
-		return fmt.Errorf("notification queue full, notification dropped")
+		return errors.New("notification queue full, notification dropped")
 	}
 }
 
 // EnqueueBatch adds multiple notifications to the queue
 func (nq *NotificationQueue) EnqueueBatch(notifications []*Notification) []error {
-	errors := make([]error, len(notifications))
+	errorList := make([]error, len(notifications))
 
 	for i, notif := range notifications {
-		errors[i] = nq.Enqueue(notif)
+		errorList[i] = nq.Enqueue(notif)
 	}
 
-	return errors
+	return errorList
 }
 
 // batchProcessor processes notifications in batches

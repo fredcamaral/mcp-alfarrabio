@@ -4,6 +4,7 @@ package handlers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -270,7 +271,7 @@ func (h *WebSocketHandler) HandleBroadcast(w http.ResponseWriter, r *http.Reques
 func (h *WebSocketHandler) BroadcastMemoryEvent(eventType, action, chunkID, repository, sessionID string, data interface{}) error {
 	// Check if server is initialized
 	if h.server == nil || !h.server.IsRunning() {
-		return fmt.Errorf("WebSocket server is not available")
+		return errors.New("WebSocket server is not available")
 	}
 
 	// Create memory event

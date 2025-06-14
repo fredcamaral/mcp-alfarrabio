@@ -3,6 +3,7 @@ package performance
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -161,7 +162,7 @@ func (c *Cache) Set(key string, value interface{}) error {
 // SetWithTTL stores an item in the cache with specific TTL
 func (c *Cache) SetWithTTL(key string, value interface{}, ttl time.Duration) error {
 	if c.closed {
-		return fmt.Errorf("cache is closed")
+		return errors.New("cache is closed")
 	}
 
 	// Validate TTL

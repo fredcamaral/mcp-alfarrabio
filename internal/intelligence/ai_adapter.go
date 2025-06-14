@@ -3,6 +3,7 @@ package intelligence
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -25,7 +26,7 @@ func NewAIServiceAdapter(sharedService sharedAI.AIService) *AIServiceAdapter {
 // ProcessRequest adapts the shared AI service to handle generic requests
 func (a *AIServiceAdapter) ProcessRequest(ctx context.Context, req *internalAI.Request) (*internalAI.Response, error) {
 	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, errors.New("request cannot be nil")
 	}
 
 	// Extract content from messages
@@ -108,7 +109,7 @@ func (a *AIServiceAdapter) GetModel() string {
 // IsHealthy checks if the adapter is operational
 func (a *AIServiceAdapter) IsHealthy(ctx context.Context) error {
 	if a.sharedService == nil {
-		return fmt.Errorf("shared AI service is nil")
+		return errors.New("shared AI service is nil")
 	}
 	return nil
 }

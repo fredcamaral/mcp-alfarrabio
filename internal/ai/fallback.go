@@ -49,13 +49,13 @@ func (fr *FallbackRouter) SetTimeout(timeout time.Duration) {
 // ProcessWithFallback attempts to process request with fallback chain
 func (fr *FallbackRouter) ProcessWithFallback(ctx context.Context, req *Request) (*Response, error) {
 	if req == nil {
-		return nil, fmt.Errorf("request cannot be nil")
+		return nil, errors.New("request cannot be nil")
 	}
 
 	// Get fallback chain based on strategy and requested model
 	chain := fr.getFallbackChain(Model(req.Model))
 	if len(chain) == 0 {
-		return nil, fmt.Errorf("no available models for fallback")
+		return nil, errors.New("no available models for fallback")
 	}
 
 	var lastErr error

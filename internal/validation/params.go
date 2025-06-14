@@ -3,6 +3,7 @@
 package validation
 
 import (
+	"errors"
 	"fmt"
 
 	"lerian-mcp-memory/internal/types"
@@ -20,7 +21,7 @@ type OperationRequirements struct {
 // Validate checks if the provided parameters meet the operation requirements
 func (or *OperationRequirements) Validate(params *types.StandardParams) error {
 	if params == nil {
-		return fmt.Errorf("parameters cannot be nil")
+		return errors.New("parameters cannot be nil")
 	}
 
 	// Validate the parameters themselves
@@ -35,18 +36,18 @@ func (or *OperationRequirements) Validate(params *types.StandardParams) error {
 
 	// Check project ID requirement
 	if or.RequiresProjectID && params.ProjectID.IsEmpty() {
-		return fmt.Errorf("operation requires project_id")
+		return errors.New("operation requires project_id")
 	}
 
 	// Check session ID requirement
 	if or.RequiresSessionID && params.SessionID.IsEmpty() {
-		return fmt.Errorf("operation requires session_id")
+		return errors.New("operation requires session_id")
 	}
 
 	// If operation doesn't allow empty session but we have project scope,
 	// ensure we're not trying to do writes without session
 	if !or.AllowsEmptySession && params.Scope == types.ScopeProject && params.SessionID.IsEmpty() {
-		return fmt.Errorf("operation requires session_id for write access")
+		return errors.New("operation requires session_id for write access")
 	}
 
 	return nil

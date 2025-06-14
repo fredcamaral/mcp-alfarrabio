@@ -3,6 +3,7 @@ package templates
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -130,7 +131,7 @@ func (te *TemplateEngine) InstantiateTemplate(req *TemplateInstantiationRequest)
 	}
 
 	// Generate tasks
-	tasks, warnings, errors := te.generateTasks(&tmpl, req)
+	tasks, warnings, generateErrors := te.generateTasks(&tmpl, req)
 
 	// Calculate total estimated time
 	estimatedTime := te.calculateTotalEstimatedTime(tasks)
@@ -146,7 +147,7 @@ func (te *TemplateEngine) InstantiateTemplate(req *TemplateInstantiationRequest)
 		EstimatedTime: estimatedTime,
 		TaskCount:     len(tasks),
 		Warnings:      warnings,
-		Errors:        errors,
+		Errors:        generateErrors,
 	}
 
 	return result, nil
@@ -155,15 +156,15 @@ func (te *TemplateEngine) InstantiateTemplate(req *TemplateInstantiationRequest)
 // validateInstantiationRequest validates the instantiation request
 func (te *TemplateEngine) validateInstantiationRequest(req *TemplateInstantiationRequest) error {
 	if req == nil {
-		return fmt.Errorf("request cannot be nil")
+		return errors.New("request cannot be nil")
 	}
 
 	if req.TemplateID == "" {
-		return fmt.Errorf("template_id is required")
+		return errors.New("template_id is required")
 	}
 
 	if req.ProjectID == "" {
-		return fmt.Errorf("project_id is required")
+		return errors.New("project_id is required")
 	}
 
 	if req.Variables == nil {
@@ -175,20 +176,20 @@ func (te *TemplateEngine) validateInstantiationRequest(req *TemplateInstantiatio
 
 // validateVariables validates that required variables are provided and have correct types
 func (te *TemplateEngine) validateVariables(tmpl *BuiltinTemplate, variables map[string]interface{}) error {
-	var errors []string
+	var validationErrors []string
 
 	// Check required variables
 	for _, variable := range tmpl.Variables {
 		if variable.Required {
 			value, exists := variables[variable.Name]
 			if !exists {
-				errors = append(errors, fmt.Sprintf("required variable '%s' is missing", variable.Name))
+				validationErrors = append(validationErrors, fmt.Sprintf("required variable '%s' is missing", variable.Name))
 				continue
 			}
 
 			// Type validation
 			if err := te.validateVariableType(&variable, value); err != nil {
-				errors = append(errors, fmt.Sprintf("variable '%s': %v", variable.Name, err))
+				validationErrors = append(validationErrors, fmt.Sprintf("variable '%s': %v", variable.Name, err))
 			}
 		}
 	}
@@ -202,8 +203,8 @@ func (te *TemplateEngine) validateVariables(tmpl *BuiltinTemplate, variables map
 		}
 	}
 
-	if len(errors) > 0 {
-		return fmt.Errorf("validation errors: %s", strings.Join(errors, "; "))
+	if len(validationErrors) > 0 {
+		return fmt.Errorf("validation errors: %s", strings.Join(validationErrors, "; "))
 	}
 
 	return nil
@@ -256,7 +257,7 @@ func (te *TemplateEngine) validateVariableType(variable *TemplateVariable, value
 }
 
 // generateTasks creates tasks from template with variable substitution
-func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInstantiationRequest) (tasks []GeneratedTask, warnings, errors []string) {
+func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInstantiationRequest) (tasks []GeneratedTask, warnings, taskErrors []string) {
 	tasks = make([]GeneratedTask, 0, len(tmpl.Tasks))
 
 	// Create task ID mapping for dependency resolution
@@ -270,19 +271,19 @@ func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInst
 		// Process template strings
 		name, err := te.processTemplateString(tmpl.Tasks[i].Name, req.Variables)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error processing task name '%s': %v", tmpl.Tasks[i].Name, err))
+			taskErrors = append(taskErrors, fmt.Sprintf("error processing task name '%s': %v", tmpl.Tasks[i].Name, err))
 			continue
 		}
 
 		description, err := te.processTemplateString(tmpl.Tasks[i].Description, req.Variables)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error processing task description '%s': %v", tmpl.Tasks[i].Description, err))
+			taskErrors = append(taskErrors, fmt.Sprintf("error processing task description '%s': %v", tmpl.Tasks[i].Description, err))
 			continue
 		}
 
 		templateStr, err := te.processTemplateString(tmpl.Tasks[i].Template, req.Variables)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error processing task template '%s': %v", tmpl.Tasks[i].Template, err))
+			taskErrors = append(taskErrors, fmt.Sprintf("error processing task template '%s': %v", tmpl.Tasks[i].Template, err))
 			continue
 		}
 
@@ -356,7 +357,7 @@ func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInst
 		tasks[i].Dependencies = dependencyIDs
 	}
 
-	return tasks, warnings, errors
+	return tasks, warnings, taskErrors
 }
 
 // processTemplateString processes a template string with variables
@@ -488,72 +489,72 @@ func (te *TemplateEngine) ListTemplatesByProjectType(projectType types.ProjectTy
 
 // ValidateTemplate validates a template structure
 func (te *TemplateEngine) ValidateTemplate(tmpl *BuiltinTemplate) []string {
-	var errors []string
+	var templateErrors []string
 
-	errors = append(errors, te.validateBasicTemplateFields(tmpl)...)
-	errors = append(errors, te.validateTasks(tmpl)...)
-	errors = append(errors, te.validateTaskDependencies(tmpl)...)
-	errors = append(errors, te.validateVariableDefinitions(tmpl)...)
+	templateErrors = append(templateErrors, te.validateBasicTemplateFields(tmpl)...)
+	templateErrors = append(templateErrors, te.validateTasks(tmpl)...)
+	templateErrors = append(templateErrors, te.validateTaskDependencies(tmpl)...)
+	templateErrors = append(templateErrors, te.validateVariableDefinitions(tmpl)...)
 
-	return errors
+	return templateErrors
 }
 
 // validateBasicTemplateFields validates basic template fields
 func (te *TemplateEngine) validateBasicTemplateFields(tmpl *BuiltinTemplate) []string {
-	var errors []string
+	var fieldErrors []string
 
 	if tmpl.ID == "" {
-		errors = append(errors, "template ID is required")
+		fieldErrors = append(fieldErrors, "template ID is required")
 	}
 
 	if tmpl.Name == "" {
-		errors = append(errors, "template name is required")
+		fieldErrors = append(fieldErrors, "template name is required")
 	}
 
 	if len(tmpl.Tasks) == 0 {
-		errors = append(errors, "template must have at least one task")
+		fieldErrors = append(fieldErrors, "template must have at least one task")
 	}
 
-	return errors
+	return fieldErrors
 }
 
 // validateTasks validates task structure and uniqueness
 func (te *TemplateEngine) validateTasks(tmpl *BuiltinTemplate) []string {
-	var errors []string
+	var taskValidationErrors []string
 	taskNames := make(map[string]bool)
 
 	for i := range tmpl.Tasks {
 		task := &tmpl.Tasks[i]
 		if task.Name == "" {
-			errors = append(errors, "task name is required")
+			taskValidationErrors = append(taskValidationErrors, "task name is required")
 			continue
 		}
 
 		if taskNames[task.Name] {
-			errors = append(errors, fmt.Sprintf("duplicate task name: %s", task.Name))
+			taskValidationErrors = append(taskValidationErrors, "duplicate task name: "+task.Name)
 		}
 
 		taskNames[task.Name] = true
 	}
 
-	return errors
+	return taskValidationErrors
 }
 
 // validateTaskDependencies validates that task dependencies exist
 func (te *TemplateEngine) validateTaskDependencies(tmpl *BuiltinTemplate) []string {
-	var errors []string
+	var depErrors []string
 	taskNames := te.getTaskNamesMap(tmpl)
 
 	for i := range tmpl.Tasks {
 		task := &tmpl.Tasks[i]
 		for _, dep := range task.Dependencies {
 			if !taskNames[dep] {
-				errors = append(errors, fmt.Sprintf("task '%s' has invalid dependency: %s", task.Name, dep))
+				depErrors = append(depErrors, fmt.Sprintf("task '%s' has invalid dependency: %s", task.Name, dep))
 			}
 		}
 	}
 
-	return errors
+	return depErrors
 }
 
 // getTaskNamesMap creates a map of task names for dependency validation
@@ -570,29 +571,29 @@ func (te *TemplateEngine) getTaskNamesMap(tmpl *BuiltinTemplate) map[string]bool
 
 // validateVariables validates template variables
 func (te *TemplateEngine) validateVariableDefinitions(tmpl *BuiltinTemplate) []string {
-	var errors []string
+	var varDefErrors []string
 	variableNames := make(map[string]bool)
 
 	for _, variable := range tmpl.Variables {
 		if variable.Name == "" {
-			errors = append(errors, "variable name is required")
+			varDefErrors = append(varDefErrors, "variable name is required")
 			continue
 		}
 
 		if variableNames[variable.Name] {
-			errors = append(errors, fmt.Sprintf("duplicate variable name: %s", variable.Name))
+			varDefErrors = append(varDefErrors, "duplicate variable name: "+variable.Name)
 		}
 
 		variableNames[variable.Name] = true
-		errors = append(errors, te.validateVariableTypeDefinition(&variable)...)
+		varDefErrors = append(varDefErrors, te.validateVariableTypeDefinition(&variable)...)
 	}
 
-	return errors
+	return varDefErrors
 }
 
 // validateVariableTypeDefinition validates a single variable's type definition
 func (te *TemplateEngine) validateVariableTypeDefinition(variable *TemplateVariable) []string {
-	var errors []string
+	var typeErrors []string
 	validTypes := []string{"string", "number", "boolean", "choice"}
 
 	validType := false
@@ -604,10 +605,10 @@ func (te *TemplateEngine) validateVariableTypeDefinition(variable *TemplateVaria
 	}
 
 	if !validType {
-		errors = append(errors, fmt.Sprintf("variable '%s' has invalid type: %s", variable.Name, variable.Type))
+		typeErrors = append(typeErrors, fmt.Sprintf("variable '%s' has invalid type: %s", variable.Name, variable.Type))
 	}
 
-	return errors
+	return typeErrors
 }
 
 // AddCustomTemplate adds a custom template to the engine

@@ -3,6 +3,7 @@ package ai
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -21,7 +22,7 @@ type ClaudeClient struct {
 // NewClaudeClient creates a new Claude client
 func NewClaudeClient(apiKey, model string) (*ClaudeClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("claude API key cannot be empty")
+		return nil, errors.New("claude API key cannot be empty")
 	}
 
 	if model == "" {
@@ -110,7 +111,7 @@ func (c *ClaudeResponseConverter) ConvertResponse(data []byte, startTime time.Ti
 	}
 
 	if len(resp.Content) == 0 {
-		return nil, fmt.Errorf("no content in Claude response")
+		return nil, errors.New("no content in Claude response")
 	}
 
 	// Extract text content
