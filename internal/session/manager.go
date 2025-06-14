@@ -4,6 +4,7 @@ package session
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -88,10 +89,10 @@ func (m *Manager) GetAccessLevel(projectID types.ProjectID, sessionID types.Sess
 // CreateSession creates a new session for a project
 func (m *Manager) CreateSession(ctx context.Context, projectID types.ProjectID, sessionID types.SessionID) (*SessionInfo, error) {
 	if projectID.IsEmpty() {
-		return nil, fmt.Errorf("project_id is required to create a session")
+		return nil, errors.New("project_id is required to create a session")
 	}
 	if sessionID.IsEmpty() {
-		return nil, fmt.Errorf("session_id is required to create a session")
+		return nil, errors.New("session_id is required to create a session")
 	}
 
 	if err := projectID.Validate(); err != nil {
@@ -132,7 +133,7 @@ func (m *Manager) CreateSession(ctx context.Context, projectID types.ProjectID, 
 // GetSession retrieves session information
 func (m *Manager) GetSession(projectID types.ProjectID, sessionID types.SessionID) (*SessionInfo, error) {
 	if projectID.IsEmpty() || sessionID.IsEmpty() {
-		return nil, fmt.Errorf("both project_id and session_id are required")
+		return nil, errors.New("both project_id and session_id are required")
 	}
 
 	m.mutex.RLock()

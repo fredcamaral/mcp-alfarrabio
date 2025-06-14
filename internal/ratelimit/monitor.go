@@ -431,7 +431,7 @@ func (m *Monitor) checkForAlerts(endpoint, key string, result *LimitResult, _ *E
 	if result.Limit > 0 {
 		utilizationRate := float64(result.Count) / float64(result.Limit)
 		if utilizationRate >= m.config.AlertThreshold {
-			alertKey := fmt.Sprintf("high_usage_%s", endpoint)
+			alertKey := "high_usage_" + endpoint
 			if m.shouldSendAlert(alertKey) {
 				alert := &Alert{
 					ID:        fmt.Sprintf("usage_%s_%d", endpoint, time.Now().Unix()),

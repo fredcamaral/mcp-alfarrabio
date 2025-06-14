@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -67,7 +68,7 @@ func (tt *TodoTracker) ProcessTodoWrite(ctx context.Context, sessionID, reposito
 	// Generate IDs for todos that don't have them and assign sequential numbers
 	for i := range todos {
 		if todos[i].ID == "" {
-			todos[i].ID = fmt.Sprintf("%d", i+1)
+			todos[i].ID = strconv.Itoa(i + 1)
 		}
 	}
 

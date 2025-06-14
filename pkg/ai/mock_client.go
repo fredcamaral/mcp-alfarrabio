@@ -26,7 +26,7 @@ func NewMockClient() *MockClient {
 }
 
 // Complete returns a mock completion response
-func (c *MockClient) Complete(ctx context.Context, request CompletionRequest) (*CompletionResponse, error) {
+func (c *MockClient) Complete(ctx context.Context, request *CompletionRequest) (*CompletionResponse, error) {
 	// Simulate processing time
 	time.Sleep(100 * time.Millisecond)
 
@@ -60,7 +60,7 @@ func (c *MockClient) GetConfig() *BaseConfig {
 }
 
 // generateMockContent creates mock content based on the request
-func (c *MockClient) generateMockContent(request CompletionRequest) string {
+func (c *MockClient) generateMockContent(request *CompletionRequest) string {
 	// Analyze the request to generate appropriate mock content
 	if len(request.Messages) == 0 {
 		return "Mock AI response"
@@ -79,7 +79,7 @@ func (c *MockClient) generateMockContent(request CompletionRequest) string {
 	case contains(lastMessage, "complex", "estimate", "difficulty"):
 		return "3"
 	default:
-		return fmt.Sprintf("Mock AI response to: %s", lastMessage)
+		return "Mock AI response to: " + lastMessage
 	}
 }
 

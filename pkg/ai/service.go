@@ -6,7 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strconv"
 	"time"
+)
+
+const (
+	taskTypeMain = "main"
 )
 
 // Service implements the AIService interface
@@ -62,7 +67,7 @@ func NewService(config *Config, logger *slog.Logger) (*Service, error) {
 }
 
 // GeneratePRD generates a Product Requirements Document
-func (s *Service) GeneratePRD(ctx context.Context, request PRDRequest) (*PRDResponse, error) {
+func (s *Service) GeneratePRD(ctx context.Context, request *PRDRequest) (*PRDResponse, error) {
 	s.logger.Debug("Generating PRD",
 		"inputs_count", len(request.UserInputs),
 		"project_type", request.ProjectType,
@@ -82,7 +87,7 @@ func (s *Service) GeneratePRD(ctx context.Context, request PRDRequest) (*PRDResp
 	}
 
 	// Call AI client
-	response, err := s.client.Complete(ctx, completionRequest)
+	response, err := s.client.Complete(ctx, &completionRequest)
 	if err != nil {
 		s.logger.Error("Failed to generate PRD", "error", err)
 		return nil, fmt.Errorf("AI generation failed: %w", err)
@@ -95,7 +100,7 @@ func (s *Service) GeneratePRD(ctx context.Context, request PRDRequest) (*PRDResp
 		Metadata: map[string]string{
 			"provider":     response.Provider,
 			"model":        response.Model,
-			"tokens":       fmt.Sprintf("%d", response.Usage.TotalTokens),
+			"tokens":       strconv.Itoa(response.Usage.TotalTokens),
 			"generated_at": time.Now().Format(time.RFC3339),
 			"project_type": request.ProjectType,
 			"repository":   request.Repository,
@@ -111,7 +116,7 @@ func (s *Service) GeneratePRD(ctx context.Context, request PRDRequest) (*PRDResp
 }
 
 // GenerateTRD generates a Technical Requirements Document
-func (s *Service) GenerateTRD(ctx context.Context, request TRDRequest) (*TRDResponse, error) {
+func (s *Service) GenerateTRD(ctx context.Context, request *TRDRequest) (*TRDResponse, error) {
 	s.logger.Debug("Generating TRD",
 		"prd_length", len(request.PRDContent),
 		"repository", request.Repository)
@@ -130,7 +135,7 @@ func (s *Service) GenerateTRD(ctx context.Context, request TRDRequest) (*TRDResp
 	}
 
 	// Call AI client
-	response, err := s.client.Complete(ctx, completionRequest)
+	response, err := s.client.Complete(ctx, &completionRequest)
 	if err != nil {
 		s.logger.Error("Failed to generate TRD", "error", err)
 		return nil, fmt.Errorf("AI generation failed: %w", err)
@@ -143,7 +148,7 @@ func (s *Service) GenerateTRD(ctx context.Context, request TRDRequest) (*TRDResp
 		Metadata: map[string]string{
 			"provider":     response.Provider,
 			"model":        response.Model,
-			"tokens":       fmt.Sprintf("%d", response.Usage.TotalTokens),
+			"tokens":       strconv.Itoa(response.Usage.TotalTokens),
 			"generated_at": time.Now().Format(time.RFC3339),
 			"repository":   request.Repository,
 		},
@@ -158,7 +163,7 @@ func (s *Service) GenerateTRD(ctx context.Context, request TRDRequest) (*TRDResp
 }
 
 // GenerateMainTasks generates main tasks from TRD
-func (s *Service) GenerateMainTasks(ctx context.Context, request TaskRequest) (*TaskResponse, error) {
+func (s *Service) GenerateMainTasks(ctx context.Context, request *TaskRequest) (*TaskResponse, error) {
 	s.logger.Debug("Generating main tasks",
 		"content_length", len(request.Content),
 		"repository", request.Repository)
@@ -177,23 +182,23 @@ func (s *Service) GenerateMainTasks(ctx context.Context, request TaskRequest) (*
 	}
 
 	// Call AI client
-	response, err := s.client.Complete(ctx, completionRequest)
+	response, err := s.client.Complete(ctx, &completionRequest)
 	if err != nil {
 		s.logger.Error("Failed to generate main tasks", "error", err)
 		return nil, fmt.Errorf("AI generation failed: %w", err)
 	}
 
 	// Parse AI response to extract tasks
-	tasks := s.parseTasksFromResponse(response.Content, "main")
+	tasks := s.parseTasksFromResponse(response.Content, taskTypeMain)
 
 	taskResponse := &TaskResponse{
 		Tasks: tasks,
 		Metadata: map[string]string{
 			"provider":     response.Provider,
 			"model":        response.Model,
-			"tokens":       fmt.Sprintf("%d", response.Usage.TotalTokens),
+			"tokens":       strconv.Itoa(response.Usage.TotalTokens),
 			"generated_at": time.Now().Format(time.RFC3339),
-			"task_type":    "main",
+			"task_type":    taskTypeMain,
 			"repository":   request.Repository,
 		},
 		SessionID: request.SessionID,
@@ -207,7 +212,7 @@ func (s *Service) GenerateMainTasks(ctx context.Context, request TaskRequest) (*
 }
 
 // GenerateSubTasks generates sub-tasks from main task
-func (s *Service) GenerateSubTasks(ctx context.Context, request TaskRequest) (*TaskResponse, error) {
+func (s *Service) GenerateSubTasks(ctx context.Context, request *TaskRequest) (*TaskResponse, error) {
 	s.logger.Debug("Generating sub tasks",
 		"content_length", len(request.Content),
 		"repository", request.Repository)
@@ -226,7 +231,7 @@ func (s *Service) GenerateSubTasks(ctx context.Context, request TaskRequest) (*T
 	}
 
 	// Call AI client
-	response, err := s.client.Complete(ctx, completionRequest)
+	response, err := s.client.Complete(ctx, &completionRequest)
 	if err != nil {
 		s.logger.Error("Failed to generate sub tasks", "error", err)
 		return nil, fmt.Errorf("AI generation failed: %w", err)
@@ -240,7 +245,7 @@ func (s *Service) GenerateSubTasks(ctx context.Context, request TaskRequest) (*T
 		Metadata: map[string]string{
 			"provider":     response.Provider,
 			"model":        response.Model,
-			"tokens":       fmt.Sprintf("%d", response.Usage.TotalTokens),
+			"tokens":       strconv.Itoa(response.Usage.TotalTokens),
 			"generated_at": time.Now().Format(time.RFC3339),
 			"task_type":    "sub",
 			"repository":   request.Repository,
@@ -287,7 +292,7 @@ func (s *Service) ContinueSession(ctx context.Context, sessionID, userInput stri
 	// TODO: Implement actual session state management and AI interaction
 	response := &SessionResponse{
 		SessionID:   sessionID,
-		Message:     fmt.Sprintf("Received input: %s", userInput),
+		Message:     "Received input: " + userInput,
 		Question:    "Is there anything else you'd like to add?",
 		IsComplete:  false,
 		FinalResult: "",
@@ -329,94 +334,7 @@ func (s *Service) AnalyzeComplexity(ctx context.Context, content string) (int, e
 
 // Mock generation methods - TODO: Replace with actual AI implementations
 
-func (s *Service) generateMockPRD(request PRDRequest) string {
-	return fmt.Sprintf(`# Product Requirements Document
-
-## 1. Introduction
-This PRD was generated based on your inputs for %s project.
-
-## 2. Project Overview
-Project Type: %s
-Repository: %s
-
-## 3. User Inputs Analysis
-%s
-
-## 4. Goals
-- Deliver a high-quality solution
-- Meet user requirements
-- Maintain code quality standards
-
-## 5. Requirements
-### Functional Requirements
-- Core feature implementation
-- User interface design
-- Data management
-
-### Non-Functional Requirements
-- Performance optimization
-- Security measures
-- Scalability considerations
-
-## 6. Success Metrics
-- User satisfaction > 85%%
-- Performance benchmarks met
-- Zero critical security issues
-
-Generated by: %s
-Generated at: %s`,
-		request.ProjectType,
-		request.ProjectType,
-		request.Repository,
-		fmt.Sprintf("Based on %d user inputs", len(request.UserInputs)),
-		s.config.Provider,
-		time.Now().Format(time.RFC3339))
-}
-
-func (s *Service) generateMockTRD(request TRDRequest) string {
-	return fmt.Sprintf(`# Technical Requirements Document
-
-## 1. Architecture Overview
-This TRD is based on the provided PRD (length: %d characters).
-
-## 2. Technology Stack
-- Backend: Go 1.23+
-- Database: PostgreSQL/SQLite
-- API: REST/GraphQL
-- Frontend: React/Next.js (if applicable)
-
-## 3. System Components
-### Core Services
-- API Gateway
-- Authentication Service
-- Business Logic Layer
-- Data Access Layer
-
-## 4. Infrastructure Requirements
-- Container orchestration (Docker/Kubernetes)
-- Load balancing
-- Monitoring and logging
-- CI/CD pipeline
-
-## 5. Security Requirements
-- Authentication and authorization
-- Data encryption
-- Input validation
-- Rate limiting
-
-## 6. Performance Requirements
-- Response time < 100ms (p95)
-- Throughput > 1000 RPS
-- Availability > 99.9%%
-
-Generated by: %s
-Generated at: %s`,
-		len(request.PRDContent),
-		s.config.Provider,
-		time.Now().Format(time.RFC3339))
-}
-
-func (s *Service) generateMockMainTasks(request TaskRequest) []GeneratedTask {
+func (s *Service) generateMockMainTasks(_ *TaskRequest) []GeneratedTask {
 	return []GeneratedTask{
 		{
 			ID:          "MT-001",
@@ -452,7 +370,7 @@ func (s *Service) generateMockMainTasks(request TaskRequest) []GeneratedTask {
 	}
 }
 
-func (s *Service) generateMockSubTasks(request TaskRequest) []GeneratedTask {
+func (s *Service) generateMockSubTasks(_ *TaskRequest) []GeneratedTask {
 	return []GeneratedTask{
 		{
 			ID:          "ST-001",
@@ -514,7 +432,7 @@ func (s *Service) calculateMockComplexity(content string) int {
 }
 
 // buildPRDPrompt constructs a prompt for PRD generation using default rules or custom rules
-func (s *Service) buildPRDPrompt(request PRDRequest) string {
+func (s *Service) buildPRDPrompt(request *PRDRequest) string {
 	userInputsText := ""
 	for i, input := range request.UserInputs {
 		userInputsText += fmt.Sprintf("%d. %s\n", i+1, input)
@@ -577,7 +495,7 @@ Generate a complete, production-ready PRD that a junior developer can use to imp
 }
 
 // buildTRDPrompt constructs a prompt for TRD generation using default rules or custom rules
-func (s *Service) buildTRDPrompt(request TRDRequest) string {
+func (s *Service) buildTRDPrompt(request *TRDRequest) string {
 	baseInfo := fmt.Sprintf(`PRD Content:
 %s
 
@@ -633,9 +551,9 @@ Generate a complete, production-ready TRD that development teams can use for imp
 }
 
 // buildTaskPrompt constructs a prompt for task generation using default rules or custom rules
-func (s *Service) buildTaskPrompt(request TaskRequest) string {
+func (s *Service) buildTaskPrompt(request *TaskRequest) string {
 	var taskTypeDesc string
-	if request.TaskType == "main" {
+	if request.TaskType == taskTypeMain {
 		taskTypeDesc = "main tasks that represent major project phases"
 	} else {
 		taskTypeDesc = "sub-tasks that break down the main task into actionable work items"
@@ -658,7 +576,7 @@ Please generate %s following the custom rules provided above.`, baseInfo, reques
 	}
 
 	// Otherwise, use default comprehensive rules from generate-main-tasks.mdc or generate-sub-tasks.mdc
-	if request.TaskType == "main" {
+	if request.TaskType == taskTypeMain {
 		return fmt.Sprintf(`You are an expert project manager and technical lead. Generate atomic, functional main tasks following the structure defined in generate-main-tasks.mdc.
 
 %s
@@ -714,13 +632,13 @@ Generate detailed, implementable sub-task specifications with concrete code exam
 }
 
 // parseTasksFromResponse parses AI response to extract structured tasks
-func (s *Service) parseTasksFromResponse(content, taskType string) []GeneratedTask {
+func (s *Service) parseTasksFromResponse(_, taskType string) []GeneratedTask {
 	// For now, return mock tasks as parsing AI responses requires more sophisticated logic
 	// TODO: Implement actual AI response parsing with structured output
-	if taskType == "main" {
-		return s.generateMockMainTasks(TaskRequest{})
+	if taskType == taskTypeMain {
+		return s.generateMockMainTasks(nil)
 	}
-	return s.generateMockSubTasks(TaskRequest{})
+	return s.generateMockSubTasks(nil)
 }
 
 // analyzeComplexityWithAI uses AI to analyze content complexity
@@ -746,7 +664,7 @@ Return only the number, no explanation.`, content)
 		Temperature: 0.1,
 	}
 
-	response, err := s.client.Complete(ctx, completionRequest)
+	response, err := s.client.Complete(ctx, &completionRequest)
 	if err != nil {
 		return 0, fmt.Errorf("AI complexity analysis failed: %w", err)
 	}
@@ -766,7 +684,7 @@ func (s *Service) parseComplexityFromResponse(content string) int {
 			for j < len(content) && content[j] >= '0' && content[j] <= '9' {
 				j++
 			}
-			if num := content[i:j]; len(num) > 0 {
+			if num := content[i:j]; num != "" {
 				if complexity := s.parseIntSafe(num); complexity >= 1 && complexity <= 21 {
 					return complexity
 				}
