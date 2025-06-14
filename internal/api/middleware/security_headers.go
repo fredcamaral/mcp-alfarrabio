@@ -4,6 +4,7 @@ package middleware
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -192,12 +193,12 @@ func (s *SecurityHeadersMiddleware) setRateLimitHeaders(w http.ResponseWriter, r
 
 	// Get rate limit information from context if available
 	if rateLimitInfo := getRateLimitFromContext(r.Context()); rateLimitInfo != nil {
-		w.Header().Set("X-RateLimit-Limit", fmt.Sprintf("%d", rateLimitInfo.Limit))
-		w.Header().Set("X-RateLimit-Remaining", fmt.Sprintf("%d", rateLimitInfo.Remaining))
-		w.Header().Set("X-RateLimit-Reset", fmt.Sprintf("%d", rateLimitInfo.Reset))
+		w.Header().Set("X-RateLimit-Limit", strconv.Itoa(rateLimitInfo.Limit))
+		w.Header().Set("X-RateLimit-Remaining", strconv.Itoa(rateLimitInfo.Remaining))
+		w.Header().Set("X-RateLimit-Reset", strconv.FormatInt(rateLimitInfo.Reset, 10))
 
 		if rateLimitInfo.RetryAfter > 0 {
-			w.Header().Set("Retry-After", fmt.Sprintf("%d", rateLimitInfo.RetryAfter))
+			w.Header().Set("Retry-After", strconv.Itoa(rateLimitInfo.RetryAfter))
 		}
 	}
 }

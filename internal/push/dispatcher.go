@@ -235,26 +235,26 @@ func (d *Dispatcher) Dispatch(notification *Notification) error {
 	return nil
 }
 
-// DispatchToRepository sends a notification to all endpoints subscribed to a repository
-func (d *Dispatcher) DispatchToRepository(notification *Notification, repository string) error {
+// dispatchWithFilter is a helper function to reduce duplication in dispatch methods
+func (d *Dispatcher) dispatchWithFilter(notification *Notification, filterKey, filterValue, filterType string, getEndpoints func(string) []*CLIEndpoint) error {
 	if !d.IsRunning() {
 		return fmt.Errorf("dispatcher not running")
 	}
 
-	// Add repository to notification metadata
+	// Add filter to notification metadata
 	if notification.Metadata == nil {
 		notification.Metadata = make(map[string]string)
 	}
-	notification.Metadata["repository"] = repository
+	notification.Metadata[filterKey] = filterValue
 
-	// Get endpoints for this repository
-	endpoints := d.registry.GetByRepository(repository)
+	// Get endpoints for this filter
+	endpoints := getEndpoints(filterValue)
 	if len(endpoints) == 0 {
-		log.Printf("No CLI endpoints subscribed to repository %s for notification %s", repository, notification.ID)
+		log.Printf("No CLI endpoints subscribed to %s %s for notification %s", filterType, filterValue, notification.ID)
 		return nil
 	}
 
-	log.Printf("Dispatching notification %s to %d endpoints for repository %s", notification.ID, len(endpoints), repository)
+	log.Printf("Dispatching notification %s to %d endpoints for %s %s", notification.ID, len(endpoints), filterType, filterValue)
 
 	// Create delivery jobs
 	for _, endpoint := range endpoints {
@@ -279,48 +279,14 @@ func (d *Dispatcher) DispatchToRepository(notification *Notification, repository
 	return nil
 }
 
+// DispatchToRepository sends a notification to all endpoints subscribed to a repository
+func (d *Dispatcher) DispatchToRepository(notification *Notification, repository string) error {
+	return d.dispatchWithFilter(notification, "repository", repository, "repository", d.registry.GetByRepository)
+}
+
 // DispatchToSession sends a notification to all endpoints subscribed to a session
 func (d *Dispatcher) DispatchToSession(notification *Notification, sessionID string) error {
-	if !d.IsRunning() {
-		return fmt.Errorf("dispatcher not running")
-	}
-
-	// Add session to notification metadata
-	if notification.Metadata == nil {
-		notification.Metadata = make(map[string]string)
-	}
-	notification.Metadata["session_id"] = sessionID
-
-	// Get endpoints for this session
-	endpoints := d.registry.GetBySession(sessionID)
-	if len(endpoints) == 0 {
-		log.Printf("No CLI endpoints subscribed to session %s for notification %s", sessionID, notification.ID)
-		return nil
-	}
-
-	log.Printf("Dispatching notification %s to %d endpoints for session %s", notification.ID, len(endpoints), sessionID)
-
-	// Create delivery jobs
-	for _, endpoint := range endpoints {
-		if d.shouldDeliverToEndpoint(notification, endpoint) {
-			job := &DeliveryJob{
-				Notification: notification,
-				Endpoint:     endpoint,
-				Attempt:      1,
-				ScheduledAt:  time.Now(),
-			}
-
-			select {
-			case d.jobQueue <- job:
-				// Job queued successfully
-			default:
-				log.Printf("Job queue full, dropping notification %s for endpoint %s",
-					notification.ID, endpoint.ID)
-			}
-		}
-	}
-
-	return nil
+	return d.dispatchWithFilter(notification, "session_id", sessionID, "session", d.registry.GetBySession)
 }
 
 // DispatchWithFilter sends a notification to endpoints matching specific filters

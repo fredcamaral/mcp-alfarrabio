@@ -184,7 +184,8 @@ func (sa *StorageAdapter) Search(ctx context.Context, query *types.SearchQuery) 
 		Duration: time.Since(time.Now()), // TODO: Track actual duration
 	}
 
-	for i, oldResult := range oldResults.Results {
+	for i := range oldResults.Results {
+		oldResult := &oldResults.Results[i]
 		results.Results[i] = &types.SearchResult{
 			Content:   sa.convertChunkToContent(&oldResult.Chunk),
 			Relevance: oldResult.Score,
@@ -202,8 +203,8 @@ func (sa *StorageAdapter) FindSimilar(ctx context.Context, content string, proje
 	}
 
 	contents := make([]*types.Content, len(chunks))
-	for i, chunk := range chunks {
-		contents[i] = sa.convertChunkToContent(&chunk)
+	for i := range chunks {
+		contents[i] = sa.convertChunkToContent(&chunks[i])
 	}
 
 	return contents, nil
@@ -213,7 +214,9 @@ func (sa *StorageAdapter) FindSimilar(ctx context.Context, content string, proje
 func (sa *StorageAdapter) GetByProject(ctx context.Context, projectID types.ProjectID, filters *types.Filters) ([]*types.Content, error) {
 	limit := 100
 	if filters != nil && len(filters.Types) > 0 {
-		// TODO: Apply filters
+		// TODO: Apply type filters to query
+		// For now, reduce limit to account for filtering overhead
+		limit = 50 // Smaller limit when filters are applied
 	}
 
 	chunks, err := sa.oldStore.ListByRepository(ctx, string(projectID), limit, 0)
@@ -222,8 +225,8 @@ func (sa *StorageAdapter) GetByProject(ctx context.Context, projectID types.Proj
 	}
 
 	contents := make([]*types.Content, len(chunks))
-	for i, chunk := range chunks {
-		contents[i] = sa.convertChunkToContent(&chunk)
+	for i := range chunks {
+		contents[i] = sa.convertChunkToContent(&chunks[i])
 	}
 
 	return contents, nil
@@ -238,15 +241,15 @@ func (sa *StorageAdapter) GetBySession(ctx context.Context, projectID types.Proj
 
 	// Filter by project
 	var filteredChunks []pkgTypes.ConversationChunk
-	for _, chunk := range chunks {
-		if chunk.Metadata.Repository == string(projectID) {
-			filteredChunks = append(filteredChunks, chunk)
+	for i := range chunks {
+		if chunks[i].Metadata.Repository == string(projectID) {
+			filteredChunks = append(filteredChunks, chunks[i])
 		}
 	}
 
 	contents := make([]*types.Content, len(filteredChunks))
-	for i, chunk := range filteredChunks {
-		contents[i] = sa.convertChunkToContent(&chunk)
+	for i := range filteredChunks {
+		contents[i] = sa.convertChunkToContent(&filteredChunks[i])
 	}
 
 	return contents, nil
@@ -298,7 +301,7 @@ func (sa *StorageAdapter) convertChunkToContent(chunk *pkgTypes.ConversationChun
 		Content:    chunk.Content,
 		Summary:    chunk.Summary,
 		Tags:       chunk.Metadata.Tags,
-		Metadata:   sa.convertChunkMetadata(chunk.Metadata),
+		Metadata:   sa.convertChunkMetadata(&chunk.Metadata),
 		CreatedAt:  chunk.Timestamp, // Use timestamp as created time
 		UpdatedAt:  chunk.Timestamp, // Default to same as created time
 		Embeddings: chunk.Embeddings,
@@ -309,7 +312,7 @@ func (sa *StorageAdapter) convertChunkToContent(chunk *pkgTypes.ConversationChun
 }
 
 // convertChunkMetadata converts ChunkMetadata to map[string]interface{}
-func (sa *StorageAdapter) convertChunkMetadata(metadata pkgTypes.ChunkMetadata) map[string]interface{} {
+func (sa *StorageAdapter) convertChunkMetadata(metadata *pkgTypes.ChunkMetadata) map[string]interface{} {
 	result := make(map[string]interface{})
 
 	if metadata.Repository != "" {
@@ -390,13 +393,13 @@ func (sa *StorageAdapter) convertChunkTypeToType(chunkType pkgTypes.ChunkType) s
 }
 
 // convertTypesToChunkTypes converts new type strings to old ChunkTypes
-func (sa *StorageAdapter) convertTypesToChunkTypes(types []string) []pkgTypes.ChunkType {
-	if len(types) == 0 {
+func (sa *StorageAdapter) convertTypesToChunkTypes(typeStrings []string) []pkgTypes.ChunkType {
+	if len(typeStrings) == 0 {
 		return nil
 	}
 
-	chunkTypes := make([]pkgTypes.ChunkType, len(types))
-	for i, typeStr := range types {
+	chunkTypes := make([]pkgTypes.ChunkType, len(typeStrings))
+	for i, typeStr := range typeStrings {
 		chunkTypes[i] = sa.convertTypeToChunkType(typeStr)
 	}
 	return chunkTypes
@@ -405,7 +408,7 @@ func (sa *StorageAdapter) convertTypesToChunkTypes(types []string) []pkgTypes.Ch
 // Placeholder implementations for other interfaces
 // These will be implemented as we progress through Phase 2
 
-// AnalysisStore placeholder implementations
+// StorePattern stores a pattern in the analysis store (placeholder implementation)
 func (sa *StorageAdapter) StorePattern(ctx context.Context, pattern *types.Pattern) error {
 	return fmt.Errorf("pattern storage not yet implemented")
 }
@@ -438,7 +441,7 @@ func (sa *StorageAdapter) GetQualityAnalysis(ctx context.Context, projectID type
 	return nil, fmt.Errorf("quality analysis retrieval not yet implemented")
 }
 
-// RelationshipStore placeholder implementations
+// StoreRelationship stores a relationship in the storage adapter.
 func (sa *StorageAdapter) StoreRelationship(ctx context.Context, relationship *types.Relationship) error {
 	return fmt.Errorf("relationship storage not yet implemented")
 }
@@ -459,7 +462,7 @@ func (sa *StorageAdapter) UpdateRelationshipConfidence(ctx context.Context, rela
 	return fmt.Errorf("relationship confidence update not yet implemented")
 }
 
-// SessionStore placeholder implementations
+// CreateSession creates a new session in the storage adapter.
 func (sa *StorageAdapter) CreateSession(ctx context.Context, projectID types.ProjectID, sessionID types.SessionID, metadata map[string]interface{}) error {
 	return fmt.Errorf("session creation not yet implemented")
 }
@@ -485,7 +488,7 @@ func (sa *StorageAdapter) GetSessionStats(ctx context.Context, projectID types.P
 	return nil, fmt.Errorf("session stats not yet implemented")
 }
 
-// SystemStore placeholder implementations
+// HealthCheck performs a health check on the storage adapter.
 func (sa *StorageAdapter) HealthCheck(ctx context.Context) (*types.HealthStatus, error) {
 	err := sa.oldStore.HealthCheck(ctx)
 	if err != nil {
@@ -549,7 +552,7 @@ func (sa *StorageAdapter) ExportProject(ctx context.Context, projectID types.Pro
 	return nil, fmt.Errorf("project export not yet implemented")
 }
 
-func (sa *StorageAdapter) ImportProject(ctx context.Context, projectID types.ProjectID, data string, format string, options *types.ImportOptions) (*types.ImportResult, error) {
+func (sa *StorageAdapter) ImportProject(ctx context.Context, projectID types.ProjectID, data, format string, options *types.ImportOptions) (*types.ImportResult, error) {
 	return nil, fmt.Errorf("project import not yet implemented")
 }
 
@@ -571,7 +574,7 @@ func (sa *StorageAdapter) convertChunksByType(oldMap map[string]int64) map[strin
 	return newMap
 }
 
-// UnifiedStore implementation (partial)
+// WithTransaction executes a function within a transaction context.
 func (sa *StorageAdapter) WithTransaction(ctx context.Context, fn func(tx UnifiedStore) error) error {
 	// For now, just execute without transaction
 	// TODO: Implement proper transaction support

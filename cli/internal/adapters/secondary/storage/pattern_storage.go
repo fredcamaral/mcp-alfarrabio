@@ -394,6 +394,12 @@ func (s *FilePatternStorage) getRepositoryPath(repository string) string {
 }
 
 func (s *FilePatternStorage) loadPatternsFromFile(filePath string) ([]*entities.TaskPattern, error) {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return nil, fmt.Errorf("path traversal detected: %s", filePath)
+	}
+
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return []*entities.TaskPattern{}, nil
 	}

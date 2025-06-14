@@ -80,7 +80,7 @@ func (a *OpenAIAdapter) ProcessRequest(ctx context.Context, req *Request) (*Resp
 
 	// Execute the request
 	startTime := time.Now()
-	resp, err := a.client.Complete(ctx, completionReq)
+	resp, err := a.client.Complete(ctx, &completionReq)
 	if err != nil {
 		return nil, err
 	}
@@ -132,7 +132,7 @@ func (a *OpenAIAdapter) IsHealthy(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := a.client.Complete(ctx, req)
+	_, err := a.client.Complete(ctx, &req)
 	return err
 }
 

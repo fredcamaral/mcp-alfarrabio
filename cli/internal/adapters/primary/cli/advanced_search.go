@@ -497,7 +497,7 @@ func (c *CLI) saveSearchConfig(name, query string, filters *ports.TaskFilters, o
 	}
 
 	searchesDir := filepath.Join(configDir, "searches")
-	if err := os.MkdirAll(searchesDir, 0755); err != nil {
+	if err := os.MkdirAll(searchesDir, 0750); err != nil {
 		return err
 	}
 
@@ -520,7 +520,7 @@ func (c *CLI) saveSearchConfig(name, query string, filters *ports.TaskFilters, o
 		return err
 	}
 
-	return os.WriteFile(filename, data, 0644)
+	return os.WriteFile(filename, data, 0600)
 }
 
 // runSavedSearch loads and executes a saved search
@@ -531,6 +531,13 @@ func (c *CLI) runSavedSearch(name string, cmd *cobra.Command) error {
 	}
 
 	filename := filepath.Join(configDir, "searches", name+".yaml")
+
+	// Clean and validate the file path
+	filename = filepath.Clean(filename)
+	if strings.Contains(filename, "..") {
+		return fmt.Errorf("path traversal detected: %s", filename)
+	}
+
 	data, err := os.ReadFile(filename)
 	if err != nil {
 		return fmt.Errorf("saved search '%s' not found: %w", name, err)

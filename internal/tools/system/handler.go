@@ -182,7 +182,7 @@ func (h *Handler) HandleOperation(ctx context.Context, operation string, params 
 }
 
 // handleHealth performs system health check
-func (h *Handler) handleHealth(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleHealth(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -222,7 +222,13 @@ func (h *Handler) handleHealth(ctx context.Context, params map[string]interface{
 			GCStats: GCMetrics{
 				NumGC:        memStats.NumGC,
 				PauseTotalNs: memStats.PauseTotalNs,
-				LastPause:    time.Duration(memStats.PauseNs[(memStats.NumGC+255)%256]),
+				LastPause: func() time.Duration {
+					pauseNs := memStats.PauseNs[(memStats.NumGC+255)%256]
+					if pauseNs > 0x7FFFFFFFFFFFFFFF { // Check for overflow
+						return time.Duration(0x7FFFFFFFFFFFFFFF)
+					}
+					return time.Duration(pauseNs)
+				}(),
 			},
 			Performance: PerformanceMetrics{
 				RequestsTotal:   1000, // TODO: Real metrics
@@ -264,7 +270,7 @@ func (h *Handler) handleHealth(ctx context.Context, params map[string]interface{
 }
 
 // handleExportProject exports project data
-func (h *Handler) handleExportProject(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleExportProject(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -307,7 +313,7 @@ func (h *Handler) handleExportProject(ctx context.Context, params map[string]int
 }
 
 // handleImportProject imports project data
-func (h *Handler) handleImportProject(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleImportProject(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -349,7 +355,7 @@ func (h *Handler) handleImportProject(ctx context.Context, params map[string]int
 }
 
 // handleGenerateCitation generates citations for content
-func (h *Handler) handleGenerateCitation(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleGenerateCitation(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -394,7 +400,7 @@ func (h *Handler) handleGenerateCitation(ctx context.Context, params map[string]
 }
 
 // handleValidateIntegrity validates data integrity
-func (h *Handler) handleValidateIntegrity(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleValidateIntegrity(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	// TODO: Implement integrity validation
 	return map[string]interface{}{
 		"status":     "healthy",
@@ -411,7 +417,7 @@ func (h *Handler) handleValidateIntegrity(ctx context.Context, params map[string
 }
 
 // handleGetMetrics retrieves detailed system metrics
-func (h *Handler) handleGetMetrics(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleGetMetrics(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	var memStats runtime.MemStats
 	runtime.ReadMemStats(&memStats)
 

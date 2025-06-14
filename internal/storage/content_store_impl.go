@@ -5,6 +5,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -206,81 +207,148 @@ func (s *PostgreSQLContentStore) Get(ctx context.Context, projectID types.Projec
 
 	row := s.db.QueryRowContext(ctx, query, contentID, string(projectID))
 
+	content, err := s.scanContentRow(row)
+	if err != nil {
+		return s.handleGetError(err, contentID, projectID)
+	}
+
+	return content, nil
+}
+
+// scanContentRow scans a database row into a Content struct
+func (s *PostgreSQLContentStore) scanContentRow(row *sql.Row) (*types.Content, error) {
 	var content types.Content
-	var sessionIDStr, tagsJSON, metadataJSON, embeddingsJSON sql.NullString
-	var title, summary, parentID sql.NullString
-	var accessedAt sql.NullTime
-	var quality, confidence sql.NullFloat64
+	scanVars := s.prepareScanVariables()
 
 	err := row.Scan(
 		&content.ID,
 		&content.ProjectID,
-		&sessionIDStr,
+		&scanVars.sessionIDStr,
 		&content.Type,
-		&title,
+		&scanVars.title,
 		&content.Content,
-		&summary,
-		&tagsJSON,
-		&metadataJSON,
-		&embeddingsJSON,
+		&scanVars.summary,
+		&scanVars.tagsJSON,
+		&scanVars.metadataJSON,
+		&scanVars.embeddingsJSON,
 		&content.CreatedAt,
 		&content.UpdatedAt,
-		&accessedAt,
-		&quality,
-		&confidence,
-		&parentID,
+		&scanVars.accessedAt,
+		&scanVars.quality,
+		&scanVars.confidence,
+		&scanVars.parentID,
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, fmt.Errorf("content not found: id=%s, project_id=%s", contentID, projectID)
-		}
-		return nil, fmt.Errorf("failed to get content: %w", err)
+		return nil, err
 	}
 
-	// Handle nullable fields
-	if sessionIDStr.Valid {
-		content.SessionID = types.SessionID(sessionIDStr.String)
-	}
-	if title.Valid {
-		content.Title = title.String
-	}
-	if summary.Valid {
-		content.Summary = summary.String
-	}
-	if parentID.Valid {
-		content.ParentID = parentID.String
-	}
-	if accessedAt.Valid {
-		content.AccessedAt = &accessedAt.Time
-	}
-	if quality.Valid {
-		content.Quality = quality.Float64
-	}
-	if confidence.Valid {
-		content.Confidence = confidence.Float64
-	}
+	s.populateNullableFields(&content, scanVars)
 
-	// Deserialize JSON fields
-	if tagsJSON.Valid && tagsJSON.String != "" {
-		if err := json.Unmarshal([]byte(tagsJSON.String), &content.Tags); err != nil {
-			return nil, fmt.Errorf("failed to deserialize tags: %w", err)
-		}
-	}
-
-	if metadataJSON.Valid && metadataJSON.String != "" {
-		if err := json.Unmarshal([]byte(metadataJSON.String), &content.Metadata); err != nil {
-			return nil, fmt.Errorf("failed to deserialize metadata: %w", err)
-		}
-	}
-
-	if embeddingsJSON.Valid && embeddingsJSON.String != "" {
-		if err := json.Unmarshal([]byte(embeddingsJSON.String), &content.Embeddings); err != nil {
-			return nil, fmt.Errorf("failed to deserialize embeddings: %w", err)
-		}
+	if err := s.deserializeJSONFields(&content, scanVars); err != nil {
+		return nil, err
 	}
 
 	return &content, nil
+}
+
+// contentScanVars holds nullable database fields for scanning
+type contentScanVars struct {
+	sessionIDStr   sql.NullString
+	title          sql.NullString
+	summary        sql.NullString
+	parentID       sql.NullString
+	tagsJSON       sql.NullString
+	metadataJSON   sql.NullString
+	embeddingsJSON sql.NullString
+	accessedAt     sql.NullTime
+	quality        sql.NullFloat64
+	confidence     sql.NullFloat64
+}
+
+// prepareScanVariables creates the scan variables structure
+func (s *PostgreSQLContentStore) prepareScanVariables() *contentScanVars {
+	return &contentScanVars{}
+}
+
+// populateNullableFields populates nullable fields from scan variables
+func (s *PostgreSQLContentStore) populateNullableFields(content *types.Content, vars *contentScanVars) {
+	if vars.sessionIDStr.Valid {
+		content.SessionID = types.SessionID(vars.sessionIDStr.String)
+	}
+	if vars.title.Valid {
+		content.Title = vars.title.String
+	}
+	if vars.summary.Valid {
+		content.Summary = vars.summary.String
+	}
+	if vars.parentID.Valid {
+		content.ParentID = vars.parentID.String
+	}
+	if vars.accessedAt.Valid {
+		content.AccessedAt = &vars.accessedAt.Time
+	}
+	if vars.quality.Valid {
+		content.Quality = vars.quality.Float64
+	}
+	if vars.confidence.Valid {
+		content.Confidence = vars.confidence.Float64
+	}
+}
+
+// deserializeJSONFields deserializes JSON fields into the content struct
+func (s *PostgreSQLContentStore) deserializeJSONFields(content *types.Content, vars *contentScanVars) error {
+	if err := s.deserializeTags(content, vars.tagsJSON); err != nil {
+		return err
+	}
+
+	if err := s.deserializeMetadata(content, vars.metadataJSON); err != nil {
+		return err
+	}
+
+	if err := s.deserializeEmbeddings(content, vars.embeddingsJSON); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// deserializeTags deserializes the tags JSON field
+func (s *PostgreSQLContentStore) deserializeTags(content *types.Content, tagsJSON sql.NullString) error {
+	if tagsJSON.Valid && tagsJSON.String != "" {
+		if err := json.Unmarshal([]byte(tagsJSON.String), &content.Tags); err != nil {
+			return fmt.Errorf("failed to deserialize tags: %w", err)
+		}
+	}
+	return nil
+}
+
+// deserializeMetadata deserializes the metadata JSON field
+func (s *PostgreSQLContentStore) deserializeMetadata(content *types.Content, metadataJSON sql.NullString) error {
+	if metadataJSON.Valid && metadataJSON.String != "" {
+		if err := json.Unmarshal([]byte(metadataJSON.String), &content.Metadata); err != nil {
+			return fmt.Errorf("failed to deserialize metadata: %w", err)
+		}
+	}
+	return nil
+}
+
+// deserializeEmbeddings deserializes the embeddings JSON field
+func (s *PostgreSQLContentStore) deserializeEmbeddings(content *types.Content, embeddingsJSON sql.NullString) error {
+	if embeddingsJSON.Valid && embeddingsJSON.String != "" {
+		if err := json.Unmarshal([]byte(embeddingsJSON.String), &content.Embeddings); err != nil {
+			return fmt.Errorf("failed to deserialize embeddings: %w", err)
+		}
+	}
+	return nil
+}
+
+// handleGetError handles errors from the Get operation
+func (s *PostgreSQLContentStore) handleGetError(err error, contentID string, projectID types.ProjectID) (*types.Content, error) {
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, fmt.Errorf("content not found: id=%s, project_id=%s", contentID, projectID)
+	}
+	return nil, fmt.Errorf("failed to get content: %w", err)
 }
 
 // BatchStore stores multiple content items efficiently
@@ -293,7 +361,7 @@ func (s *PostgreSQLContentStore) BatchStore(ctx context.Context, contents []*typ
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }() // Rollback is safe to call even if committed
 
 	result := &BatchResult{
 		Success:      0,
@@ -319,7 +387,11 @@ func (s *PostgreSQLContentStore) BatchStore(ctx context.Context, contents []*typ
 	if err != nil {
 		return nil, fmt.Errorf("failed to prepare statement: %w", err)
 	}
-	defer stmt.Close()
+	defer func() {
+		if closeErr := stmt.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close statement: %v\n", closeErr)
+		}
+	}()
 
 	for i, content := range contents {
 		result.ProcessedIDs = append(result.ProcessedIDs, content.ID)
@@ -387,7 +459,10 @@ func (s *PostgreSQLContentStore) BatchUpdate(ctx context.Context, contents []*ty
 	if err != nil {
 		return nil, fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		// Rollback is expected to fail if transaction was committed
+		_ = tx.Rollback()
+	}()
 
 	result := &BatchResult{
 		Success:      0,

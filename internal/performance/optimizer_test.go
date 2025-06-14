@@ -41,7 +41,9 @@ func TestCacheOperations(t *testing.T) {
 	cache := NewCache(config)
 
 	// Test set and get
-	cache.Set("key1", "value1")
+	if err := cache.Set("key1", "value1"); err != nil {
+		t.Fatalf("Failed to set cache value: %v", err)
+	}
 	value, exists := cache.Get("key1")
 	if !exists {
 		t.Error("Expected key1 to exist in cache")

@@ -95,9 +95,9 @@ func (p *ConnectionPool) Get(ctx context.Context) (*sql.DB, error) {
 	select {
 	case conn := <-p.pool:
 		// Check if connection is still healthy
-		if err := p.pingConnection(conn); err != nil {
+		if err := p.pingConnection(ctx, conn); err != nil {
 			// Connection is unhealthy, create new one
-			if newConn, err := p.createConnection(); err == nil {
+			if newConn, err := p.createConnection(ctx); err == nil {
 				p.trackConnection(newConn)
 				return newConn, nil
 			}
@@ -114,7 +114,7 @@ func (p *ConnectionPool) Get(ctx context.Context) (*sql.DB, error) {
 	default:
 		// Pool is empty, try to create new connection
 		if p.canCreateConnection() {
-			conn, err := p.createConnection()
+			conn, err := p.createConnection(ctx)
 			if err != nil {
 				return nil, fmt.Errorf("failed to create connection: %w", err)
 			}
@@ -125,7 +125,7 @@ func (p *ConnectionPool) Get(ctx context.Context) (*sql.DB, error) {
 		// Wait for available connection
 		select {
 		case conn := <-p.pool:
-			if err := p.pingConnection(conn); err != nil {
+			if err := p.pingConnection(ctx, conn); err != nil {
 				return nil, fmt.Errorf("connection unhealthy: %w", err)
 			}
 			p.trackConnection(conn)
@@ -137,10 +137,10 @@ func (p *ConnectionPool) Get(ctx context.Context) (*sql.DB, error) {
 }
 
 // Put returns a connection to the pool
-func (p *ConnectionPool) Put(conn *sql.DB) {
+func (p *ConnectionPool) Put(ctx context.Context, conn *sql.DB) {
 	if p.closed || conn == nil {
 		if conn != nil {
-			conn.Close()
+			_ = conn.Close()
 		}
 		return
 	}
@@ -150,14 +150,14 @@ func (p *ConnectionPool) Put(conn *sql.DB) {
 	p.mutex.Unlock()
 
 	// Check if connection is still healthy
-	if err := p.pingConnection(conn); err != nil {
-		conn.Close()
+	if err := p.pingConnection(ctx, conn); err != nil {
+		_ = conn.Close()
 		return
 	}
 
 	// Check if connection has exceeded lifetime
 	if p.isConnectionExpired(conn) {
-		conn.Close()
+		_ = conn.Close()
 		return
 	}
 
@@ -166,7 +166,7 @@ func (p *ConnectionPool) Put(conn *sql.DB) {
 	case p.pool <- conn:
 	default:
 		// Pool is full, close connection
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 
@@ -185,12 +185,12 @@ func (p *ConnectionPool) Close() error {
 	// Close all pooled connections
 	close(p.pool)
 	for conn := range p.pool {
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	// Close all active connections
 	for conn := range p.activeConns {
-		conn.Close()
+		_ = conn.Close()
 	}
 
 	return nil
@@ -222,8 +222,9 @@ type PoolStats struct {
 // Private methods
 
 func (p *ConnectionPool) initializeConnections() error {
+	ctx := context.Background()
 	for i := 0; i < p.config.MinConnections; i++ {
-		conn, err := p.createConnection()
+		conn, err := p.createConnection(ctx)
 		if err != nil {
 			return fmt.Errorf("failed to create initial connection %d: %w", i+1, err)
 		}
@@ -234,7 +235,7 @@ func (p *ConnectionPool) initializeConnections() error {
 	return nil
 }
 
-func (p *ConnectionPool) createConnection() (*sql.DB, error) {
+func (p *ConnectionPool) createConnection(ctx context.Context) (*sql.DB, error) {
 	conn, err := sql.Open("postgres", p.config.DatabaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("failed to open database connection: %w", err)
@@ -247,22 +248,22 @@ func (p *ConnectionPool) createConnection() (*sql.DB, error) {
 	conn.SetConnMaxIdleTime(p.config.MaxIdleTime)
 
 	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), p.config.ConnectTimeout)
+	pingCtx, cancel := context.WithTimeout(ctx, p.config.ConnectTimeout)
 	defer cancel()
 
-	if err := conn.PingContext(ctx); err != nil {
-		conn.Close()
+	if err := conn.PingContext(pingCtx); err != nil {
+		_ = conn.Close()
 		return nil, fmt.Errorf("failed to ping new connection: %w", err)
 	}
 
 	return conn, nil
 }
 
-func (p *ConnectionPool) pingConnection(conn *sql.DB) error {
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+func (p *ConnectionPool) pingConnection(ctx context.Context, conn *sql.DB) error {
+	pingCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	return conn.PingContext(ctx)
+	return conn.PingContext(pingCtx)
 }
 
 func (p *ConnectionPool) trackConnection(conn *sql.DB) {
@@ -313,10 +314,10 @@ func (p *ConnectionPool) performHealthCheck() {
 	for {
 		select {
 		case conn := <-p.pool:
-			if err := p.pingConnection(conn); err == nil {
+			if err := p.pingConnection(context.Background(), conn); err == nil {
 				healthyConns = append(healthyConns, conn)
 			} else {
-				conn.Close()
+				_ = conn.Close()
 			}
 		default:
 			// Pool is empty
@@ -331,13 +332,13 @@ refillPool:
 		case p.pool <- conn:
 		default:
 			// Pool is full, close excess connections
-			conn.Close()
+			_ = conn.Close()
 		}
 	}
 
 	// Ensure minimum connections
 	for len(p.pool) < p.config.MinConnections && p.canCreateConnection() {
-		if conn, err := p.createConnection(); err == nil {
+		if conn, err := p.createConnection(context.Background()); err == nil {
 			p.pool <- conn
 		} else {
 			break // Stop trying if we can't create connections
@@ -351,7 +352,7 @@ func (p *ConnectionPool) WithConnection(ctx context.Context, fn func(*sql.DB) er
 	if err != nil {
 		return err
 	}
-	defer p.Put(conn)
+	defer p.Put(ctx, conn)
 
 	return fn(conn)
 }
@@ -366,14 +367,14 @@ func (p *ConnectionPool) WithTransaction(ctx context.Context, fn func(*sql.Tx) e
 
 		defer func() {
 			if r := recover(); r != nil {
-				tx.Rollback()
+				_ = tx.Rollback()
 				panic(r)
 			}
 		}()
 
 		if err := fn(tx); err != nil {
 			if rbErr := tx.Rollback(); rbErr != nil {
-				return fmt.Errorf("transaction error: %w, rollback error: %v", err, rbErr)
+				return fmt.Errorf("transaction error: %w, rollback error: %w", err, rbErr)
 			}
 			return err
 		}

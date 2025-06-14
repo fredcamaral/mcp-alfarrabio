@@ -19,9 +19,9 @@ type ClaudeClient struct {
 }
 
 // NewClaudeClient creates a new Claude client
-func NewClaudeClient(apiKey string, model string) (*ClaudeClient, error) {
+func NewClaudeClient(apiKey, model string) (*ClaudeClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("Claude API key cannot be empty")
+		return nil, fmt.Errorf("claude API key cannot be empty")
 	}
 
 	if model == "" {
@@ -68,10 +68,7 @@ func (c *ClaudeRequestConverter) ConvertRequest(req *CompletionRequest, cfg *Bas
 		if msg.Role == "system" {
 			systemMessage = msg.Content
 		} else {
-			messages = append(messages, claudeMessage{
-				Role:    msg.Role,
-				Content: msg.Content,
-			})
+			messages = append(messages, claudeMessage(msg))
 		}
 	}
 
@@ -109,7 +106,7 @@ func (c *ClaudeResponseConverter) ConvertResponse(data []byte, startTime time.Ti
 	}
 
 	if resp.Error != nil {
-		return nil, fmt.Errorf("Claude API error: %s", resp.Error.Message)
+		return nil, fmt.Errorf("claude API error: %s", resp.Error.Message)
 	}
 
 	if len(resp.Content) == 0 {

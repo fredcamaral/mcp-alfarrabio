@@ -7,30 +7,31 @@ run:
 
 linters:
   enable:
-    # Core quality checks
-    - errcheck        # Check for unchecked errors  
+    # Core quality checks - essential for code correctness
     - govet          # Vet examines Go source code
-    - staticcheck    # Advanced Go linter
-    - gosec          # Security analyzer
-    - contextcheck   # Check the function whether use a non-inherited context
-    - errorlint      # Find code that will cause problems with the error wrapping scheme
     - ineffassign    # Detects ineffectual assignments
     - unused         # Checks for unused constants, variables, functions and types
-    - bodyclose      # Check HTTP response bodies are closed
     - copyloopvar    # Checks for pointers to enclosing loop variables
-    - goconst        # Finds repeated strings that could be replaced by a constant
-    - gocyclo        # Computes and checks the cyclomatic complexity of functions
-    - nestif         # Reports deeply nested if statements
-    - dupl           # Tool for code clone detection
-    - durationcheck  # Check for two durations multiplied together
     - misspell       # Finds commonly misspelled English words in comments
-    - prealloc       # Find slice declarations that could potentially be preallocated
-    - unconvert      # Remove unnecessary type conversions
-    - unparam        # Reports unused function parameters
     - whitespace     # Tool for detection of leading and trailing whitespace
-    - gocritic       # Comprehensive Go linter
     - nilnil         # Checks that there is no simultaneous return of nil error and nil value
-    - nolintlint     # Reports ill-formed or insufficient nolint directives
+    - errcheck       # Too many unchecked error issues
+    - staticcheck    # Too many style/opinionated checks
+    - gosec          # Security checks too strict for development
+    - bodyclose      # HTTP body close checks
+    - durationcheck  # Duration multiplication checks
+    - contextcheck   # Too strict for existing codebase patterns
+    - errorlint      # Too strict for error handling patterns
+    - goconst        # Style preference, not critical
+    - gocyclo        # Complexity is managed by code review
+    - nestif         # Nesting is managed by code review  
+    - dupl           # Code duplication is managed by code review
+    - prealloc       # Performance optimization, not critical
+    - unconvert      # Style preference, not critical
+    - unparam        # Parameter usage is contextual
+    - gocritic       # Too many opinionated checks
+    - nolintlint     # Meta-linting, not critical
+  
   settings:
     gocyclo:
       min-complexity: 15
@@ -44,36 +45,8 @@ linters:
       disabled-checks:
         - commentedOutCode
         - ifElseChain
-    gosec:
-      excludes:
-        - G104  # Audit errors not checked
-        - G204  # Subprocess launched with variable
-        - G304  # File path provided as taint input
     staticcheck:
       checks: ["all"]
     errcheck:
       check-type-assertions: false
       check-blank: false
-      exclude-functions:
-        - (*os.File).Write
-        - (*os.File).WriteString
-        - (*bufio.Writer).Write
-        - (*bufio.Writer).WriteString
-        - (io.Writer).Write
-  exclusions:
-    rules:
-      - linters:
-          - gocritic
-          - unparam 
-          - unused
-          - prealloc
-          - goconst
-          - dupl
-          - ineffassign
-          - gocyclo
-          - nestif
-        text: ".*"
-
-issues:
-  max-issues-per-linter: 50
-  max-same-issues: 10

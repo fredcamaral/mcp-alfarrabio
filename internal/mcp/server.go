@@ -12,8 +12,7 @@ import (
 	"lerian-mcp-memory/internal/audit"
 	"lerian-mcp-memory/internal/bulk"
 	"lerian-mcp-memory/internal/config"
-	contextdetector "lerian-mcp-memory/internal/context"
-	enhancedctx "lerian-mcp-memory/internal/context"
+	contextpkg "lerian-mcp-memory/internal/context"
 	"lerian-mcp-memory/internal/di"
 	mcperrors "lerian-mcp-memory/internal/errors"
 	"lerian-mcp-memory/internal/intelligence"
@@ -96,10 +95,8 @@ func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
 		logger:    logger,
 	}
 
-	// Initialize bulk operations managers with proper error handling
-	if err := memServer.initializeBulkManagers(); err != nil {
-		return nil, mcperrors.WrapMCPError(err, "bulk_manager_initialization")
-	}
+	// Initialize bulk operations managers
+	memServer.initializeBulkManagers()
 
 	// Initialize workflow tracking
 	memServer.todoTracker = workflow.NewTodoTracker()
@@ -107,11 +104,8 @@ func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
 	// Initialize real-time synchronization
 	memServer.realtimeSync = container.GetRealtimeSyncCoordinator()
 
-	// Initialize AI enhancement services
-	if err := memServer.initializeAIServices(cfg); err != nil {
-		logger.Warn("Failed to initialize AI services, continuing with limited functionality", "error", err)
-		// Continue without AI services - server will work with basic functionality
-	}
+	// AI enhancement services temporarily disabled due to interface mismatches
+	logger.Info("AI enhancement services temporarily disabled - interface adapter needed")
 
 	// Initialize template service
 	if err := memServer.initializeTemplateService(); err != nil {
@@ -129,7 +123,7 @@ func NewMemoryServer(cfg *config.Config) (*MemoryServer, error) {
 }
 
 // initializeBulkManagers initializes bulk operation managers
-func (ms *MemoryServer) initializeBulkManagers() error {
+func (ms *MemoryServer) initializeBulkManagers() {
 	// Create standard library logger for bulk managers compatibility
 	stdLogger := log.New(os.Stdout, "[bulk] ", log.LstdFlags)
 
@@ -137,27 +131,6 @@ func (ms *MemoryServer) initializeBulkManagers() error {
 	ms.bulkImporter = bulk.NewImporter(stdLogger)
 	ms.bulkExporter = bulk.NewExporter(ms.container.GetVectorStore(), stdLogger)
 	ms.aliasManager = bulk.NewAliasManager(ms.container.GetVectorStore(), stdLogger)
-
-	return nil
-}
-
-// initializeAIServices initializes AI-powered enhancement services
-func (ms *MemoryServer) initializeAIServices(cfg *config.Config) error {
-	ms.logger.Info("Initializing AI enhancement services")
-
-	// Initialize memory enhancer (temporarily disabled)
-	// ms.memoryEnhancer = ai.NewMemoryEnhancer(cfg)
-	// if ms.memoryEnhancer == nil {
-	//     return fmt.Errorf("failed to create memory enhancer")
-	// }
-
-	// Initialize pattern detector - temporarily disabled due to interface mismatch
-	// TODO: Create adapter between pkg/ai.AIService and internal/ai.AIService interfaces
-	// TODO: Or modify pattern detector to use the shared AI service interface
-	ms.logger.Info("Pattern detector temporarily disabled - interface adapter needed")
-
-	ms.logger.Info("AI enhancement services initialized successfully")
-	return nil
 }
 
 // initializeTemplateService initializes the template service
@@ -199,13 +172,9 @@ func (ms *MemoryServer) initializeMCPServer() error {
 
 	ms.mcpServer = mcpServer
 
-	if err := ms.registerTools(); err != nil {
-		return fmt.Errorf("failed to register tools: %w", err)
-	}
+	ms.registerTools()
 
-	if err := ms.registerResources(); err != nil {
-		return fmt.Errorf("failed to register resources: %w", err)
-	}
+	ms.registerResources()
 
 	return nil
 }
@@ -213,35 +182,41 @@ func (ms *MemoryServer) initializeMCPServer() error {
 // Start initializes and starts the MCP server
 func (ms *MemoryServer) Start(ctx context.Context) error {
 	// Create enhanced context for startup operations
-	ctx = enhancedctx.NewBuilder(ctx).
+	ctx = contextpkg.NewBuilder(ctx).
 		WithComponent("mcp").
 		WithOperation("server_start").
 		WithCurrentTime().
 		Build()
 
-	logger := ms.logger.WithContext(ctx)
+	// Use logger with context-aware trace ID
+	//nolint:contextcheck // GetTraceID properly extracts from parent context
+	traceID := contextpkg.GetTraceID(ctx)
+	logger := ms.logger.WithTraceID(traceID)
 	startTime := time.Now()
 
 	logger.Info("Starting MCP Memory Server")
 
 	// Initialize vector store with timeout
-	storageCtx, cancel := enhancedctx.NewStorageContext(ctx, "initialize")
+	storageCtx, cancel := contextpkg.NewStorageContext(ctx, "initialize")
 	defer cancel()
 
+	//nolint:contextcheck // storageCtx properly inherits from parent ctx via NewStorageContext
 	if err := ms.container.GetVectorStore().Initialize(storageCtx); err != nil {
 		return mcperrors.WrapStorageError(err, "vector_store_initialization")
 	}
 	logger.Info("Vector store initialized successfully")
 
 	// Health check services with proper error handling
+	//nolint:contextcheck // ctx is properly passed from parent
 	if err := ms.container.HealthCheck(ctx); err != nil {
 		// Log warning but don't fail startup for health check issues
-		logger.WithError(err).Warn("Service health check failed, but continuing startup")
+		logger.Warn("Service health check failed, but continuing startup", "error", err.Error())
 	} else {
 		logger.Info("Service health check passed")
 	}
 
 	// Start automatic decay management for old chunks
+	//nolint:contextcheck // goroutine gets independent context for background task
 	go ms.runPeriodicDecayWithErrorHandling(ctx)
 
 	// Log successful startup with duration
@@ -289,7 +264,7 @@ func (ms *MemoryServer) SetWebSocketHub(hub interface{}) {
 }
 
 // registerTools registers all MCP tools
-func (ms *MemoryServer) registerTools() error {
+func (ms *MemoryServer) registerTools() {
 	logger := ms.logger
 
 	// Choose between consolidated (8 tools) or legacy (41 tools) based on environment variable
@@ -311,7 +286,6 @@ func (ms *MemoryServer) registerTools() error {
 	}
 
 	logger.Info("MCP tools registered successfully")
-	return nil
 }
 
 // registerLegacyTools registers the original 41 MCP tools (for backward compatibility)
@@ -1466,7 +1440,7 @@ func (ms *MemoryServer) registerLegacyTools() {
 }
 
 // registerResources registers MCP resources for browsing memory
-func (ms *MemoryServer) registerResources() error {
+func (ms *MemoryServer) registerResources() {
 	logger := ms.logger
 
 	logger.Info("Registering MCP resources")
@@ -1510,7 +1484,6 @@ func (ms *MemoryServer) registerResources() error {
 	}
 
 	logger.Info("MCP resources registered successfully")
-	return nil
 }
 
 // Tool handlers
@@ -2509,7 +2482,7 @@ func (ms *MemoryServer) buildDecisionMetadata(params map[string]interface{}, dec
 
 // addDecisionExtendedMetadata adds extended metadata with context detection
 func (ms *MemoryServer) addDecisionExtendedMetadata(metadata *types.ChunkMetadata, params map[string]interface{}, decision, rationale string) {
-	detector, err := contextdetector.NewDetector()
+	detector, err := contextpkg.NewDetector()
 	if err != nil {
 		return // Skip extended metadata if detector fails
 	}
@@ -4174,10 +4147,10 @@ func (ms *MemoryServer) handleMemoryLink(ctx context.Context, params map[string]
 	}
 
 	// Get storage from container
-	storage := ms.container.VectorStore
+	vectorStore := ms.container.VectorStore
 
 	// Create the relationship
-	relationship, err := storage.StoreRelationship(ctx, sourceChunkID, targetChunkID, relationType, confidence, types.ConfidenceExplicit)
+	relationship, err := vectorStore.StoreRelationship(ctx, sourceChunkID, targetChunkID, relationType, confidence, types.ConfidenceExplicit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create relationship: %w", err)
 	}
@@ -4370,10 +4343,10 @@ func (ms *MemoryServer) handleTraverseGraph(ctx context.Context, params map[stri
 	}
 
 	// Get storage from container
-	storage := ms.container.VectorStore
+	vectorStore := ms.container.VectorStore
 
 	// Perform graph traversal
-	traversalResult, err := storage.TraverseGraph(ctx, startChunkID, maxDepth, relationTypes)
+	traversalResult, err := vectorStore.TraverseGraph(ctx, startChunkID, maxDepth, relationTypes)
 	if err != nil {
 		return nil, fmt.Errorf("failed to traverse graph: %w", err)
 	}
@@ -4512,16 +4485,16 @@ func (ms *MemoryServer) buildRelationshipDetectionConfig(params map[string]inter
 
 // performRelationshipDetection executes the relationship detection process
 func (ms *MemoryServer) performRelationshipDetection(ctx context.Context, chunkID string, detectionConfig *relationships.DetectionConfig, params map[string]interface{}) (*relationships.DetectionResult, error) {
-	storage := ms.container.VectorStore
+	vectorStore := ms.container.VectorStore
 
 	// Get the chunk to analyze
-	chunk, err := storage.GetByID(ctx, chunkID)
+	chunk, err := vectorStore.GetByID(ctx, chunkID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get chunk: %w", err)
 	}
 
 	// Create relationship detector
-	detector := relationships.NewRelationshipDetector(storage)
+	detector := relationships.NewRelationshipDetector(vectorStore)
 
 	// Determine if we should auto-store
 	autoStore := true // default
@@ -4596,7 +4569,7 @@ func (ms *MemoryServer) handleUpdateRelationship(ctx context.Context, params map
 	}
 
 	// Get storage from container
-	storage := ms.container.VectorStore
+	vectorStore := ms.container.VectorStore
 
 	// Build confidence factors
 	factors := types.ConfidenceFactors{}
@@ -4614,7 +4587,7 @@ func (ms *MemoryServer) handleUpdateRelationship(ctx context.Context, params map
 
 	// If no new confidence provided, we need to get the current relationship
 	if !hasConfidence {
-		relationship, err := storage.GetRelationshipByID(ctx, relationshipID)
+		relationship, err := vectorStore.GetRelationshipByID(ctx, relationshipID)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get relationship: %w", err)
 		}
@@ -4622,13 +4595,13 @@ func (ms *MemoryServer) handleUpdateRelationship(ctx context.Context, params map
 	}
 
 	// Update the relationship
-	err := storage.UpdateRelationship(ctx, relationshipID, newConfidence, factors)
+	err := vectorStore.UpdateRelationship(ctx, relationshipID, newConfidence, factors)
 	if err != nil {
 		return nil, fmt.Errorf("failed to update relationship: %w", err)
 	}
 
 	// Get the updated relationship
-	relationship, err := storage.GetRelationshipByID(ctx, relationshipID)
+	relationship, err := vectorStore.GetRelationshipByID(ctx, relationshipID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get updated relationship: %w", err)
 	}
@@ -4930,7 +4903,7 @@ func (ms *MemoryServer) buildMetadataFromParams(params map[string]interface{}) t
 
 // addContextMetadata adds context detection metadata
 func (ms *MemoryServer) addContextMetadata(metadata *types.ChunkMetadata, params map[string]interface{}) error {
-	detector, err := contextdetector.NewDetector()
+	detector, err := contextpkg.NewDetector()
 	if err != nil {
 		return err
 	}
@@ -5158,292 +5131,12 @@ func (ms *MemoryServer) handleMemoryConflicts(ctx context.Context, params map[st
 	return result, nil
 }
 
-// convertVectorResultToRecommendations converts Qdrant vector resolution results to base recommendations format
-// This function is disabled until Qdrant enhancement is available
-func (ms *MemoryServer) convertVectorResultToRecommendations(vectorResult interface{}, conflicts []intelligence.Conflict) []intelligence.ResolutionRecommendation {
-	if vectorResult == nil || len(conflicts) == 0 {
-		return []intelligence.ResolutionRecommendation{}
-	}
-
-	// TODO: Implement when Qdrant enhancement is available
-	return []intelligence.ResolutionRecommendation{}
-}
-
 // getAnalysisMethod returns a description of the analysis method used
 func (ms *MemoryServer) getAnalysisMethod(vectorEnhanced bool) string {
 	if vectorEnhanced {
 		return "Qdrant-enhanced vector semantic analysis with conflict detection"
 	}
 	return "Standard pattern-based conflict detection"
-}
-
-// conflictResolutionConfig holds configuration for conflict resolution
-type conflictResolutionConfig struct {
-	ConflictIDs          []string
-	Repository           string
-	MaxStrategies        int
-	IncludeDetailedSteps bool
-	PreferredTypes       []string
-}
-
-// parseConflictResolutionParams extracts and validates parameters for conflict resolution
-func (ms *MemoryServer) parseConflictResolutionParams(params map[string]interface{}) (*conflictResolutionConfig, error) {
-	resolutionConfig := &conflictResolutionConfig{
-		MaxStrategies:        3,
-		IncludeDetailedSteps: true,
-	}
-
-	// Extract conflict IDs
-	if ids, ok := params["conflict_ids"].([]interface{}); ok {
-		for _, id := range ids {
-			if idStr, ok := id.(string); ok {
-				resolutionConfig.ConflictIDs = append(resolutionConfig.ConflictIDs, idStr)
-			}
-		}
-	}
-
-	if len(resolutionConfig.ConflictIDs) == 0 {
-		return nil, errors.New("conflict_ids parameter is required and must be a non-empty array")
-	}
-
-	if repo, ok := params["repository"].(string); ok {
-		resolutionConfig.Repository = repo
-	}
-
-	if maxVal, ok := params["max_strategies"].(float64); ok {
-		resolutionConfig.MaxStrategies = int(maxVal)
-	}
-
-	if include, ok := params["include_detailed_steps"].(bool); ok {
-		resolutionConfig.IncludeDetailedSteps = include
-	}
-
-	if strategyTypes, ok := params["strategy_types"].([]interface{}); ok {
-		for _, t := range strategyTypes {
-			if typeStr, ok := t.(string); ok {
-				resolutionConfig.PreferredTypes = append(resolutionConfig.PreferredTypes, typeStr)
-			}
-		}
-	}
-
-	return resolutionConfig, nil
-}
-
-// getRequestedConflicts retrieves conflicts matching the specified IDs
-func (ms *MemoryServer) getRequestedConflicts(ctx context.Context, conflictIDs []string, repository string) ([]intelligence.Conflict, int, error) {
-	timeframe := types.TimeframeMonth
-	chunks, err := ms.getChunksForTimeframe(ctx, repository, timeframe)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to get chunks for conflict analysis: %w", err)
-	}
-
-	conflictDetector := intelligence.NewConflictDetector()
-	conflictResult, err := conflictDetector.DetectConflicts(ctx, chunks)
-	if err != nil {
-		return nil, 0, fmt.Errorf("failed to detect conflicts: %w", err)
-	}
-
-	// Filter conflicts to only those requested
-	requestedConflicts := []intelligence.Conflict{}
-	for i := range conflictResult.Conflicts {
-		conflict := &conflictResult.Conflicts[i]
-		for _, requestedID := range conflictIDs {
-			if conflict.ID == requestedID {
-				requestedConflicts = append(requestedConflicts, *conflict)
-				break
-			}
-		}
-	}
-
-	return requestedConflicts, len(conflictResult.Conflicts), nil
-}
-
-// generateConflictRecommendations creates and customizes resolution recommendations
-func (ms *MemoryServer) generateConflictRecommendations(ctx context.Context, conflicts []intelligence.Conflict, resolutionConfig *conflictResolutionConfig) ([]intelligence.ResolutionRecommendation, error) {
-	conflictResolver := intelligence.NewConflictResolver()
-	recommendations, err := conflictResolver.ResolveConflicts(ctx, conflicts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to generate resolution recommendations: %w", err)
-	}
-
-	// Customize recommendations based on config
-	ms.customizeRecommendations(recommendations, resolutionConfig)
-	return recommendations, nil
-}
-
-// customizeRecommendations applies filtering and customization to recommendations
-func (ms *MemoryServer) customizeRecommendations(recommendations []intelligence.ResolutionRecommendation, resolutionConfig *conflictResolutionConfig) {
-	for i := range recommendations {
-		// Filter by preferred types if specified
-		if len(resolutionConfig.PreferredTypes) > 0 {
-			recommendations[i].Strategies = ms.filterStrategiesByType(recommendations[i].Strategies, resolutionConfig.PreferredTypes)
-		}
-
-		// Limit number of strategies
-		if len(recommendations[i].Strategies) > resolutionConfig.MaxStrategies {
-			recommendations[i].Strategies = recommendations[i].Strategies[:resolutionConfig.MaxStrategies]
-		}
-
-		// Update recommended strategy
-		if len(recommendations[i].Strategies) > 0 {
-			recommendations[i].Recommended = &recommendations[i].Strategies[0]
-		}
-
-		// Remove detailed steps if not requested
-		if !resolutionConfig.IncludeDetailedSteps {
-			for j := range recommendations[i].Strategies {
-				recommendations[i].Strategies[j].Steps = []intelligence.ResolutionStep{}
-			}
-		}
-	}
-}
-
-// filterStrategiesByType filters strategies based on preferred types
-func (ms *MemoryServer) filterStrategiesByType(strategies []intelligence.ResolutionStrategy, preferredTypes []string) []intelligence.ResolutionStrategy {
-	filteredStrategies := []intelligence.ResolutionStrategy{}
-	for i := range strategies {
-		strategy := &strategies[i]
-		for _, prefType := range preferredTypes {
-			if string(strategy.Type) == prefType {
-				filteredStrategies = append(filteredStrategies, *strategy)
-				break
-			}
-		}
-	}
-	if len(filteredStrategies) > 0 {
-		return filteredStrategies
-	}
-	return strategies // Return original if no matches found
-}
-
-// buildConflictResolutionResponse constructs the final response for conflict resolution
-func (ms *MemoryServer) buildConflictResolutionResponse(resolutionConfig *conflictResolutionConfig, conflicts []intelligence.Conflict, recommendations []intelligence.ResolutionRecommendation) map[string]interface{} {
-	return map[string]interface{}{
-		"repository":                  resolutionConfig.Repository,
-		"conflict_ids_requested":      resolutionConfig.ConflictIDs,
-		"conflicts_found":             len(conflicts),
-		"recommendations":             recommendations,
-		"analysis_timestamp":          time.Now().Format(time.RFC3339),
-		"include_detailed_steps":      resolutionConfig.IncludeDetailedSteps,
-		"max_strategies_per_conflict": resolutionConfig.MaxStrategies,
-		"summary":                     ms.buildConflictSummary(recommendations, conflicts),
-		"next_steps":                  ms.generateConflictResolutionNextSteps(recommendations),
-	}
-}
-
-// buildConflictSummary creates summary statistics for the conflict resolution
-func (ms *MemoryServer) buildConflictSummary(recommendations []intelligence.ResolutionRecommendation, conflicts []intelligence.Conflict) map[string]interface{} {
-	return map[string]interface{}{
-		"total_recommendations":       len(recommendations),
-		"avg_strategies_per_conflict": ms.calculateAvgStrategies(recommendations),
-		"strategy_distribution":       ms.calculateStrategyDistribution(recommendations),
-		"conflicts_by_severity":       ms.calculateSeverityDistribution(conflicts),
-	}
-}
-
-// calculateAvgStrategies calculates average strategies per conflict
-func (ms *MemoryServer) calculateAvgStrategies(recommendations []intelligence.ResolutionRecommendation) float64 {
-	if len(recommendations) == 0 {
-		return 0.0
-	}
-	total := 0
-	for i := range recommendations {
-		rec := &recommendations[i]
-		total += len(rec.Strategies)
-	}
-	return float64(total) / float64(len(recommendations))
-}
-
-// calculateStrategyDistribution builds distribution of strategy types
-func (ms *MemoryServer) calculateStrategyDistribution(recommendations []intelligence.ResolutionRecommendation) map[string]int {
-	dist := map[string]int{}
-	for i := range recommendations {
-		rec := &recommendations[i]
-		for j := range rec.Strategies {
-			strategy := &rec.Strategies[j]
-			dist[string(strategy.Type)]++
-		}
-	}
-	return dist
-}
-
-// calculateSeverityDistribution builds distribution of conflict severities
-func (ms *MemoryServer) calculateSeverityDistribution(conflicts []intelligence.Conflict) map[string]int {
-	severity := map[string]int{}
-	for i := range conflicts {
-		conflict := &conflicts[i]
-		severity[string(conflict.Severity)]++
-	}
-	return severity
-}
-
-// handleMemoryResolveConflicts provides detailed resolution strategies for specific conflicts
-func (ms *MemoryServer) handleMemoryResolveConflicts(ctx context.Context, params map[string]interface{}) (interface{}, error) {
-	logging.Info("MCP TOOL: memory_resolve_conflicts called", "params", params)
-
-	// TEMPORARY: Advanced conflict resolution disabled due to incomplete Qdrant integration
-	return map[string]interface{}{
-		"status":          "not_implemented",
-		"message":         "Advanced conflict resolution temporarily disabled - use memory_analyze with detect_conflicts for basic conflict detection",
-		"available_tools": []string{"memory_analyze"},
-	}, nil
-}
-
-// generateConflictResolutionNextSteps provides actionable next steps based on recommendations
-func (ms *MemoryServer) generateConflictResolutionNextSteps(recommendations []intelligence.ResolutionRecommendation) []map[string]interface{} {
-	nextSteps := []map[string]interface{}{}
-
-	for i := range recommendations {
-		rec := &recommendations[i]
-		if rec.Recommended == nil {
-			continue
-		}
-
-		step := map[string]interface{}{
-			"conflict_id":        rec.ConflictID,
-			"conflict_type":      string(rec.ConflictType),
-			"priority":           ms.mapSeverityToPriority(rec.Severity),
-			"recommended_action": rec.Recommended.Title,
-			"description":        rec.Recommended.Description,
-			"rationale":          rec.Recommended.Rationale,
-			"confidence":         rec.Recommended.Confidence,
-		}
-
-		if len(rec.Recommended.Steps) > 0 {
-			step["immediate_next_step"] = rec.Recommended.Steps[0].Description
-			step["total_steps"] = len(rec.Recommended.Steps)
-		}
-
-		if len(rec.Recommended.Risks) > 0 {
-			step["key_risks"] = rec.Recommended.Risks
-		}
-
-		if len(rec.Recommended.Benefits) > 0 {
-			step["key_benefits"] = rec.Recommended.Benefits
-		}
-
-		nextSteps = append(nextSteps, step)
-	}
-
-	return nextSteps
-}
-
-// mapSeverityToPriority maps conflict severity to action priority
-func (ms *MemoryServer) mapSeverityToPriority(severity intelligence.ConflictSeverity) string {
-	switch severity {
-	case intelligence.SeverityCritical:
-		return "urgent"
-	case intelligence.SeverityHigh:
-		return LevelHigh
-	case intelligence.SeverityMedium:
-		return LevelMedium
-	case intelligence.SeverityLow:
-		return "low"
-	case intelligence.SeverityInfo:
-		return "info"
-	default:
-		return LevelMedium
-	}
 }
 
 // handleMemoryContinuity shows what was left incomplete from previous sessions
@@ -11244,7 +10937,7 @@ func (ms *MemoryServer) handleGetDocumentation(ctx context.Context, args map[str
 	switch docType {
 	case "mappings":
 		// Stream CONSOLIDATED_TOOL_MAPPINGS.md
-		if data, err := os.ReadFile("docs/CONSOLIDATED_TOOL_MAPPINGS.md"); err == nil {
+		if data, err := os.ReadFile("docs/CONSOLIDATED_TOOL_MAPPINGS.md"); err == nil { // #nosec G304 -- Hardcoded safe path
 			content.WriteString("# MCP Tool Parameter Mappings\n\n")
 			content.WriteString(string(data))
 		} else {
@@ -11252,7 +10945,7 @@ func (ms *MemoryServer) handleGetDocumentation(ctx context.Context, args map[str
 		}
 	case "examples":
 		// Stream CONSOLIDATION_EXAMPLES.md
-		if data, err := os.ReadFile("docs/CONSOLIDATION_EXAMPLES.md"); err == nil {
+		if data, err := os.ReadFile("docs/CONSOLIDATION_EXAMPLES.md"); err == nil { // #nosec G304 -- Hardcoded safe path
 			content.WriteString("# MCP Tool Usage Examples\n\n")
 			content.WriteString(string(data))
 		} else {
@@ -11263,7 +10956,7 @@ func (ms *MemoryServer) handleGetDocumentation(ctx context.Context, args map[str
 		content.WriteString("# MCP Memory Server Documentation\n\n")
 
 		content.WriteString("## Tool Parameter Mappings\n\n")
-		if data, err := os.ReadFile("docs/CONSOLIDATED_TOOL_MAPPINGS.md"); err == nil {
+		if data, err := os.ReadFile("docs/CONSOLIDATED_TOOL_MAPPINGS.md"); err == nil { // #nosec G304 -- Hardcoded safe path
 			content.WriteString(string(data))
 		} else {
 			content.WriteString("*Tool mappings documentation not available*\n")
@@ -11272,7 +10965,7 @@ func (ms *MemoryServer) handleGetDocumentation(ctx context.Context, args map[str
 		content.WriteString("\n\n---\n\n")
 
 		content.WriteString("## Usage Examples\n\n")
-		if data, err := os.ReadFile("docs/CONSOLIDATION_EXAMPLES.md"); err == nil {
+		if data, err := os.ReadFile("docs/CONSOLIDATION_EXAMPLES.md"); err == nil { // #nosec G304 -- Hardcoded safe path
 			content.WriteString(string(data))
 		} else {
 			content.WriteString("*Usage examples documentation not available*\n")

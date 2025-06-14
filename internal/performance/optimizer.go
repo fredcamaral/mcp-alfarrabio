@@ -39,9 +39,9 @@ func NewPerformanceOptimizer() *PerformanceOptimizer {
 func (p *PerformanceOptimizer) GetStats() *OptimizerStats {
 	return &OptimizerStats{
 		Enabled:          p.enabled,
-		VectorCacheHits:  p.vectorCache.stats.Hits,
-		PatternCacheHits: p.patternCache.stats.Hits,
-		QueryCacheHits:   p.queryCache.stats.Hits,
+		VectorCacheHits:  p.vectorCache.stats.data.Hits,
+		PatternCacheHits: p.patternCache.stats.data.Hits,
+		QueryCacheHits:   p.queryCache.stats.data.Hits,
 	}
 }
 

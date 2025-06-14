@@ -179,7 +179,7 @@ func (s *Server) HandleUpgrade(w http.ResponseWriter, r *http.Request) {
 	conn, err := s.upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		// Connection upgrade failed
-			log.Printf("WebSocket upgrade failed: %v", err)
+		log.Printf("WebSocket upgrade failed: %v", err)
 		return
 	}
 

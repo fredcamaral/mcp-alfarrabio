@@ -4,11 +4,13 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"lerian-mcp-memory/internal/config"
 	"lerian-mcp-memory/internal/docs"
@@ -74,49 +76,93 @@ func loadConfig(configFile string) (*config.Config, error) {
 
 // generateDocumentation generates OpenAPI documentation files
 func generateDocumentation(generator *docs.OpenAPIGenerator, outputDir, format string, validate, generateExamples, verbose bool) error {
-	log.Printf("Generating OpenAPI documentation to: %s", outputDir)
+	cleanOutputDir, err := validateOutputDirectory(outputDir)
+	if err != nil {
+		return err
+	}
 
-	// Create output directory
-	if err := os.MkdirAll(outputDir, 0o750); err != nil {
+	log.Printf("Generating OpenAPI documentation to: %s", cleanOutputDir)
+
+	if err := os.MkdirAll(cleanOutputDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
-	// Validate specification if requested
-	if validate {
-		log.Println("Validating OpenAPI specification...")
-		if err := generator.ValidateSpecification(); err != nil {
-			return fmt.Errorf("OpenAPI specification validation failed: %w", err)
-		}
-		log.Println("✓ OpenAPI specification validation passed")
+	if err := validateSpecificationIfRequested(generator, validate); err != nil {
+		return err
 	}
 
-	// Generate JSON format
+	if err := generateSpecificationFiles(generator, cleanOutputDir, format, verbose); err != nil {
+		return err
+	}
+
+	if err := generateAdditionalFiles(generator, cleanOutputDir, format, generateExamples, verbose); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateOutputDirectory validates and cleans the output directory path
+func validateOutputDirectory(outputDir string) (string, error) {
+	cleanOutputDir := filepath.Clean(outputDir)
+
+	if !filepath.IsAbs(cleanOutputDir) {
+		return cleanOutputDir, nil
+	}
+
+	systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+	for _, sysDir := range systemDirs {
+		if strings.HasPrefix(cleanOutputDir, sysDir) {
+			return "", errors.New("invalid output directory: access to system directory not allowed")
+		}
+	}
+
+	return cleanOutputDir, nil
+}
+
+// validateSpecificationIfRequested validates the OpenAPI specification if requested
+func validateSpecificationIfRequested(generator *docs.OpenAPIGenerator, validate bool) error {
+	if !validate {
+		return nil
+	}
+
+	log.Println("Validating OpenAPI specification...")
+	if err := generator.ValidateSpecification(); err != nil {
+		return fmt.Errorf("OpenAPI specification validation failed: %w", err)
+	}
+	log.Println("✓ OpenAPI specification validation passed")
+	return nil
+}
+
+// generateSpecificationFiles generates the OpenAPI specification files in requested formats
+func generateSpecificationFiles(generator *docs.OpenAPIGenerator, outputDir, format string, verbose bool) error {
 	if format == "json" || format == "both" {
 		if err := generateJSONSpec(generator, outputDir, verbose); err != nil {
 			return fmt.Errorf("failed to generate JSON specification: %w", err)
 		}
 	}
 
-	// Generate YAML format
 	if format == "yaml" || format == "both" {
 		if err := generateYAMLSpec(generator, outputDir, verbose); err != nil {
 			return fmt.Errorf("failed to generate YAML specification: %w", err)
 		}
 	}
 
-	// Generate examples if requested
+	return nil
+}
+
+// generateAdditionalFiles generates additional documentation files
+func generateAdditionalFiles(generator *docs.OpenAPIGenerator, outputDir, format string, generateExamples, verbose bool) error {
 	if generateExamples {
 		if err := generateAPIExamples(generator, outputDir, verbose); err != nil {
 			return fmt.Errorf("failed to generate API examples: %w", err)
 		}
 	}
 
-	// Generate static HTML documentation
 	if err := generateStaticHTML(generator, outputDir, verbose); err != nil {
 		return fmt.Errorf("failed to generate static HTML: %w", err)
 	}
 
-	// Generate README for the documentation
 	if err := generateDocumentationReadme(outputDir, format); err != nil {
 		return fmt.Errorf("failed to generate documentation README: %w", err)
 	}
@@ -136,7 +182,7 @@ func generateJSONSpec(generator *docs.OpenAPIGenerator, outputDir string, verbos
 	}
 
 	jsonPath := filepath.Join(outputDir, "openapi.json")
-	if err := os.WriteFile(jsonPath, jsonSpec, 0o600); err != nil {
+	if err := os.WriteFile(jsonPath, jsonSpec, 0o600); err != nil { // #nosec G304 -- Path is constructed safely using filepath.Join
 		return fmt.Errorf("failed to write JSON specification: %w", err)
 	}
 
@@ -156,7 +202,7 @@ func generateYAMLSpec(generator *docs.OpenAPIGenerator, outputDir string, verbos
 	}
 
 	yamlPath := filepath.Join(outputDir, "openapi.yaml")
-	if err := os.WriteFile(yamlPath, yamlSpec, 0o600); err != nil {
+	if err := os.WriteFile(yamlPath, yamlSpec, 0o600); err != nil { // #nosec G304 -- Path is constructed safely using filepath.Join
 		return fmt.Errorf("failed to write YAML specification: %w", err)
 	}
 
@@ -180,7 +226,7 @@ func generateAPIExamples(generator *docs.OpenAPIGenerator, outputDir string, ver
 	}
 
 	examplesPath := filepath.Join(outputDir, "examples.json")
-	if err := os.WriteFile(examplesPath, jsonBytes, 0o600); err != nil {
+	if err := os.WriteFile(examplesPath, jsonBytes, 0o600); err != nil { // #nosec G304 -- Path is constructed safely using filepath.Join
 		return fmt.Errorf("failed to write examples: %w", err)
 	}
 
@@ -224,7 +270,7 @@ func generateStaticHTML(generator *docs.OpenAPIGenerator, outputDir string, verb
 </html>`
 
 	htmlPath := filepath.Join(outputDir, "index.html")
-	if err := os.WriteFile(htmlPath, []byte(htmlContent), 0o600); err != nil {
+	if err := os.WriteFile(htmlPath, []byte(htmlContent), 0o600); err != nil { // #nosec G304 -- Path is constructed safely using filepath.Join
 		return fmt.Errorf("failed to write HTML documentation: %w", err)
 	}
 
@@ -295,7 +341,7 @@ For the latest documentation, run the generator again or visit the live API docu
 `
 
 	readmePath := filepath.Join(outputDir, "README.md")
-	if err := os.WriteFile(readmePath, []byte(readmeContent), 0o600); err != nil {
+	if err := os.WriteFile(readmePath, []byte(readmeContent), 0o600); err != nil { // #nosec G304 -- Path is constructed safely using filepath.Join
 		return fmt.Errorf("failed to write README: %w", err)
 	}
 
@@ -310,7 +356,7 @@ func serveDocumentation(generator *docs.OpenAPIGenerator, port int) error {
 
 	// This is a simplified implementation
 	// In a real implementation, you would set up proper HTTP routes
-	return fmt.Errorf("documentation server not implemented - use the main server with /docs endpoint")
+	return errors.New("documentation server not implemented - use the main server with /docs endpoint")
 }
 
 // marshalIndent marshals the value with proper indentation

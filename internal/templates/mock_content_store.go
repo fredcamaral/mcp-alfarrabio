@@ -96,7 +96,7 @@ func (m *MockContentStore) Get(ctx context.Context, projectID types.ProjectID, c
 
 // BatchStore stores multiple content items
 func (m *MockContentStore) BatchStore(ctx context.Context, contents []*types.Content) (*storage.BatchResult, error) {
-	var chunks []*pkgtypes.ConversationChunk
+	chunks := make([]*pkgtypes.ConversationChunk, 0, len(contents))
 	for _, content := range contents {
 		chunk := &pkgtypes.ConversationChunk{
 			ID:        content.ID,

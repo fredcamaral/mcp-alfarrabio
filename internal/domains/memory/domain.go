@@ -117,7 +117,9 @@ func (d *Domain) StoreContent(ctx context.Context, req *domainTypes.StoreContent
 
 	// Auto-detect relationships if enabled
 	if d.config.AutoDetectRelations {
-		go d.autoDetectRelationships(context.Background(), content)
+		// Use context.WithoutCancel to derive context for background task
+		relationCtx := context.WithoutCancel(ctx)
+		go d.autoDetectRelationships(relationCtx, content)
 	}
 
 	return &domainTypes.StoreContentResponse{
@@ -137,13 +139,29 @@ func (d *Domain) StoreContent(ctx context.Context, req *domainTypes.StoreContent
 func (d *Domain) UpdateContent(ctx context.Context, req *domainTypes.UpdateContentRequest) (*domainTypes.UpdateContentResponse, error) {
 	startTime := time.Now()
 
-	// Get existing content
 	existing, err := d.contentStore.Get(ctx, req.ProjectID, req.ContentID)
 	if err != nil {
 		return nil, fmt.Errorf("content not found: %w", err)
 	}
 
-	// Apply updates
+	d.applyContentUpdates(existing, req)
+	d.applyTagOperations(existing, req)
+	d.applyQualityUpdates(existing, req)
+	d.updateVersionAndTimestamp(existing)
+
+	if err := d.validateContentSize(existing); err != nil {
+		return nil, err
+	}
+
+	if err := d.contentStore.Update(ctx, existing); err != nil {
+		return nil, fmt.Errorf("failed to update content: %w", err)
+	}
+
+	return d.buildUpdateResponse(req.ContentID, existing, startTime), nil
+}
+
+// applyContentUpdates applies basic content field updates
+func (d *Domain) applyContentUpdates(existing *coreTypes.Content, req *domainTypes.UpdateContentRequest) {
 	if req.Content != "" {
 		existing.Content = req.Content
 	}
@@ -156,52 +174,74 @@ func (d *Domain) UpdateContent(ctx context.Context, req *domainTypes.UpdateConte
 	if req.Tags != nil {
 		existing.Tags = req.Tags
 	}
-	if req.Metadata != nil {
-		if existing.Metadata == nil {
-			existing.Metadata = make(map[string]interface{})
-		}
-		for k, v := range req.Metadata {
-			existing.Metadata[k] = v
-		}
+
+	d.applyMetadataUpdates(existing, req)
+}
+
+// applyMetadataUpdates applies metadata updates
+func (d *Domain) applyMetadataUpdates(existing *coreTypes.Content, req *domainTypes.UpdateContentRequest) {
+	if req.Metadata == nil {
+		return
 	}
 
-	// Handle tag operations
+	if existing.Metadata == nil {
+		existing.Metadata = make(map[string]interface{})
+	}
+
+	for k, v := range req.Metadata {
+		existing.Metadata[k] = v
+	}
+}
+
+// applyTagOperations handles tag addition and removal
+func (d *Domain) applyTagOperations(existing *coreTypes.Content, req *domainTypes.UpdateContentRequest) {
 	if req.AddTags != nil {
 		existing.Tags = append(existing.Tags, req.AddTags...)
 	}
+
 	if req.RemoveTags != nil {
-		for _, removeTag := range req.RemoveTags {
-			for i, tag := range existing.Tags {
-				if tag == removeTag {
-					existing.Tags = append(existing.Tags[:i], existing.Tags[i+1:]...)
-					break
-				}
+		d.removeTags(existing, req.RemoveTags)
+	}
+}
+
+// removeTags removes specified tags from the content
+func (d *Domain) removeTags(existing *coreTypes.Content, tagsToRemove []string) {
+	for _, removeTag := range tagsToRemove {
+		for i, tag := range existing.Tags {
+			if tag == removeTag {
+				existing.Tags = append(existing.Tags[:i], existing.Tags[i+1:]...)
+				break
 			}
 		}
 	}
+}
 
-	// Update quality and confidence if provided
+// applyQualityUpdates applies quality and confidence updates
+func (d *Domain) applyQualityUpdates(existing *coreTypes.Content, req *domainTypes.UpdateContentRequest) {
 	if req.Quality != nil {
 		existing.Quality = *req.Quality
 	}
 	if req.Confidence != nil {
 		existing.Confidence = *req.Confidence
 	}
+}
 
-	// Update version and timestamp
+// updateVersionAndTimestamp updates version and timestamp
+func (d *Domain) updateVersionAndTimestamp(existing *coreTypes.Content) {
 	existing.Version++
 	existing.UpdatedAt = time.Now()
+}
 
-	// Validate content size
-	if len(existing.Content) > int(d.config.MaxContentSize) {
-		return nil, fmt.Errorf("updated content size exceeds maximum allowed size")
+// validateContentSize validates the updated content size
+func (d *Domain) validateContentSize(content *coreTypes.Content) error {
+	if len(content.Content) > int(d.config.MaxContentSize) {
+		return fmt.Errorf("updated content size exceeds maximum allowed size")
 	}
+	return nil
+}
 
-	// Update content
-	if err := d.contentStore.Update(ctx, existing); err != nil {
-		return nil, fmt.Errorf("failed to update content: %w", err)
-	}
-
+// buildUpdateResponse builds the update response
+func (d *Domain) buildUpdateResponse(contentID string, existing *coreTypes.Content, startTime time.Time) *domainTypes.UpdateContentResponse {
 	return &domainTypes.UpdateContentResponse{
 		BaseResponse: domainTypes.BaseResponse{
 			Success:   true,
@@ -209,10 +249,10 @@ func (d *Domain) UpdateContent(ctx context.Context, req *domainTypes.UpdateConte
 			Timestamp: time.Now(),
 			Duration:  time.Since(startTime),
 		},
-		ContentID: req.ContentID,
+		ContentID: contentID,
 		Version:   existing.Version,
 		UpdatedAt: existing.UpdatedAt,
-	}, nil
+	}
 }
 
 // DeleteContent removes content from the system
@@ -254,31 +294,7 @@ func (d *Domain) GetContent(ctx context.Context, req *domainTypes.GetContentRequ
 
 	// Include relationships if requested
 	if req.IncludeRelated {
-		relationships, err := d.relationshipStore.GetRelationships(ctx, req.ProjectID, req.ContentID, nil)
-		if err == nil {
-			// Convert relationships to related content
-			var related []*coreTypes.RelatedContent
-			for _, rel := range relationships {
-				// Get the related content
-				var relatedContentID string
-				if rel.SourceID == req.ContentID {
-					relatedContentID = rel.TargetID
-				} else {
-					relatedContentID = rel.SourceID
-				}
-
-				relatedContent, err := d.contentStore.Get(ctx, req.ProjectID, relatedContentID)
-				if err == nil {
-					related = append(related, &coreTypes.RelatedContent{
-						Content:      relatedContent,
-						Relationship: rel,
-						Distance:     1,
-						Relevance:    rel.Confidence,
-					})
-				}
-			}
-			response.Related = related
-		}
+		d.includeRelatedContent(ctx, req, response)
 	}
 
 	// Include history if requested
@@ -290,6 +306,55 @@ func (d *Domain) GetContent(ctx context.Context, req *domainTypes.GetContentRequ
 	}
 
 	return response, nil
+}
+
+// includeRelatedContent adds related content to the response
+func (d *Domain) includeRelatedContent(ctx context.Context, req *domainTypes.GetContentRequest, response *domainTypes.GetContentResponse) {
+	relationships, err := d.relationshipStore.GetRelationships(ctx, req.ProjectID, req.ContentID, nil)
+	if err != nil {
+		return // Silently ignore relationship errors to not break the main response
+	}
+
+	related := d.convertRelationshipsToRelatedContent(ctx, req, relationships)
+	response.Related = related
+}
+
+// convertRelationshipsToRelatedContent converts relationships to related content
+func (d *Domain) convertRelationshipsToRelatedContent(ctx context.Context, req *domainTypes.GetContentRequest, relationships []*coreTypes.Relationship) []*coreTypes.RelatedContent {
+	var related []*coreTypes.RelatedContent
+
+	for _, rel := range relationships {
+		relatedContentID := d.getRelatedContentID(rel, req.ContentID)
+		relatedContent := d.getRelatedContent(ctx, req.ProjectID, relatedContentID)
+
+		if relatedContent != nil {
+			related = append(related, &coreTypes.RelatedContent{
+				Content:      relatedContent,
+				Relationship: rel,
+				Distance:     1,
+				Relevance:    rel.Confidence,
+			})
+		}
+	}
+
+	return related
+}
+
+// getRelatedContentID gets the related content ID from a relationship
+func (d *Domain) getRelatedContentID(rel *coreTypes.Relationship, contentID string) string {
+	if rel.SourceID == contentID {
+		return rel.TargetID
+	}
+	return rel.SourceID
+}
+
+// getRelatedContent gets related content by ID, returning nil on error
+func (d *Domain) getRelatedContent(ctx context.Context, projectID coreTypes.ProjectID, contentID string) *coreTypes.Content {
+	content, err := d.contentStore.Get(ctx, projectID, contentID)
+	if err != nil {
+		return nil
+	}
+	return content
 }
 
 // Search and Discovery Operations
@@ -383,14 +448,15 @@ func (d *Domain) FindSimilarContent(ctx context.Context, req *domainTypes.FindSi
 		}
 
 		// Apply threshold filter
-		if req.MinSimilarity > 0 {
-			// TODO: Calculate similarity score and apply threshold
-			// For now, include all results
+		// TODO: Calculate actual similarity score from vector database
+		similarityScore := 0.85 // Placeholder score
+		if req.MinSimilarity > 0 && similarityScore < req.MinSimilarity {
+			continue // Skip items below threshold
 		}
 
 		response.Similar = append(response.Similar, &domainTypes.SimilarContent{
 			Content:    s,
-			Similarity: 0.85, // TODO: Calculate actual similarity
+			Similarity: similarityScore,
 			Context:    "Semantic similarity based on content embeddings",
 		})
 	}
@@ -523,30 +589,9 @@ func (d *Domain) autoDetectRelationships(ctx context.Context, content *coreTypes
 	// This would use AI/ML to find semantic relationships between content
 }
 
-// validateContent validates content against domain rules
-func (d *Domain) validateContent(content *coreTypes.Content) error {
-	if content == nil {
-		return fmt.Errorf("content cannot be nil")
-	}
-
-	if content.ProjectID == "" {
-		return fmt.Errorf("project_id is required")
-	}
-
-	if content.Content == "" {
-		return fmt.Errorf("content text is required")
-	}
-
-	if len(content.Content) > int(d.config.MaxContentSize) {
-		return fmt.Errorf("content size exceeds maximum allowed size")
-	}
-
-	return nil
-}
-
 // generateContentID generates a unique content ID
 func (d *Domain) generateContentID() string {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
+	_, _ = rand.Read(bytes) // crypto/rand.Read never returns an error
 	return hex.EncodeToString(bytes)
 }

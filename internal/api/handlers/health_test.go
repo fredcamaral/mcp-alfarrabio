@@ -8,6 +8,10 @@ import (
 	"lerian-mcp-memory/internal/config"
 )
 
+const (
+	contentTypeJSON = "application/json"
+)
+
 func TestHealthHandler_Handle(t *testing.T) {
 	// Create minimal config
 	cfg := &config.Config{
@@ -21,7 +25,7 @@ func TestHealthHandler_Handle(t *testing.T) {
 	handler := NewHealthHandler(cfg)
 
 	// Create test request
-	req := httptest.NewRequest("GET", "/health", nil)
+	req := httptest.NewRequest("GET", "/health", http.NoBody)
 	w := httptest.NewRecorder()
 
 	// Execute request
@@ -33,8 +37,8 @@ func TestHealthHandler_Handle(t *testing.T) {
 	}
 
 	// Check content type
-	if contentType := w.Header().Get("Content-Type"); contentType != "application/json" {
-		t.Errorf("Expected content type 'application/json', got '%s'", contentType)
+	if contentType := w.Header().Get("Content-Type"); contentType != contentTypeJSON {
+		t.Errorf("Expected content type '%s', got '%s'", contentTypeJSON, contentType)
 	}
 
 	// Check that body is not empty
@@ -56,7 +60,7 @@ func TestHealthHandler_HandleReadiness(t *testing.T) {
 	handler := NewHealthHandler(cfg)
 
 	// Create test request
-	req := httptest.NewRequest("GET", "/readiness", nil)
+	req := httptest.NewRequest("GET", "/readiness", http.NoBody)
 	w := httptest.NewRecorder()
 
 	// Execute request
@@ -68,8 +72,8 @@ func TestHealthHandler_HandleReadiness(t *testing.T) {
 	}
 
 	// Check content type
-	if contentType := w.Header().Get("Content-Type"); contentType != "application/json" {
-		t.Errorf("Expected content type 'application/json', got '%s'", contentType)
+	if contentType := w.Header().Get("Content-Type"); contentType != contentTypeJSON {
+		t.Errorf("Expected content type '%s', got '%s'", contentTypeJSON, contentType)
 	}
 }
 
@@ -86,7 +90,7 @@ func TestHealthHandler_HandleLiveness(t *testing.T) {
 	handler := NewHealthHandler(cfg)
 
 	// Create test request
-	req := httptest.NewRequest("GET", "/liveness", nil)
+	req := httptest.NewRequest("GET", "/liveness", http.NoBody)
 	w := httptest.NewRecorder()
 
 	// Execute request
@@ -98,7 +102,7 @@ func TestHealthHandler_HandleLiveness(t *testing.T) {
 	}
 
 	// Check content type
-	if contentType := w.Header().Get("Content-Type"); contentType != "application/json" {
-		t.Errorf("Expected content type 'application/json', got '%s'", contentType)
+	if contentType := w.Header().Get("Content-Type"); contentType != contentTypeJSON {
+		t.Errorf("Expected content type '%s', got '%s'", contentTypeJSON, contentType)
 	}
 }

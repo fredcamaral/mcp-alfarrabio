@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 	"sync"
 	"time"
 
@@ -370,6 +371,12 @@ func (s *FileSessionStorage) getRepositoryPath(repository string) string {
 }
 
 func (s *FileSessionStorage) loadSessionsFromFile(filePath string) ([]*entities.Session, error) {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return nil, fmt.Errorf("path traversal detected: %s", filePath)
+	}
+
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return []*entities.Session{}, nil
 	}

@@ -59,20 +59,20 @@ func GetBuiltinTemplatesAsTemplates() []*Template {
 	builtins := GetBuiltinTemplates()
 	templates := make([]*Template, len(builtins))
 
-	for i, builtin := range builtins {
+	for i := range builtins {
 		templates[i] = &Template{
-			ID:          builtin.ID,
-			Name:        builtin.Name,
-			Description: builtin.Description,
-			Category:    builtin.Category,
-			ProjectType: string(builtin.ProjectType),
+			ID:          builtins[i].ID,
+			Name:        builtins[i].Name,
+			Description: builtins[i].Description,
+			Category:    builtins[i].Category,
+			ProjectType: string(builtins[i].ProjectType),
 			Complexity:  "medium", // Default complexity
-			Content:     fmt.Sprintf("Built-in template: %s", builtin.Description),
-			Variables:   builtin.Variables,
-			Tags:        builtin.Tags,
-			Metadata:    builtin.Metadata,
-			CreatedAt:   builtin.CreatedAt,
-			UpdatedAt:   builtin.CreatedAt,
+			Content:     fmt.Sprintf("Built-in template: %s", builtins[i].Description),
+			Variables:   builtins[i].Variables,
+			Tags:        builtins[i].Tags,
+			Metadata:    builtins[i].Metadata,
+			CreatedAt:   builtins[i].CreatedAt,
+			UpdatedAt:   builtins[i].CreatedAt,
 		}
 	}
 
@@ -261,7 +261,7 @@ func (sa *CleanStorageAdapter) StoreTaskGeneration(ctx context.Context, template
 		}
 
 		// Store individual task (ignore errors for individual tasks)
-		sa.contentStore.Store(ctx, taskContentData)
+		_ = sa.contentStore.Store(ctx, taskContentData)
 	}
 
 	return nil
@@ -285,7 +285,7 @@ func (sa *CleanStorageAdapter) GetPopularTemplates(ctx context.Context, limit in
 }
 
 // GetTemplateRecommendations returns template recommendations
-func (sa *CleanStorageAdapter) GetTemplateRecommendations(ctx context.Context, projectID string, context map[string]interface{}) ([]*Template, error) {
+func (sa *CleanStorageAdapter) GetTemplateRecommendations(ctx context.Context, projectID string, contextMap map[string]interface{}) ([]*Template, error) {
 	// Return built-in templates as recommendations
 	return GetBuiltinTemplatesAsTemplates(), nil
 }
@@ -321,28 +321,28 @@ func (sa *CleanStorageAdapter) StoreGeneratedTasks(ctx context.Context, result *
 	}
 
 	// Store individual tasks as separate content items for better searchability
-	for _, task := range result.Tasks {
-		taskContent, err := json.Marshal(task)
+	for i := range result.Tasks {
+		taskContent, err := json.Marshal(result.Tasks[i])
 		if err != nil {
 			continue // Skip this task if serialization fails
 		}
 
 		taskContentData := &itypes.Content{
-			ID:        task.ID,
-			ProjectID: itypes.ProjectID(task.ProjectID),
-			SessionID: itypes.SessionID(task.SessionID),
+			ID:        result.Tasks[i].ID,
+			ProjectID: itypes.ProjectID(result.Tasks[i].ProjectID),
+			SessionID: itypes.SessionID(result.Tasks[i].SessionID),
 			Type:      "generated_task",
 			Content:   string(taskContent),
 			Metadata: map[string]interface{}{
-				"template_id":      task.TemplateID,
-				"task_type":        task.Type,
-				"task_priority":    task.Priority,
-				"estimated_time":   task.EstimatedTime,
-				"dependency_count": len(task.Dependencies),
+				"template_id":      result.Tasks[i].TemplateID,
+				"task_type":        result.Tasks[i].Type,
+				"task_priority":    result.Tasks[i].Priority,
+				"estimated_time":   result.Tasks[i].EstimatedTime,
+				"dependency_count": len(result.Tasks[i].Dependencies),
 				"category":         "generated_task",
 			},
-			CreatedAt: task.CreatedAt,
-			UpdatedAt: task.CreatedAt,
+			CreatedAt: result.Tasks[i].CreatedAt,
+			UpdatedAt: result.Tasks[i].CreatedAt,
 		}
 
 		// Store task content (ignore errors for individual tasks)

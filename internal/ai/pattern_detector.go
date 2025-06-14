@@ -204,10 +204,7 @@ func (pd *PatternDetector) AnalyzeProjectPatterns(ctx context.Context, projectID
 		"time_span", timeSpan)
 
 	// Detect patterns in the memories
-	patterns, err := pd.detectPatterns(ctx, memories, projectID)
-	if err != nil {
-		return nil, fmt.Errorf("pattern detection failed: %w", err)
-	}
+	patterns := pd.detectPatterns(ctx, memories, projectID)
 
 	// Analyze quality patterns
 	qualityInsights, err := pd.analyzeQualityPatterns(ctx, memories)
@@ -234,11 +231,7 @@ func (pd *PatternDetector) AnalyzeProjectPatterns(ctx context.Context, projectID
 	trends := pd.generateTrends(patterns, projectID)
 
 	// Generate recommendations
-	recommendations, err := pd.generateRecommendations(ctx, patterns, qualityInsights, knowledgeGaps)
-	if err != nil {
-		pd.logger.Warn("Recommendation generation failed", "error", err)
-		recommendations = []*Recommendation{} // Continue without recommendations
-	}
+	recommendations := pd.generateRecommendations(ctx, patterns, qualityInsights, knowledgeGaps)
 
 	result := &PatternDetectionResult{
 		ProjectID:          projectID,
@@ -280,9 +273,9 @@ type MemoryData struct {
 }
 
 // detectPatterns uses AI to identify patterns across memories
-func (pd *PatternDetector) detectPatterns(ctx context.Context, memories []MemoryData, projectID string) ([]*DetectedPattern, error) {
+func (pd *PatternDetector) detectPatterns(ctx context.Context, memories []MemoryData, projectID string) []*DetectedPattern {
 	if pd.aiService == nil {
-		return []*DetectedPattern{}, nil
+		return []*DetectedPattern{}
 	}
 
 	// Group memories by type and time period for better analysis
@@ -310,7 +303,7 @@ func (pd *PatternDetector) detectPatterns(ctx context.Context, memories []Memory
 	dedupedPatterns := pd.deduplicatePatterns(allPatterns)
 	rankedPatterns := pd.rankPatternsByImportance(dedupedPatterns)
 
-	return rankedPatterns, nil
+	return rankedPatterns
 }
 
 // groupMemoriesForAnalysis groups memories for more effective pattern detection
@@ -349,7 +342,7 @@ func (pd *PatternDetector) filterMemoriesByTime(memories []MemoryData, duration 
 }
 
 // analyzeMemoryGroup analyzes a specific group of memories for patterns
-func (pd *PatternDetector) analyzeMemoryGroup(ctx context.Context, memories []MemoryData, groupType string, projectID string) ([]*DetectedPattern, error) {
+func (pd *PatternDetector) analyzeMemoryGroup(ctx context.Context, memories []MemoryData, groupType, projectID string) ([]*DetectedPattern, error) {
 	// Prepare content for analysis
 	contents := make([]string, len(memories))
 	for i, memory := range memories {
@@ -379,7 +372,7 @@ func (pd *PatternDetector) analyzeMemoryGroup(ctx context.Context, memories []Me
 }
 
 // buildPatternAnalysisPrompt creates a comprehensive prompt for pattern analysis
-func (pd *PatternDetector) buildPatternAnalysisPrompt(contents []string, groupType string, projectID string) string {
+func (pd *PatternDetector) buildPatternAnalysisPrompt(contents []string, groupType, projectID string) string {
 	contentText := strings.Join(contents, "\n---MEMORY---\n")
 
 	return fmt.Sprintf(`Analyze these %s memories from project %s to identify meaningful patterns:
@@ -435,14 +428,10 @@ func (pd *PatternDetector) extractJSONFromResponse(response string) string {
 	response = strings.TrimSpace(response)
 	if strings.HasPrefix(response, "```json") {
 		response = strings.TrimPrefix(response, "```json")
-		if strings.HasSuffix(response, "```") {
-			response = strings.TrimSuffix(response, "```")
-		}
+		response = strings.TrimSuffix(response, "```")
 	} else if strings.HasPrefix(response, "```") {
 		response = strings.TrimPrefix(response, "```")
-		if strings.HasSuffix(response, "```") {
-			response = strings.TrimSuffix(response, "```")
-		}
+		response = strings.TrimSuffix(response, "```")
 	}
 	return strings.TrimSpace(response)
 }
@@ -489,7 +478,7 @@ func (pd *PatternDetector) rankPatternsByImportance(patterns []*DetectedPattern)
 
 	// Restore original confidence values (this is a simplification)
 	for _, pattern := range patterns {
-		pattern.Confidence = pattern.Confidence / float64(pattern.Frequency)
+		pattern.Confidence /= float64(pattern.Frequency)
 		if pattern.Type == "problem_solving_approach" || pattern.Type == "decision_making" {
 			pattern.Confidence /= 1.5
 		}
@@ -499,7 +488,7 @@ func (pd *PatternDetector) rankPatternsByImportance(patterns []*DetectedPattern)
 }
 
 // analyzeQualityPatterns analyzes quality trends across memories
-func (pd *PatternDetector) analyzeQualityPatterns(ctx context.Context, memories []MemoryData) (*QualityInsights, error) {
+func (pd *PatternDetector) analyzeQualityPatterns(ctx context.Context, memories []MemoryData) (*QualityInsights, error) { //nolint:unparam // context may be used for future enhancements
 	if len(memories) == 0 {
 		return &QualityInsights{}, nil
 	}
@@ -510,23 +499,24 @@ func (pd *PatternDetector) analyzeQualityPatterns(ctx context.Context, memories 
 	lowQualityCount := 0
 
 	for _, memory := range memories {
-		if memory.Quality != nil {
-			score := memory.Quality.OverallScore
-			qualityScores = append(qualityScores, score)
-
-			if score > 0.8 {
-				highQualityCount++
-			} else if score < 0.5 {
-				lowQualityCount++
-			}
-
-			// Group by memory type
-			memoryType := memory.Type
-			if memoryType == "" {
-				memoryType = "general"
-			}
-			qualityByCategory[memoryType] = append(qualityByCategory[memoryType], score)
+		if memory.Quality == nil {
+			continue
 		}
+		score := memory.Quality.OverallScore
+		qualityScores = append(qualityScores, score)
+
+		if score > 0.8 {
+			highQualityCount++
+		} else if score < 0.5 {
+			lowQualityCount++
+		}
+
+		// Group by memory type
+		memoryType := memory.Type
+		if memoryType == "" {
+			memoryType = "general"
+		}
+		qualityByCategory[memoryType] = append(qualityByCategory[memoryType], score)
 	}
 
 	// Calculate overall quality
@@ -653,7 +643,7 @@ func (pd *PatternDetector) prepareContentForGapAnalysis(memories []MemoryData, p
 }
 
 // analyzeBehavioralPatterns analyzes user behavior patterns
-func (pd *PatternDetector) analyzeBehavioralPatterns(ctx context.Context, memories []MemoryData) (*BehavioralInsights, error) {
+func (pd *PatternDetector) analyzeBehavioralPatterns(ctx context.Context, memories []MemoryData) (*BehavioralInsights, error) { //nolint:unparam // context may be used for future enhancements
 	// This is a simplified implementation
 	// In a full implementation, this would analyze timestamps, session patterns, etc.
 
@@ -688,7 +678,7 @@ func (pd *PatternDetector) analyzeBehavioralPatterns(ctx context.Context, memori
 }
 
 // generateTrends creates trend analysis based on pattern history
-func (pd *PatternDetector) generateTrends(patterns []*DetectedPattern, projectID string) []*PatternTrend {
+func (pd *PatternDetector) generateTrends(patterns []*DetectedPattern, _ string) []*PatternTrend {
 	trends := make([]*PatternTrend, 0)
 
 	// This is a simplified implementation
@@ -711,9 +701,9 @@ func (pd *PatternDetector) generateTrends(patterns []*DetectedPattern, projectID
 }
 
 // generateRecommendations creates AI-powered recommendations based on analysis
-func (pd *PatternDetector) generateRecommendations(ctx context.Context, patterns []*DetectedPattern, quality *QualityInsights, gaps []*KnowledgeGap) ([]*Recommendation, error) {
+func (pd *PatternDetector) generateRecommendations(ctx context.Context, patterns []*DetectedPattern, quality *QualityInsights, gaps []*KnowledgeGap) []*Recommendation {
 	if pd.aiService == nil {
-		return pd.generateFallbackRecommendations(patterns, quality, gaps), nil
+		return pd.generateFallbackRecommendations(patterns, quality, gaps)
 	}
 
 	// Prepare analysis summary for recommendation generation
@@ -749,7 +739,7 @@ Return a JSON array of recommendations:
 		TopP:        0.9,
 	})
 	if err != nil {
-		return pd.generateFallbackRecommendations(patterns, quality, gaps), nil
+		return pd.generateFallbackRecommendations(patterns, quality, gaps)
 	}
 
 	var recommendations []*Recommendation
@@ -757,7 +747,7 @@ Return a JSON array of recommendations:
 	err = json.Unmarshal([]byte(jsonStr), &recommendations)
 	if err != nil {
 		pd.logger.Warn("Failed to parse recommendations, using fallback", "error", err)
-		return pd.generateFallbackRecommendations(patterns, quality, gaps), nil
+		return pd.generateFallbackRecommendations(patterns, quality, gaps)
 	}
 
 	// Add IDs and due dates
@@ -766,7 +756,7 @@ Return a JSON array of recommendations:
 		rec.DueDate = time.Now().Add(time.Hour * 24 * 30) // 30 days from now
 	}
 
-	return recommendations, nil
+	return recommendations
 }
 
 // prepareAnalysisSummary creates a summary for recommendation generation
@@ -791,7 +781,7 @@ func (pd *PatternDetector) prepareAnalysisSummary(patterns []*DetectedPattern, q
 }
 
 // generateFallbackRecommendations creates basic recommendations when AI is unavailable
-func (pd *PatternDetector) generateFallbackRecommendations(patterns []*DetectedPattern, quality *QualityInsights, gaps []*KnowledgeGap) []*Recommendation {
+func (pd *PatternDetector) generateFallbackRecommendations(_ []*DetectedPattern, quality *QualityInsights, gaps []*KnowledgeGap) []*Recommendation {
 	recommendations := make([]*Recommendation, 0)
 
 	// Quality-based recommendations

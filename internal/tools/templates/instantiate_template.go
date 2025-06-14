@@ -3,7 +3,7 @@ package templates
 
 import (
 	"context"
-	"fmt"
+	"strconv"
 
 	"lerian-mcp-memory/internal/templates"
 
@@ -87,13 +87,13 @@ func (h *InstantiateTemplateHandler) Handle(ctx context.Context, arguments map[s
 	// Build success message
 	message := "Template instantiated successfully"
 	if result.TaskCount > 0 {
-		message += " with " + fmt.Sprintf("%d", result.TaskCount) + " tasks"
+		message += " with " + strconv.Itoa(result.TaskCount) + " tasks"
 	}
 	if result.EstimatedTime != "" {
 		message += " (estimated time: " + result.EstimatedTime + ")"
 	}
 	if len(result.Warnings) > 0 {
-		message += " with " + fmt.Sprintf("%d", len(result.Warnings)) + " warnings"
+		message += " with " + strconv.Itoa(len(result.Warnings)) + " warnings"
 	}
 
 	response := InstantiateTemplateResponse{

@@ -14,6 +14,11 @@ import (
 	"time"
 )
 
+const (
+	// DefaultEmbeddingModel is the default OpenAI embedding model
+	DefaultEmbeddingModel = "text-embedding-ada-002"
+)
+
 // OpenAIService implements embeddings generation using OpenAI API
 type OpenAIService struct {
 	apiKey      string
@@ -43,7 +48,7 @@ type OpenAIConfig struct {
 func DefaultOpenAIConfig() *OpenAIConfig {
 	return &OpenAIConfig{
 		BaseURL:        "https://api.openai.com/v1",
-		Model:          "text-embedding-ada-002",
+		Model:          DefaultEmbeddingModel,
 		Timeout:        30 * time.Second,
 		MaxRetries:     3,
 		RetryDelay:     1 * time.Second,
@@ -192,7 +197,7 @@ func (s *OpenAIService) GenerateBatch(ctx context.Context, texts []string) ([][]
 // GetDimensions returns the embedding dimensions for the configured model
 func (s *OpenAIService) GetDimensions() int {
 	switch s.model {
-	case "text-embedding-ada-002":
+	case DefaultEmbeddingModel:
 		return 1536
 	case "text-embedding-3-small":
 		return 1536
@@ -299,7 +304,7 @@ func (s *OpenAIService) callOpenAIAPI(ctx context.Context, texts []string) ([][]
 	if err != nil {
 		return nil, fmt.Errorf("HTTP request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)
@@ -349,7 +354,7 @@ func (s *OpenAIService) incrementCacheMiss() {
 	s.metrics.CacheMisses++
 }
 
-// OpenAI API response structures
+// OpenAIResponse represents the response structure from OpenAI API.
 type OpenAIResponse struct {
 	Object string `json:"object"`
 	Data   []struct {

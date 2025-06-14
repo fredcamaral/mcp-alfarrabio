@@ -39,6 +39,29 @@ type ExportStats struct {
 	FiltersApplied []string
 }
 
+// validateAndWriteFile safely writes data to a file after path validation
+func validateAndWriteFile(outputFile string, data []byte, perm os.FileMode) error {
+	// Clean and validate the output file path
+	cleanPath := filepath.Clean(outputFile)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanPath, "..") {
+		return fmt.Errorf("invalid output path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return fmt.Errorf("invalid output path: access to system directory not allowed")
+			}
+		}
+	}
+
+	return os.WriteFile(cleanPath, data, perm) // #nosec G304 -- Path is cleaned and validated above
+}
+
 // createExportCommand creates the 'export' command with multi-format support
 func (c *CLI) createExportCommand() *cobra.Command {
 	var (
@@ -316,7 +339,7 @@ func (c *CLI) exportJSON(tasks []*entities.Task, outputFile string, opts *Export
 		return 0, err
 	}
 
-	if err := os.WriteFile(outputFile, jsonData, 0644); err != nil {
+	if err := validateAndWriteFile(outputFile, jsonData, 0600); err != nil {
 		return 0, err
 	}
 
@@ -332,7 +355,7 @@ func (c *CLI) exportYAML(tasks []*entities.Task, outputFile string, opts *Export
 		return 0, err
 	}
 
-	if err := os.WriteFile(outputFile, yamlData, 0644); err != nil {
+	if err := validateAndWriteFile(outputFile, yamlData, 0600); err != nil {
 		return 0, err
 	}
 
@@ -341,7 +364,25 @@ func (c *CLI) exportYAML(tasks []*entities.Task, outputFile string, opts *Export
 }
 
 func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
-	file, err := os.Create(outputFile)
+	// Clean and validate the output file path
+	cleanPath := filepath.Clean(outputFile)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanPath, "..") {
+		return 0, fmt.Errorf("invalid output path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return 0, fmt.Errorf("invalid output path: access to system directory not allowed")
+			}
+		}
+	}
+
+	file, err := os.Create(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return 0, err
 	}
@@ -374,8 +415,26 @@ func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, opts *ExportO
 }
 
 func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
+	// Clean and validate the output file path
+	cleanPath := filepath.Clean(outputFile)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanPath, "..") {
+		return 0, fmt.Errorf("invalid output path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return 0, fmt.Errorf("invalid output path: access to system directory not allowed")
+			}
+		}
+	}
+
 	// Similar to CSV but with tab delimiter
-	file, err := os.Create(outputFile)
+	file, err := os.Create(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return 0, err
 	}
@@ -409,7 +468,7 @@ func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, opts *ExportO
 func (c *CLI) exportXML(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
 	xml := c.generateXML(tasks, opts, fields)
 
-	if err := os.WriteFile(outputFile, []byte(xml), 0644); err != nil {
+	if err := validateAndWriteFile(outputFile, []byte(xml), 0600); err != nil {
 		return 0, err
 	}
 
@@ -422,7 +481,7 @@ func (c *CLI) exportPDF(tasks []*entities.Task, outputFile string, opts *ExportO
 	html := c.generateHTML(tasks, opts, fields, "report")
 
 	htmlFile := strings.TrimSuffix(outputFile, ".pdf") + ".html"
-	if err := os.WriteFile(htmlFile, []byte(html), 0644); err != nil {
+	if err := validateAndWriteFile(htmlFile, []byte(html), 0600); err != nil {
 		return 0, err
 	}
 
@@ -435,7 +494,7 @@ func (c *CLI) exportPDF(tasks []*entities.Task, outputFile string, opts *ExportO
 func (c *CLI) exportHTML(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
 	html := c.generateHTML(tasks, opts, fields, opts.Template)
 
-	if err := os.WriteFile(outputFile, []byte(html), 0644); err != nil {
+	if err := validateAndWriteFile(outputFile, []byte(html), 0600); err != nil {
 		return 0, err
 	}
 
@@ -446,7 +505,7 @@ func (c *CLI) exportHTML(tasks []*entities.Task, outputFile string, opts *Export
 func (c *CLI) exportMarkdown(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
 	markdown := c.generateMarkdown(tasks, opts, fields)
 
-	if err := os.WriteFile(outputFile, []byte(markdown), 0644); err != nil {
+	if err := validateAndWriteFile(outputFile, []byte(markdown), 0600); err != nil {
 		return 0, err
 	}
 
@@ -459,7 +518,25 @@ func (c *CLI) exportArchive(tasks []*entities.Task, outputFile string, opts *Exp
 		outputFile += ".zip"
 	}
 
-	zipFile, err := os.Create(outputFile)
+	// Clean and validate the output file path
+	cleanPath := filepath.Clean(outputFile)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanPath, "..") {
+		return 0, fmt.Errorf("invalid output path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return 0, fmt.Errorf("invalid output path: access to system directory not allowed")
+			}
+		}
+	}
+
+	zipFile, err := os.Create(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return 0, err
 	}
@@ -638,9 +715,9 @@ func (c *CLI) generateCSVBytes(tasks []*entities.Task, fields []string) []byte {
 		fields = []string{"id", "title", "status", "priority", "tags", "created_at"}
 	}
 
-	writer.Write(fields)
+	_ = writer.Write(fields)
 	for _, task := range tasks {
-		writer.Write(c.taskToCSVRecord(task, fields))
+		_ = writer.Write(c.taskToCSVRecord(task, fields))
 	}
 	writer.Flush()
 
@@ -931,6 +1008,12 @@ func (c *CLI) groupTasks(tasks []*entities.Task, splitBy string) map[string][]*e
 }
 
 func (c *CLI) compressFile(filename string) (int64, error) {
+	// Clean and validate the file path
+	filename = filepath.Clean(filename)
+	if strings.Contains(filename, "..") {
+		return 0, fmt.Errorf("path traversal detected: %s", filename)
+	}
+
 	// Simple gzip compression
 	compressedFile := filename + ".gz"
 

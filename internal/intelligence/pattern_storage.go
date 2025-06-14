@@ -142,7 +142,11 @@ func (s *SQLPatternStorage) ListPatterns(ctx context.Context, patternType *Patte
 	if err != nil {
 		return nil, fmt.Errorf("failed to list patterns: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
+		}
+	}()
 
 	var patterns []Pattern
 	for rows.Next() {
@@ -274,7 +278,11 @@ func (s *SQLPatternStorage) SearchPatterns(ctx context.Context, query string, li
 	if err != nil {
 		return nil, fmt.Errorf("failed to search patterns: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
+		}
+	}()
 
 	var patterns []Pattern
 	for rows.Next() {
@@ -365,7 +373,11 @@ func (s *SQLPatternStorage) GetOccurrences(ctx context.Context, patternID string
 	if err != nil {
 		return nil, fmt.Errorf("failed to get occurrences: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
+		}
+	}()
 
 	var occurrences []PatternOccurrence
 	for rows.Next() {
@@ -440,7 +452,11 @@ func (s *SQLPatternStorage) GetRelationships(ctx context.Context, patternID stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to get relationships: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
+		}
+	}()
 
 	var relationships []PatternRelationship
 	for rows.Next() {
@@ -475,7 +491,10 @@ func (s *SQLPatternStorage) UpdateConfidence(ctx context.Context, patternID stri
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		// Rollback is expected to fail if transaction was committed
+		_ = tx.Rollback()
+	}()
 
 	// Call the stored function
 	query := "SELECT update_pattern_confidence($1, $2)"
@@ -534,7 +553,11 @@ func (s *SQLPatternStorage) GetPatternStatistics(ctx context.Context) (map[strin
 	if err != nil {
 		return nil, fmt.Errorf("failed to get type distribution: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
+		}
+	}()
 
 	typeDistribution := make(map[string]int)
 	for rows.Next() {

@@ -134,7 +134,7 @@ func initializeServerComponents(ctx context.Context) (*mcpwebsocket.Hub, *mcp.Me
 		return nil, nil, fmt.Errorf("failed to load config for GraphQL: %w", err)
 	}
 
-	memoryServer, err := mcp.NewMemoryServer(cfg) //nolint:contextcheck // Constructor doesn't need context, Start() method does
+	memoryServer, err := mcp.NewMemoryServer(cfg) //nolint:contextcheck // NewMemoryServer doesn't require context parameter
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create memory server: %w", err)
 	}
@@ -161,7 +161,7 @@ func setupHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub *mcpwe
 	}
 
 	// Create new API router with Chi and middleware
-	apiRouter := api.NewBasicRouter(cfg)
+	apiRouter := api.NewBasicRouter(cfg) //nolint:contextcheck // NewBasicRouter doesn't require context parameter
 
 	// Create a new mux that combines the API router with legacy endpoints
 	mux := http.NewServeMux()

@@ -2,6 +2,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -46,7 +47,11 @@ func TestService_Integration(t *testing.T) {
 	// Create service
 	service, err := NewService(cfg, logger)
 	require.NoError(t, err)
-	defer service.Close()
+	defer func() {
+		if closeErr := service.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close service: %v", closeErr)
+		}
+	}()
 
 	// Get available models
 	models := service.GetAvailableModels()
@@ -95,7 +100,8 @@ func TestService_Integration(t *testing.T) {
 			resp, err := service.ProcessRequest(ctx, req)
 			if err != nil {
 				// Check if it's an API key error
-				if apiErr, ok := err.(*APIError); ok {
+				var apiErr *APIError
+				if errors.As(err, &apiErr) {
 					if apiErr.StatusCode == 401 || apiErr.StatusCode == 403 {
 						t.Skipf("Skipping %s: API key not configured", model)
 						return
@@ -136,7 +142,11 @@ func TestService_HealthCheck(t *testing.T) {
 	// Create service
 	service, err := NewService(cfg, logger)
 	require.NoError(t, err)
-	defer service.Close()
+	defer func() {
+		if closeErr := service.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close service: %v", closeErr)
+		}
+	}()
 
 	// Run health check
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -164,7 +174,11 @@ func TestService_Fallback(t *testing.T) {
 	// Create service
 	service, err := NewService(cfg, logger)
 	require.NoError(t, err)
-	defer service.Close()
+	defer func() {
+		if closeErr := service.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close service: %v", closeErr)
+		}
+	}()
 
 	// Create request that will trigger fallback
 	req := &Request{
@@ -196,7 +210,11 @@ func TestService_Metrics(t *testing.T) {
 	// Create service
 	service, err := NewService(cfg, logger)
 	require.NoError(t, err)
-	defer service.Close()
+	defer func() {
+		if closeErr := service.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close service: %v", closeErr)
+		}
+	}()
 
 	// Get initial metrics
 	metrics := service.GetMetrics()

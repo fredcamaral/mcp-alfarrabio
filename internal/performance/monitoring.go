@@ -70,9 +70,8 @@ func DefaultMonitorConfig() *MonitorConfig {
 	}
 }
 
-// SystemMetrics represents comprehensive system performance metrics
-type SystemMetrics struct {
-	mutex     sync.RWMutex
+// SystemMetricsData represents comprehensive system performance metrics
+type SystemMetricsData struct {
 	Timestamp time.Time `json:"timestamp"`
 
 	// System resources
@@ -93,6 +92,12 @@ type SystemMetrics struct {
 
 	// Custom metrics
 	CustomMetrics map[string]interface{} `json:"custom_metrics"`
+}
+
+// SystemMetrics holds internal system metrics with synchronization
+type SystemMetrics struct {
+	mutex sync.RWMutex
+	data  SystemMetricsData
 }
 
 // MemoryMetrics represents memory usage statistics
@@ -222,7 +227,7 @@ func NewMonitor(config *MonitorConfig) *Monitor {
 
 	monitor := &Monitor{
 		config:     config,
-		metrics:    &SystemMetrics{CustomMetrics: make(map[string]interface{})},
+		metrics:    &SystemMetrics{data: SystemMetricsData{CustomMetrics: make(map[string]interface{})}},
 		collectors: make(map[string]MetricCollector),
 		alerts:     NewAlertManager(config),
 		ctx:        ctx,
@@ -284,32 +289,19 @@ func (m *Monitor) Stop() error {
 
 	// Cleanup all collectors
 	for _, collector := range m.collectors {
-		collector.Cleanup()
+		_ = collector.Cleanup()
 	}
 
 	return nil
 }
 
 // GetMetrics returns current system metrics
-func (m *Monitor) GetMetrics() SystemMetrics {
+func (m *Monitor) GetMetrics() SystemMetricsData {
 	m.metrics.mutex.RLock()
 	defer m.metrics.mutex.RUnlock()
 
-	// Return a copy without the mutex to avoid lock value copying
-	return SystemMetrics{
-		Timestamp:         m.metrics.Timestamp,
-		CPUUsage:          m.metrics.CPUUsage,
-		MemoryUsage:       m.metrics.MemoryUsage,
-		DiskUsage:         m.metrics.DiskUsage,
-		NetworkUsage:      m.metrics.NetworkUsage,
-		Goroutines:        m.metrics.Goroutines,
-		HeapObjects:       m.metrics.HeapObjects,
-		GCPauses:          m.metrics.GCPauses,
-		ResponseTimes:     m.metrics.ResponseTimes,
-		ThroughputMetrics: m.metrics.ThroughputMetrics,
-		ErrorMetrics:      m.metrics.ErrorMetrics,
-		CustomMetrics:     m.metrics.CustomMetrics,
-	}
+	// Return a copy of the data without the mutex
+	return m.metrics.data
 }
 
 // RecordCustomMetric records a custom application metric
@@ -317,7 +309,7 @@ func (m *Monitor) RecordCustomMetric(name string, value interface{}) {
 	m.metrics.mutex.Lock()
 	defer m.metrics.mutex.Unlock()
 
-	m.metrics.CustomMetrics[name] = value
+	m.metrics.data.CustomMetrics[name] = value
 }
 
 // AddCollector adds a custom metric collector
@@ -367,7 +359,7 @@ func (m *Monitor) collectMetrics() {
 	m.metrics.mutex.Lock()
 	defer m.metrics.mutex.Unlock()
 
-	m.metrics.Timestamp = time.Now()
+	m.metrics.data.Timestamp = time.Now()
 
 	// Collect from all registered collectors
 	for name, collector := range m.collectors {
@@ -390,20 +382,20 @@ func (m *Monitor) mergeMetrics(collectorName string, metrics map[string]interfac
 	switch collectorName {
 	case "system":
 		if cpu, ok := metrics["cpu_usage"].(float64); ok {
-			m.metrics.CPUUsage = cpu
+			m.metrics.data.CPUUsage = cpu
 		}
 	case "memory":
 		if memData, ok := metrics["memory"].(MemoryMetrics); ok {
-			m.metrics.MemoryUsage = memData
+			m.metrics.data.MemoryUsage = memData
 		}
 	case "performance":
 		if respTime, ok := metrics["response_times"].(ResponseTimeMetrics); ok {
-			m.metrics.ResponseTimes = respTime
+			m.metrics.data.ResponseTimes = respTime
 		}
 	default:
 		// Store as custom metrics
 		for key, value := range metrics {
-			m.metrics.CustomMetrics[fmt.Sprintf("%s.%s", collectorName, key)] = value
+			m.metrics.data.CustomMetrics[fmt.Sprintf("%s.%s", collectorName, key)] = value
 		}
 	}
 }
@@ -515,8 +507,7 @@ func (m *Monitor) exportLoop() {
 func (m *Monitor) exportMetrics() {
 	metrics := m.GetMetrics()
 
-	switch m.config.ExportFormat {
-	case "json":
+	if m.config.ExportFormat == "json" {
 		data, err := json.Marshal(metrics)
 		if err != nil {
 			return
@@ -632,7 +623,12 @@ func (am *AlertManager) TriggerAlert(alert *Alert) {
 
 	// Send to all handlers
 	for _, handler := range am.handlers {
-		go handler.HandleAlert(alert)
+		go func(h AlertHandler) {
+			if err := h.HandleAlert(alert); err != nil {
+				// Log error but don't propagate since this is async
+				fmt.Printf("Warning: alert handler failed: %v\n", err)
+			}
+		}(handler)
 	}
 }
 

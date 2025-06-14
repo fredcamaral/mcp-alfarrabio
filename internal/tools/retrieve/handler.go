@@ -16,7 +16,7 @@ import (
 	pkgTypes "lerian-mcp-memory/pkg/types"
 )
 
-// Storage interfaces for dependency injection
+// SearchStore defines the interface for search operations.
 type SearchStore interface {
 	Search(ctx context.Context, query *types.SearchQuery) (*types.SearchResults, error)
 	FindSimilar(ctx context.Context, content string, projectID types.ProjectID, sessionID types.SessionID) ([]*types.Content, error)
@@ -152,8 +152,33 @@ func (h *Handler) HandleOperation(ctx context.Context, operation string, params 
 
 // handleSearch performs semantic search across content
 func (h *Handler) handleSearch(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	req, err := h.parseSearchRequest(params)
+	if err != nil {
+		return nil, err
+	}
 
-	// Parse request
+	if err := h.validateSearchRequest(req); err != nil {
+		return nil, err
+	}
+
+	// Update session access if session provided
+	if !req.SessionID.IsEmpty() {
+		if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
+			return nil, fmt.Errorf("failed to update session access: %w", err)
+		}
+	}
+
+	searchQuery := h.buildSearchQuery(req)
+	searchResults, err := h.performSearch(ctx, searchQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	return h.buildSearchResponse(req, searchResults), nil
+}
+
+// parseSearchRequest parses the search request parameters
+func (h *Handler) parseSearchRequest(params map[string]interface{}) (*SearchRequest, error) {
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -164,31 +189,35 @@ func (h *Handler) handleSearch(ctx context.Context, params map[string]interface{
 		return nil, fmt.Errorf("failed to parse search request: %w", err)
 	}
 
-	// Validate parameters - search allows project scope (read-only)
+	return &req, nil
+}
+
+// validateSearchRequest validates the search request parameters
+func (h *Handler) validateSearchRequest(req *SearchRequest) error {
 	if err := h.validator.ValidateOperation(string(tools.OpSearchContent), &req.StandardParams); err != nil {
-		return nil, fmt.Errorf("parameter validation failed: %w", err)
+		return fmt.Errorf("parameter validation failed: %w", err)
 	}
 
 	if req.Query == "" {
-		return nil, fmt.Errorf("query cannot be empty")
+		return fmt.Errorf("query cannot be empty")
 	}
 
-	// Set defaults
+	h.setSearchDefaults(req)
+	return nil
+}
+
+// setSearchDefaults sets default values for search request
+func (h *Handler) setSearchDefaults(req *SearchRequest) {
 	if req.Limit <= 0 {
 		req.Limit = 10
 	}
 	if req.MinRelevanceScore <= 0 {
 		req.MinRelevanceScore = 0.3
 	}
+}
 
-	// Update session access if session provided
-	if !req.SessionID.IsEmpty() {
-		if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
-			return nil, fmt.Errorf("failed to update session access: %w", err)
-		}
-	}
-
-	// Build search query
+// buildSearchQuery builds the search query from the request
+func (h *Handler) buildSearchQuery(req *SearchRequest) *types.SearchQuery {
 	searchQuery := &types.SearchQuery{
 		ProjectID:    req.ProjectID,
 		SessionID:    req.SessionID,
@@ -199,84 +228,128 @@ func (h *Handler) handleSearch(ctx context.Context, params map[string]interface{
 		SortOrder:    "desc",
 	}
 
-	// Convert types filter
-	if len(req.Types) > 0 {
-		searchQuery.Types = make([]string, len(req.Types))
-		for i, t := range req.Types {
-			searchQuery.Types[i] = string(t)
-		}
+	h.addTypesFilter(searchQuery, req.Types)
+	h.addFilters(searchQuery, req)
+	h.setSessionScope(searchQuery, req)
+
+	return searchQuery
+}
+
+// addTypesFilter adds type filter to search query
+func (h *Handler) addTypesFilter(searchQuery *types.SearchQuery, reqTypes []pkgTypes.ChunkType) {
+	if len(reqTypes) == 0 {
+		return
 	}
 
-	// Add filters
-	if req.DateRange != nil || len(req.Tags) > 0 {
-		filters := &types.Filters{}
+	searchQuery.Types = make([]string, len(reqTypes))
+	for i, t := range reqTypes {
+		searchQuery.Types[i] = string(t)
+	}
+}
 
-		if len(req.Tags) > 0 {
-			filters.Tags = req.Tags
-		}
-
-		if req.DateRange != nil {
-			if req.DateRange.Start != nil {
-				filters.CreatedAfter = req.DateRange.Start
-			}
-			if req.DateRange.End != nil {
-				filters.CreatedBefore = req.DateRange.End
-			}
-		}
-
-		searchQuery.Filters = filters
+// addFilters adds date range and tag filters to search query
+func (h *Handler) addFilters(searchQuery *types.SearchQuery, req *SearchRequest) {
+	if req.DateRange == nil && len(req.Tags) == 0 {
+		return
 	}
 
-	// Restrict to session scope if requested and session provided
+	filters := &types.Filters{}
+
+	if len(req.Tags) > 0 {
+		filters.Tags = req.Tags
+	}
+
+	h.addDateRangeFilter(filters, req.DateRange)
+	searchQuery.Filters = filters
+}
+
+// addDateRangeFilter adds date range filter to filters
+func (h *Handler) addDateRangeFilter(filters *types.Filters, dateRange *DateRange) {
+	if dateRange == nil {
+		return
+	}
+
+	if dateRange.Start != nil {
+		filters.CreatedAfter = dateRange.Start
+	}
+	if dateRange.End != nil {
+		filters.CreatedBefore = dateRange.End
+	}
+}
+
+// setSessionScope sets session scope if requested
+func (h *Handler) setSessionScope(searchQuery *types.SearchQuery, req *SearchRequest) {
 	if req.SessionScope && !req.SessionID.IsEmpty() {
 		searchQuery.SessionID = req.SessionID
 	}
+}
 
-	// Perform search using real storage implementation
+// performSearch executes the search query
+func (h *Handler) performSearch(ctx context.Context, searchQuery *types.SearchQuery) (*types.SearchResults, error) {
 	searchResults, err := h.searchStore.Search(ctx, searchQuery)
 	if err != nil {
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
+	return searchResults, nil
+}
 
-	// Convert results to response format
-	results := make([]ContentResult, 0, len(searchResults.Results))
-	for _, result := range searchResults.Results {
-		contentResult := ContentResult{
-			ContentID: result.Content.ID,
-			Type:      pkgTypes.ChunkType(result.Content.Type),
-			Content:   result.Content.Content,
-			Summary:   result.Content.Summary,
-			Tags:      result.Content.Tags,
-			ThreadID:  result.Content.ThreadID,
-			CreatedAt: result.Content.CreatedAt,
-			Score:     result.Relevance,
-		}
+// buildSearchResponse builds the search response from results
+func (h *Handler) buildSearchResponse(req *SearchRequest, searchResults *types.SearchResults) *SearchResponse {
+	results := h.convertSearchResults(req, searchResults.Results)
 
-		if result.Content.UpdatedAt.After(result.Content.CreatedAt) {
-			contentResult.UpdatedAt = &result.Content.UpdatedAt
-		}
-
-		// Include metadata if requested
-		if req.IncludeMetadata && result.Content.Metadata != nil {
-			contentResult.Metadata = result.Content.Metadata
-		}
-
-		// Include embeddings if requested
-		if req.IncludeEmbeddings && len(result.Content.Embeddings) > 0 {
-			contentResult.Embeddings = result.Content.Embeddings
-		}
-
-		results = append(results, contentResult)
-	}
-
-	response := &SearchResponse{
+	return &SearchResponse{
 		Results:   results,
 		Total:     searchResults.Total,
 		QueryTime: searchResults.Duration,
 		HasMore:   len(results) == req.Limit, // Simple heuristic
 	}
+}
 
-	return response, nil
+// convertSearchResults converts search results to response format
+func (h *Handler) convertSearchResults(req *SearchRequest, results []*types.SearchResult) []ContentResult {
+	converted := make([]ContentResult, 0, len(results))
+	for _, result := range results {
+		contentResult := h.convertSingleResult(req, result)
+		converted = append(converted, contentResult)
+	}
+	return converted
+}
+
+// convertSingleResult converts a single search result to response format
+func (h *Handler) convertSingleResult(req *SearchRequest, result *types.SearchResult) ContentResult {
+	contentResult := ContentResult{
+		ContentID: result.Content.ID,
+		Type:      pkgTypes.ChunkType(result.Content.Type),
+		Content:   result.Content.Content,
+		Summary:   result.Content.Summary,
+		Tags:      result.Content.Tags,
+		ThreadID:  result.Content.ThreadID,
+		CreatedAt: result.Content.CreatedAt,
+		Score:     result.Relevance,
+	}
+
+	h.setUpdatedAt(&contentResult, result)
+	h.setOptionalFields(&contentResult, req, result)
+
+	return contentResult
+}
+
+// setUpdatedAt sets the updated at field if content was updated
+func (h *Handler) setUpdatedAt(contentResult *ContentResult, result *types.SearchResult) {
+	if result.Content.UpdatedAt.After(result.Content.CreatedAt) {
+		contentResult.UpdatedAt = &result.Content.UpdatedAt
+	}
+}
+
+// setOptionalFields sets optional fields based on request parameters
+func (h *Handler) setOptionalFields(contentResult *ContentResult, req *SearchRequest, result *types.SearchResult) {
+	if req.IncludeMetadata && result.Content.Metadata != nil {
+		contentResult.Metadata = result.Content.Metadata
+	}
+
+	if req.IncludeEmbeddings && len(result.Content.Embeddings) > 0 {
+		contentResult.Embeddings = result.Content.Embeddings
+	}
 }
 
 // handleGetContent retrieves specific content by ID
@@ -353,6 +426,32 @@ func (h *Handler) handleGetContent(ctx context.Context, params map[string]interf
 
 // handleFindSimilar finds content similar to provided text
 func (h *Handler) handleFindSimilar(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	req, err := h.parseFindSimilarRequest(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := h.validateFindSimilarRequest(req); err != nil {
+		return nil, err
+	}
+
+	if err := h.updateSessionAccessIfNeeded(req.ProjectID, req.SessionID); err != nil {
+		return nil, err
+	}
+
+	start := time.Now()
+	similarContent, err := h.findSimilarContent(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	results := h.filterAndConvertSimilarResults(req, similarContent)
+
+	return h.buildSimilarSearchResponse(results, similarContent, start), nil
+}
+
+// parseFindSimilarRequest parses the find similar request parameters
+func (h *Handler) parseFindSimilarRequest(params map[string]interface{}) (*FindSimilarRequest, error) {
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -363,108 +462,143 @@ func (h *Handler) handleFindSimilar(ctx context.Context, params map[string]inter
 		return nil, fmt.Errorf("failed to parse find similar request: %w", err)
 	}
 
-	// Validate parameters
+	return &req, nil
+}
+
+// validateFindSimilarRequest validates the find similar request parameters
+func (h *Handler) validateFindSimilarRequest(req *FindSimilarRequest) error {
 	if err := h.validator.ValidateOperation(string(tools.OpFindSimilarContent), &req.StandardParams); err != nil {
-		return nil, fmt.Errorf("parameter validation failed: %w", err)
+		return fmt.Errorf("parameter validation failed: %w", err)
 	}
 
 	if req.Content == "" {
-		return nil, fmt.Errorf("content is required for similarity search")
+		return fmt.Errorf("content is required for similarity search")
 	}
 
-	// Set defaults
+	h.setFindSimilarDefaults(req)
+	return nil
+}
+
+// setFindSimilarDefaults sets default values for find similar request
+func (h *Handler) setFindSimilarDefaults(req *FindSimilarRequest) {
 	if req.Limit <= 0 {
 		req.Limit = 5
 	}
 	if req.MinSimilarity <= 0 {
 		req.MinSimilarity = 0.5
 	}
+}
 
-	// Update session access if session provided
-	if !req.SessionID.IsEmpty() {
-		if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
-			return nil, fmt.Errorf("failed to update session access: %w", err)
-		}
+// updateSessionAccessIfNeeded updates session access if session is provided
+func (h *Handler) updateSessionAccessIfNeeded(projectID types.ProjectID, sessionID types.SessionID) error {
+	if sessionID.IsEmpty() {
+		return nil
 	}
 
-	// Perform similarity search using real storage implementation
-	start := time.Now()
+	return h.sessionManager.UpdateSessionAccess(projectID, sessionID)
+}
+
+// findSimilarContent performs the similarity search
+func (h *Handler) findSimilarContent(ctx context.Context, req *FindSimilarRequest) ([]*types.Content, error) {
 	similarContent, err := h.searchStore.FindSimilar(ctx, req.Content, req.ProjectID, req.SessionID)
 	if err != nil {
 		return nil, fmt.Errorf("similarity search failed: %w", err)
 	}
+	return similarContent, nil
+}
 
-	// Convert results to response format and apply filters
+// filterAndConvertSimilarResults filters and converts similar content to results
+func (h *Handler) filterAndConvertSimilarResults(req *FindSimilarRequest, similarContent []*types.Content) []ContentResult {
+	excludeSet := h.buildExcludeSet(req.ExcludeContentIDs)
 	results := make([]ContentResult, 0)
-	excludeSet := make(map[string]bool)
-	for _, id := range req.ExcludeContentIDs {
-		excludeSet[id] = true
-	}
 
 	for _, content := range similarContent {
-		// Skip excluded content
-		if excludeSet[content.ID] {
+		if h.shouldExcludeContent(content, excludeSet, req) {
 			continue
 		}
 
-		// Apply type filter if specified
-		if len(req.Types) > 0 {
-			typeMatch := false
-			for _, filterType := range req.Types {
-				if content.Type == string(filterType) {
-					typeMatch = true
-					break
-				}
-			}
-			if !typeMatch {
-				continue
-			}
-		}
-
-		// Calculate similarity score (placeholder - would normally come from vector similarity)
-		// For now, use a simple text-based similarity score
 		score := calculateTextSimilarity(req.Content, content.Content)
-
-		// Apply minimum similarity threshold
 		if score < req.MinSimilarity {
 			continue
 		}
 
-		contentResult := ContentResult{
-			ContentID: content.ID,
-			Type:      pkgTypes.ChunkType(content.Type),
-			Content:   content.Content,
-			Summary:   content.Summary,
-			Tags:      content.Tags,
-			ThreadID:  content.ThreadID,
-			CreatedAt: content.CreatedAt,
-			Score:     score,
-		}
-
-		if content.UpdatedAt.After(content.CreatedAt) {
-			contentResult.UpdatedAt = &content.UpdatedAt
-		}
-
+		contentResult := h.createContentResult(content, score)
 		results = append(results, contentResult)
 
-		// Apply limit
 		if len(results) >= req.Limit {
 			break
 		}
 	}
 
-	response := &SearchResponse{
+	return results
+}
+
+// buildExcludeSet creates a set for excluded content IDs
+func (h *Handler) buildExcludeSet(excludeIDs []string) map[string]bool {
+	excludeSet := make(map[string]bool)
+	for _, id := range excludeIDs {
+		excludeSet[id] = true
+	}
+	return excludeSet
+}
+
+// shouldExcludeContent checks if content should be excluded
+func (h *Handler) shouldExcludeContent(content *types.Content, excludeSet map[string]bool, req *FindSimilarRequest) bool {
+	// Check exclude list
+	if excludeSet[content.ID] {
+		return true
+	}
+
+	// Check type filter
+	return h.shouldExcludeByType(content, req.Types)
+}
+
+// shouldExcludeByType checks if content should be excluded by type
+func (h *Handler) shouldExcludeByType(content *types.Content, chunkTypes []pkgTypes.ChunkType) bool {
+	if len(chunkTypes) == 0 {
+		return false
+	}
+
+	for _, filterType := range chunkTypes {
+		if content.Type == string(filterType) {
+			return false
+		}
+	}
+	return true
+}
+
+// createContentResult creates a content result from content and score
+func (h *Handler) createContentResult(content *types.Content, score float64) ContentResult {
+	contentResult := ContentResult{
+		ContentID: content.ID,
+		Type:      pkgTypes.ChunkType(content.Type),
+		Content:   content.Content,
+		Summary:   content.Summary,
+		Tags:      content.Tags,
+		ThreadID:  content.ThreadID,
+		CreatedAt: content.CreatedAt,
+		Score:     score,
+	}
+
+	if content.UpdatedAt.After(content.CreatedAt) {
+		contentResult.UpdatedAt = &content.UpdatedAt
+	}
+
+	return contentResult
+}
+
+// buildSimilarSearchResponse builds the search response for similar content
+func (h *Handler) buildSimilarSearchResponse(results []ContentResult, similarContent []*types.Content, start time.Time) *SearchResponse {
+	return &SearchResponse{
 		Results:   results,
 		Total:     len(results),
 		QueryTime: time.Since(start),
 		HasMore:   len(similarContent) > len(results),
 	}
-
-	return response, nil
 }
 
 // handleGetThreads retrieves conversation threads
-func (h *Handler) handleGetThreads(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleGetThreads(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	// TODO: Implement thread retrieval
 	return map[string]interface{}{
 		"threads": []map[string]interface{}{
@@ -482,7 +616,7 @@ func (h *Handler) handleGetThreads(ctx context.Context, params map[string]interf
 }
 
 // handleGetRelationships retrieves relationships between content
-func (h *Handler) handleGetRelationships(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleGetRelationships(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	// TODO: Implement relationship retrieval
 	return map[string]interface{}{
 		"relationships": []Relation{
@@ -607,14 +741,6 @@ func (h *Handler) GetToolDefinition() map[string]interface{} {
 			"required": []string{"operation", "project_id"},
 		},
 	}
-}
-
-// Helper function for min
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // calculateTextSimilarity calculates simple text similarity between two strings

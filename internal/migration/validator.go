@@ -4,6 +4,7 @@ package migration
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -564,7 +565,7 @@ func getDefaultValidationRules() []ValidationRule {
 								}
 							}
 							if !isAllowed {
-								return fmt.Errorf("potential use of reserved keyword '%s' as identifier", keyword)
+								return errors.New("potential use of reserved keyword '" + keyword + "' as identifier")
 							}
 						}
 					}
@@ -583,7 +584,7 @@ func getDefaultValidationRules() []ValidationRule {
 
 				migrationSQL := migration.UpSQL
 				if dropPattern.MatchString(migrationSQL) && !ifExistsPattern.MatchString(migrationSQL) {
-					return fmt.Errorf("DROP statement should use IF EXISTS for safety")
+					return errors.New("DROP statement should use IF EXISTS for safety")
 				}
 				return nil
 			},
@@ -599,7 +600,7 @@ func getDefaultValidationRules() []ValidationRule {
 
 				migrationSQL := migration.UpSQL
 				if createIndexPattern.MatchString(migrationSQL) && !concurrentlyPattern.MatchString(migrationSQL) {
-					return fmt.Errorf("CREATE INDEX should use CONCURRENTLY to avoid locking")
+					return errors.New("CREATE INDEX should use CONCURRENTLY to avoid locking")
 				}
 				return nil
 			},

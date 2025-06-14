@@ -4,6 +4,7 @@ package performance
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 )
@@ -67,9 +68,8 @@ func DefaultCacheConfig() *CacheConfig {
 	}
 }
 
-// CacheStats provides cache performance statistics
-type CacheStats struct {
-	mutex       sync.RWMutex
+// CacheStatsData provides cache performance statistics
+type CacheStatsData struct {
 	Hits        int64     `json:"hits"`
 	Misses      int64     `json:"misses"`
 	Sets        int64     `json:"sets"`
@@ -79,6 +79,12 @@ type CacheStats struct {
 	Items       int       `json:"items"`
 	HitRate     float64   `json:"hit_rate"`
 	LastCleanup time.Time `json:"last_cleanup"`
+}
+
+// CacheStats holds internal cache statistics with synchronization
+type CacheStats struct {
+	mutex sync.RWMutex
+	data  CacheStatsData
 }
 
 // janitor handles background cleanup operations
@@ -97,7 +103,7 @@ func NewCache(config *CacheConfig) *Cache {
 	cache := &Cache{
 		store:  make(map[string]*CacheEntry),
 		config: config,
-		stats:  &CacheStats{},
+		stats:  &CacheStats{data: CacheStatsData{}},
 	}
 
 	// Start janitor for cleanup
@@ -228,8 +234,8 @@ func (c *Cache) Clear() {
 	defer c.mutex.Unlock()
 
 	c.store = make(map[string]*CacheEntry)
-	c.stats.Size = 0
-	c.stats.Items = 0
+	c.stats.data.Size = 0
+	c.stats.data.Items = 0
 }
 
 // Keys returns all cache keys
@@ -254,22 +260,12 @@ func (c *Cache) Size() int {
 }
 
 // Stats returns cache statistics
-func (c *Cache) Stats() CacheStats {
+func (c *Cache) Stats() CacheStatsData {
 	c.stats.mutex.RLock()
 	defer c.stats.mutex.RUnlock()
 
-	// Return a copy without the mutex to avoid lock value copying
-	stats := CacheStats{
-		Hits:        c.stats.Hits,
-		Misses:      c.stats.Misses,
-		Sets:        c.stats.Sets,
-		Deletes:     c.stats.Deletes,
-		Evictions:   c.stats.Evictions,
-		Size:        c.stats.Size,
-		Items:       c.stats.Items,
-		HitRate:     c.stats.HitRate,
-		LastCleanup: c.stats.LastCleanup,
-	}
+	// Return a copy of the data without the mutex
+	stats := c.stats.data
 
 	// Calculate hit rate
 	total := stats.Hits + stats.Misses
@@ -314,22 +310,23 @@ func (c *Cache) Cleanup() int {
 	batch := 0
 
 	for key, entry := range c.store {
-		if now.After(entry.ExpiresAt) {
-			delete(c.store, key)
-			c.updateStats(-entry.Size, false)
-			removed++
-			batch++
+		if !now.After(entry.ExpiresAt) {
+			continue
+		}
+		delete(c.store, key)
+		c.updateStats(-entry.Size, false)
+		removed++
+		batch++
 
-			// Limit batch size to avoid blocking
-			if batch >= c.config.CleanupBatch {
-				break
-			}
+		// Limit batch size to avoid blocking
+		if batch >= c.config.CleanupBatch {
+			break
 		}
 	}
 
 	c.stats.mutex.Lock()
-	c.stats.Evictions += int64(removed)
-	c.stats.LastCleanup = now
+	c.stats.data.Evictions += int64(removed)
+	c.stats.data.LastCleanup = now
 	c.stats.mutex.Unlock()
 
 	return removed
@@ -351,7 +348,9 @@ func (c *Cache) GetOrCompute(key string, compute func() (interface{}, error)) (i
 	// Store in cache
 	if err := c.Set(key, value); err != nil {
 		// Log error but don't fail the operation
-		// In production, would use proper logging
+		// The cache is optional, so we don't want to fail the operation
+		// just because we can't cache the result
+		log.Printf("failed to cache value for key %s: %v", key, err)
 	}
 
 	return value, nil
@@ -373,6 +372,7 @@ func (c *Cache) GetOrComputeWithTTL(key string, ttl time.Duration, compute func(
 	// Store in cache with specific TTL
 	if err := c.SetWithTTL(key, value, ttl); err != nil {
 		// Log error but don't fail the operation
+		log.Printf("failed to cache value with TTL for key %s: %v", key, err)
 	}
 
 	return value, nil
@@ -389,9 +389,9 @@ func (c *Cache) ensureCapacity(newEntry *CacheEntry) error {
 	}
 
 	// Check size limit
-	if c.config.PreComputeSize && c.stats.Size+newEntry.Size > c.config.MaxSize {
+	if c.config.PreComputeSize && c.stats.data.Size+newEntry.Size > c.config.MaxSize {
 		// Calculate how much space we need
-		needed := (c.stats.Size + newEntry.Size) - c.config.MaxSize
+		needed := (c.stats.data.Size + newEntry.Size) - c.config.MaxSize
 		if err := c.evictSize(needed); err != nil {
 			return fmt.Errorf("failed to evict items for size limit: %w", err)
 		}
@@ -444,7 +444,7 @@ func (c *Cache) evictLRU(count int) error {
 		accessTime time.Time
 	}
 
-	var candidates []entryAge
+	candidates := make([]entryAge, 0, len(c.store))
 	for key, entry := range c.store {
 		candidates = append(candidates, entryAge{
 			key:        key,
@@ -471,7 +471,7 @@ func (c *Cache) evictLRU(count int) error {
 	}
 
 	c.stats.mutex.Lock()
-	c.stats.Evictions += int64(evicted)
+	c.stats.data.Evictions += int64(evicted)
 	c.stats.mutex.Unlock()
 
 	return nil
@@ -485,7 +485,7 @@ func (c *Cache) evictLFU(count int) error {
 		freq  int64
 	}
 
-	var candidates []entryFreq
+	candidates := make([]entryFreq, 0, len(c.store))
 	for key, entry := range c.store {
 		candidates = append(candidates, entryFreq{
 			key:   key,
@@ -512,7 +512,7 @@ func (c *Cache) evictLFU(count int) error {
 	}
 
 	c.stats.mutex.Lock()
-	c.stats.Evictions += int64(evicted)
+	c.stats.data.Evictions += int64(evicted)
 	c.stats.mutex.Unlock()
 
 	return nil
@@ -527,7 +527,7 @@ func (c *Cache) evictTTL(count int) error {
 	}
 
 	now := time.Now()
-	var candidates []entryTTL
+	candidates := make([]entryTTL, 0, len(c.store))
 	for key, entry := range c.store {
 		remaining := entry.ExpiresAt.Sub(now)
 		candidates = append(candidates, entryTTL{
@@ -555,7 +555,7 @@ func (c *Cache) evictTTL(count int) error {
 	}
 
 	c.stats.mutex.Lock()
-	c.stats.Evictions += int64(evicted)
+	c.stats.data.Evictions += int64(evicted)
 	c.stats.mutex.Unlock()
 
 	return nil
@@ -573,11 +573,11 @@ func (c *Cache) updateStats(sizeChange int64, itemAdded bool) {
 	c.stats.mutex.Lock()
 	defer c.stats.mutex.Unlock()
 
-	c.stats.Size += sizeChange
+	c.stats.data.Size += sizeChange
 	if itemAdded {
-		c.stats.Items++
+		c.stats.data.Items++
 	} else {
-		c.stats.Items--
+		c.stats.data.Items--
 	}
 }
 
@@ -587,7 +587,7 @@ func (c *Cache) incrementHits() {
 	}
 
 	c.stats.mutex.Lock()
-	c.stats.Hits++
+	c.stats.data.Hits++
 	c.stats.mutex.Unlock()
 }
 
@@ -597,7 +597,7 @@ func (c *Cache) incrementMisses() {
 	}
 
 	c.stats.mutex.Lock()
-	c.stats.Misses++
+	c.stats.data.Misses++
 	c.stats.mutex.Unlock()
 }
 
@@ -607,7 +607,7 @@ func (c *Cache) incrementSets() {
 	}
 
 	c.stats.mutex.Lock()
-	c.stats.Sets++
+	c.stats.data.Sets++
 	c.stats.mutex.Unlock()
 }
 
@@ -617,27 +617,18 @@ func (c *Cache) incrementDeletes() {
 	}
 
 	c.stats.mutex.Lock()
-	c.stats.Deletes++
+	c.stats.data.Deletes++
 	c.stats.mutex.Unlock()
 }
 
 // GetStats returns a copy of cache statistics
-func (c *Cache) GetStats() *CacheStats {
+func (c *Cache) GetStats() *CacheStatsData {
 	c.stats.mutex.RLock()
 	defer c.stats.mutex.RUnlock()
 
-	// Return a copy to avoid race conditions
-	return &CacheStats{
-		Hits:        c.stats.Hits,
-		Misses:      c.stats.Misses,
-		Sets:        c.stats.Sets,
-		Deletes:     c.stats.Deletes,
-		Evictions:   c.stats.Evictions,
-		Size:        c.stats.Size,
-		Items:       c.stats.Items,
-		HitRate:     c.stats.HitRate,
-		LastCleanup: c.stats.LastCleanup,
-	}
+	// Return a copy of the data to avoid race conditions
+	statsCopy := c.stats.data
+	return &statsCopy
 }
 
 // janitor background cleanup routine

@@ -185,6 +185,7 @@ func TestBackupManager_CreateBackup(t *testing.T) {
 			assert.FileExists(t, metadataFile)
 
 			// Verify metadata content
+			// #nosec G304 -- metadataFile is constructed from controlled test data, not user input
 			metadataData, err := os.ReadFile(metadataFile)
 			require.NoError(t, err)
 

@@ -52,7 +52,7 @@ lmmc stats
 
 ## Configuration
 
-The CLI stores configuration in `~/.lmmc/config.yaml`. You can manage settings using the config command:
+The CLI stores configuration in `~/.lmmc/config.yaml`. Environment variables with `LMMC_` prefix override file settings. You can manage settings using the config command:
 
 ```bash
 # Set output format

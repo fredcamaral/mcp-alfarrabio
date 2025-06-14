@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -28,10 +29,13 @@ type ContextBuilder struct {
 }
 
 // NewBuilder creates a new context builder
+//
+//nolint:contextcheck // This function creates a builder that properly inherits the parent context
 func NewBuilder(parent context.Context) *ContextBuilder {
 	if parent == nil {
 		parent = context.Background()
 	}
+	// Simply use the parent context directly
 	return &ContextBuilder{ctx: parent}
 }
 
@@ -299,7 +303,7 @@ func WithStandardTimeout(ctx context.Context, operationType string) (context.Con
 
 // IsTimeoutError checks if error is due to context timeout
 func IsTimeoutError(err error) bool {
-	return err == context.DeadlineExceeded
+	return errors.Is(err, context.DeadlineExceeded)
 }
 
 // ID generation functions

@@ -192,7 +192,7 @@ func (m REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.server != nil {
 				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 				defer cancel()
-				m.server.Shutdown(ctx)
+				_ = m.server.Shutdown(ctx)
 			}
 			return m, tea.Quit
 
@@ -459,7 +459,7 @@ func (m REPLModel) executeCommand(cmd string) REPLModel {
 		if m.server != nil {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
-			m.server.Shutdown(ctx)
+			_ = m.server.Shutdown(ctx)
 		}
 		return m
 	case cmd == "dashboard" || cmd == "dash":
@@ -1014,18 +1014,22 @@ func (m REPLModel) startHTTPServer() error {
 
 		// Handle push notification
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	// Health check
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
+		_, _ = w.Write([]byte("OK"))
 	})
 
 	m.server = &http.Server{
-		Addr:    fmt.Sprintf(":%d", m.httpPort),
-		Handler: mux,
+		Addr:              fmt.Sprintf(":%d", m.httpPort),
+		Handler:           mux,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      15 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 5 * time.Second,
 	}
 
 	return m.server.ListenAndServe()

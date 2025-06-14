@@ -34,9 +34,10 @@ func (a *AIServiceAdapter) ProcessRequest(ctx context.Context, req *internalAI.R
 	userContent := ""
 
 	for _, msg := range req.Messages {
-		if msg.Role == "system" {
+		switch msg.Role {
+		case "system":
 			systemPrompt = msg.Content
-		} else if msg.Role == "user" {
+		case "user":
 			userContent = msg.Content
 		}
 		content += msg.Content + "\n"
@@ -77,7 +78,7 @@ func (a *AIServiceAdapter) ProcessRequest(ctx context.Context, req *internalAI.R
 }
 
 // generatePatternResponse generates a mock pattern analysis response
-func (a *AIServiceAdapter) generatePatternResponse(content string, complexity int) string {
+func (a *AIServiceAdapter) generatePatternResponse(_ string, complexity int) string {
 	// This is a simplified pattern response generator
 	// In a real implementation, this would use the AI service to generate actual pattern analysis
 

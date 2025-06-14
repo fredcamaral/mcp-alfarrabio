@@ -16,6 +16,13 @@ import (
 	"lerian-mcp-memory/internal/logging"
 )
 
+// Safety priority levels
+const (
+	SafetyLow    = "low"
+	SafetyMedium = "medium"
+	SafetyHigh   = "high"
+)
+
 // MigrationSafetyManager handles safe database migrations with rollback capabilities
 type MigrationSafetyManager struct {
 	db                  *sql.DB
@@ -154,8 +161,8 @@ func (msm *MigrationSafetyManager) Initialize(ctx context.Context) error {
 		return fmt.Errorf("failed to create migration tracking table: %w", err)
 	}
 
-	// Create backup directory
-	if err := os.MkdirAll(msm.backupPath, 0o755); err != nil {
+	// Create backup directory with secure permissions
+	if err := os.MkdirAll(msm.backupPath, 0o750); err != nil {
 		return fmt.Errorf("failed to create backup directory: %w", err)
 	}
 
@@ -180,14 +187,14 @@ func (msm *MigrationSafetyManager) PlanMigration(ctx context.Context) (*Migratio
 	}
 
 	// Filter to pending migrations
-	var pendingMigrations []PlannedMigration
+	pendingMigrations := make([]PlannedMigration, 0, len(migrationFiles))
 	var totalEstimatedTime time.Duration
 	var warnings []string
-	riskLevel := "low"
+	riskLevel := SafetyLow
 
 	appliedSet := make(map[string]bool)
-	for _, applied := range appliedMigrations {
-		appliedSet[applied.Version] = true
+	for i := range appliedMigrations {
+		appliedSet[appliedMigrations[i].Version] = true
 	}
 
 	for _, file := range migrationFiles {
@@ -210,10 +217,10 @@ func (msm *MigrationSafetyManager) PlanMigration(ctx context.Context) (*Migratio
 		totalEstimatedTime += planned.EstimatedTime
 
 		// Update overall risk level
-		if planned.RiskLevel == "high" {
-			riskLevel = "high"
-		} else if planned.RiskLevel == "medium" && riskLevel != "high" {
-			riskLevel = "medium"
+		if planned.RiskLevel == SafetyHigh {
+			riskLevel = SafetyHigh
+		} else if planned.RiskLevel == SafetyMedium && riskLevel != SafetyHigh {
+			riskLevel = SafetyMedium
 		}
 	}
 
@@ -264,9 +271,9 @@ func (msm *MigrationSafetyManager) ExecuteMigrationPlan(ctx context.Context, pla
 	}
 
 	// Execute migrations in order
-	for _, migration := range plan.Migrations {
-		if err := msm.executeSingleMigration(ctx, migration, backupPath); err != nil {
-			return fmt.Errorf("migration failed at version %s: %w", migration.Version, err)
+	for i := range plan.Migrations {
+		if err := msm.executeSingleMigration(ctx, &plan.Migrations[i], backupPath); err != nil {
+			return fmt.Errorf("migration failed at version %s: %w", plan.Migrations[i].Version, err)
 		}
 	}
 
@@ -287,9 +294,9 @@ func (msm *MigrationSafetyManager) PlanRollback(ctx context.Context, targetVersi
 	}
 
 	var migrationsToRollback []MigrationRecord
-	for _, migration := range appliedMigrations {
-		if migration.Version > targetVersion && migration.RolledBackAt == nil {
-			migrationsToRollback = append(migrationsToRollback, migration)
+	for i := range appliedMigrations {
+		if appliedMigrations[i].Version > targetVersion && appliedMigrations[i].RolledBackAt == nil {
+			migrationsToRollback = append(migrationsToRollback, appliedMigrations[i])
 		}
 	}
 
@@ -298,40 +305,40 @@ func (msm *MigrationSafetyManager) PlanRollback(ctx context.Context, targetVersi
 		return migrationsToRollback[i].Version > migrationsToRollback[j].Version
 	})
 
-	var plannedRollbacks []PlannedRollback
+	plannedRollbacks := make([]PlannedRollback, 0, len(migrationsToRollback))
 	var totalEstimatedTime time.Duration
 	var warnings []string
 	dataLossRisk := "none"
 
-	for _, migration := range migrationsToRollback {
+	for i := range migrationsToRollback {
 		// Check if migration is within rollback window
-		if time.Since(migration.AppliedAt) > msm.maxRollbackDuration {
+		if time.Since(migrationsToRollback[i].AppliedAt) > msm.maxRollbackDuration {
 			warnings = append(warnings, fmt.Sprintf("Migration %s is outside rollback window (%v)",
-				migration.Version, msm.maxRollbackDuration))
+				migrationsToRollback[i].Version, msm.maxRollbackDuration))
 		}
 
-		rollbackSQL, err := msm.getRollbackSQL(migration.Version)
+		rollbackSQL, err := msm.getRollbackSQL(migrationsToRollback[i].Version)
 		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("No rollback available for %s: %v", migration.Version, err))
+			warnings = append(warnings, fmt.Sprintf("No rollback available for %s: %v", migrationsToRollback[i].Version, err))
 			continue
 		}
 
 		// Analyze rollback for data loss risk
 		risk := msm.analyzeDataLossRisk(rollbackSQL)
-		if risk == "high" {
-			dataLossRisk = "high"
-		} else if risk == "medium" && dataLossRisk != "high" {
-			dataLossRisk = "medium"
+		if risk == SafetyHigh {
+			dataLossRisk = SafetyHigh
+		} else if risk == SafetyMedium && dataLossRisk != SafetyHigh {
+			dataLossRisk = SafetyMedium
 		}
 
 		plannedRollback := PlannedRollback{
-			Version:       migration.Version,
-			Name:          migration.Name,
+			Version:       migrationsToRollback[i].Version,
+			Name:          migrationsToRollback[i].Name,
 			RollbackSQL:   rollbackSQL,
 			DataLossRisk:  risk,
 			EstimatedTime: time.Second * 30, // Default estimate
 			Metadata: map[string]interface{}{
-				"applied_at": migration.AppliedAt,
+				"applied_at": migrationsToRollback[i].AppliedAt,
 			},
 		}
 
@@ -381,7 +388,8 @@ func (msm *MigrationSafetyManager) ExecuteRollback(ctx context.Context, plan *Ro
 	}
 
 	// Execute rollbacks in reverse order
-	for _, rollback := range plan.Migrations {
+	for i := range plan.Migrations {
+		rollback := &plan.Migrations[i]
 		if err := msm.executeSingleRollback(ctx, rollback, backupPath); err != nil {
 			return fmt.Errorf("rollback failed at version %s: %w", rollback.Version, err)
 		}
@@ -410,7 +418,7 @@ func (msm *MigrationSafetyManager) getAppliedMigrations(ctx context.Context) ([]
 	if err != nil {
 		return nil, fmt.Errorf("failed to query applied migrations: %w", err)
 	}
-	defer rows.Close()
+	defer func() { _ = rows.Close() }()
 
 	var migrations []MigrationRecord
 	for rows.Next() {
@@ -487,13 +495,19 @@ func extractVersionFromFilename(filename string) string {
 }
 
 func (msm *MigrationSafetyManager) analyzeMigrationFile(filePath, version string) (PlannedMigration, error) {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return PlannedMigration{}, fmt.Errorf("path traversal detected: %s", filePath)
+	}
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return PlannedMigration{}, fmt.Errorf("failed to read migration file: %w", err)
 	}
 
-	sql := string(content)
-	operations := msm.extractOperations(sql)
+	sqlContent := string(content)
+	operations := msm.extractOperations(sqlContent)
 	riskLevel := msm.assessRiskLevel(operations)
 
 	// Extract name from filename
@@ -525,9 +539,9 @@ func (msm *MigrationSafetyManager) analyzeMigrationFile(filePath, version string
 	return planned, nil
 }
 
-func (msm *MigrationSafetyManager) extractOperations(sql string) []string {
+func (msm *MigrationSafetyManager) extractOperations(sqlContent string) []string {
 	var operations []string
-	sql = strings.ToUpper(sql)
+	upperContent := strings.ToUpper(sqlContent)
 
 	keywords := []string{
 		"CREATE TABLE", "ALTER TABLE", "DROP TABLE",
@@ -538,7 +552,7 @@ func (msm *MigrationSafetyManager) extractOperations(sql string) []string {
 	}
 
 	for _, keyword := range keywords {
-		if strings.Contains(sql, keyword) {
+		if strings.Contains(upperContent, keyword) {
 			operations = append(operations, keyword)
 		}
 	}
@@ -553,7 +567,7 @@ func (msm *MigrationSafetyManager) assessRiskLevel(operations []string) string {
 	for _, op := range operations {
 		for _, highRisk := range highRiskOps {
 			if strings.Contains(op, highRisk) {
-				return "high"
+				return SafetyHigh
 			}
 		}
 	}
@@ -561,12 +575,12 @@ func (msm *MigrationSafetyManager) assessRiskLevel(operations []string) string {
 	for _, op := range operations {
 		for _, mediumRisk := range mediumRiskOps {
 			if strings.Contains(op, mediumRisk) {
-				return "medium"
+				return SafetyMedium
 			}
 		}
 	}
 
-	return "low"
+	return SafetyLow
 }
 
 func (msm *MigrationSafetyManager) estimateMigrationTime(operations []string) time.Duration {
@@ -625,13 +639,13 @@ func (msm *MigrationSafetyManager) estimateBackupSize(ctx context.Context) int64
 func (msm *MigrationSafetyManager) extractDependencies(migrations []PlannedMigration) []string {
 	// Extract unique dependencies from all migrations
 	depSet := make(map[string]bool)
-	for _, migration := range migrations {
-		for _, dep := range migration.Dependencies {
+	for i := range migrations {
+		for _, dep := range migrations[i].Dependencies {
 			depSet[dep] = true
 		}
 	}
 
-	var deps []string
+	deps := make([]string, 0, len(depSet))
 	for dep := range depSet {
 		deps = append(deps, dep)
 	}
@@ -639,9 +653,15 @@ func (msm *MigrationSafetyManager) extractDependencies(migrations []PlannedMigra
 	return deps
 }
 
-func (msm *MigrationSafetyManager) createBackup(ctx context.Context) (string, error) {
+func (msm *MigrationSafetyManager) createBackup(ctx context.Context) (string, error) { //nolint:unparam // context may be used for future cancellation
 	timestamp := time.Now().Format("20060102_150405")
 	backupFile := filepath.Join(msm.backupPath, fmt.Sprintf("backup_%s.sql", timestamp))
+
+	// Clean and validate the backup path
+	backupFile = filepath.Clean(backupFile)
+	if !strings.HasPrefix(backupFile, filepath.Clean(msm.backupPath)) {
+		return "", fmt.Errorf("invalid backup path: %s", backupFile)
+	}
 
 	msm.logger.Info("Creating database backup", "file", backupFile)
 
@@ -656,9 +676,13 @@ func (msm *MigrationSafetyManager) createBackup(ctx context.Context) (string, er
 	if err != nil {
 		return "", fmt.Errorf("failed to create backup file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if closeErr := file.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close backup file: %v\n", closeErr)
+		}
+	}()
 
-	_, err = file.WriteString(fmt.Sprintf("-- Database backup created at %s\n", time.Now().Format(time.RFC3339)))
+	_, err = fmt.Fprintf(file, "-- Database backup created at %s\n", time.Now().Format(time.RFC3339))
 	if err != nil {
 		return "", fmt.Errorf("failed to write backup header: %w", err)
 	}
@@ -666,7 +690,7 @@ func (msm *MigrationSafetyManager) createBackup(ctx context.Context) (string, er
 	return backupFile, nil
 }
 
-func (msm *MigrationSafetyManager) executeSingleMigration(ctx context.Context, migration PlannedMigration, backupPath string) error {
+func (msm *MigrationSafetyManager) executeSingleMigration(ctx context.Context, migration *PlannedMigration, backupPath string) error {
 	msm.logger.Info("Executing migration",
 		"version", migration.Version,
 		"name", migration.Name,
@@ -690,12 +714,12 @@ func (msm *MigrationSafetyManager) executeSingleMigration(ctx context.Context, m
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	_, err = tx.ExecContext(ctx, string(content))
 	if err != nil {
 		// Record failed migration
-		msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
+		_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
 		return fmt.Errorf("failed to execute migration SQL: %w", err)
 	}
 
@@ -718,7 +742,7 @@ func (msm *MigrationSafetyManager) executeSingleMigration(ctx context.Context, m
 	return nil
 }
 
-func (msm *MigrationSafetyManager) recordMigration(ctx context.Context, migration PlannedMigration, startTime time.Time, backupPath string, success bool, errorMsg string) error {
+func (msm *MigrationSafetyManager) recordMigration(ctx context.Context, migration *PlannedMigration, startTime time.Time, backupPath string, success bool, errorMsg string) error {
 	duration := time.Since(startTime)
 
 	metadataJSON, _ := json.Marshal(migration.Metadata)
@@ -744,7 +768,18 @@ func (msm *MigrationSafetyManager) recordMigration(ctx context.Context, migratio
 }
 
 func (msm *MigrationSafetyManager) getRollbackSQL(version string) (string, error) {
+	// Validate version to prevent path traversal
+	if strings.Contains(version, "..") || strings.Contains(version, "/") || strings.Contains(version, "\\") {
+		return "", fmt.Errorf("invalid version format: %s", version)
+	}
+
 	rollbackFile := filepath.Join(msm.migrationsPath, "rollback", version+"_rollback.sql")
+
+	// Clean the path and validate it's within expected directory
+	rollbackFile = filepath.Clean(rollbackFile)
+	if !strings.HasPrefix(rollbackFile, filepath.Clean(msm.migrationsPath)) {
+		return "", fmt.Errorf("path traversal detected: %s", rollbackFile)
+	}
 
 	content, err := os.ReadFile(rollbackFile)
 	if err != nil {
@@ -755,20 +790,20 @@ func (msm *MigrationSafetyManager) getRollbackSQL(version string) (string, error
 }
 
 func (msm *MigrationSafetyManager) analyzeDataLossRisk(rollbackSQL string) string {
-	sql := strings.ToUpper(rollbackSQL)
+	upperSQL := strings.ToUpper(rollbackSQL)
 
-	if strings.Contains(sql, "DROP TABLE") || strings.Contains(sql, "DELETE FROM") {
-		return "high"
+	if strings.Contains(upperSQL, "DROP TABLE") || strings.Contains(upperSQL, "DELETE FROM") {
+		return SafetyHigh
 	}
 
-	if strings.Contains(sql, "UPDATE") || strings.Contains(sql, "ALTER TABLE") {
-		return "medium"
+	if strings.Contains(upperSQL, "UPDATE") || strings.Contains(upperSQL, "ALTER TABLE") {
+		return SafetyMedium
 	}
 
-	return "low"
+	return SafetyLow
 }
 
-func (msm *MigrationSafetyManager) executeSingleRollback(ctx context.Context, rollback PlannedRollback, backupPath string) error {
+func (msm *MigrationSafetyManager) executeSingleRollback(ctx context.Context, rollback *PlannedRollback, _ string) error {
 	msm.logger.Info("Executing rollback",
 		"version", rollback.Version,
 		"name", rollback.Name,
@@ -786,7 +821,10 @@ func (msm *MigrationSafetyManager) executeSingleRollback(ctx context.Context, ro
 	if err != nil {
 		return fmt.Errorf("failed to begin rollback transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() {
+		// Rollback is expected to fail if transaction was committed
+		_ = tx.Rollback()
+	}()
 
 	_, err = tx.ExecContext(ctx, rollback.RollbackSQL)
 	if err != nil {

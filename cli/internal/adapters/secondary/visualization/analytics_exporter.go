@@ -139,7 +139,7 @@ func (e *AnalyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, filena
 	}
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -150,7 +150,7 @@ func (e *AnalyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, filena
 	}
 
 	// Write to file
-	if err := os.WriteFile(filename, jsonData, 0644); err != nil {
+	if err := os.WriteFile(filename, jsonData, 0600); err != nil {
 		return "", fmt.Errorf("failed to write JSON file: %w", err)
 	}
 
@@ -162,8 +162,14 @@ func (e *AnalyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filenam
 	e.logger.Debug("exporting to CSV", slog.String("filename", filename))
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
+	}
+
+	// Clean and validate the file path
+	filename = filepath.Clean(filename)
+	if strings.Contains(filename, "..") {
+		return "", fmt.Errorf("path traversal detected: %s", filename)
 	}
 
 	// Create CSV file
@@ -213,86 +219,86 @@ func (e *AnalyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filenam
 			return "", err
 		}
 	}
-	writer.Write([]string{"Metric", "Value", "Unit"})
-	writer.Write([]string{"Current Velocity", fmt.Sprintf("%.1f", metrics.Velocity.CurrentVelocity), "tasks/week"})
-	writer.Write([]string{"Trend Direction", string(metrics.Velocity.TrendDirection), ""})
-	writer.Write([]string{"Trend Percentage", fmt.Sprintf("%.1f", metrics.Velocity.TrendPercentage), "percent"})
-	writer.Write([]string{"Consistency", fmt.Sprintf("%.0f", metrics.Velocity.Consistency*100), "percent"})
-	writer.Write([]string{}) // Empty row
+	_ = writer.Write([]string{"Metric", "Value", "Unit"})
+	_ = writer.Write([]string{"Current Velocity", fmt.Sprintf("%.1f", metrics.Velocity.CurrentVelocity), "tasks/week"})
+	_ = writer.Write([]string{"Trend Direction", string(metrics.Velocity.TrendDirection), ""})
+	_ = writer.Write([]string{"Trend Percentage", fmt.Sprintf("%.1f", metrics.Velocity.TrendPercentage), "percent"})
+	_ = writer.Write([]string{"Consistency", fmt.Sprintf("%.0f", metrics.Velocity.Consistency*100), "percent"})
+	_ = writer.Write([]string{}) // Empty row
 
 	// Write weekly velocity data
 	if len(metrics.Velocity.ByWeek) > 0 {
-		writer.Write([]string{"# Weekly Velocity Data"})
-		writer.Write([]string{"Week Number", "Velocity", "Tasks Completed"})
+		_ = writer.Write([]string{"# Weekly Velocity Data"})
+		_ = writer.Write([]string{"Week Number", "Velocity", "Tasks Completed"})
 		for _, week := range metrics.Velocity.ByWeek {
-			writer.Write([]string{
+			_ = writer.Write([]string{
 				fmt.Sprintf("W%02d", week.Number),
 				fmt.Sprintf("%.1f", week.Velocity),
 				strconv.Itoa(week.Tasks),
 			})
 		}
-		writer.Write([]string{}) // Empty row
+		_ = writer.Write([]string{}) // Empty row
 	}
 
 	// Write completion metrics
-	writer.Write([]string{"# Completion Metrics"})
-	writer.Write([]string{"Metric", "Value", "Unit"})
-	writer.Write([]string{"Total Tasks", strconv.Itoa(metrics.Completion.TotalTasks), "count"})
-	writer.Write([]string{"Completed", strconv.Itoa(metrics.Completion.Completed), "count"})
-	writer.Write([]string{"In Progress", strconv.Itoa(metrics.Completion.InProgress), "count"})
-	writer.Write([]string{"Cancelled", strconv.Itoa(metrics.Completion.Cancelled), "count"})
-	writer.Write([]string{"Completion Rate", fmt.Sprintf("%.0f", metrics.Completion.CompletionRate*100), "percent"})
-	writer.Write([]string{"Average Time", fmt.Sprintf("%.1f", metrics.Completion.AverageTime.Hours()), "hours"})
-	writer.Write([]string{"On Time Rate", fmt.Sprintf("%.0f", metrics.Completion.OnTimeRate*100), "percent"})
-	writer.Write([]string{"Quality Score", fmt.Sprintf("%.0f", metrics.Completion.QualityScore*100), "percent"})
-	writer.Write([]string{}) // Empty row
+	_ = writer.Write([]string{"# Completion Metrics"})
+	_ = writer.Write([]string{"Metric", "Value", "Unit"})
+	_ = writer.Write([]string{"Total Tasks", strconv.Itoa(metrics.Completion.TotalTasks), "count"})
+	_ = writer.Write([]string{"Completed", strconv.Itoa(metrics.Completion.Completed), "count"})
+	_ = writer.Write([]string{"In Progress", strconv.Itoa(metrics.Completion.InProgress), "count"})
+	_ = writer.Write([]string{"Cancelled", strconv.Itoa(metrics.Completion.Cancelled), "count"})
+	_ = writer.Write([]string{"Completion Rate", fmt.Sprintf("%.0f", metrics.Completion.CompletionRate*100), "percent"})
+	_ = writer.Write([]string{"Average Time", fmt.Sprintf("%.1f", metrics.Completion.AverageTime.Hours()), "hours"})
+	_ = writer.Write([]string{"On Time Rate", fmt.Sprintf("%.0f", metrics.Completion.OnTimeRate*100), "percent"})
+	_ = writer.Write([]string{"Quality Score", fmt.Sprintf("%.0f", metrics.Completion.QualityScore*100), "percent"})
+	_ = writer.Write([]string{}) // Empty row
 
 	// Write cycle time metrics
-	writer.Write([]string{"# Cycle Time Metrics"})
-	writer.Write([]string{"Metric", "Value", "Unit"})
-	writer.Write([]string{"Average Cycle Time", fmt.Sprintf("%.1f", metrics.CycleTime.AverageCycleTime.Hours()), "hours"})
-	writer.Write([]string{"Median Cycle Time", fmt.Sprintf("%.1f", metrics.CycleTime.MedianCycleTime.Hours()), "hours"})
-	writer.Write([]string{"90th Percentile", fmt.Sprintf("%.1f", metrics.CycleTime.P90CycleTime.Hours()), "hours"})
-	writer.Write([]string{"Lead Time", fmt.Sprintf("%.1f", metrics.CycleTime.LeadTime.Hours()), "hours"})
-	writer.Write([]string{"Wait Time", fmt.Sprintf("%.1f", metrics.CycleTime.WaitTime.Hours()), "hours"})
-	writer.Write([]string{"Efficiency Score", fmt.Sprintf("%.0f", metrics.CycleTime.GetEfficiencyScore()*100), "percent"})
-	writer.Write([]string{}) // Empty row
+	_ = writer.Write([]string{"# Cycle Time Metrics"})
+	_ = writer.Write([]string{"Metric", "Value", "Unit"})
+	_ = writer.Write([]string{"Average Cycle Time", fmt.Sprintf("%.1f", metrics.CycleTime.AverageCycleTime.Hours()), "hours"})
+	_ = writer.Write([]string{"Median Cycle Time", fmt.Sprintf("%.1f", metrics.CycleTime.MedianCycleTime.Hours()), "hours"})
+	_ = writer.Write([]string{"90th Percentile", fmt.Sprintf("%.1f", metrics.CycleTime.P90CycleTime.Hours()), "hours"})
+	_ = writer.Write([]string{"Lead Time", fmt.Sprintf("%.1f", metrics.CycleTime.LeadTime.Hours()), "hours"})
+	_ = writer.Write([]string{"Wait Time", fmt.Sprintf("%.1f", metrics.CycleTime.WaitTime.Hours()), "hours"})
+	_ = writer.Write([]string{"Efficiency Score", fmt.Sprintf("%.0f", metrics.CycleTime.GetEfficiencyScore()*100), "percent"})
+	_ = writer.Write([]string{}) // Empty row
 
 	// Write bottlenecks if any
 	if len(metrics.Bottlenecks) > 0 {
-		writer.Write([]string{"# Bottlenecks"})
-		writer.Write([]string{"Severity", "Description", "Impact (hours)", "Frequency"})
+		_ = writer.Write([]string{"# Bottlenecks"})
+		_ = writer.Write([]string{"Severity", "Description", "Impact (hours)", "Frequency"})
 		for _, bottleneck := range metrics.Bottlenecks {
-			writer.Write([]string{
+			_ = writer.Write([]string{
 				string(bottleneck.Severity),
 				bottleneck.Description,
 				fmt.Sprintf("%.1f", bottleneck.Impact),
 				strconv.Itoa(bottleneck.Frequency),
 			})
 		}
-		writer.Write([]string{}) // Empty row
+		_ = writer.Write([]string{}) // Empty row
 	}
 
 	// Write priority breakdown
 	if len(metrics.Productivity.ByPriority) > 0 {
-		writer.Write([]string{"# Priority Performance"})
-		writer.Write([]string{"Priority", "Completion Rate", "Percentage"})
+		_ = writer.Write([]string{"# Priority Performance"})
+		_ = writer.Write([]string{"Priority", "Completion Rate", "Percentage"})
 		for priority, rate := range metrics.Productivity.ByPriority {
-			writer.Write([]string{
+			_ = writer.Write([]string{
 				strings.Title(priority),
 				fmt.Sprintf("%.1f", rate),
 				fmt.Sprintf("%.0f", rate*100),
 			})
 		}
-		writer.Write([]string{}) // Empty row
+		_ = writer.Write([]string{}) // Empty row
 	}
 
 	// Write task type breakdown
 	if len(metrics.Productivity.ByType) > 0 {
-		writer.Write([]string{"# Task Type Performance"})
-		writer.Write([]string{"Task Type", "Completion Rate", "Percentage"})
+		_ = writer.Write([]string{"# Task Type Performance"})
+		_ = writer.Write([]string{"Task Type", "Completion Rate", "Percentage"})
 		for taskType, rate := range metrics.Productivity.ByType {
-			writer.Write([]string{
+			_ = writer.Write([]string{
 				taskType,
 				fmt.Sprintf("%.1f", rate),
 				fmt.Sprintf("%.0f", rate*100),
@@ -308,7 +314,7 @@ func (e *AnalyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, filena
 	e.logger.Debug("exporting to HTML", slog.String("filename", filename))
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -506,7 +512,7 @@ func (e *AnalyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, filena
 	}
 
 	// Write to file
-	if err := os.WriteFile(filename, htmlBuffer.Bytes(), 0644); err != nil {
+	if err := os.WriteFile(filename, htmlBuffer.Bytes(), 0600); err != nil {
 		return "", fmt.Errorf("failed to write HTML file: %w", err)
 	}
 
@@ -522,7 +528,7 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 	// For now, we'll create a well-formatted text report with PDF extension
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(filename), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -673,7 +679,7 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 	report.WriteString("with graphics and charts, consider using a dedicated PDF library.\n")
 
 	// Write to file
-	if err := os.WriteFile(filename, []byte(report.String()), 0644); err != nil {
+	if err := os.WriteFile(filename, []byte(report.String()), 0600); err != nil {
 		return "", fmt.Errorf("failed to write PDF file: %w", err)
 	}
 

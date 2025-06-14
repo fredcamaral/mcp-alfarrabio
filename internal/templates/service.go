@@ -83,20 +83,20 @@ func (ts *TemplateService) ListTemplates(ctx context.Context, req *ListTemplates
 
 	// Apply filters
 	var filteredTemplates []BuiltinTemplate
-	for _, tmpl := range allTemplates {
-		if ts.matchesFilters(tmpl, req) {
-			filteredTemplates = append(filteredTemplates, tmpl)
+	for i := range allTemplates {
+		if ts.matchesFilters(&allTemplates[i], req) {
+			filteredTemplates = append(filteredTemplates, allTemplates[i])
 		}
 	}
 
 	// Convert to TemplateInfo with usage stats
-	var templateInfos []TemplateInfo
-	for _, tmpl := range filteredTemplates {
-		info := TemplateInfo{BuiltinTemplate: tmpl}
+	templateInfos := make([]TemplateInfo, 0, len(filteredTemplates))
+	for i := range filteredTemplates {
+		info := TemplateInfo{BuiltinTemplate: filteredTemplates[i]}
 
 		// Get usage stats if storage is available
 		if ts.storage != nil {
-			if stats, err := ts.storage.GetTemplateUsage(ctx, tmpl.ID); err == nil {
+			if stats, err := ts.storage.GetTemplateUsage(ctx, filteredTemplates[i].ID); err == nil {
 				info.UsageStats = stats
 			}
 		}
@@ -123,7 +123,7 @@ func (ts *TemplateService) ListTemplates(ctx context.Context, req *ListTemplates
 }
 
 // matchesFilters checks if a template matches the request filters
-func (ts *TemplateService) matchesFilters(tmpl BuiltinTemplate, req *ListTemplatesRequest) bool {
+func (ts *TemplateService) matchesFilters(tmpl *BuiltinTemplate, req *ListTemplatesRequest) bool {
 	// Project type filter
 	if req.ProjectType != "" && req.ProjectType != types.ProjectTypeAny {
 		if tmpl.ProjectType != req.ProjectType && tmpl.ProjectType != types.ProjectTypeAny {
@@ -273,14 +273,14 @@ func (ts *TemplateService) SuggestTemplates(ctx context.Context, projectID strin
 
 	// Score templates based on keywords and usage
 	var suggestions []TemplateInfo
-	for _, tmpl := range templates {
-		score := ts.calculateRelevanceScore(tmpl, keywords)
+	for i := range templates {
+		score := ts.calculateRelevanceScore(&templates[i], keywords)
 		if score > 0.3 { // Minimum relevance threshold
-			info := TemplateInfo{BuiltinTemplate: tmpl}
+			info := TemplateInfo{BuiltinTemplate: templates[i]}
 
 			// Get usage stats for popularity scoring
 			if ts.storage != nil {
-				if stats, err := ts.storage.GetTemplateUsage(ctx, tmpl.ID); err == nil {
+				if stats, err := ts.storage.GetTemplateUsage(ctx, templates[i].ID); err == nil {
 					info.UsageStats = stats
 					// Boost score based on popularity
 					score += stats.PopularityScore * 0.2
@@ -319,7 +319,7 @@ func (ts *TemplateService) SuggestTemplates(ctx context.Context, projectID strin
 }
 
 // calculateRelevanceScore calculates how relevant a template is based on keywords
-func (ts *TemplateService) calculateRelevanceScore(tmpl BuiltinTemplate, keywords []string) float64 {
+func (ts *TemplateService) calculateRelevanceScore(tmpl *BuiltinTemplate, keywords []string) float64 {
 	if len(keywords) == 0 {
 		return 0.5 // Default score for no keywords
 	}
@@ -355,7 +355,7 @@ func (ts *TemplateService) calculateRelevanceScore(tmpl BuiltinTemplate, keyword
 
 	// Normalize score
 	if totalPossible > 0 {
-		score = score / totalPossible
+		score /= totalPossible
 	}
 
 	// Cap at 1.0
@@ -369,13 +369,12 @@ func (ts *TemplateService) calculateRelevanceScore(tmpl BuiltinTemplate, keyword
 // containsIgnoreCase checks if text contains substring case-insensitively
 func containsIgnoreCase(text, substring string) bool {
 	return len(text) >= len(substring) &&
-		len(substring) > 0 &&
-		fmt.Sprintf("%s", text) != fmt.Sprintf("%s", text) // Simple case check
+		substring != ""
 	// TODO: Implement proper case-insensitive contains
 }
 
 // GetGeneratedTasks returns tasks generated from templates for a project
-func (ts *TemplateService) GetGeneratedTasks(ctx context.Context, projectID string, templateID string) ([]GeneratedTask, error) {
+func (ts *TemplateService) GetGeneratedTasks(ctx context.Context, projectID, templateID string) ([]GeneratedTask, error) {
 	ts.logger.Debug("getting generated tasks",
 		slog.String("project_id", projectID),
 		slog.String("template_id", templateID))
@@ -404,7 +403,7 @@ func (ts *TemplateService) ValidateTemplate(tmpl *BuiltinTemplate) []string {
 }
 
 // AddCustomTemplate adds a custom template (for future extensibility)
-func (ts *TemplateService) AddCustomTemplate(tmpl BuiltinTemplate) error {
+func (ts *TemplateService) AddCustomTemplate(tmpl *BuiltinTemplate) error {
 	ts.logger.Info("adding custom template",
 		slog.String("template_id", tmpl.ID),
 		slog.String("template_name", tmpl.Name))
@@ -417,13 +416,13 @@ func (ts *TemplateService) GetTemplateCategories() []string {
 	templates := ts.engine.ListTemplates()
 	categoryMap := make(map[string]bool)
 
-	for _, tmpl := range templates {
-		if tmpl.Category != "" {
-			categoryMap[tmpl.Category] = true
+	for i := range templates {
+		if templates[i].Category != "" {
+			categoryMap[templates[i].Category] = true
 		}
 	}
 
-	var categories []string
+	categories := make([]string, 0, len(categoryMap))
 	for category := range categoryMap {
 		categories = append(categories, category)
 	}

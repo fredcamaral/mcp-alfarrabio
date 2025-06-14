@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"testing"
 	"time"
 
@@ -14,7 +15,7 @@ import (
 	"lerian-mcp-memory/internal/logging"
 )
 
-func setupTestPatternStorage(t *testing.T) (*PatternSQLStorage, func()) {
+func setupTestPatternStorage(t *testing.T) (storage *PatternSQLStorage, cleanup func()) {
 	// This would normally connect to a test database
 	// For now, we'll skip the actual DB tests
 	t.Skip("Skipping database tests - needs test DB setup")
@@ -23,10 +24,12 @@ func setupTestPatternStorage(t *testing.T) (*PatternSQLStorage, func()) {
 	require.NoError(t, err)
 
 	logger := logging.NewNoOpLogger()
-	storage := NewPatternSQLStorage(db, logger).(*PatternSQLStorage)
+	storage = NewPatternSQLStorage(db, logger).(*PatternSQLStorage)
 
-	cleanup := func() {
-		db.Close()
+	cleanup = func() {
+		if closeErr := db.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close test database: %v\n", closeErr)
+		}
 	}
 
 	return storage, cleanup

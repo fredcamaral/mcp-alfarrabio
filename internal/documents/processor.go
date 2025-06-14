@@ -41,7 +41,25 @@ func NewProcessor(ruleManager *RuleManager) *Processor {
 
 // ProcessPRDFile processes a PRD file and returns a PRDEntity
 func (p *Processor) ProcessPRDFile(filePath, repository string) (*PRDEntity, error) {
-	content, err := os.ReadFile(filePath)
+	// Clean and validate the file path
+	cleanPath := filepath.Clean(filePath)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanPath, "..") {
+		return nil, fmt.Errorf("invalid file path: path traversal not allowed")
+	}
+
+	// Check if path is absolute and ensure it doesn't access system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return nil, fmt.Errorf("invalid file path: access to system directory not allowed")
+			}
+		}
+	}
+
+	content, err := os.ReadFile(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return nil, fmt.Errorf("failed to read PRD file: %w", err)
 	}

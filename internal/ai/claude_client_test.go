@@ -10,57 +10,30 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"lerian-mcp-memory/internal/ai/testutil"
 )
 
 func TestClaudeClient_NewClaudeClient(t *testing.T) {
-	tests := []struct {
-		name    string
-		apiKey  string
-		baseURL string
-		wantErr bool
-	}{
-		{
-			name:    "valid configuration",
-			apiKey:  "test-api-key",
-			baseURL: "https://api.anthropic.com/v1",
-			wantErr: false,
-		},
-		{
-			name:    "empty API key",
-			apiKey:  "",
-			baseURL: "https://api.anthropic.com/v1",
-			wantErr: true,
-		},
-		{
-			name:    "custom base URL",
-			apiKey:  "test-api-key",
-			baseURL: "https://custom.anthropic.com/v1",
-			wantErr: false,
-		},
-		{
-			name:    "empty base URL uses default",
-			apiKey:  "test-api-key",
-			baseURL: "",
-			wantErr: false,
-		},
-	}
+	tests := testutil.GetDefaultNewClientTestCases("https://api.anthropic.com/v1")
 
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			client, err := NewClaudeSimpleClient(tt.apiKey, tt.baseURL)
-			if tt.wantErr {
-				assert.Error(t, err)
-				assert.Nil(t, client)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, client)
-				assert.Equal(t, tt.apiKey, client.apiKey)
-				if tt.baseURL == "" {
-					assert.Equal(t, "https://api.anthropic.com/v1", client.baseURL)
-				} else {
-					assert.Equal(t, tt.baseURL, client.baseURL)
-				}
-			}
+		t.Run(tt.Name, func(t *testing.T) {
+			client, err := NewClaudeSimpleClient(tt.APIKey, tt.BaseURL)
+			testutil.AssertClientCreation(t, client, err, tt, "https://api.anthropic.com/v1",
+				func(c interface{}) string {
+					if c == nil {
+						return ""
+					}
+					return c.(*ClaudeSimpleClient).apiKey
+				},
+				func(c interface{}) string {
+					if c == nil {
+						return ""
+					}
+					return c.(*ClaudeSimpleClient).baseURL
+				},
+			)
 		})
 	}
 }
@@ -218,7 +191,9 @@ func TestClaudeClient_Complete(t *testing.T) {
 
 				// Send response
 				w.WriteHeader(tt.mockStatusCode)
-				json.NewEncoder(w).Encode(tt.mockResponse)
+				if err := json.NewEncoder(w).Encode(tt.mockResponse); err != nil {
+					t.Logf("Warning: failed to encode response: %v", err)
+				}
 			}))
 			defer server.Close()
 
@@ -228,7 +203,7 @@ func TestClaudeClient_Complete(t *testing.T) {
 
 			// Execute request
 			ctx := context.Background()
-			resp, err := client.Complete(ctx, tt.request)
+			resp, err := client.Complete(ctx, &tt.request)
 
 			if tt.wantErr {
 				assert.Error(t, err)
@@ -248,73 +223,14 @@ func TestClaudeClient_ValidateRequest(t *testing.T) {
 	client, err := NewClaudeSimpleClient("test-key", "")
 	require.NoError(t, err)
 
-	tests := []struct {
-		name    string
-		request CompletionRequest
-		wantErr bool
-		errMsg  string
-	}{
-		{
-			name: "valid request",
-			request: CompletionRequest{
-				Prompt: "Test prompt",
-				Model:  "claude-3-sonnet-20240229",
-			},
-			wantErr: false,
-		},
-		{
-			name: "empty prompt",
-			request: CompletionRequest{
-				Prompt: "",
-				Model:  "claude-3-sonnet-20240229",
-			},
-			wantErr: true,
-			errMsg:  "prompt cannot be empty",
-		},
-		{
-			name: "empty model",
-			request: CompletionRequest{
-				Prompt: "Test prompt",
-				Model:  "",
-			},
-			wantErr: true,
-			errMsg:  "model cannot be empty",
-		},
-		{
-			name: "negative max tokens",
-			request: CompletionRequest{
-				Prompt:    "Test prompt",
-				Model:     "claude-3-sonnet-20240229",
-				MaxTokens: -1,
-			},
-			wantErr: true,
-			errMsg:  "max tokens must be positive",
-		},
-		{
-			name: "invalid temperature",
-			request: CompletionRequest{
-				Prompt:      "Test prompt",
-				Model:       "claude-3-sonnet-20240229",
-				Temperature: 2.5,
-			},
-			wantErr: true,
-			errMsg:  "temperature must be between 0 and 1",
-		},
+	// Create a validator function for this client
+	validator := func(req interface{}) error {
+		reqPtr := req.(CompletionRequest)
+		return client.ValidateRequest(&reqPtr)
 	}
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			err := client.ValidateRequest(tt.request)
-			if tt.wantErr {
-				assert.Error(t, err)
-				if tt.errMsg != "" {
-					assert.Contains(t, err.Error(), tt.errMsg)
-				}
-			} else {
-				assert.NoError(t, err)
-			}
-		})
-	}
+	// Use the shared test helper
+	testClientValidation(t, "claude-3-sonnet-20240229", 1.0, "temperature must be between 0 and 1", validator)
 }
 
 func TestClaudeClient_GetCapabilities(t *testing.T) {

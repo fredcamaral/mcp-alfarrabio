@@ -2,7 +2,6 @@
 package ai
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -19,9 +18,9 @@ type PerplexityClient struct {
 }
 
 // NewPerplexityClient creates a new Perplexity client
-func NewPerplexityClient(apiKey string, model string) (*PerplexityClient, error) {
+func NewPerplexityClient(apiKey, model string) (*PerplexityClient, error) {
 	if apiKey == "" {
-		return nil, fmt.Errorf("Perplexity API key cannot be empty")
+		return nil, fmt.Errorf("perplexity API key cannot be empty")
 	}
 
 	if model == "" {
@@ -62,10 +61,7 @@ type PerplexityRequestConverter struct{}
 func (c *PerplexityRequestConverter) ConvertRequest(req *CompletionRequest, cfg *BaseConfig) (interface{}, error) {
 	messages := make([]perplexityMessage, len(req.Messages))
 	for i, msg := range req.Messages {
-		messages[i] = perplexityMessage{
-			Role:    msg.Role,
-			Content: msg.Content,
-		}
+		messages[i] = perplexityMessage(msg)
 	}
 
 	maxTokens := req.MaxTokens
@@ -88,37 +84,17 @@ func (c *PerplexityRequestConverter) ConvertRequest(req *CompletionRequest, cfg 
 }
 
 // PerplexityResponseConverter converts Perplexity responses to internal format
-type PerplexityResponseConverter struct{}
+type PerplexityResponseConverter struct {
+	*OpenAIStyleConverter
+}
 
-func (c *PerplexityResponseConverter) ConvertResponse(data []byte, startTime time.Time) (*CompletionResponse, error) {
-	var resp perplexityResponse
-	if err := json.Unmarshal(data, &resp); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal Perplexity response: %w", err)
-	}
-
-	if resp.Error != nil {
-		return nil, fmt.Errorf("Perplexity API error: %s", resp.Error.Message)
-	}
-
-	if len(resp.Choices) == 0 {
-		return nil, fmt.Errorf("no choices in Perplexity response")
-	}
-
-	choice := resp.Choices[0]
-	return &CompletionResponse{
-		ID:           resp.ID,
-		Content:      choice.Message.Content,
-		Model:        resp.Model,
-		FinishReason: choice.FinishReason,
-		Usage: Usage{
-			PromptTokens:     resp.Usage.PromptTokens,
-			CompletionTokens: resp.Usage.CompletionTokens,
-			TotalTokens:      resp.Usage.TotalTokens,
+// NewPerplexityResponseConverter creates a new Perplexity response converter
+func NewPerplexityResponseConverter() *PerplexityResponseConverter {
+	return &PerplexityResponseConverter{
+		OpenAIStyleConverter: &OpenAIStyleConverter{
+			ProviderName: "perplexity",
 		},
-		ProcessingTime: time.Since(startTime),
-		Provider:       "perplexity",
-		CreatedAt:      time.Now(),
-	}, nil
+	}
 }
 
 // Perplexity API types
@@ -133,32 +109,4 @@ type perplexityRequest struct {
 type perplexityMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`
-}
-
-type perplexityResponse struct {
-	ID      string             `json:"id"`
-	Object  string             `json:"object"`
-	Created int64              `json:"created"`
-	Model   string             `json:"model"`
-	Choices []perplexityChoice `json:"choices"`
-	Usage   perplexityUsage    `json:"usage"`
-	Error   *perplexityError   `json:"error,omitempty"`
-}
-
-type perplexityChoice struct {
-	Index        int               `json:"index"`
-	Message      perplexityMessage `json:"message"`
-	FinishReason string            `json:"finish_reason"`
-}
-
-type perplexityUsage struct {
-	PromptTokens     int `json:"prompt_tokens"`
-	CompletionTokens int `json:"completion_tokens"`
-	TotalTokens      int `json:"total_tokens"`
-}
-
-type perplexityError struct {
-	Message string `json:"message"`
-	Type    string `json:"type"`
-	Code    string `json:"code"`
 }

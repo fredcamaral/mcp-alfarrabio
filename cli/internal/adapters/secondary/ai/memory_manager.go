@@ -390,6 +390,12 @@ func (mm *MemoryManager) executeSyncStrategy(ctx context.Context, files []string
 }
 
 func (mm *MemoryManager) uploadNewFile(ctx context.Context, filePath string, mappings map[string]*FileMemoryMapping) error {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return fmt.Errorf("path traversal detected: %s", filePath)
+	}
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
@@ -434,6 +440,12 @@ func (mm *MemoryManager) uploadNewFile(ctx context.Context, filePath string, map
 }
 
 func (mm *MemoryManager) updateExistingFile(ctx context.Context, filePath string, mapping *FileMemoryMapping) error {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return fmt.Errorf("path traversal detected: %s", filePath)
+	}
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return fmt.Errorf("failed to read file: %w", err)
@@ -469,6 +481,12 @@ func (mm *MemoryManager) updateExistingFile(ctx context.Context, filePath string
 }
 
 func (mm *MemoryManager) fileHasChanged(filePath string, mapping *FileMemoryMapping) bool {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return false
+	}
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return false

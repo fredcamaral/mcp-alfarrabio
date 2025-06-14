@@ -33,7 +33,7 @@ func NewAITRDGenerator(aiService Service, ruleManager *documents.RuleManager, pr
 }
 
 // GenerateTRDFromPRD generates a TRD from a PRD using AI
-func (g *AITRDGenerator) GenerateTRDFromPRD(ctx context.Context, prd *documents.PRDEntity, options TRDGenerationOptions) (*documents.TRDEntity, error) {
+func (g *AITRDGenerator) GenerateTRDFromPRD(ctx context.Context, prd *documents.PRDEntity, options *TRDGenerationOptions) (*documents.TRDEntity, error) {
 	if prd == nil {
 		return nil, fmt.Errorf("PRD cannot be nil")
 	}
@@ -43,10 +43,7 @@ func (g *AITRDGenerator) GenerateTRDFromPRD(ctx context.Context, prd *documents.
 		slog.String("prd_title", prd.Title))
 
 	// Get TRD generation rules
-	ruleContent, err := g.getRuleContent()
-	if err != nil {
-		return nil, fmt.Errorf("failed to get TRD generation rules: %w", err)
-	}
+	ruleContent := g.getRuleContent()
 
 	// Build AI prompt
 	prompt := g.buildTRDPrompt(prd, ruleContent, options)
@@ -79,7 +76,7 @@ func (g *AITRDGenerator) GenerateTRDFromPRD(ctx context.Context, prd *documents.
 
 	g.logger.Info("AI TRD generation completed",
 		slog.Duration("duration", duration),
-		slog.String("model", string(resp.Model)),
+		slog.String("model", resp.Model),
 		slog.Int("tokens", func() int {
 			if resp.TokensUsed != nil {
 				return resp.TokensUsed.Total
@@ -124,7 +121,7 @@ type TRDGenerationOptions struct {
 }
 
 // buildTRDPrompt builds the AI prompt for TRD generation
-func (g *AITRDGenerator) buildTRDPrompt(prd *documents.PRDEntity, ruleContent string, options TRDGenerationOptions) string {
+func (g *AITRDGenerator) buildTRDPrompt(prd *documents.PRDEntity, ruleContent string, options *TRDGenerationOptions) string {
 	// Base prompt with rules
 	prompt := ruleContent + "\n\n"
 
@@ -187,7 +184,7 @@ Format the response as a valid markdown document with proper section numbering a
 }
 
 // parseTRDResponse parses the AI response into a TRD entity
-func (g *AITRDGenerator) parseTRDResponse(content string, prd *documents.PRDEntity, options TRDGenerationOptions) (*documents.TRDEntity, error) {
+func (g *AITRDGenerator) parseTRDResponse(content string, prd *documents.PRDEntity, options *TRDGenerationOptions) (*documents.TRDEntity, error) {
 	trd := &documents.TRDEntity{
 		ID:           uuid.New().String(),
 		PRDID:        prd.ID,
@@ -313,8 +310,8 @@ Return as JSON:
 
 	// Add technical risks to TRD metadata
 	if len(analysis.TechnicalRisks) > 0 {
-		risksJson, _ := json.Marshal(analysis.TechnicalRisks)
-		trd.Metadata["technical_risks"] = string(risksJson)
+		risksJSON, _ := json.Marshal(analysis.TechnicalRisks)
+		trd.Metadata["technical_risks"] = string(risksJSON)
 	}
 
 	return nil
@@ -379,13 +376,13 @@ Return as valid OpenAPI 3.0 YAML specification.`,
 }
 
 // getRuleContent retrieves TRD generation rules
-func (g *AITRDGenerator) getRuleContent() (string, error) {
+func (g *AITRDGenerator) getRuleContent() string {
 	rule, err := g.ruleManager.GetRuleContent(documents.RuleTRDGeneration)
 	if err != nil {
 		// Return default rules if custom rules not found
-		return g.getDefaultTRDRules(), nil
+		return g.getDefaultTRDRules()
 	}
-	return rule, nil
+	return rule
 }
 
 // getDefaultTRDRules returns default TRD generation rules
@@ -442,7 +439,7 @@ func (g *AITRDGenerator) extractTechnicalStack(content string, preferred []strin
 	return stack
 }
 
-func (g *AITRDGenerator) extractArchitecture(content string, preferred string) string {
+func (g *AITRDGenerator) extractArchitecture(content, preferred string) string {
 	if preferred != "" {
 		return preferred
 	}

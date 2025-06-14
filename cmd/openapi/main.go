@@ -8,6 +8,8 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/getkin/kin-openapi/openapi3"
@@ -142,7 +144,25 @@ func loadSpec() (*openapi3.T, error) {
 		specPath = envPath
 	}
 
-	data, err := os.ReadFile(specPath)
+	// Clean and validate the file path
+	cleanPath := filepath.Clean(specPath)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanPath, "..") {
+		return nil, fmt.Errorf("invalid spec path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return nil, fmt.Errorf("invalid spec path: access to system directory not allowed")
+			}
+		}
+	}
+
+	data, err := os.ReadFile(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return nil, fmt.Errorf("failed to read spec file: %w", err)
 	}

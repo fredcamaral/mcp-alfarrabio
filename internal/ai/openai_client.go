@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -47,7 +48,7 @@ func NewOpenAIClient(apiKey, baseURL string) (*OpenAIClient, error) {
 }
 
 // Complete sends a completion request to OpenAI
-func (c *OpenAIClient) Complete(ctx context.Context, request CompletionRequest) (*CompletionResponse, error) {
+func (c *OpenAIClient) Complete(ctx context.Context, request *CompletionRequest) (*CompletionResponse, error) {
 	// Validate request
 	if err := c.ValidateRequest(request); err != nil {
 		return nil, fmt.Errorf("invalid request: %w", err)
@@ -112,7 +113,7 @@ func (c *OpenAIClient) Complete(ctx context.Context, request CompletionRequest) 
 
 		// Parse the error response to determine if it's retryable
 		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 		apiErr := c.parseErrorResponse(resp.StatusCode, body)
 		lastErr = apiErr
 
@@ -125,7 +126,7 @@ func (c *OpenAIClient) Complete(ctx context.Context, request CompletionRequest) 
 }
 
 // ValidateRequest validates the completion request
-func (c *OpenAIClient) ValidateRequest(request CompletionRequest) error {
+func (c *OpenAIClient) ValidateRequest(request *CompletionRequest) error {
 	if request.Prompt == "" {
 		return fmt.Errorf("prompt cannot be empty")
 	}
@@ -156,7 +157,7 @@ func (c *OpenAIClient) GetCapabilities() ClientCapabilities {
 }
 
 // buildMessages constructs the messages array for the API request
-func (c *OpenAIClient) buildMessages(request CompletionRequest) []map[string]string {
+func (c *OpenAIClient) buildMessages(request *CompletionRequest) []map[string]string {
 	messages := []map[string]string{}
 
 	if request.SystemMessage != "" {
@@ -198,8 +199,13 @@ func (c *OpenAIClient) executeRequest(ctx context.Context, body map[string]inter
 }
 
 // processResponse processes the OpenAI API response
-func (c *OpenAIClient) processResponse(resp *http.Response, request CompletionRequest) (*CompletionResponse, error) {
-	defer resp.Body.Close()
+func (c *OpenAIClient) processResponse(resp *http.Response, request *CompletionRequest) (*CompletionResponse, error) {
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the operation since we already have the response
+			fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -270,7 +276,8 @@ func (c *OpenAIClient) parseErrorResponse(statusCode int, body []byte) error {
 
 // isRetryableError determines if an error is retryable
 func (c *OpenAIClient) isRetryableError(err error) bool {
-	if apiErr, ok := err.(*APIError); ok {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
 		return apiErr.StatusCode == http.StatusTooManyRequests ||
 			apiErr.StatusCode >= 500
 	}

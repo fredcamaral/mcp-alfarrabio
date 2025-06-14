@@ -18,7 +18,6 @@ type AsyncProcessor struct {
 	ctx         context.Context
 	cancel      context.CancelFunc
 	metrics     *ProcessorMetrics
-	mutex       sync.RWMutex
 }
 
 // ProcessorConfig defines async processor configuration
@@ -99,9 +98,8 @@ const (
 	PriorityCritical Priority = 10
 )
 
-// ProcessorMetrics tracks async processor performance
-type ProcessorMetrics struct {
-	mutex            sync.RWMutex
+// ProcessorMetricsData tracks async processor performance metrics
+type ProcessorMetricsData struct {
 	JobsQueued       int64         `json:"jobs_queued"`
 	JobsProcessed    int64         `json:"jobs_processed"`
 	JobsFailed       int64         `json:"jobs_failed"`
@@ -110,6 +108,12 @@ type ProcessorMetrics struct {
 	QueueLength      int           `json:"queue_length"`
 	AvgProcessTime   time.Duration `json:"avg_process_time"`
 	TotalProcessTime time.Duration `json:"total_process_time"`
+}
+
+// ProcessorMetrics holds internal metrics with synchronization
+type ProcessorMetrics struct {
+	mutex sync.RWMutex
+	data  ProcessorMetricsData
 }
 
 // worker represents a background worker
@@ -141,7 +145,7 @@ func NewAsyncProcessor(config *ProcessorConfig) *AsyncProcessor {
 		resultQueue: make(chan Result, config.QueueSize),
 		ctx:         ctx,
 		cancel:      cancel,
-		metrics:     &ProcessorMetrics{},
+		metrics:     &ProcessorMetrics{data: ProcessorMetricsData{}},
 	}
 
 	// Start workers
@@ -156,7 +160,7 @@ func NewAsyncProcessor(config *ProcessorConfig) *AsyncProcessor {
 }
 
 // SubmitJob submits a job for async processing
-func (p *AsyncProcessor) SubmitJob(job Job) error {
+func (p *AsyncProcessor) SubmitJob(job *Job) error {
 	if job.ID == "" {
 		job.ID = generateJobID()
 	}
@@ -170,7 +174,7 @@ func (p *AsyncProcessor) SubmitJob(job Job) error {
 	}
 
 	select {
-	case p.jobQueue <- job:
+	case p.jobQueue <- *job:
 		p.incrementJobsQueued()
 		return nil
 	case <-p.ctx.Done():
@@ -195,7 +199,7 @@ func (p *AsyncProcessor) SubmitBatch(jobs []Job) error {
 		}
 
 		for j := i; j < end; j++ {
-			if err := p.SubmitJob(jobs[j]); err != nil {
+			if err := p.SubmitJob(&jobs[j]); err != nil {
 				return fmt.Errorf("failed to submit job %d: %w", j, err)
 			}
 		}
@@ -238,21 +242,13 @@ func (p *AsyncProcessor) WaitForResult(jobID string, timeout time.Duration) (*Re
 }
 
 // GetMetrics returns current processor metrics
-func (p *AsyncProcessor) GetMetrics() ProcessorMetrics {
+func (p *AsyncProcessor) GetMetrics() ProcessorMetricsData {
 	p.metrics.mutex.RLock()
 	defer p.metrics.mutex.RUnlock()
 
-	// Return a copy without the mutex to avoid lock value copying
-	metrics := ProcessorMetrics{
-		JobsQueued:       p.metrics.JobsQueued,
-		JobsProcessed:    p.metrics.JobsProcessed,
-		JobsFailed:       p.metrics.JobsFailed,
-		JobsRetried:      p.metrics.JobsRetried,
-		WorkersActive:    p.metrics.WorkersActive,
-		QueueLength:      len(p.jobQueue),
-		AvgProcessTime:   p.metrics.AvgProcessTime,
-		TotalProcessTime: p.metrics.TotalProcessTime,
-	}
+	// Return a copy of the data without the mutex
+	metrics := p.metrics.data
+	metrics.QueueLength = len(p.jobQueue)
 
 	// Calculate average process time
 	if metrics.JobsProcessed > 0 {
@@ -306,7 +302,7 @@ func (w *worker) run() {
 	for {
 		select {
 		case job := <-w.processor.jobQueue:
-			w.processJob(job)
+			w.processJob(&job)
 		case <-w.processor.ctx.Done():
 			return
 		case <-time.After(w.processor.config.IdleTimeout):
@@ -317,7 +313,7 @@ func (w *worker) run() {
 }
 
 // processJob processes a single job
-func (w *worker) processJob(job Job) {
+func (w *worker) processJob(job *Job) {
 	w.active = true
 	w.lastJob = time.Now()
 	defer func() {
@@ -348,7 +344,7 @@ func (w *worker) processJob(job Job) {
 }
 
 // executeJob executes the actual job processing with retry logic
-func (w *worker) executeJob(ctx context.Context, job Job) *Result {
+func (w *worker) executeJob(ctx context.Context, job *Job) *Result {
 	var lastErr error
 
 	for attempt := 0; attempt <= w.processor.config.MaxRetries; attempt++ {
@@ -391,7 +387,7 @@ func (w *worker) executeJob(ctx context.Context, job Job) *Result {
 }
 
 // processJobByType processes job based on its type
-func (w *worker) processJobByType(ctx context.Context, job Job) (*Result, error) {
+func (w *worker) processJobByType(ctx context.Context, job *Job) (*Result, error) {
 	switch job.Type {
 	case JobTypeEmbedding:
 		return w.processEmbeddingJob(ctx, job)
@@ -411,7 +407,7 @@ func (w *worker) processJobByType(ctx context.Context, job Job) (*Result, error)
 }
 
 // Job-specific processors (simplified implementations)
-func (w *worker) processEmbeddingJob(ctx context.Context, job Job) (*Result, error) {
+func (w *worker) processEmbeddingJob(ctx context.Context, job *Job) (*Result, error) {
 	// Simulate embedding generation
 	content, ok := job.Payload["content"].(string)
 	if !ok {
@@ -436,7 +432,7 @@ func (w *worker) processEmbeddingJob(ctx context.Context, job Job) (*Result, err
 	}, nil
 }
 
-func (w *worker) processAnalysisJob(ctx context.Context, job Job) (*Result, error) {
+func (w *worker) processAnalysisJob(ctx context.Context, job *Job) (*Result, error) {
 	// Simulate content analysis
 	content, ok := job.Payload["content"].(string)
 	if !ok {
@@ -461,7 +457,7 @@ func (w *worker) processAnalysisJob(ctx context.Context, job Job) (*Result, erro
 	}, nil
 }
 
-func (w *worker) processIndexingJob(ctx context.Context, job Job) (*Result, error) {
+func (w *worker) processIndexingJob(ctx context.Context, job *Job) (*Result, error) {
 	// Simulate search indexing
 	contentID, ok := job.Payload["content_id"].(string)
 	if !ok {
@@ -486,7 +482,7 @@ func (w *worker) processIndexingJob(ctx context.Context, job Job) (*Result, erro
 	}, nil
 }
 
-func (w *worker) processBulkOperationJob(ctx context.Context, job Job) (*Result, error) {
+func (w *worker) processBulkOperationJob(ctx context.Context, job *Job) (*Result, error) {
 	// Simulate bulk operation
 	items, ok := job.Payload["items"].([]interface{})
 	if !ok {
@@ -512,7 +508,7 @@ func (w *worker) processBulkOperationJob(ctx context.Context, job Job) (*Result,
 	}, nil
 }
 
-func (w *worker) processQualityCheckJob(ctx context.Context, job Job) (*Result, error) {
+func (w *worker) processQualityCheckJob(ctx context.Context, job *Job) (*Result, error) {
 	// Simulate quality check
 	contentID, ok := job.Payload["content_id"].(string)
 	if !ok {
@@ -538,7 +534,7 @@ func (w *worker) processQualityCheckJob(ctx context.Context, job Job) (*Result, 
 	}, nil
 }
 
-func (w *worker) processPatternDetectionJob(ctx context.Context, job Job) (*Result, error) {
+func (w *worker) processPatternDetectionJob(ctx context.Context, job *Job) (*Result, error) {
 	// Simulate pattern detection
 	projectID, ok := job.Payload["project_id"].(string)
 	if !ok {
@@ -591,32 +587,32 @@ func (p *AsyncProcessor) collectMetrics() {
 		}
 	}
 
-	p.metrics.WorkersActive = activeWorkers
-	p.metrics.QueueLength = len(p.jobQueue)
+	p.metrics.data.WorkersActive = activeWorkers
+	p.metrics.data.QueueLength = len(p.jobQueue)
 }
 
 // Metric update methods
 func (p *AsyncProcessor) incrementJobsQueued() {
 	p.metrics.mutex.Lock()
-	p.metrics.JobsQueued++
+	p.metrics.data.JobsQueued++
 	p.metrics.mutex.Unlock()
 }
 
 func (p *AsyncProcessor) incrementJobsProcessed() {
 	p.metrics.mutex.Lock()
-	p.metrics.JobsProcessed++
+	p.metrics.data.JobsProcessed++
 	p.metrics.mutex.Unlock()
 }
 
 func (p *AsyncProcessor) incrementJobsFailed() {
 	p.metrics.mutex.Lock()
-	p.metrics.JobsFailed++
+	p.metrics.data.JobsFailed++
 	p.metrics.mutex.Unlock()
 }
 
 func (p *AsyncProcessor) incrementJobsRetried() {
 	p.metrics.mutex.Lock()
-	p.metrics.JobsRetried++
+	p.metrics.data.JobsRetried++
 	p.metrics.mutex.Unlock()
 }
 
@@ -624,7 +620,7 @@ func (p *AsyncProcessor) updateMetrics(result *Result) {
 	p.metrics.mutex.Lock()
 	defer p.metrics.mutex.Unlock()
 
-	p.metrics.TotalProcessTime += result.Duration
+	p.metrics.data.TotalProcessTime += result.Duration
 }
 
 // Utility functions

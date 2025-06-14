@@ -13,7 +13,7 @@ import (
 	"lerian-mcp-memory/internal/reliability"
 )
 
-// Client interfaces for different AI providers
+// OpenAIClientInterface defines the contract for OpenAI client implementations.
 type OpenAIClientInterface interface {
 	GenerateCompletion(ctx context.Context, prompt string, options *CompletionOptions) (*CompletionResponse, error)
 }
@@ -103,7 +103,7 @@ func (s *UnifiedService) GenerateCompletion(ctx context.Context, prompt string, 
 				}
 				response = resp
 			} else {
-				return fmt.Errorf("Claude client not properly initialized")
+				return fmt.Errorf("claude client not properly initialized")
 			}
 		case ProviderMock:
 			// Only use mock for testing environments
@@ -324,8 +324,8 @@ func clampScore(score float64) float64 {
 	return score
 }
 
-// min returns the minimum of two integers
-func min(a, b int) int {
+// minInt returns the minimum of two integers
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -362,7 +362,7 @@ func (s *UnifiedService) HealthCheck(ctx context.Context) error {
 
 		s.logger.Debug("AI service health check passed",
 			slog.String("provider", string(s.provider)),
-			slog.String("response_preview", response.Content[:min(len(response.Content), 20)]))
+			slog.String("response_preview", response.Content[:minInt(len(response.Content), 20)]))
 
 	case ProviderMock:
 		// Mock provider is always healthy
@@ -392,7 +392,7 @@ func (s *UnifiedService) initializeProvider() error {
 	case ProviderClaude:
 		// Create real Claude client
 		if s.config.APIKey == "" {
-			return fmt.Errorf("Claude API key is required but not provided")
+			return fmt.Errorf("claude API key is required but not provided")
 		}
 		// For now, we'll note that real client initialization would go here
 		// The actual implementation would create the real Claude client

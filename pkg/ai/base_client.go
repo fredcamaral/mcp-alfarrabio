@@ -66,13 +66,13 @@ func NewBaseClient(config *BaseConfig, authProvider AuthProvider, requestConvert
 }
 
 // Complete sends a completion request using the configured provider
-func (bc *BaseClient) Complete(ctx context.Context, request CompletionRequest) (*CompletionResponse, error) {
+func (bc *BaseClient) Complete(ctx context.Context, request *CompletionRequest) (*CompletionResponse, error) {
 	if !bc.config.Enabled {
 		return nil, fmt.Errorf("AI client is disabled")
 	}
 
 	// Convert request to provider format
-	providerRequest, err := bc.requestConverter.ConvertRequest(&request, bc.config)
+	providerRequest, err := bc.requestConverter.ConvertRequest(request, bc.config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to convert request: %w", err)
 	}
@@ -129,7 +129,12 @@ func (bc *BaseClient) makeHTTPRequest(ctx context.Context, requestBody []byte) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to make request: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the operation since we already have the response
+			fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
+		}
+	}()
 
 	// Read response
 	body, err := io.ReadAll(resp.Body)
@@ -155,7 +160,7 @@ func (bc *BaseClient) Test(ctx context.Context) error {
 		MaxTokens: 10,
 	}
 
-	_, err := bc.Complete(ctx, testRequest)
+	_, err := bc.Complete(ctx, &testRequest)
 	return err
 }
 

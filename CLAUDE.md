@@ -103,6 +103,42 @@ make dev-logs
 make dev-restart
 ```
 
+### CLI Tool (lmmc)
+```bash
+# Build the CLI tool
+make cli-build
+
+# Install CLI to PATH
+make cli-install
+
+# Test CLI functionality
+make cli-test
+
+# Run CLI interactively
+make cli-run
+
+# Clean CLI build artifacts
+make cli-clean
+```
+
+### Database Migrations
+```bash
+# Check migration status
+make migrate-status
+
+# Plan migration changes
+make migrate-plan
+
+# Apply migrations
+make migrate-up
+
+# Rollback migrations
+make migrate-down
+
+# Build migration tool
+make migrate-build
+```
+
 ### Testing Individual Components
 ```bash
 # Test specific package
@@ -113,20 +149,74 @@ go test -tags=integration -v ./internal/storage/
 
 # Test specific function
 go test -v -run TestMemorySearch ./internal/mcp/
+
+# Run comprehensive integration tests
+go test -tags=integration -v ./internal/testing/
+
+# Test with race detection (important for concurrent code)
+go test -race -v ./internal/websocket/
+
+# Run benchmarks for performance-critical components
+go test -bench=. -v ./internal/embeddings/
+go test -bench=. -v ./internal/storage/
+```
+
+### Environment Validation
+```bash
+# Validate environment configuration
+./scripts/validate-env.sh
+
+# Check which variables are actually used vs declared
+grep -r "os.Getenv" --include="*.go" . | head -10
+
+# Test configuration loading
+go test -v ./internal/config/
 ```
 
 ## Environment Configuration
 
-Copy `.env.example` to `.env` and configure:
+Copy `.env.example` to `.env` and configure. The new .env.example contains only variables actually used in the codebase, organized by functionality.
 
-### Required
-- `OPENAI_API_KEY` - Your OpenAI API key for embeddings
+### Required Variables
+- `OPENAI_API_KEY` - Your OpenAI API key for embeddings and AI features
+- `AI_PROVIDER` - AI provider selection (auto-detects if not set): openai, claude, perplexity, mock
 
-### Key Environment Variables
-- `MCP_HOST_PORT` - Main MCP server port (default: 9080)
-- `QDRANT_HOST_PORT` - Qdrant vector DB port (default: 6333)
+### Core Configuration Categories
+
+**Server & Networking:**
+- `MCP_MEMORY_HOST` - Internal server host (default: localhost)
+- `MCP_MEMORY_PORT` - Internal server port (default: 9080)
+- `MCP_HOST_PORT` - Docker host port mapping (default: 9080)
+
+**Database & Storage:**
+- `DATABASE_URL` - Full PostgreSQL connection string (takes precedence)
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` - Individual DB settings
+- `MCP_MEMORY_QDRANT_HOST` - Qdrant vector database host
+- `MCP_MEMORY_QDRANT_PORT` - Qdrant port (default: 6333)
+
+**AI & Processing:**
+- `OPENAI_MODEL` - OpenAI model to use (default: gpt-4o)
+- `MCP_MEMORY_CHUNKING_STRATEGY` - Content chunking strategy (default: semantic)
+- `MCP_MEMORY_CHUNKING_MAX_LENGTH` - Maximum chunk size (default: 8000)
+
+**Logging & Monitoring:**
 - `MCP_MEMORY_LOG_LEVEL` - Logging level (debug, info, warn, error)
-- `MCP_MEMORY_VECTOR_DIM` - Embedding dimension (default: 1536 for ada-002)
+- `MCP_MEMORY_LOG_FORMAT` - Log format (json, text)
+- `MCP_MEMORY_LOG_FILE` - Log file path
+
+### Variable Categories
+The .env.example is organized into clearly labeled sections:
+1. **Required** - API keys and essential configuration
+2. **AI Provider** - OpenAI, Claude, Perplexity configuration  
+3. **Server** - Host, ports, timeouts, logging
+4. **Database** - PostgreSQL and Qdrant configuration
+5. **Storage & Backup** - Data persistence and backup settings
+6. **Content Processing** - Chunking and processing configuration
+7. **WebSocket** - Real-time communication settings
+8. **Circuit Breaker** - Reliability and fault tolerance
+9. **CLI** - Command-line interface configuration
+10. **Testing** - Test database and execution flags
+11. **Docker Compose** - Container orchestration overrides
 
 ## Code Conventions
 
@@ -134,12 +224,36 @@ Copy `.env.example` to `.env` and configure:
 - Always return explicit errors, never panic in production code
 - Use context.Context as first parameter for all operations
 - Implement circuit breakers for external service calls (OpenAI, Qdrant)
+- Standard error types defined in `internal/errors/standard_errors.go`
 
 ### Testing Patterns
 - Use testify/assert for assertions
 - Mock external dependencies (OpenAI API, Qdrant)
 - Integration tests tagged with `integration`
 - Benchmark tests for performance-critical code
+- Comprehensive test framework in `internal/testing/test_framework.go`
+
+### Key Implementation Patterns
+
+**Dependency Injection**
+- All services configured in `internal/di/container.go`
+- Interface-based design for testability and modularity
+- Circuit breaker wrappers for external dependencies
+
+**Event-Driven Architecture**
+- Memory operations emit events via `internal/events/bus.go`
+- Event filtering and distribution for loose coupling
+- Audit logging triggered by events
+
+**Storage Abstraction**
+- `internal/storage/interfaces.go` defines storage contracts
+- Adapter pattern for different storage backends
+- Retry and circuit breaker wrappers for reliability
+
+**AI Provider Abstraction**
+- Factory pattern in `pkg/ai/factory.go` with auto-detection
+- Unified interface for multiple AI providers (OpenAI, Claude, Perplexity)
+- Graceful fallback and circuit breaker protection
 
 ### Memory Management
 - 41 MCP tools for memory operations (search, store, analyze, etc.)
@@ -163,32 +277,53 @@ internal/
 - Qdrant for vector embeddings and similarity search
 - Automatic backup and persistence management
 
-## Important Implementation Notes
+## Architecture Deep Dive
 
-### MCP Transport Support
-The server supports multiple transport protocols:
-- **stdio + proxy** - For legacy MCP clients (Claude Desktop, VS Code)
-- **WebSocket** - Real-time bidirectional communication
-- **SSE** - Server-sent events with HTTP fallback  
-- **Direct HTTP** - Simple JSON-RPC over HTTP
+### MCP Memory Architecture Flow
+1. **Input Processing**: Content arrives via MCP tools → `internal/mcp/server.go` → consolidated tools handlers
+2. **Content Analysis**: Smart chunking (`internal/chunking/`) → embedding generation (`internal/embeddings/`)
+3. **Storage Layer**: Vector data (Qdrant) + metadata (SQLite) via `internal/storage/` adapters
+4. **Intelligence Layer**: Pattern detection, conflict resolution, learning engines in `internal/intelligence/`
+5. **Retrieval**: Context-aware search with confidence scoring and relevance ranking
 
-### Vector Operations
-- Uses Qdrant for high-performance vector search
-- OpenAI text-embedding-ada-002 by default (1536 dimensions)
-- Circuit breakers and retries for reliability
-- Intelligent chunking to maximize embedding effectiveness
+### AI Provider Integration
+The system uses a factory pattern in `pkg/ai/` with automatic provider detection:
+- **Auto-detection Priority**: Claude → OpenAI → Perplexity → Mock
+- **Fallback Strategy**: Multiple API keys can be configured; system gracefully degrades
+- **Circuit Breaker Protection**: All AI providers wrapped with fault tolerance (`internal/circuitbreaker/`)
 
-### Memory Intelligence
-- Pattern recognition across conversations and repositories
-- Conflict detection for contradictory decisions
-- Learning engine that improves suggestions over time
-- Cross-repository knowledge sharing
+### Data Flow and State Management
+- **Dependency Injection**: `internal/di/container.go` manages all service dependencies
+- **Event-Driven Architecture**: Memory operations trigger events via `internal/events/`
+- **Audit Trail**: All operations logged to `internal/audit_logs/` with JSONL format
+- **Session Management**: Multi-session context via `internal/session/manager.go`
 
-### Performance Considerations
-- Connection pooling for Qdrant
-- Embedding caching to reduce OpenAI API calls
-- Query optimization with performance monitoring
-- Graceful degradation under high load
+### MCP Transport Protocols
+The server is protocol-agnostic with multiple transport options:
+- **stdio + proxy** - For legacy MCP clients (Claude Desktop, VS Code) via `mcp-proxy.js`
+- **WebSocket** - Real-time bidirectional communication (`internal/websocket/`)
+- **SSE** - Server-sent events with HTTP fallback
+- **Direct HTTP** - Simple JSON-RPC over HTTP (`internal/api/router.go`)
+
+### Vector Operations & Search
+- **Qdrant Integration**: High-performance vector search with connection pooling
+- **Embedding Strategy**: OpenAI text-embedding-ada-002 (1536 dimensions) with caching
+- **Chunking Intelligence**: Context-aware chunking with configurable strategies
+- **Search Optimization**: Multi-stage retrieval with confidence scoring and re-ranking
+
+### Memory Intelligence Systems
+- **Pattern Recognition**: Cross-conversation and cross-repository pattern detection
+- **Conflict Detection**: Automated identification of contradictory information
+- **Learning Engine**: Continuous improvement of suggestions based on usage patterns
+- **Knowledge Graph**: Relationship mapping between concepts and decisions
+- **Freshness Management**: Time-based relevance scoring and content decay
+
+### Performance & Reliability
+- **Connection Pooling**: Database and vector store connections managed via pools
+- **Circuit Breakers**: Fault tolerance for external services (OpenAI, Qdrant)
+- **Caching Strategy**: Multi-layer caching for embeddings, queries, and patterns
+- **Graceful Degradation**: System continues functioning with reduced capabilities during outages
+- **Rate Limiting**: Configurable rate limiting for API calls and resource usage
 
 ## Deployment Endpoints
 

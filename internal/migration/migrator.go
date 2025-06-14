@@ -129,6 +129,12 @@ func (m *Migrator) LoadMigrations(ctx context.Context) ([]*Migration, error) {
 
 // parseMigrationFile parses a migration file and extracts metadata
 func (m *Migrator) parseMigrationFile(filePath string) (*Migration, error) {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return nil, fmt.Errorf("path traversal detected: %s", filePath)
+	}
+
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read migration file: %w", err)

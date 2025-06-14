@@ -45,7 +45,7 @@ type TaskGenerationOptions struct {
 }
 
 // GenerateMainTasksFromTRD generates main tasks from a TRD using AI
-func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *documents.TRDEntity, prd *documents.PRDEntity, options TaskGenerationOptions) ([]*documents.MainTask, error) {
+func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *documents.TRDEntity, prd *documents.PRDEntity, options *TaskGenerationOptions) ([]*documents.MainTask, error) {
 	if trd == nil {
 		return nil, fmt.Errorf("TRD cannot be nil")
 	}
@@ -55,10 +55,7 @@ func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *doc
 		slog.String("trd_title", trd.Title))
 
 	// Get task generation rules
-	ruleContent, err := g.getRuleContent(documents.RuleTaskGeneration)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get task generation rules: %w", err)
-	}
+	ruleContent := g.getRuleContent(documents.RuleTaskGeneration)
 
 	// Build AI prompt for main tasks
 	prompt := g.buildMainTaskPrompt(trd, prd, ruleContent, options)
@@ -91,7 +88,7 @@ func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *doc
 
 	g.logger.Info("AI main task generation completed",
 		slog.Duration("duration", duration),
-		slog.String("model", string(resp.Model)),
+		slog.String("model", resp.Model),
 		slog.Int("tokens", func() int {
 			if resp.TokensUsed != nil {
 				return resp.TokensUsed.Total
@@ -121,7 +118,7 @@ func (g *AITaskGenerator) GenerateMainTasksFromTRD(ctx context.Context, trd *doc
 }
 
 // GenerateSubTasksFromMainTask generates sub-tasks from a main task using AI
-func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, mainTask *documents.MainTask, trd *documents.TRDEntity, options TaskGenerationOptions) ([]*documents.SubTask, error) {
+func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, mainTask *documents.MainTask, trd *documents.TRDEntity, options *TaskGenerationOptions) ([]*documents.SubTask, error) {
 	if mainTask == nil {
 		return nil, fmt.Errorf("main task cannot be nil")
 	}
@@ -131,10 +128,7 @@ func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, main
 		slog.String("main_task_name", mainTask.Name))
 
 	// Get sub-task generation rules
-	ruleContent, err := g.getRuleContent(documents.RuleSubTaskGeneration)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get sub-task generation rules: %w", err)
-	}
+	ruleContent := g.getRuleContent(documents.RuleSubTaskGeneration)
 
 	// Build AI prompt for sub-tasks
 	prompt := g.buildSubTaskPrompt(mainTask, trd, ruleContent, options)
@@ -167,7 +161,7 @@ func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, main
 
 	g.logger.Info("AI sub-task generation completed",
 		slog.Duration("duration", duration),
-		slog.String("model", string(resp.Model)),
+		slog.String("model", resp.Model),
 		slog.Int("tokens", func() int {
 			if resp.TokensUsed != nil {
 				return resp.TokensUsed.Total
@@ -198,7 +192,7 @@ func (g *AITaskGenerator) GenerateSubTasksFromMainTask(ctx context.Context, main
 }
 
 // buildMainTaskPrompt builds the AI prompt for main task generation
-func (g *AITaskGenerator) buildMainTaskPrompt(trd *documents.TRDEntity, prd *documents.PRDEntity, ruleContent string, options TaskGenerationOptions) string {
+func (g *AITaskGenerator) buildMainTaskPrompt(trd *documents.TRDEntity, prd *documents.PRDEntity, ruleContent string, options *TaskGenerationOptions) string {
 	prompt := ruleContent + "\n\n"
 
 	// Add TRD context
@@ -290,7 +284,7 @@ Return as JSON array with this structure:
 }
 
 // buildSubTaskPrompt builds the AI prompt for sub-task generation
-func (g *AITaskGenerator) buildSubTaskPrompt(mainTask *documents.MainTask, trd *documents.TRDEntity, ruleContent string, options TaskGenerationOptions) string {
+func (g *AITaskGenerator) buildSubTaskPrompt(mainTask *documents.MainTask, trd *documents.TRDEntity, ruleContent string, options *TaskGenerationOptions) string {
 	prompt := ruleContent + "\n\n"
 
 	// Add main task context
@@ -385,8 +379,9 @@ func (g *AITaskGenerator) parseMainTasksResponse(content string, trd *documents.
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
-	var mainTasks []*documents.MainTask
-	for _, taskData := range response.MainTasks {
+	mainTasks := make([]*documents.MainTask, 0, len(response.MainTasks))
+	for i := range response.MainTasks {
+		taskData := &response.MainTasks[i]
 		task := &documents.MainTask{
 			ID:                 uuid.New().String(),
 			TRDID:              trd.ID,
@@ -415,7 +410,7 @@ func (g *AITaskGenerator) parseMainTasksResponse(content string, trd *documents.
 }
 
 // parseSubTasksResponse parses the AI response into SubTask entities
-func (g *AITaskGenerator) parseSubTasksResponse(content string, mainTask *documents.MainTask, options TaskGenerationOptions) ([]*documents.SubTask, error) {
+func (g *AITaskGenerator) parseSubTasksResponse(content string, mainTask *documents.MainTask, options *TaskGenerationOptions) ([]*documents.SubTask, error) {
 	var response struct {
 		SubTasks []struct {
 			Name               string                 `json:"name"`
@@ -436,8 +431,9 @@ func (g *AITaskGenerator) parseSubTasksResponse(content string, mainTask *docume
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
-	var subTasks []*documents.SubTask
-	for _, taskData := range response.SubTasks {
+	subTasks := make([]*documents.SubTask, 0, len(response.SubTasks))
+	for i := range response.SubTasks {
+		taskData := &response.SubTasks[i]
 		// Convert technical details to string map
 		techDetailsMap := make(map[string]string)
 		for key, value := range taskData.TechnicalDetails {
@@ -490,13 +486,13 @@ func (g *AITaskGenerator) parseSubTasksResponse(content string, mainTask *docume
 }
 
 // getRuleContent retrieves generation rules
-func (g *AITaskGenerator) getRuleContent(ruleType documents.RuleType) (string, error) {
+func (g *AITaskGenerator) getRuleContent(ruleType documents.RuleType) string {
 	rule, err := g.ruleManager.GetRuleContent(ruleType)
 	if err != nil {
 		// Return default rules if custom rules not found
-		return g.getDefaultRules(ruleType), nil
+		return g.getDefaultRules(ruleType)
 	}
-	return rule, nil
+	return rule
 }
 
 // getDefaultRules returns default generation rules

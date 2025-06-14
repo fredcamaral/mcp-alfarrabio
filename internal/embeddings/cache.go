@@ -4,7 +4,7 @@ package embeddings
 import (
 	"container/list"
 	"crypto/sha256"
-	"fmt"
+	"encoding/hex"
 	"sync"
 	"time"
 )
@@ -182,7 +182,7 @@ func (c *EmbeddingCache) CleanExpired() int {
 
 func (c *EmbeddingCache) hashKey(text string) string {
 	hash := sha256.Sum256([]byte(text))
-	return fmt.Sprintf("%x", hash)
+	return hex.EncodeToString(hash[:])
 }
 
 func (c *EmbeddingCache) removeEntry(entry *cacheEntry) {

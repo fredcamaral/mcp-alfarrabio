@@ -1213,9 +1213,10 @@ func (ms *MemoryServer) handleListTemplates(ctx context.Context, options map[str
 	}
 
 	// Parse limit
-	if limit, ok := options["limit"].(float64); ok {
+	switch limit := options["limit"].(type) {
+	case float64:
 		req.Limit = int(limit)
-	} else if limit, ok := options["limit"].(int); ok {
+	case int:
 		req.Limit = limit
 	}
 

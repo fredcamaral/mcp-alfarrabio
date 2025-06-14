@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"strings"
 	"time"
 
@@ -516,7 +517,7 @@ func (g *TaskGenerator) getCoreComponents(mainTask *MainTask, analysis *TaskAnal
 	// Create components for each deliverable
 	for _, deliverable := range mainTask.Deliverables {
 		component := TaskComponent{
-			Name:           fmt.Sprintf("Implement %s", deliverable),
+			Name:           "Implement " + deliverable,
 			Description:    fmt.Sprintf("Complete implementation of %s feature", deliverable),
 			Type:           "feature",
 			EstimatedHours: 4, // Will be split if needed
@@ -526,7 +527,7 @@ func (g *TaskGenerator) getCoreComponents(mainTask *MainTask, analysis *TaskAnal
 				"testing":  "Include unit tests",
 			},
 			AcceptanceCriteria: []string{
-				fmt.Sprintf("%s fully functional", deliverable),
+				deliverable + " fully functional",
 				"Unit tests passing",
 				"Code reviewed and documented",
 			},
@@ -634,7 +635,7 @@ func (g *TaskGenerator) getAdvancedComponents(mainTask *MainTask) []TaskComponen
 		if !strings.Contains(strings.ToLower(deliverable), "caching") &&
 			!strings.Contains(strings.ToLower(deliverable), "error") {
 			components = append(components, TaskComponent{
-				Name:           fmt.Sprintf("Implement %s", deliverable),
+				Name:           "Implement " + deliverable,
 				Description:    fmt.Sprintf("Advanced implementation of %s", deliverable),
 				Type:           "advanced",
 				EstimatedHours: 4,
@@ -672,13 +673,13 @@ func (g *TaskGenerator) getGenericComponents(mainTask *MainTask, analysis *TaskA
 		}
 
 		component := TaskComponent{
-			Name:           fmt.Sprintf("Implement %s", deliverable),
+			Name:           "Implement " + deliverable,
 			Description:    fmt.Sprintf("Complete implementation of %s", deliverable),
 			Type:           "implementation",
 			EstimatedHours: hours,
 			TechnicalDetails: map[string]string{
 				"deliverable": deliverable,
-				"complexity":  fmt.Sprintf("%d", analysis.DeliverableComplexity[deliverable]),
+				"complexity":  strconv.Itoa(analysis.DeliverableComplexity[deliverable]),
 			},
 			AcceptanceCriteria: []string{
 				fmt.Sprintf("%s complete", deliverable),

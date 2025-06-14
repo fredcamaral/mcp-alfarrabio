@@ -254,6 +254,35 @@ func (h *Handler) handleStoreDecision(ctx context.Context, params map[string]int
 
 // handleUpdateContent updates existing content
 func (h *Handler) handleUpdateContent(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	req, err := h.parseUpdateContentRequest(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := h.validateUpdateContentRequest(req); err != nil {
+		return nil, err
+	}
+
+	if err := h.updateSessionAccess(req.ProjectID, req.SessionID); err != nil {
+		return nil, err
+	}
+
+	existing, err := h.getExistingContent(ctx, req.ProjectID, req.ContentID)
+	if err != nil {
+		return nil, err
+	}
+
+	updatedContent := h.prepareUpdatedContent(existing, req)
+
+	if err := h.contentStore.Update(ctx, updatedContent); err != nil {
+		return nil, fmt.Errorf("failed to update content: %w", err)
+	}
+
+	return h.buildUpdateResponse(updatedContent), nil
+}
+
+// parseUpdateContentRequest parses the update content request parameters
+func (h *Handler) parseUpdateContentRequest(params map[string]interface{}) (*UpdateContentRequest, error) {
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -264,31 +293,53 @@ func (h *Handler) handleUpdateContent(ctx context.Context, params map[string]int
 		return nil, fmt.Errorf("failed to parse update content request: %w", err)
 	}
 
-	// Validate parameters
+	return &req, nil
+}
+
+// validateUpdateContentRequest validates the update content request parameters
+func (h *Handler) validateUpdateContentRequest(req *UpdateContentRequest) error {
 	if err := h.validator.ValidateOperation(string(tools.OpUpdateContent), &req.StandardParams); err != nil {
-		return nil, fmt.Errorf("parameter validation failed: %w", err)
+		return fmt.Errorf("parameter validation failed: %w", err)
 	}
 
 	if req.ContentID == "" {
-		return nil, fmt.Errorf("content_id is required for update operation")
+		return fmt.Errorf("content_id is required for update operation")
 	}
 
-	// Update session access
-	if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
-		return nil, fmt.Errorf("failed to update session access: %w", err)
-	}
+	return nil
+}
 
-	// Get existing content
-	existing, err := h.contentStore.Get(ctx, req.ProjectID, req.ContentID)
+// updateSessionAccess updates session access for the request
+func (h *Handler) updateSessionAccess(projectID types.ProjectID, sessionID types.SessionID) error {
+	if err := h.sessionManager.UpdateSessionAccess(projectID, sessionID); err != nil {
+		return fmt.Errorf("failed to update session access: %w", err)
+	}
+	return nil
+}
+
+// getExistingContent retrieves and validates existing content
+func (h *Handler) getExistingContent(ctx context.Context, projectID types.ProjectID, contentID string) (*types.Content, error) {
+	existing, err := h.contentStore.Get(ctx, projectID, contentID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get existing content: %w", err)
 	}
 	if existing == nil {
-		return nil, fmt.Errorf("content with ID %s not found", req.ContentID)
+		return nil, fmt.Errorf("content with ID %s not found", contentID)
 	}
+	return existing, nil
+}
 
-	// Create updated content object
-	updatedContent := &types.Content{
+// prepareUpdatedContent creates the updated content object from existing content and request
+func (h *Handler) prepareUpdatedContent(existing *types.Content, req *UpdateContentRequest) *types.Content {
+	updatedContent := h.copyExistingContent(existing)
+	h.applyBasicUpdates(updatedContent, req)
+	h.applyTagOperations(updatedContent, req)
+	return updatedContent
+}
+
+// copyExistingContent creates a copy of existing content
+func (h *Handler) copyExistingContent(existing *types.Content) *types.Content {
+	return &types.Content{
 		ID:         existing.ID,
 		ProjectID:  existing.ProjectID,
 		SessionID:  existing.SessionID,
@@ -306,68 +357,89 @@ func (h *Handler) handleUpdateContent(ctx context.Context, params map[string]int
 		Quality:    existing.Quality,
 		Confidence: existing.Confidence,
 	}
+}
 
-	// Apply updates from request
+// applyBasicUpdates applies basic content updates from request
+func (h *Handler) applyBasicUpdates(content *types.Content, req *UpdateContentRequest) {
 	if req.Content != "" {
-		updatedContent.Content = req.Content
+		content.Content = req.Content
 	}
 	if req.Summary != "" {
-		updatedContent.Summary = req.Summary
+		content.Summary = req.Summary
 	}
 	if req.Tags != nil {
-		updatedContent.Tags = req.Tags
-	}
-	if req.Metadata != nil {
-		if updatedContent.Metadata == nil {
-			updatedContent.Metadata = make(map[string]interface{})
-		}
-		for k, v := range req.Metadata {
-			updatedContent.Metadata[k] = v
-		}
+		content.Tags = req.Tags
 	}
 
-	// Handle tag operations
+	h.applyMetadataUpdates(content, req.Metadata)
+}
+
+// applyMetadataUpdates applies metadata updates from request
+func (h *Handler) applyMetadataUpdates(content *types.Content, metadata map[string]interface{}) {
+	if metadata == nil {
+		return
+	}
+
+	if content.Metadata == nil {
+		content.Metadata = make(map[string]interface{})
+	}
+	for k, v := range metadata {
+		content.Metadata[k] = v
+	}
+}
+
+// applyTagOperations applies tag addition and removal operations
+func (h *Handler) applyTagOperations(content *types.Content, req *UpdateContentRequest) {
 	if len(req.AddTags) > 0 {
-		tagSet := make(map[string]bool)
-		for _, tag := range updatedContent.Tags {
-			tagSet[tag] = true
-		}
-		for _, tag := range req.AddTags {
-			tagSet[tag] = true
-		}
-		updatedContent.Tags = make([]string, 0, len(tagSet))
-		for tag := range tagSet {
-			updatedContent.Tags = append(updatedContent.Tags, tag)
-		}
+		content.Tags = h.addTags(content.Tags, req.AddTags)
 	}
 	if len(req.RemoveTags) > 0 {
-		removeSet := make(map[string]bool)
-		for _, tag := range req.RemoveTags {
-			removeSet[tag] = true
-		}
-		var filteredTags []string
-		for _, tag := range updatedContent.Tags {
-			if !removeSet[tag] {
-				filteredTags = append(filteredTags, tag)
-			}
-		}
-		updatedContent.Tags = filteredTags
+		content.Tags = h.removeTags(content.Tags, req.RemoveTags)
+	}
+}
+
+// addTags adds new tags to existing tags, avoiding duplicates
+func (h *Handler) addTags(existingTags, newTags []string) []string {
+	tagSet := make(map[string]bool)
+	for _, tag := range existingTags {
+		tagSet[tag] = true
+	}
+	for _, tag := range newTags {
+		tagSet[tag] = true
 	}
 
-	// Update using real storage implementation
-	if err := h.contentStore.Update(ctx, updatedContent); err != nil {
-		return nil, fmt.Errorf("failed to update content: %w", err)
+	result := make([]string, 0, len(tagSet))
+	for tag := range tagSet {
+		result = append(result, tag)
+	}
+	return result
+}
+
+// removeTags removes specified tags from existing tags
+func (h *Handler) removeTags(existingTags, tagsToRemove []string) []string {
+	removeSet := make(map[string]bool)
+	for _, tag := range tagsToRemove {
+		removeSet[tag] = true
 	}
 
-	response := map[string]interface{}{
-		"content_id": updatedContent.ID,
-		"updated_at": updatedContent.UpdatedAt,
-		"version":    updatedContent.Version,
+	var filteredTags []string
+	for _, tag := range existingTags {
+		if !removeSet[tag] {
+			filteredTags = append(filteredTags, tag)
+		}
+	}
+	return filteredTags
+}
+
+// buildUpdateResponse builds the update response
+func (h *Handler) buildUpdateResponse(content *types.Content) map[string]interface{} {
+	return map[string]interface{}{
+		"content_id": content.ID,
+		"updated_at": content.UpdatedAt,
+		"version":    content.Version,
 		"success":    true,
 		"message":    "Content updated successfully",
 	}
-
-	return response, nil
 }
 
 // handleDeleteContent deletes content
@@ -424,7 +496,7 @@ func (h *Handler) handleDeleteContent(ctx context.Context, params map[string]int
 }
 
 // handleCreateThread creates a new conversation thread
-func (h *Handler) handleCreateThread(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleCreateThread(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -463,7 +535,7 @@ func (h *Handler) handleCreateThread(ctx context.Context, params map[string]inte
 }
 
 // handleCreateRelation creates relationships between content
-func (h *Handler) handleCreateRelation(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleCreateRelation(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)

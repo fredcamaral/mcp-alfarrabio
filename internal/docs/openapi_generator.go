@@ -1113,23 +1113,29 @@ func generateOperationID(method, path string) string {
 
 	for _, part := range parts {
 		if part != "" && !strings.HasPrefix(part, "{") {
-			// Handle file extensions specially - capitalize each part after dots
-			if strings.Contains(part, ".") {
-				subParts := strings.Split(part, ".")
-				for i, subPart := range subParts {
-					if i == 0 {
-						operationID += caser.String(subPart)
-					} else {
-						operationID += "." + caser.String(subPart)
-					}
-				}
-			} else {
-				operationID += caser.String(part)
-			}
+			operationID += formatPathPart(part, caser)
 		}
 	}
 
 	return operationID
+}
+
+// formatPathPart formats a path part for operation ID, handling extensions specially
+func formatPathPart(part string, caser cases.Caser) string {
+	// Handle file extensions specially - capitalize each part after dots
+	if strings.Contains(part, ".") {
+		subParts := strings.Split(part, ".")
+		result := ""
+		for i, subPart := range subParts {
+			if i == 0 {
+				result += caser.String(subPart)
+			} else {
+				result += "." + caser.String(subPart)
+			}
+		}
+		return result
+	}
+	return caser.String(part)
 }
 
 func generateTagDescription(tag string) string {

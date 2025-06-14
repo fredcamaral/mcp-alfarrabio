@@ -9,6 +9,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -85,8 +86,26 @@ func (r *REPL) importTRD(ctx context.Context, filename string) (string, error) {
 
 	r.printInfo("Importing TRD from: " + filename)
 
+	// Clean and validate the file path
+	cleanPath := filepath.Clean(filename)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanPath, "..") {
+		return "", fmt.Errorf("invalid file path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return "", fmt.Errorf("invalid file path: access to system directory not allowed")
+			}
+		}
+	}
+
 	// Read file content
-	content, err := os.ReadFile(filename)
+	content, err := os.ReadFile(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return "", fmt.Errorf("failed to read TRD file: %w", err)
 	}
@@ -853,22 +872,40 @@ func (r *REPL) ExportSession(writer io.Writer) error {
 
 // ExportDocuments exports all documents to a directory
 func (r *REPL) ExportDocuments(dir string) error {
-	if err := os.MkdirAll(dir, 0o750); err != nil {
+	// Clean and validate the directory path
+	cleanDir := filepath.Clean(dir)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanDir, "..") {
+		return fmt.Errorf("invalid directory path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanDir) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanDir, sysDir) {
+				return fmt.Errorf("invalid directory path: access to system directory not allowed")
+			}
+		}
+	}
+
+	if err := os.MkdirAll(cleanDir, 0o750); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	r.session.mu.RLock()
 	defer r.session.mu.RUnlock()
 
-	if err := r.exportPRD(dir); err != nil {
+	if err := r.exportPRD(cleanDir); err != nil {
 		return err
 	}
 
-	if err := r.exportTRD(dir); err != nil {
+	if err := r.exportTRD(cleanDir); err != nil {
 		return err
 	}
 
-	if err := r.exportTasks(dir); err != nil {
+	if err := r.exportTasks(cleanDir); err != nil {
 		return err
 	}
 
@@ -882,8 +919,15 @@ func (r *REPL) exportPRD(dir string) error {
 		return nil
 	}
 
-	prdFile := dir + "/prd_" + prd.ID + ".md"
-	file, err := os.Create(prdFile)
+	prdFile := filepath.Join(dir, "prd_"+prd.ID+".md")
+
+	// Validate the file path (dir is already validated in ExportDocuments)
+	cleanPath := filepath.Clean(prdFile)
+	if !strings.HasPrefix(cleanPath, filepath.Clean(dir)) {
+		return fmt.Errorf("invalid file path: attempting to write outside target directory")
+	}
+
+	file, err := os.Create(cleanPath) // #nosec G304 -- Path is constructed safely within validated directory
 	if err != nil {
 		return fmt.Errorf("failed to create PRD file: %w", err)
 	}
@@ -903,8 +947,15 @@ func (r *REPL) exportTRD(dir string) error {
 		return nil
 	}
 
-	trdFile := dir + "/trd_" + trd.ID + ".md"
-	file, err := os.Create(trdFile)
+	trdFile := filepath.Join(dir, "trd_"+trd.ID+".md")
+
+	// Validate the file path (dir is already validated in ExportDocuments)
+	cleanPath := filepath.Clean(trdFile)
+	if !strings.HasPrefix(cleanPath, filepath.Clean(dir)) {
+		return fmt.Errorf("invalid file path: attempting to write outside target directory")
+	}
+
+	file, err := os.Create(cleanPath) // #nosec G304 -- Path is constructed safely within validated directory
 	if err != nil {
 		return fmt.Errorf("failed to create TRD file: %w", err)
 	}
@@ -945,8 +996,15 @@ func (r *REPL) exportTasks(dir string) error {
 		return nil
 	}
 
-	tasksFile := dir + "/main_tasks.json"
-	file, err := os.Create(tasksFile)
+	tasksFile := filepath.Join(dir, "main_tasks.json")
+
+	// Validate the file path (dir is already validated in ExportDocuments)
+	cleanPath := filepath.Clean(tasksFile)
+	if !strings.HasPrefix(cleanPath, filepath.Clean(dir)) {
+		return fmt.Errorf("invalid file path: attempting to write outside target directory")
+	}
+
+	file, err := os.Create(cleanPath) // #nosec G304 -- Path is constructed safely within validated directory
 	if err != nil {
 		return fmt.Errorf("failed to create tasks file: %w", err)
 	}

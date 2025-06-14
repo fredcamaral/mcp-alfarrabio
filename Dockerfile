@@ -82,8 +82,7 @@ COPY --from=builder --chown=mcpuser:mcpuser /build/lerian-mcp-memory-server /app
 RUN mkdir -p /app/data /app/config /app/logs /app/backups /app/audit_logs && \
     chown -R mcpuser:mcpuser /app
 
-# Copy configuration templates
-COPY --chown=mcpuser:mcpuser configs/docker/ /app/config/
+# Configuration is handled via environment variables
 
 # Copy MCP proxy for stdio <> HTTP bridging (optional utility)
 COPY --chown=mcpuser:mcpuser mcp-proxy.js /app/

@@ -782,7 +782,6 @@ func (m *MultiNotifier) Send(ctx context.Context, notification *Notification, en
 
 	var successCount int
 	var lastError error
-	var results []*DeliveryResult
 
 	// Send to all notifiers concurrently
 	resultChan := make(chan *DeliveryResult, len(notifiers))
@@ -803,7 +802,6 @@ func (m *MultiNotifier) Send(ctx context.Context, notification *Notification, en
 	for i := 0; i < len(notifiers); i++ {
 		select {
 		case result := <-resultChan:
-			results = append(results, result)
 			if result.Success {
 				successCount++
 			}

@@ -363,6 +363,12 @@ func (s *FileTemplateStorage) loadAllTemplates() []*entities.TaskTemplate {
 }
 
 func (s *FileTemplateStorage) loadTemplatesFromFile(filePath string) ([]*entities.TaskTemplate, error) {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return nil, fmt.Errorf("path traversal detected: %s", filePath)
+	}
+
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return []*entities.TaskTemplate{}, nil
 	}

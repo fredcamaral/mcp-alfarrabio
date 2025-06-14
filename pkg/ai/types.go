@@ -8,10 +8,10 @@ import (
 
 // AIService defines the interface for AI operations
 type AIService interface {
-	GeneratePRD(ctx context.Context, request PRDRequest) (*PRDResponse, error)
-	GenerateTRD(ctx context.Context, request TRDRequest) (*TRDResponse, error)
-	GenerateMainTasks(ctx context.Context, request TaskRequest) (*TaskResponse, error)
-	GenerateSubTasks(ctx context.Context, request TaskRequest) (*TaskResponse, error)
+	GeneratePRD(ctx context.Context, request *PRDRequest) (*PRDResponse, error)
+	GenerateTRD(ctx context.Context, request *TRDRequest) (*TRDResponse, error)
+	GenerateMainTasks(ctx context.Context, request *TaskRequest) (*TaskResponse, error)
+	GenerateSubTasks(ctx context.Context, request *TaskRequest) (*TaskResponse, error)
 	StartInteractiveSession(ctx context.Context, docType string) (*SessionResponse, error)
 	ContinueSession(ctx context.Context, sessionID, userInput string) (*SessionResponse, error)
 	EndSession(ctx context.Context, sessionID string) error
@@ -110,7 +110,7 @@ func DefaultConfig() *Config {
 
 // AIClient defines the interface for low-level AI model clients
 type AIClient interface {
-	Complete(ctx context.Context, request CompletionRequest) (*CompletionResponse, error)
+	Complete(ctx context.Context, request *CompletionRequest) (*CompletionResponse, error)
 	Test(ctx context.Context) error
 	GetConfig() *BaseConfig
 }

@@ -308,28 +308,23 @@ backup_configs() {
     
     log_info "Creating configuration backup..."
     
-    # Backup configuration files
-    local config_dirs=(
-        "configs"
-        "docker-compose.production.yml"
-        "docker-compose.monitoring.yml"
+    # Backup configuration files (now only .env files and compose files)
+    local config_files=(
+        "docker-compose.yml"
         ".env.production"
         ".env.example"
+        ".env"
     )
     
     mkdir -p "${backup_path}/configs"
     
-    for item in "${config_dirs[@]}"; do
+    for item in "${config_files[@]}"; do
         local source_path="${PROJECT_DIR}/$item"
-        if [[ -e "$source_path" ]]; then
-            if [[ -d "$source_path" ]]; then
-                cp -r "$source_path" "${backup_path}/configs/"
-            else
-                cp "$source_path" "${backup_path}/configs/"
-            fi
+        if [[ -f "$source_path" ]]; then
+            cp "$source_path" "${backup_path}/configs/"
             log_info "Backed up: $item"
         else
-            log_warning "Configuration not found: $item"
+            log_warning "Configuration file not found: $item"
         fi
     done
     
@@ -666,7 +661,8 @@ restore_backup() {
     # Restore configurations
     if [[ -d "${local_backup_file}/configs" ]]; then
         log_info "Restoring configurations..."
-        rsync -av "${local_backup_file}/configs/" "${PROJECT_DIR}/"
+        cp "${local_backup_file}/configs/".env* "${PROJECT_DIR}/" 2>/dev/null || log_warning "No .env files to restore"
+        cp "${local_backup_file}/configs/"docker-compose*.yml "${PROJECT_DIR}/" 2>/dev/null || log_warning "No compose files to restore"
         log_success "Configurations restored"
     fi
     

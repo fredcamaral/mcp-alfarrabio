@@ -339,7 +339,7 @@ type PerformanceMetrics struct {
 	QueueDepth      int           `json:"queue_depth,omitempty"`
 }
 
-// Export/Import types
+// ExportOptions defines options for exporting data.
 type ExportOptions struct {
 	Format      string     `json:"format"` // "json", "yaml", "archive"
 	IncludeData bool       `json:"include_data"`

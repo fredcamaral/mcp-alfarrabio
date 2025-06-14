@@ -374,7 +374,8 @@ func (h *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.R
 
 	var result interface{}
 
-	if clientID != "" {
+	switch {
+	case clientID != "":
 		// Get specific client information
 		client, exists := pool.GetConnection(clientID)
 		if !exists {
@@ -390,7 +391,7 @@ func (h *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.R
 			"metadata":   client.Metadata,
 			"connected":  true,
 		}
-	} else if repository != "" {
+	case repository != "":
 		// Get connections by repository
 		clients := pool.GetConnectionsByRepository(repository)
 		connections := make([]map[string]interface{}, len(clients))
@@ -408,7 +409,7 @@ func (h *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.R
 			"connections": connections,
 			"count":       len(connections),
 		}
-	} else if sessionID != "" {
+	case sessionID != "":
 		// Get connections by session
 		clients := pool.GetConnectionsBySession(sessionID)
 		connections := make([]map[string]interface{}, len(clients))
@@ -426,7 +427,7 @@ func (h *WebSocketHandler) HandleConnectionInfo(w http.ResponseWriter, r *http.R
 			"connections": connections,
 			"count":       len(connections),
 		}
-	} else {
+	default:
 		// Get all connections summary
 		allConnections := pool.GetAllConnections()
 		summary := make([]map[string]interface{}, 0, len(allConnections))

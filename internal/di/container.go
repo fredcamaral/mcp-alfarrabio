@@ -95,38 +95,8 @@ func NewContainer(cfg *config.Config) (*Container, error) {
 
 // initializeDatabase sets up PostgreSQL connection if configured
 func (c *Container) initializeDatabase() error {
-	// Get database URL from environment
-	dbURL := os.Getenv("DATABASE_URL")
-	if dbURL == "" {
-		// Try to construct from individual components
-		host := os.Getenv("POSTGRES_HOST")
-		if host == "" {
-			host = "localhost"
-		}
-		port := os.Getenv("POSTGRES_PORT")
-		if port == "" {
-			port = "5432"
-		}
-		user := os.Getenv("POSTGRES_USER")
-		if user == "" {
-			user = "postgres"
-		}
-		password := os.Getenv("POSTGRES_PASSWORD")
-		if password == "" {
-			password = "postgres"
-		}
-		dbname := os.Getenv("POSTGRES_DB")
-		if dbname == "" {
-			dbname = "mcp_memory"
-		}
-		sslmode := os.Getenv("POSTGRES_SSLMODE")
-		if sslmode == "" {
-			sslmode = "disable"
-		}
-
-		dbURL = fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
-			user, password, host, port, dbname, sslmode)
-	}
+	// Get database URL from environment or construct from components
+	dbURL := buildDatabaseURL()
 
 	// Open database connection
 	db, err := sql.Open("postgres", dbURL)
@@ -136,7 +106,7 @@ func (c *Container) initializeDatabase() error {
 
 	// Test connection
 	if err := db.Ping(); err != nil {
-		db.Close()
+		_ = db.Close() // Ignore close error since we're already in error state
 		return fmt.Errorf("failed to ping database: %w", err)
 	}
 
@@ -251,13 +221,9 @@ func (c *Container) initializeServices() {
 	}
 
 	// Convert logger interface to *slog.Logger
-	var slogLogger *slog.Logger
-	if c.Logger != nil {
-		// Assume the logger is compatible or create a default one
-		slogLogger = slog.Default()
-	} else {
-		slogLogger = slog.Default()
-	}
+	// For now, always use default logger regardless of c.Logger state
+	// TODO: Implement proper logger conversion when needed
+	slogLogger := slog.Default()
 
 	baseEmbedding, embeddingErr := embeddings.NewOpenAIService(embeddingConfig, slogLogger)
 	if embeddingErr != nil {
@@ -322,7 +288,7 @@ func (c *Container) initializeIntelligence() {
 	// Initialize pattern engine with full dependencies including AI
 	if c.DB != nil && c.AIService != nil && c.EmbeddingService != nil {
 		// Create pattern engine with full AI integration using adapter
-		config := intelligence.DefaultPatternEngineConfig()
+		engineConfig := intelligence.DefaultPatternEngineConfig()
 		aiAdapter := intelligence.NewAIServiceAdapter(c.AIService)
 		c.PatternEngine = intelligence.NewPatternEngineWithDependencies(
 			c.DB,
@@ -330,7 +296,7 @@ func (c *Container) initializeIntelligence() {
 			aiAdapter,
 			c.EmbeddingService,
 			c.Logger,
-			config,
+			engineConfig,
 		)
 		c.Logger.Info("Pattern engine initialized with full AI integration")
 	} else {
@@ -395,6 +361,7 @@ func (a *loggerAdapter) Enabled(ctx context.Context, level slog.Level) bool {
 	return true // Enable all levels, let the underlying logger filter
 }
 
+//nolint:gocritic // hugeParam: slog.Handler interface requires Record by value
 func (a *loggerAdapter) Handle(ctx context.Context, record slog.Record) error {
 	// Convert slog attributes to key-value pairs
 	fields := make([]interface{}, 0, record.NumAttrs()*2)
@@ -597,14 +564,14 @@ func (m *mockEmbeddingService) Generate(ctx context.Context, text string) ([]flo
 }
 
 func (m *mockEmbeddingService) GenerateBatch(ctx context.Context, texts []string) ([][]float64, error) {
-	embeddings := make([][]float64, len(texts))
+	result := make([][]float64, len(texts))
 	for i := range texts {
-		embeddings[i] = make([]float64, 1536)
-		for j := range embeddings[i] {
-			embeddings[i][j] = 0.1 // Simple mock value
+		result[i] = make([]float64, 1536)
+		for j := range result[i] {
+			result[i][j] = 0.1 // Simple mock value
 		}
 	}
-	return embeddings, nil
+	return result, nil
 }
 
 func (m *mockEmbeddingService) GetDimensions() int {
@@ -613,4 +580,31 @@ func (m *mockEmbeddingService) GetDimensions() int {
 
 func (m *mockEmbeddingService) HealthCheck(ctx context.Context) error {
 	return nil
+}
+
+// buildDatabaseURL constructs database URL from environment variables
+func buildDatabaseURL() string {
+	// Try to get full URL first
+	if dbURL := os.Getenv("DATABASE_URL"); dbURL != "" {
+		return dbURL
+	}
+
+	// Construct from individual components with defaults
+	host := getEnvWithDefault("POSTGRES_HOST", "localhost")
+	port := getEnvWithDefault("POSTGRES_PORT", "5432")
+	user := getEnvWithDefault("POSTGRES_USER", "postgres")
+	password := getEnvWithDefault("POSTGRES_PASSWORD", "postgres")
+	dbname := getEnvWithDefault("POSTGRES_DB", "mcp_memory")
+	sslmode := getEnvWithDefault("POSTGRES_SSLMODE", "disable")
+
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		user, password, host, port, dbname, sslmode)
+}
+
+// getEnvWithDefault returns environment variable value or default if not set
+func getEnvWithDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
 }

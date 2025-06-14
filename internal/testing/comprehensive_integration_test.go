@@ -41,130 +41,132 @@ type ComprehensiveIntegrationSuite struct {
 }
 
 // SetupSuite initializes comprehensive integration testing environment
-func (suite *ComprehensiveIntegrationSuite) SetupSuite() {
-	suite.ctx = context.Background()
+func (s *ComprehensiveIntegrationSuite) SetupSuite() {
+	s.ctx = context.Background()
 
 	// Load test configuration
 	cfg, err := LoadTestConfig()
-	require.NoError(suite.T(), err, "Failed to load integration test configuration")
-	suite.testConfig = cfg
-	suite.cfg = cfg.Config
+	require.NoError(s.T(), err, "Failed to load integration test configuration")
+	s.testConfig = cfg
+	s.cfg = cfg.Config
 
-	suite.T().Logf("Integration test environment: Database=%s, Qdrant=%s, AI=%t",
+	s.T().Logf("Integration test environment: Database=%s, Qdrant=%s, AI=%t",
 		cfg.TestDatabaseURL, cfg.TestQdrantURL, !cfg.ShouldSkipAI())
 
 	// Create dependency injection container with real storage
-	container, err := di.NewContainer(suite.cfg)
-	require.NoError(suite.T(), err, "Failed to create DI container")
-	suite.container = container
+	container, err := di.NewContainer(s.cfg)
+	require.NoError(s.T(), err, "Failed to create DI container")
+	s.container = container
 
 	// Get real storage interfaces from container
-	suite.contentStore = container.GetVectorStore() // Use vector store for now
+	s.contentStore = container.GetVectorStore() // Use vector store for now
 
 	// Get database connection for direct verification
-	if suite.testConfig.IsRealStorageAvailable() {
-		suite.db = container.DB // Direct access to DB field
+	if s.testConfig.IsRealStorageAvailable() {
+		s.db = container.DB // Direct access to DB field
 	}
 
 	// Create MCP server with real storage backends
-	server, err := mcp.NewMemoryServer(suite.cfg)
-	require.NoError(suite.T(), err, "Failed to create MCP server")
-	suite.server = server
+	server, err := mcp.NewMemoryServer(s.cfg)
+	require.NoError(s.T(), err, "Failed to create MCP server")
+	s.server = server
 
 	// Initialize test identifiers
-	suite.testProjectID = fmt.Sprintf("integration-test-%d", time.Now().Unix())
-	suite.testSessionID = fmt.Sprintf("session-%d", time.Now().Unix())
-	suite.createdContentIDs = make([]string, 0)
-	suite.createdDecisionIDs = make([]string, 0)
+	s.testProjectID = fmt.Sprintf("integration-test-%d", time.Now().Unix())
+	s.testSessionID = fmt.Sprintf("session-%d", time.Now().Unix())
+	s.createdContentIDs = make([]string, 0)
+	s.createdDecisionIDs = make([]string, 0)
 
-	suite.T().Logf("Comprehensive integration test initialized: project=%s, session=%s",
-		suite.testProjectID, suite.testSessionID)
+	s.T().Logf("Comprehensive integration test initialized: project=%s, session=%s",
+		s.testProjectID, s.testSessionID)
 }
 
 // TearDownSuite cleans up after comprehensive testing
-func (suite *ComprehensiveIntegrationSuite) TearDownSuite() {
-	if suite.testConfig.CleanupAfterTests {
-		suite.cleanupTestData()
+func (s *ComprehensiveIntegrationSuite) TearDownSuite() {
+	if s.testConfig.CleanupAfterTests {
+		s.cleanupTestData()
 	}
 
-	if suite.db != nil {
-		suite.db.Close()
+	if s.db != nil {
+		if closeErr := s.db.Close(); closeErr != nil {
+			s.T().Logf("Warning: failed to close test database: %v", closeErr)
+		}
 	}
 }
 
 // TestCompleteMemoryWorkflow tests the full memory lifecycle with real storage
-func (suite *ComprehensiveIntegrationSuite) TestCompleteMemoryWorkflow() {
-	suite.T().Log("🔄 Testing complete memory workflow: Store → Search → Analyze → Export")
+func (s *ComprehensiveIntegrationSuite) TestCompleteMemoryWorkflow() {
+	s.T().Log("🔄 Testing complete memory workflow: Store → Search → Analyze → Export")
 
 	// Step 1: Store multiple types of content
-	suite.storeTestContent()
-	suite.storeTestDecision()
+	s.storeTestContent()
+	s.storeTestDecision()
 
 	// Step 2: Verify storage in database
-	suite.verifyContentInDatabase()
+	s.verifyContentInDatabase()
 
 	// Step 3: Test semantic search
-	suite.testSemanticSearch()
+	s.testSemanticSearch()
 
 	// Step 4: Test pattern analysis
-	suite.testPatternAnalysis()
+	s.testPatternAnalysis()
 
 	// Step 5: Test system export
-	suite.testSystemExport()
+	s.testSystemExport()
 
-	suite.T().Log("✅ Complete memory workflow test passed")
+	s.T().Log("✅ Complete memory workflow test passed")
 }
 
 // TestRealStorageIntegration tests MCP tools with actual database and vector storage
-func (suite *ComprehensiveIntegrationSuite) TestRealStorageIntegration() {
-	if !suite.testConfig.IsRealStorageAvailable() {
-		suite.T().Skip("Real storage not available - configure TEST_DATABASE_URL")
+func (s *ComprehensiveIntegrationSuite) TestRealStorageIntegration() {
+	if !s.testConfig.IsRealStorageAvailable() {
+		s.T().Skip("Real storage not available - configure TEST_DATABASE_URL")
 	}
 
-	suite.T().Log("🗄️ Testing real storage integration")
+	s.T().Log("🗄️ Testing real storage integration")
 
 	// Test vector store health check with panic recovery
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
-				suite.T().Logf("Vector store health check panicked (expected if Qdrant not running): %v", r)
+				s.T().Logf("Vector store health check panicked (expected if Qdrant not running): %v", r)
 			}
 		}()
 
-		err := suite.contentStore.HealthCheck(suite.ctx)
+		err := s.contentStore.HealthCheck(s.ctx)
 		if err != nil {
-			suite.T().Logf("Vector store health check failed (expected if not configured): %v", err)
+			s.T().Logf("Vector store health check failed (expected if not configured): %v", err)
 		} else {
-			suite.T().Log("Vector store is healthy")
+			s.T().Log("Vector store is healthy")
 
 			// Test vector store stats if available
-			stats, err := suite.contentStore.GetStats(suite.ctx)
+			stats, err := s.contentStore.GetStats(s.ctx)
 			if err == nil {
-				suite.T().Logf("Vector store stats: %d total chunks", stats.TotalChunks)
+				s.T().Logf("Vector store stats: %d total chunks", stats.TotalChunks)
 			}
 		}
 	}()
 
-	suite.T().Log("✅ Real storage integration test passed")
+	s.T().Log("✅ Real storage integration test passed")
 }
 
 // TestMCPToolsWithRealHandlers tests all MCP tools with actual business logic
-func (suite *ComprehensiveIntegrationSuite) TestMCPToolsWithRealHandlers() {
-	suite.T().Log("🛠️ Testing all 11 MCP tools with real handlers")
+func (s *ComprehensiveIntegrationSuite) TestMCPToolsWithRealHandlers() {
+	s.T().Log("🛠️ Testing all 11 MCP tools with real handlers")
 
 	// Test each tool category with real implementations
-	suite.testMemoryStoreTools()
-	suite.testMemoryRetrieveTools()
-	suite.testMemoryAnalyzeTools()
-	suite.testMemorySystemTools()
-	suite.testTemplateTools()
+	s.testMemoryStoreTools()
+	s.testMemoryRetrieveTools()
+	s.testMemoryAnalyzeTools()
+	s.testMemorySystemTools()
+	s.testTemplateTools()
 
-	suite.T().Log("✅ All MCP tools integration test passed")
+	s.T().Log("✅ All MCP tools integration test passed")
 }
 
 // TestConcurrentOperations tests concurrent MCP operations
-func (suite *ComprehensiveIntegrationSuite) TestConcurrentOperations() {
-	suite.T().Log("⚡ Testing concurrent MCP operations")
+func (s *ComprehensiveIntegrationSuite) TestConcurrentOperations() {
+	s.T().Log("⚡ Testing concurrent MCP operations")
 
 	// Create multiple goroutines performing different operations
 	done := make(chan error, 10)
@@ -176,33 +178,33 @@ func (suite *ComprehensiveIntegrationSuite) TestConcurrentOperations() {
 				Name: "memory_store",
 				Arguments: map[string]interface{}{
 					"operation":  "store_content",
-					"project_id": suite.testProjectID,
-					"session_id": fmt.Sprintf("%s-concurrent-%d", suite.testSessionID, index),
+					"project_id": s.testProjectID,
+					"session_id": fmt.Sprintf("%s-concurrent-%d", s.testSessionID, index),
 					"content":    fmt.Sprintf("Concurrent test content %d", index),
 					"type":       "concurrent_test",
 					"tags":       []string{"concurrent", "test", fmt.Sprintf("index_%d", index)},
 				},
 			}
 
-			_, err := suite.callRealTool(request)
+			_, err := s.callRealTool(request)
 			done <- err
 		}(i)
 	}
 
 	// Concurrent searches
 	for i := 0; i < 2; i++ {
-		go func(index int) {
+		go func(_ int) {
 			request := protocol.ToolCallRequest{
 				Name: "memory_retrieve",
 				Arguments: map[string]interface{}{
 					"operation":   "search_content",
-					"project_id":  suite.testProjectID,
+					"project_id":  s.testProjectID,
 					"query":       "test content",
 					"max_results": 5,
 				},
 			}
 
-			_, err := suite.callRealTool(request)
+			_, err := s.callRealTool(request)
 			done <- err
 		}(i)
 	}
@@ -210,15 +212,15 @@ func (suite *ComprehensiveIntegrationSuite) TestConcurrentOperations() {
 	// Wait for all operations to complete
 	for i := 0; i < 5; i++ {
 		err := <-done
-		assert.NoError(suite.T(), err, "Concurrent operation failed")
+		assert.NoError(s.T(), err, "Concurrent operation failed")
 	}
 
-	suite.T().Log("✅ Concurrent operations test passed")
+	s.T().Log("✅ Concurrent operations test passed")
 }
 
 // TestErrorHandlingAndRecovery tests error scenarios and recovery
-func (suite *ComprehensiveIntegrationSuite) TestErrorHandlingAndRecovery() {
-	suite.T().Log("🚨 Testing error handling and recovery")
+func (s *ComprehensiveIntegrationSuite) TestErrorHandlingAndRecovery() {
+	s.T().Log("🚨 Testing error handling and recovery")
 
 	// Test invalid operations
 	invalidRequest := protocol.ToolCallRequest{
@@ -227,35 +229,35 @@ func (suite *ComprehensiveIntegrationSuite) TestErrorHandlingAndRecovery() {
 			"operation": "invalid_operation",
 			"scope":     "single",
 			"options": map[string]interface{}{
-				"repository": suite.testProjectID,
+				"repository": s.testProjectID,
 			},
 		},
 	}
 
-	response, err := suite.callRealTool(invalidRequest)
-	assert.NoError(suite.T(), err, "Tool call should not fail")
+	response, err := s.callRealTool(invalidRequest)
+	assert.NoError(s.T(), err, "Tool call should not fail")
 
 	// Parse response to check error handling
 	result := response.Content[0].Text
 	var data map[string]interface{}
 	err = json.Unmarshal([]byte(result), &data)
-	require.NoError(suite.T(), err)
+	require.NoError(s.T(), err)
 
 	// Should have error status or graceful handling
 	if statusRaw, exists := data["status"]; exists && statusRaw != nil {
 		status := statusRaw.(string)
-		assert.True(suite.T(), status == "error" || status == "success",
+		assert.True(s.T(), status == "error" || status == "success",
 			"Invalid operation should be handled gracefully")
 	} else {
-		suite.T().Log("No status field in response - tool may have failed gracefully")
+		s.T().Log("No status field in response - tool may have failed gracefully")
 	}
 
-	suite.T().Log("✅ Error handling test passed")
+	s.T().Log("✅ Error handling test passed")
 }
 
 // Helper methods for comprehensive testing
 
-func (suite *ComprehensiveIntegrationSuite) storeTestContent() {
+func (s *ComprehensiveIntegrationSuite) storeTestContent() {
 	testContents := []map[string]interface{}{
 		{
 			"content":    "Integration testing ensures all components work together seamlessly",
@@ -278,8 +280,8 @@ func (suite *ComprehensiveIntegrationSuite) storeTestContent() {
 				"operation": "store_chunk",
 				"scope":     "single",
 				"options": map[string]interface{}{
-					"repository": suite.testProjectID,
-					"session_id": suite.testSessionID,
+					"repository": s.testProjectID,
+					"session_id": s.testSessionID,
 					"content":    content["content"],
 					"chunk_type": content["chunk_type"],
 					"tags":       []string{"integration", "testing", "comprehensive"},
@@ -291,147 +293,147 @@ func (suite *ComprehensiveIntegrationSuite) storeTestContent() {
 			},
 		}
 
-		response, err := suite.callRealTool(request)
-		require.NoError(suite.T(), err, "Failed to store test content %d", i)
+		response, err := s.callRealTool(request)
+		require.NoError(s.T(), err, "Failed to store test content %d", i)
 
 		// Extract content ID for tracking
 		result := response.Content[0].Text
 		var data map[string]interface{}
 		err = json.Unmarshal([]byte(result), &data)
-		require.NoError(suite.T(), err)
+		require.NoError(s.T(), err)
 
 		if contentID, exists := data["chunk_id"]; exists {
-			suite.createdContentIDs = append(suite.createdContentIDs, contentID.(string))
+			s.createdContentIDs = append(s.createdContentIDs, contentID.(string))
 		}
 	}
 
-	suite.T().Logf("Stored %d test content items", len(testContents))
+	s.T().Logf("Stored %d test content items", len(testContents))
 }
 
-func (suite *ComprehensiveIntegrationSuite) storeTestDecision() {
+func (s *ComprehensiveIntegrationSuite) storeTestDecision() {
 	request := protocol.ToolCallRequest{
 		Name: "memory_create",
 		Arguments: map[string]interface{}{
 			"operation": "store_decision",
 			"scope":     "single",
 			"options": map[string]interface{}{
-				"repository": suite.testProjectID,
-				"session_id": suite.testSessionID,
+				"repository": s.testProjectID,
+				"session_id": s.testSessionID,
 				"decision":   "Use comprehensive integration tests with real PostgreSQL and Qdrant",
 				"rationale":  "Need to validate MCP Memory Server v2 functionality with real storage backends for higher test confidence and production readiness",
 			},
 		},
 	}
 
-	response, err := suite.callRealTool(request)
-	require.NoError(suite.T(), err, "Failed to store test decision")
+	response, err := s.callRealTool(request)
+	require.NoError(s.T(), err, "Failed to store test decision")
 
 	// Extract decision ID
 	result := response.Content[0].Text
 	var data map[string]interface{}
 	err = json.Unmarshal([]byte(result), &data)
-	require.NoError(suite.T(), err)
+	require.NoError(s.T(), err)
 
 	if decisionID, exists := data["decision_id"]; exists {
-		suite.createdDecisionIDs = append(suite.createdDecisionIDs, decisionID.(string))
+		s.createdDecisionIDs = append(s.createdDecisionIDs, decisionID.(string))
 	}
 
-	suite.T().Log("Stored test decision")
+	s.T().Log("Stored test decision")
 }
 
-func (suite *ComprehensiveIntegrationSuite) verifyContentInDatabase() {
-	if !suite.testConfig.IsRealStorageAvailable() || suite.db == nil {
-		suite.T().Skip("Database verification requires real storage")
+func (s *ComprehensiveIntegrationSuite) verifyContentInDatabase() {
+	if !s.testConfig.IsRealStorageAvailable() || s.db == nil {
+		s.T().Skip("Database verification requires real storage")
 	}
 
 	// Verify content exists in database
 	query := "SELECT COUNT(*) FROM chunks WHERE project_id = $1"
 	var count int
-	err := suite.db.QueryRowContext(suite.ctx, query, suite.testProjectID).Scan(&count)
-	require.NoError(suite.T(), err, "Failed to verify content in database")
+	err := s.db.QueryRowContext(s.ctx, query, s.testProjectID).Scan(&count)
+	require.NoError(s.T(), err, "Failed to verify content in database")
 
-	assert.Greater(suite.T(), count, 0, "Should have stored content in database")
-	suite.T().Logf("Verified %d items in database", count)
+	assert.Greater(s.T(), count, 0, "Should have stored content in database")
+	s.T().Logf("Verified %d items in database", count)
 }
 
-func (suite *ComprehensiveIntegrationSuite) testSemanticSearch() {
+func (s *ComprehensiveIntegrationSuite) testSemanticSearch() {
 	request := protocol.ToolCallRequest{
 		Name: "memory_read",
 		Arguments: map[string]interface{}{
 			"operation": "search",
 			"scope":     "single",
 			"options": map[string]interface{}{
-				"repository": suite.testProjectID,
+				"repository": s.testProjectID,
 				"query":      "integration testing components",
 				"limit":      5,
 			},
 		},
 	}
 
-	response, err := suite.callRealTool(request)
-	require.NoError(suite.T(), err, "Semantic search failed")
+	response, err := s.callRealTool(request)
+	require.NoError(s.T(), err, "Semantic search failed")
 
 	// Verify search results
 	result := response.Content[0].Text
 	var data map[string]interface{}
 	err = json.Unmarshal([]byte(result), &data)
-	require.NoError(suite.T(), err)
+	require.NoError(s.T(), err)
 
-	assert.Equal(suite.T(), "success", data["status"])
+	assert.Equal(s.T(), "success", data["status"])
 
 	if results, exists := data["chunks"]; exists {
 		resultsArray := results.([]interface{})
-		suite.T().Logf("Semantic search found %d results", len(resultsArray))
+		s.T().Logf("Semantic search found %d results", len(resultsArray))
 	}
 }
 
-func (suite *ComprehensiveIntegrationSuite) testPatternAnalysis() {
+func (s *ComprehensiveIntegrationSuite) testPatternAnalysis() {
 	request := protocol.ToolCallRequest{
 		Name: "memory_analyze",
 		Arguments: map[string]interface{}{
 			"operation":  "detect_patterns",
-			"project_id": suite.testProjectID,
+			"project_id": s.testProjectID,
 			"timeframe":  "all",
 		},
 	}
 
-	response, err := suite.callRealTool(request)
-	require.NoError(suite.T(), err, "Pattern analysis failed")
+	response, err := s.callRealTool(request)
+	require.NoError(s.T(), err, "Pattern analysis failed")
 
 	// Verify analysis results
 	result := response.Content[0].Text
 	var data map[string]interface{}
 	err = json.Unmarshal([]byte(result), &data)
-	require.NoError(suite.T(), err)
+	require.NoError(s.T(), err)
 
-	assert.Equal(suite.T(), "success", data["status"])
-	suite.T().Log("Pattern analysis completed")
+	assert.Equal(s.T(), "success", data["status"])
+	s.T().Log("Pattern analysis completed")
 }
 
-func (suite *ComprehensiveIntegrationSuite) testSystemExport() {
+func (s *ComprehensiveIntegrationSuite) testSystemExport() {
 	request := protocol.ToolCallRequest{
 		Name: "memory_system",
 		Arguments: map[string]interface{}{
 			"operation":  "export_project_data",
-			"project_id": suite.testProjectID,
+			"project_id": s.testProjectID,
 			"format":     "json",
 		},
 	}
 
-	response, err := suite.callRealTool(request)
-	require.NoError(suite.T(), err, "System export failed")
+	response, err := s.callRealTool(request)
+	require.NoError(s.T(), err, "System export failed")
 
 	// Verify export results
 	result := response.Content[0].Text
 	var data map[string]interface{}
 	err = json.Unmarshal([]byte(result), &data)
-	require.NoError(suite.T(), err)
+	require.NoError(s.T(), err)
 
-	assert.Equal(suite.T(), "success", data["status"])
-	suite.T().Log("System export completed")
+	assert.Equal(s.T(), "success", data["status"])
+	s.T().Log("System export completed")
 }
 
-func (suite *ComprehensiveIntegrationSuite) testMemoryStoreTools() {
+func (s *ComprehensiveIntegrationSuite) testMemoryStoreTools() {
 	// Test memory_create tool with various operations
 	operations := []struct {
 		operation string
@@ -440,8 +442,8 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryStoreTools() {
 		{
 			operation: "store_chunk",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
-				"session_id": suite.testSessionID,
+				"repository": s.testProjectID,
+				"session_id": s.testSessionID,
 				"content":    "Test content for store_chunk",
 				"chunk_type": "conversation",
 			},
@@ -449,8 +451,8 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryStoreTools() {
 		{
 			operation: "store_decision",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
-				"session_id": suite.testSessionID,
+				"repository": s.testProjectID,
+				"session_id": s.testSessionID,
 				"decision":   "Use integration testing for validation",
 				"rationale":  "Integration tests provide end-to-end validation",
 			},
@@ -467,19 +469,19 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryStoreTools() {
 			},
 		}
 
-		response, err := suite.callRealTool(request)
-		assert.NoError(suite.T(), err, "memory_create tool failed for %s", test.operation)
+		response, err := s.callRealTool(request)
+		assert.NoError(s.T(), err, "memory_create tool failed for %s", test.operation)
 
 		if response != nil {
 			result := response.Content[0].Text
 			var data map[string]interface{}
 			err = json.Unmarshal([]byte(result), &data)
-			assert.NoError(suite.T(), err, "Failed to parse response for %s", test.operation)
+			assert.NoError(s.T(), err, "Failed to parse response for %s", test.operation)
 		}
 	}
 }
 
-func (suite *ComprehensiveIntegrationSuite) testMemoryRetrieveTools() {
+func (s *ComprehensiveIntegrationSuite) testMemoryRetrieveTools() {
 	// Test memory_read tool with various operations
 	operations := []struct {
 		operation string
@@ -488,7 +490,7 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryRetrieveTools() {
 		{
 			operation: "search",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
+				"repository": s.testProjectID,
 				"query":      "test content integration",
 				"limit":      3,
 			},
@@ -496,7 +498,7 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryRetrieveTools() {
 		{
 			operation: "find_similar",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
+				"repository": s.testProjectID,
 				"problem":    "testing integration components",
 				"limit":      3,
 			},
@@ -504,8 +506,8 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryRetrieveTools() {
 		{
 			operation: "get_context",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
-				"session_id": suite.testSessionID,
+				"repository": s.testProjectID,
+				"session_id": s.testSessionID,
 			},
 		},
 	}
@@ -520,19 +522,19 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryRetrieveTools() {
 			},
 		}
 
-		response, err := suite.callRealTool(request)
-		assert.NoError(suite.T(), err, "memory_read tool failed for %s", test.operation)
+		response, err := s.callRealTool(request)
+		assert.NoError(s.T(), err, "memory_read tool failed for %s", test.operation)
 
 		if response != nil {
 			result := response.Content[0].Text
 			var data map[string]interface{}
 			err = json.Unmarshal([]byte(result), &data)
-			assert.NoError(suite.T(), err, "Failed to parse response for %s", test.operation)
+			assert.NoError(s.T(), err, "Failed to parse response for %s", test.operation)
 		}
 	}
 }
 
-func (suite *ComprehensiveIntegrationSuite) testMemoryAnalyzeTools() {
+func (s *ComprehensiveIntegrationSuite) testMemoryAnalyzeTools() {
 	// Test memory_analyze tool with various operations
 	operations := []struct {
 		operation string
@@ -541,22 +543,22 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryAnalyzeTools() {
 		{
 			operation: "cross_repo_patterns",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
-				"session_id": suite.testSessionID,
+				"repository": s.testProjectID,
+				"session_id": s.testSessionID,
 				"timeframe":  "recent",
 			},
 		},
 		{
 			operation: "health_dashboard",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
+				"repository": s.testProjectID,
 			},
 		},
 		{
 			operation: "detect_conflicts",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
-				"session_id": suite.testSessionID,
+				"repository": s.testProjectID,
+				"session_id": s.testSessionID,
 			},
 		},
 	}
@@ -571,19 +573,19 @@ func (suite *ComprehensiveIntegrationSuite) testMemoryAnalyzeTools() {
 			},
 		}
 
-		response, err := suite.callRealTool(request)
-		assert.NoError(suite.T(), err, "memory_analyze tool failed for %s", test.operation)
+		response, err := s.callRealTool(request)
+		assert.NoError(s.T(), err, "memory_analyze tool failed for %s", test.operation)
 
 		if response != nil {
 			result := response.Content[0].Text
 			var data map[string]interface{}
 			err = json.Unmarshal([]byte(result), &data)
-			assert.NoError(suite.T(), err, "Failed to parse response for %s", test.operation)
+			assert.NoError(s.T(), err, "Failed to parse response for %s", test.operation)
 		}
 	}
 }
 
-func (suite *ComprehensiveIntegrationSuite) testMemorySystemTools() {
+func (s *ComprehensiveIntegrationSuite) testMemorySystemTools() {
 	// Test memory_system tool with various operations
 	operations := []struct {
 		operation string
@@ -596,13 +598,13 @@ func (suite *ComprehensiveIntegrationSuite) testMemorySystemTools() {
 		{
 			operation: "status",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
+				"repository": s.testProjectID,
 			},
 		},
 		{
 			operation: "export_project",
 			options: map[string]interface{}{
-				"repository": suite.testProjectID,
+				"repository": s.testProjectID,
 				"format":     "json",
 			},
 		},
@@ -618,19 +620,19 @@ func (suite *ComprehensiveIntegrationSuite) testMemorySystemTools() {
 			},
 		}
 
-		response, err := suite.callRealTool(request)
-		assert.NoError(suite.T(), err, "memory_system tool failed for %s", test.operation)
+		response, err := s.callRealTool(request)
+		assert.NoError(s.T(), err, "memory_system tool failed for %s", test.operation)
 
 		if response != nil {
 			result := response.Content[0].Text
 			var data map[string]interface{}
 			err = json.Unmarshal([]byte(result), &data)
-			assert.NoError(suite.T(), err, "Failed to parse response for %s", test.operation)
+			assert.NoError(s.T(), err, "Failed to parse response for %s", test.operation)
 		}
 	}
 }
 
-func (suite *ComprehensiveIntegrationSuite) testTemplateTools() {
+func (s *ComprehensiveIntegrationSuite) testTemplateTools() {
 	// Test template_management tool
 	request := protocol.ToolCallRequest{
 		Name: "template_management",
@@ -638,7 +640,7 @@ func (suite *ComprehensiveIntegrationSuite) testTemplateTools() {
 			"operation": "list_templates",
 			"scope":     "single",
 			"options": map[string]interface{}{
-				"repository":   suite.testProjectID,
+				"repository":   s.testProjectID,
 				"project_type": "web",
 				"category":     "feature",
 				"limit":        3,
@@ -646,35 +648,33 @@ func (suite *ComprehensiveIntegrationSuite) testTemplateTools() {
 		},
 	}
 
-	response, err := suite.callRealTool(request)
+	response, err := s.callRealTool(request)
 	if err != nil {
 		// Expected failure since template service is temporarily disabled
-		suite.T().Logf("Template tools disabled as expected: %v", err)
-	} else {
+		s.T().Logf("Template tools disabled as expected: %v", err)
+	} else if response != nil {
 		// If templates work, validate the response
-		if response != nil {
-			result := response.Content[0].Text
-			var data map[string]interface{}
-			err = json.Unmarshal([]byte(result), &data)
-			assert.NoError(suite.T(), err, "Failed to parse template list response")
-		}
+		result := response.Content[0].Text
+		var data map[string]interface{}
+		err = json.Unmarshal([]byte(result), &data)
+		assert.NoError(s.T(), err, "Failed to parse template list response")
 	}
 }
 
-func (suite *ComprehensiveIntegrationSuite) callRealTool(request protocol.ToolCallRequest) (*protocol.ToolCallResult, error) {
+func (s *ComprehensiveIntegrationSuite) callRealTool(request protocol.ToolCallRequest) (*protocol.ToolCallResult, error) {
 	// Call the actual MCP server's tool handler using the executor
 	// This connects to real business logic instead of mocks
 
 	toolName := request.Name
 	arguments := request.Arguments
 
-	suite.T().Logf("Calling real tool: %s", toolName)
+	s.T().Logf("Calling real tool: %s", toolName)
 
 	// Create MCP tool executor for real integration testing
-	executor := mcp.NewMCPToolExecutor(suite.server)
+	executor := mcp.NewMCPToolExecutor(s.server)
 
 	// Execute the tool with real parameters
-	result, err := executor.ExecuteTool(suite.ctx, toolName, arguments)
+	result, err := executor.ExecuteTool(s.ctx, toolName, arguments)
 	if err != nil {
 		return nil, fmt.Errorf("real tool call failed: %w", err)
 	}
@@ -688,8 +688,8 @@ func (suite *ComprehensiveIntegrationSuite) callRealTool(request protocol.ToolCa
 	return protocol.NewToolCallResult(protocol.NewContent(string(resultJSON))), nil
 }
 
-func (suite *ComprehensiveIntegrationSuite) cleanupTestData() {
-	if suite.db == nil {
+func (s *ComprehensiveIntegrationSuite) cleanupTestData() {
+	if s.db == nil {
 		return
 	}
 
@@ -701,13 +701,13 @@ func (suite *ComprehensiveIntegrationSuite) cleanupTestData() {
 	}
 
 	for _, query := range queries {
-		_, err := suite.db.ExecContext(suite.ctx, query, suite.testProjectID)
+		_, err := s.db.ExecContext(s.ctx, query, s.testProjectID)
 		if err != nil {
-			suite.T().Logf("Warning: Failed to cleanup with query %s: %v", query, err)
+			s.T().Logf("Warning: Failed to cleanup with query %s: %v", query, err)
 		}
 	}
 
-	suite.T().Logf("Cleaned up test data for project: %s", suite.testProjectID)
+	s.T().Logf("Cleaned up test data for project: %s", s.testProjectID)
 }
 
 // TestComprehensiveIntegrationSuite runs the comprehensive integration test suite

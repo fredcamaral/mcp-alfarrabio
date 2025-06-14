@@ -32,7 +32,7 @@ func TestGeneratePRD(t *testing.T) {
 		Repository:  "github.com/test/repo",
 	}
 
-	response, err := service.GeneratePRD(ctx, request)
+	response, err := service.GeneratePRD(ctx, &request)
 	if err != nil {
 		t.Fatalf("Failed to generate PRD: %v", err)
 	}
@@ -64,7 +64,7 @@ func TestGenerateTRD(t *testing.T) {
 		Repository: "github.com/test/repo",
 	}
 
-	response, err := service.GenerateTRD(ctx, request)
+	response, err := service.GenerateTRD(ctx, &request)
 	if err != nil {
 		t.Fatalf("Failed to generate TRD: %v", err)
 	}
@@ -93,7 +93,7 @@ func TestGenerateMainTasks(t *testing.T) {
 		Repository: "github.com/test/repo",
 	}
 
-	response, err := service.GenerateMainTasks(ctx, request)
+	response, err := service.GenerateMainTasks(ctx, &request)
 	if err != nil {
 		t.Fatalf("Failed to generate main tasks: %v", err)
 	}

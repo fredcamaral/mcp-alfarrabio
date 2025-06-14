@@ -853,72 +853,63 @@ func (c *Config) IsRepositoryEnabled(repository string) bool {
 
 // loadWebSocketConfig loads WebSocket configuration from environment
 func loadWebSocketConfig(config *Config) {
-	if maxConns := os.Getenv("WS_MAX_CONNECTIONS"); maxConns != "" {
-		if n, err := strconv.Atoi(maxConns); err == nil {
-			config.WebSocket.MaxConnections = n
+	loadWebSocketIntConfig(config)
+	loadWebSocketBoolConfig(config)
+	loadWebSocketOrigins(config)
+}
+
+// loadWebSocketIntConfig loads integer WebSocket configuration values
+func loadWebSocketIntConfig(config *Config) {
+	setIntFromEnv("WS_MAX_CONNECTIONS", &config.WebSocket.MaxConnections)
+	setIntFromEnv("WS_READ_BUFFER_SIZE", &config.WebSocket.ReadBufferSize)
+	setIntFromEnv("WS_WRITE_BUFFER_SIZE", &config.WebSocket.WriteBufferSize)
+	setIntFromEnv("WS_HANDSHAKE_TIMEOUT", &config.WebSocket.HandshakeTimeout)
+	setIntFromEnv("WS_PING_INTERVAL", &config.WebSocket.PingInterval)
+	setIntFromEnv("WS_PONG_TIMEOUT", &config.WebSocket.PongTimeout)
+	setIntFromEnv("WS_WRITE_TIMEOUT", &config.WebSocket.WriteTimeout)
+	setIntFromEnv("WS_READ_TIMEOUT", &config.WebSocket.ReadTimeout)
+	setIntFromEnv("WS_MAX_MESSAGE_SIZE", &config.WebSocket.MaxMessageSize)
+}
+
+// loadWebSocketBoolConfig loads boolean WebSocket configuration values
+func loadWebSocketBoolConfig(config *Config) {
+	setBoolFromEnv("WS_ENABLE_COMPRESSION", &config.WebSocket.EnableCompression)
+	setBoolFromEnv("WS_ENABLE_AUTH", &config.WebSocket.EnableAuth)
+}
+
+// loadWebSocketOrigins loads allowed origins from environment
+func loadWebSocketOrigins(config *Config) {
+	allowedOrigins := os.Getenv("WS_ALLOWED_ORIGINS")
+	if allowedOrigins == "" {
+		return
+	}
+
+	origins := strings.Split(allowedOrigins, ",")
+	cleaned := make([]string, 0, len(origins))
+	for _, origin := range origins {
+		if trimmed := strings.TrimSpace(origin); trimmed != "" {
+			cleaned = append(cleaned, trimmed)
 		}
 	}
-	if readBuffer := os.Getenv("WS_READ_BUFFER_SIZE"); readBuffer != "" {
-		if n, err := strconv.Atoi(readBuffer); err == nil {
-			config.WebSocket.ReadBufferSize = n
+	if len(cleaned) > 0 {
+		config.WebSocket.AllowedOrigins = cleaned
+	}
+}
+
+// setIntFromEnv sets an integer config value from environment variable
+func setIntFromEnv(envKey string, target *int) {
+	if value := os.Getenv(envKey); value != "" {
+		if n, err := strconv.Atoi(value); err == nil {
+			*target = n
 		}
 	}
-	if writeBuffer := os.Getenv("WS_WRITE_BUFFER_SIZE"); writeBuffer != "" {
-		if n, err := strconv.Atoi(writeBuffer); err == nil {
-			config.WebSocket.WriteBufferSize = n
-		}
-	}
-	if handshakeTimeout := os.Getenv("WS_HANDSHAKE_TIMEOUT"); handshakeTimeout != "" {
-		if n, err := strconv.Atoi(handshakeTimeout); err == nil {
-			config.WebSocket.HandshakeTimeout = n
-		}
-	}
-	if pingInterval := os.Getenv("WS_PING_INTERVAL"); pingInterval != "" {
-		if n, err := strconv.Atoi(pingInterval); err == nil {
-			config.WebSocket.PingInterval = n
-		}
-	}
-	if pongTimeout := os.Getenv("WS_PONG_TIMEOUT"); pongTimeout != "" {
-		if n, err := strconv.Atoi(pongTimeout); err == nil {
-			config.WebSocket.PongTimeout = n
-		}
-	}
-	if writeTimeout := os.Getenv("WS_WRITE_TIMEOUT"); writeTimeout != "" {
-		if n, err := strconv.Atoi(writeTimeout); err == nil {
-			config.WebSocket.WriteTimeout = n
-		}
-	}
-	if readTimeout := os.Getenv("WS_READ_TIMEOUT"); readTimeout != "" {
-		if n, err := strconv.Atoi(readTimeout); err == nil {
-			config.WebSocket.ReadTimeout = n
-		}
-	}
-	if enableCompression := os.Getenv("WS_ENABLE_COMPRESSION"); enableCompression != "" {
-		if b, err := strconv.ParseBool(enableCompression); err == nil {
-			config.WebSocket.EnableCompression = b
-		}
-	}
-	if maxMessageSize := os.Getenv("WS_MAX_MESSAGE_SIZE"); maxMessageSize != "" {
-		if n, err := strconv.Atoi(maxMessageSize); err == nil {
-			config.WebSocket.MaxMessageSize = n
-		}
-	}
-	if enableAuth := os.Getenv("WS_ENABLE_AUTH"); enableAuth != "" {
-		if b, err := strconv.ParseBool(enableAuth); err == nil {
-			config.WebSocket.EnableAuth = b
-		}
-	}
-	if allowedOrigins := os.Getenv("WS_ALLOWED_ORIGINS"); allowedOrigins != "" {
-		// Split comma-separated origins
-		origins := strings.Split(allowedOrigins, ",")
-		cleaned := make([]string, 0, len(origins))
-		for _, origin := range origins {
-			if trimmed := strings.TrimSpace(origin); trimmed != "" {
-				cleaned = append(cleaned, trimmed)
-			}
-		}
-		if len(cleaned) > 0 {
-			config.WebSocket.AllowedOrigins = cleaned
+}
+
+// setBoolFromEnv sets a boolean config value from environment variable
+func setBoolFromEnv(envKey string, target *bool) {
+	if value := os.Getenv(envKey); value != "" {
+		if b, err := strconv.ParseBool(value); err == nil {
+			*target = b
 		}
 	}
 }

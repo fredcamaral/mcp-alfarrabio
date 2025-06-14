@@ -182,7 +182,7 @@ This is a test project for integration testing.
 - NFR2: Security
 `
 
-		err := os.WriteFile(prdFile, []byte(prdContent), 0644)
+		err := os.WriteFile(prdFile, []byte(prdContent), 0600)
 		require.NoError(t, err)
 
 		// Process PRD file

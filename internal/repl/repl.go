@@ -729,6 +729,24 @@ func (r *REPL) handleNotification(notification *Notification) {
 }
 
 func (r *REPL) saveSession(filename string) error {
+	// Clean and validate the file path
+	cleanPath := filepath.Clean(filename)
+
+	// Security check: prevent path traversal attacks
+	if strings.Contains(cleanPath, "..") {
+		return fmt.Errorf("invalid file path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return fmt.Errorf("invalid file path: access to system directory not allowed")
+			}
+		}
+	}
+
 	r.session.mu.RLock()
 	defer r.session.mu.RUnlock()
 
@@ -737,7 +755,7 @@ func (r *REPL) saveSession(filename string) error {
 		return fmt.Errorf("failed to marshal session: %w", err)
 	}
 
-	if err := os.WriteFile(filename, data, 0o600); err != nil {
+	if err := os.WriteFile(cleanPath, data, 0o600); err != nil { // #nosec G304 -- Path is cleaned and validated above
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -746,10 +764,22 @@ func (r *REPL) saveSession(filename string) error {
 }
 
 func (r *REPL) loadSession(filename string) error {
-	// Basic path validation to prevent directory traversal
+	// Clean and validate the file path
 	cleanPath := filepath.Clean(filename)
+
+	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return errors.New("invalid file path: directory traversal detected")
+		return fmt.Errorf("invalid file path: path traversal not allowed")
+	}
+
+	// If absolute path, ensure it's not accessing system directories
+	if filepath.IsAbs(cleanPath) {
+		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
+		for _, sysDir := range systemDirs {
+			if strings.HasPrefix(cleanPath, sysDir) {
+				return fmt.Errorf("invalid file path: access to system directory not allowed")
+			}
+		}
 	}
 
 	data, err := os.ReadFile(cleanPath) // #nosec G304 - path validated above

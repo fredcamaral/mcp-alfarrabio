@@ -167,7 +167,7 @@ func (g *Generator) generateRawTasks(ctx context.Context, req *types.TaskSuggest
 
 	// Create generation metadata
 	metadata := types.GenerationMetadata{
-		AIModel:          string(resp.Model),
+		AIModel:          resp.Model,
 		QualityThreshold: req.Options.MinQualityScore,
 		ProcessingSteps: []types.ProcessingStep{
 			{

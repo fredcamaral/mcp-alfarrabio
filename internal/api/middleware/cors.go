@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -185,7 +185,7 @@ func (c *CORSMiddleware) handlePreflight(w http.ResponseWriter, r *http.Request)
 	}
 
 	// Set Access-Control-Max-Age
-	w.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", c.config.MaxAge))
+	w.Header().Set("Access-Control-Max-Age", strconv.Itoa(c.config.MaxAge))
 
 	w.WriteHeader(http.StatusOK)
 }

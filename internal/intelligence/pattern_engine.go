@@ -242,15 +242,12 @@ type PatternEngine struct {
 	logger           logging.Logger
 
 	// Caching
-	patternCache   sync.Map // map[string]*Pattern
 	embeddingCache sync.Map // map[string][]float64
 
 	// Batch processing
-	batchQueue    chan *batchItem
-	batchSize     int
-	batchInterval time.Duration
-	stopBatch     chan struct{}
-	batchWg       sync.WaitGroup
+	batchQueue chan *batchItem
+	stopBatch  chan struct{}
+	batchWg    sync.WaitGroup
 
 	// Configuration
 	config *PatternEngineConfig
@@ -423,7 +420,7 @@ func (pe *PatternEngine) RecognizePatterns(ctx context.Context, chunks []types.C
 
 	// Generate embeddings for the chunks
 	text := extractText(chunks)
-	embeddings, err := pe.getOrGenerateEmbeddings(ctx, text)
+	textEmbeddings, err := pe.getOrGenerateEmbeddings(ctx, text)
 	if err != nil {
 		pe.logger.Error("Failed to generate embeddings", "error", err)
 	}
@@ -444,13 +441,13 @@ func (pe *PatternEngine) RecognizePatterns(ctx context.Context, chunks []types.C
 	}
 
 	// Match against stored patterns using embeddings
-	if len(embeddings) > 0 {
-		similarPatterns, err := pe.findSimilarPatterns(ctx, embeddings, 10)
+	if len(textEmbeddings) > 0 {
+		similarPatterns, err := pe.findSimilarPatterns(ctx, textEmbeddings, 10)
 		if err == nil {
-			for _, pattern := range similarPatterns {
-				pattern.ConfidenceScore = pe.calculateSimilarityScore(embeddings, pattern.Embeddings)
-				if pattern.ConfidenceScore >= pe.config.MinConfidence {
-					recognizedPatterns = append(recognizedPatterns, pattern)
+			for i := range similarPatterns {
+				similarPatterns[i].ConfidenceScore = pe.calculateSimilarityScore(textEmbeddings, similarPatterns[i].Embeddings)
+				if similarPatterns[i].ConfidenceScore >= pe.config.MinConfidence {
+					recognizedPatterns = append(recognizedPatterns, similarPatterns[i])
 				}
 			}
 		}
@@ -520,8 +517,8 @@ func (pe *PatternEngine) buildPatternIdentificationPrompt(chunks []types.Convers
 
 	sb.WriteString("Analyze the following conversation and identify patterns:\n\n")
 
-	for i, chunk := range chunks {
-		sb.WriteString(fmt.Sprintf("[%d] %s: %s\n", i+1, chunk.Type, chunk.Content))
+	for i := range chunks {
+		sb.WriteString(fmt.Sprintf("[%d] %s: %s\n", i+1, chunks[i].Type, chunks[i].Content))
 		if i >= 10 { // Limit context to avoid token limits
 			sb.WriteString("...(truncated)...\n")
 			break
@@ -650,9 +647,9 @@ func (pe *PatternEngine) learnPatternInternal(ctx context.Context, chunks []type
 
 	// Generate embeddings for the pattern
 	text := pattern.Name + " " + pattern.Description + " " + strings.Join(pattern.Keywords, " ")
-	embeddings, err := pe.getOrGenerateEmbeddings(ctx, text)
+	patternEmbeddings, err := pe.getOrGenerateEmbeddings(ctx, text)
 	if err == nil {
-		pattern.Embeddings = embeddings
+		pattern.Embeddings = patternEmbeddings
 	}
 
 	// Check for similar existing patterns
@@ -661,71 +658,106 @@ func (pe *PatternEngine) learnPatternInternal(ctx context.Context, chunks []type
 		pe.logger.Error("Failed to find existing pattern", "error", err)
 	}
 
+	var storeErr error
 	if exists {
-		// Update existing pattern
-		existingPattern.OccurrenceCount++
-		if outcome == OutcomeSuccess {
-			existingPattern.PositiveFeedback++
-		} else if outcome == OutcomeFailure {
-			existingPattern.NegativeFeedback++
-		}
-
-		// Update confidence using Bayesian approach
-		existingPattern.ConfidenceScore = pe.calculateBayesianConfidence(
-			existingPattern.PositiveFeedback,
-			existingPattern.NegativeFeedback,
-		)
-
-		now := time.Now()
-		existingPattern.LastSeenAt = &now
-		existingPattern.UpdatedAt = now
-
-		// Check if pattern needs evolution
-		if pe.shouldEvolvePattern(existingPattern, pattern) {
-			evolvedPattern := pe.evolvePattern(existingPattern, pattern)
-			if err := pe.storage.StorePattern(ctx, evolvedPattern); err != nil {
-				return fmt.Errorf("failed to store evolved pattern: %w", err)
-			}
-
-			// Update parent pattern
-			existingPattern.ValidationStatus = ValidationEvolved
-		}
-
-		if err := pe.storage.UpdatePattern(ctx, existingPattern); err != nil {
-			return fmt.Errorf("failed to update pattern: %w", err)
-		}
-
-		// Store occurrence
-		occurrence := pe.createOccurrence(pattern, chunks)
-		if err := pe.storage.StoreOccurrence(ctx, occurrence); err != nil {
-			pe.logger.Error("Failed to store occurrence", "error", err)
-		}
+		storeErr = pe.updateExistingPattern(ctx, existingPattern, pattern, chunks, outcome)
 	} else {
-		// Store new pattern
-		pattern.OccurrenceCount = 1
-		if outcome == OutcomeSuccess {
-			pattern.PositiveFeedback = 1
-		} else if outcome == OutcomeFailure {
-			pattern.NegativeFeedback = 1
-		}
+		storeErr = pe.storeNewPattern(ctx, pattern, chunks, outcome)
+	}
 
-		pattern.ConfidenceScore = pe.calculateInitialConfidence(outcome)
-
-		if err := pe.storage.StorePattern(ctx, pattern); err != nil {
-			return fmt.Errorf("failed to store pattern: %w", err)
-		}
-
-		// Store initial occurrence
-		occurrence := pe.createOccurrence(pattern, chunks)
-		if err := pe.storage.StoreOccurrence(ctx, occurrence); err != nil {
-			pe.logger.Error("Failed to store occurrence", "error", err)
-		}
+	if storeErr != nil {
+		return storeErr
 	}
 
 	pe.metrics.mu.Lock()
 	pe.metrics.patternsLearned++
 	pe.metrics.mu.Unlock()
 
+	return nil
+}
+
+// updateExistingPattern updates an existing pattern with new data
+func (pe *PatternEngine) updateExistingPattern(ctx context.Context, existingPattern, newPattern *Pattern, chunks []types.ConversationChunk, outcome PatternOutcome) error {
+	// Update existing pattern
+	existingPattern.OccurrenceCount++
+	pe.updatePatternFeedback(existingPattern, outcome)
+
+	// Update confidence using Bayesian approach
+	existingPattern.ConfidenceScore = pe.calculateBayesianConfidence(
+		existingPattern.PositiveFeedback,
+		existingPattern.NegativeFeedback,
+	)
+
+	pe.updatePatternTimestamps(existingPattern)
+
+	// Check if pattern needs evolution
+	if err := pe.handlePatternEvolution(ctx, existingPattern, newPattern); err != nil {
+		return err
+	}
+
+	if err := pe.storage.UpdatePattern(ctx, existingPattern); err != nil {
+		return fmt.Errorf("failed to update pattern: %w", err)
+	}
+
+	// Store occurrence
+	return pe.storePatternOccurrence(ctx, newPattern, chunks)
+}
+
+// storeNewPattern stores a new pattern
+func (pe *PatternEngine) storeNewPattern(ctx context.Context, pattern *Pattern, chunks []types.ConversationChunk, outcome PatternOutcome) error {
+	// Store new pattern
+	pattern.OccurrenceCount = 1
+	pe.updatePatternFeedback(pattern, outcome)
+	pattern.ConfidenceScore = pe.calculateInitialConfidence(outcome)
+
+	if err := pe.storage.StorePattern(ctx, pattern); err != nil {
+		return fmt.Errorf("failed to store pattern: %w", err)
+	}
+
+	// Store initial occurrence
+	return pe.storePatternOccurrence(ctx, pattern, chunks)
+}
+
+// updatePatternFeedback updates pattern feedback based on outcome
+func (pe *PatternEngine) updatePatternFeedback(pattern *Pattern, outcome PatternOutcome) {
+	switch outcome {
+	case OutcomeSuccess:
+		pattern.PositiveFeedback++
+	case OutcomeFailure:
+		pattern.NegativeFeedback++
+	}
+}
+
+// updatePatternTimestamps updates pattern timestamps
+func (pe *PatternEngine) updatePatternTimestamps(pattern *Pattern) {
+	now := time.Now()
+	pattern.LastSeenAt = &now
+	pattern.UpdatedAt = now
+}
+
+// handlePatternEvolution checks and handles pattern evolution
+func (pe *PatternEngine) handlePatternEvolution(ctx context.Context, existingPattern, newPattern *Pattern) error {
+	if !pe.shouldEvolvePattern(existingPattern, newPattern) {
+		return nil
+	}
+
+	evolvedPattern := pe.evolvePattern(existingPattern, newPattern)
+	if err := pe.storage.StorePattern(ctx, evolvedPattern); err != nil {
+		return fmt.Errorf("failed to store evolved pattern: %w", err)
+	}
+
+	// Update parent pattern
+	existingPattern.ValidationStatus = ValidationEvolved
+	return nil
+}
+
+// storePatternOccurrence stores a pattern occurrence
+func (pe *PatternEngine) storePatternOccurrence(ctx context.Context, pattern *Pattern, chunks []types.ConversationChunk) error {
+	occurrence := pe.createOccurrence(pattern, chunks)
+	if err := pe.storage.StoreOccurrence(ctx, occurrence); err != nil {
+		pe.logger.Error("Failed to store occurrence", "error", err)
+		return err
+	}
 	return nil
 }
 
@@ -775,8 +807,8 @@ func (pe *PatternEngine) buildLearningPrompt(chunks []types.ConversationChunk, o
 
 	sb.WriteString("Learn a pattern from the following conversation:\n\n")
 
-	for i, chunk := range chunks {
-		sb.WriteString(fmt.Sprintf("[%d] %s: %s\n", i+1, chunk.Type, chunk.Content))
+	for i := range chunks {
+		sb.WriteString(fmt.Sprintf("[%d] %s: %s\n", i+1, chunks[i].Type, chunks[i].Content))
 	}
 
 	sb.WriteString(fmt.Sprintf("\nOutcome: %s\n", outcome))
@@ -856,7 +888,7 @@ func (pe *PatternEngine) GetPatternSuggestions(ctx context.Context, currentChunk
 
 	// Generate embeddings for current context
 	text := extractText(currentChunks)
-	embeddings, err := pe.getOrGenerateEmbeddings(ctx, text)
+	embeddingVec, err := pe.getOrGenerateEmbeddings(ctx, text)
 	if err != nil {
 		pe.logger.Error("Failed to generate embeddings for suggestions", "error", err)
 		// Continue without embeddings
@@ -871,8 +903,8 @@ func (pe *PatternEngine) GetPatternSuggestions(ctx context.Context, currentChunk
 	}
 
 	// Find similar patterns using embeddings
-	if len(embeddings) > 0 {
-		similarPatterns, err := pe.findSimilarPatterns(ctx, embeddings, limit*2)
+	if len(embeddingVec) > 0 {
+		similarPatterns, err := pe.findSimilarPatterns(ctx, embeddingVec, limit*2)
 		if err == nil {
 			suggestions = append(suggestions, similarPatterns...)
 		}
@@ -923,21 +955,21 @@ func (pe *PatternEngine) getOrGenerateEmbeddings(ctx context.Context, text strin
 	pe.metrics.mu.Unlock()
 
 	// Generate embeddings
-	embeddings, err := pe.embeddingService.Generate(ctx, text)
+	embeddingVec, err := pe.embeddingService.Generate(ctx, text)
 	if err != nil {
 		return nil, err
 	}
 
 	// Cache embeddings
 	if pe.config.EnableCaching {
-		pe.embeddingCache.Store(text, embeddings)
+		pe.embeddingCache.Store(text, embeddingVec)
 	}
 
-	return embeddings, nil
+	return embeddingVec, nil
 }
 
 // findSimilarPatterns finds patterns similar to given embeddings
-func (pe *PatternEngine) findSimilarPatterns(ctx context.Context, embeddings []float64, limit int) ([]Pattern, error) {
+func (pe *PatternEngine) findSimilarPatterns(ctx context.Context, embeddingVec []float64, limit int) ([]Pattern, error) {
 	// This would typically use a vector similarity search
 	// For now, we'll use a simplified approach
 	allPatterns, err := pe.storage.ListPatterns(ctx, nil)
@@ -951,10 +983,10 @@ func (pe *PatternEngine) findSimilarPatterns(ctx context.Context, embeddings []f
 	}
 
 	var scored []scoredPattern
-	for _, pattern := range allPatterns {
-		if len(pattern.Embeddings) > 0 {
-			score := pe.calculateSimilarityScore(embeddings, pattern.Embeddings)
-			scored = append(scored, scoredPattern{pattern, score})
+	for i := range allPatterns {
+		if len(allPatterns[i].Embeddings) > 0 {
+			score := pe.calculateSimilarityScore(embeddingVec, allPatterns[i].Embeddings)
+			scored = append(scored, scoredPattern{allPatterns[i], score})
 		}
 	}
 
@@ -965,27 +997,27 @@ func (pe *PatternEngine) findSimilarPatterns(ctx context.Context, embeddings []f
 
 	// Return top patterns
 	result := make([]Pattern, 0, limit)
-	for i, sp := range scored {
+	for i := range scored {
 		if i >= limit {
 			break
 		}
-		result = append(result, sp.pattern)
+		result = append(result, scored[i].pattern)
 	}
 
 	return result, nil
 }
 
 // calculateSimilarityScore calculates cosine similarity between embeddings
-func (pe *PatternEngine) calculateSimilarityScore(embeddings1, embeddings2 []float64) float64 {
-	if len(embeddings1) != len(embeddings2) || len(embeddings1) == 0 {
+func (pe *PatternEngine) calculateSimilarityScore(embeddingVec1, embeddingVec2 []float64) float64 {
+	if len(embeddingVec1) != len(embeddingVec2) || len(embeddingVec1) == 0 {
 		return 0.0
 	}
 
 	var dotProduct, norm1, norm2 float64
-	for i := range embeddings1 {
-		dotProduct += embeddings1[i] * embeddings2[i]
-		norm1 += embeddings1[i] * embeddings1[i]
-		norm2 += embeddings2[i] * embeddings2[i]
+	for i := range embeddingVec1 {
+		dotProduct += embeddingVec1[i] * embeddingVec2[i]
+		norm1 += embeddingVec1[i] * embeddingVec1[i]
+		norm2 += embeddingVec2[i] * embeddingVec2[i]
 	}
 
 	if norm1 == 0 || norm2 == 0 {
@@ -1000,10 +1032,10 @@ func (pe *PatternEngine) deduplicatePatterns(patterns []Pattern) []Pattern {
 	seen := make(map[string]bool)
 	result := make([]Pattern, 0, len(patterns))
 
-	for _, pattern := range patterns {
-		if !seen[pattern.ID] {
-			seen[pattern.ID] = true
-			result = append(result, pattern)
+	for i := range patterns {
+		if !seen[patterns[i].ID] {
+			seen[patterns[i].ID] = true
+			result = append(result, patterns[i])
 		}
 	}
 
@@ -1021,24 +1053,29 @@ func (pe *PatternEngine) findExistingPattern(ctx context.Context, pattern *Patte
 	// Check embeddings similarity
 	for i := range candidates {
 		candidate := &candidates[i]
-		if candidate.Type == pattern.Type {
-			// Check embedding similarity if available
-			if len(pattern.Embeddings) > 0 && len(candidate.Embeddings) > 0 {
-				similarity := pe.calculateSimilarityScore(pattern.Embeddings, candidate.Embeddings)
-				if similarity > pe.config.EvolutionThreshold {
-					return candidate, true, nil
-				}
-			} else {
-				// Fall back to keyword matching
-				keywordOverlap := calculateOverlap(pattern.Keywords, candidate.Keywords)
-				if keywordOverlap > 0.6 {
-					return candidate, true, nil
-				}
-			}
+		if candidate.Type != pattern.Type {
+			continue
+		}
+
+		if pe.checkPatternSimilarity(pattern, candidate) {
+			return candidate, true, nil
 		}
 	}
 
 	return nil, false, nil
+}
+
+// checkPatternSimilarity checks if two patterns are similar
+func (pe *PatternEngine) checkPatternSimilarity(pattern, candidate *Pattern) bool {
+	// Check embedding similarity if available
+	if len(pattern.Embeddings) > 0 && len(candidate.Embeddings) > 0 {
+		similarity := pe.calculateSimilarityScore(pattern.Embeddings, candidate.Embeddings)
+		return similarity > pe.config.EvolutionThreshold
+	}
+
+	// Fall back to keyword matching
+	keywordOverlap := calculateOverlap(pattern.Keywords, candidate.Keywords)
+	return keywordOverlap > 0.6
 }
 
 // calculateBayesianConfidence calculates confidence using Bayesian approach
@@ -1066,40 +1103,40 @@ func (pe *PatternEngine) calculateInitialConfidence(outcome PatternOutcome) floa
 }
 
 // shouldEvolvePattern determines if a pattern should evolve
-func (pe *PatternEngine) shouldEvolvePattern(existing, new *Pattern) bool {
+func (pe *PatternEngine) shouldEvolvePattern(existing, evolved *Pattern) bool {
 	// Check if patterns are sufficiently different
-	if len(existing.Embeddings) > 0 && len(new.Embeddings) > 0 {
-		similarity := pe.calculateSimilarityScore(existing.Embeddings, new.Embeddings)
+	if len(existing.Embeddings) > 0 && len(evolved.Embeddings) > 0 {
+		similarity := pe.calculateSimilarityScore(existing.Embeddings, evolved.Embeddings)
 		return similarity < pe.config.EvolutionThreshold && similarity > 0.4
 	}
 
 	// Check keyword divergence
-	keywordOverlap := calculateOverlap(existing.Keywords, new.Keywords)
+	keywordOverlap := calculateOverlap(existing.Keywords, evolved.Keywords)
 	return keywordOverlap < 0.7 && keywordOverlap > 0.3
 }
 
 // evolvePattern creates an evolved version of a pattern
-func (pe *PatternEngine) evolvePattern(parent, new *Pattern) *Pattern {
+func (pe *PatternEngine) evolvePattern(parent, newPattern *Pattern) *Pattern {
 	evolved := &Pattern{
 		ID:               uuid.New().String(),
 		Type:             parent.Type,
-		Name:             new.Name + " (Evolved)",
-		Description:      new.Description,
-		Category:         new.Category,
-		Signature:        new.Signature,
-		Keywords:         append(parent.Keywords, new.Keywords...),
-		RepositoryURL:    new.RepositoryURL,
-		FilePatterns:     append(parent.FilePatterns, new.FilePatterns...),
-		Language:         new.Language,
+		Name:             newPattern.Name + " (Evolved)",
+		Description:      newPattern.Description,
+		Category:         newPattern.Category,
+		Signature:        newPattern.Signature,
+		Keywords:         append(parent.Keywords, newPattern.Keywords...),
+		RepositoryURL:    newPattern.RepositoryURL,
+		FilePatterns:     append(parent.FilePatterns, newPattern.FilePatterns...),
+		Language:         newPattern.Language,
 		ConfidenceScore:  parent.ConfidenceScore * 0.8, // Slightly lower confidence for evolved patterns
 		ValidationStatus: ValidationUnvalidated,
 		ParentPatternID:  &parent.ID,
 		EvolutionReason:  "Pattern evolved due to significant variations",
 		Version:          parent.Version + 1,
-		Metadata:         new.Metadata,
+		Metadata:         newPattern.Metadata,
 		CreatedAt:        time.Now(),
 		UpdatedAt:        time.Now(),
-		Embeddings:       new.Embeddings,
+		Embeddings:       newPattern.Embeddings,
 	}
 
 	// Deduplicate keywords and file patterns
@@ -1122,8 +1159,8 @@ func (pe *PatternEngine) createOccurrence(pattern *Pattern, chunks []types.Conve
 	}
 
 	// Extract code snippet if available
-	for _, chunk := range chunks {
-		if matches := pe.patternRegexes["code"].FindStringSubmatch(chunk.Content); len(matches) > 0 {
+	for i := range chunks {
+		if matches := pe.patternRegexes["code"].FindStringSubmatch(chunks[i].Content); len(matches) > 0 {
 			occurrence.CodeSnippet = matches[0]
 			break
 		}
@@ -1180,8 +1217,8 @@ func (pe *PatternEngine) buildSuggestionPrompt(chunks []types.ConversationChunk)
 
 	sb.WriteString("Based on the current conversation context, suggest relevant patterns:\n\n")
 
-	for i, chunk := range chunks {
-		sb.WriteString(fmt.Sprintf("[%d] %s: %s\n", i+1, chunk.Type, chunk.Content))
+	for i := range chunks {
+		sb.WriteString(fmt.Sprintf("[%d] %s: %s\n", i+1, chunks[i].Type, chunks[i].Content))
 		if i >= 5 { // Limit context
 			sb.WriteString("...(more context)...\n")
 			break
@@ -1340,14 +1377,14 @@ func (pe *PatternEngine) ImportPatterns(ctx context.Context, data []byte) error 
 		return fmt.Errorf("failed to unmarshal patterns: %w", err)
 	}
 
-	for _, pattern := range patterns {
+	for i := range patterns {
 		// Generate new ID to avoid conflicts
-		pattern.ID = uuid.New().String()
-		pattern.CreatedAt = time.Now()
-		pattern.UpdatedAt = time.Now()
+		patterns[i].ID = uuid.New().String()
+		patterns[i].CreatedAt = time.Now()
+		patterns[i].UpdatedAt = time.Now()
 
-		if err := pe.storage.StorePattern(ctx, &pattern); err != nil {
-			pe.logger.Error("Failed to import pattern", "name", pattern.Name, "error", err)
+		if err := pe.storage.StorePattern(ctx, &patterns[i]); err != nil {
+			pe.logger.Error("Failed to import pattern", "name", patterns[i].Name, "error", err)
 		}
 	}
 

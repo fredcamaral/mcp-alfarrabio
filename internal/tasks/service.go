@@ -368,11 +368,6 @@ func (s *Service) canAccessTask(task *types.Task, userID string) bool {
 	return task.Assignee == userID || task.Assignee == "" || userID == UserRoleAdmin
 }
 
-func (s *Service) canModifyTask(task *types.Task, userID string) bool {
-	// Basic permission check - in a real system this would be more sophisticated
-	return task.Assignee == userID || userID == UserRoleAdmin
-}
-
 func (s *Service) applyUserFilters(filters *TaskFilters, userID string) TaskFilters {
 	// In a real system, this would apply user-specific access controls
 	if userID != UserRoleAdmin {

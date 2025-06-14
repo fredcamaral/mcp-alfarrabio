@@ -9,6 +9,11 @@ import (
 	"lerian-mcp-memory/internal/config"
 )
 
+const (
+	localhostHost = "localhost"
+	trueString    = "true"
+)
+
 // IntegrationTestConfig provides configuration specific to integration testing
 type IntegrationTestConfig struct {
 	*config.Config
@@ -43,7 +48,7 @@ func LoadTestConfig() (*IntegrationTestConfig, error) {
 	// Override base config with test-specific settings
 	if testConfig.TestDatabaseURL != "" {
 		// Override database configuration for test database
-		testConfig.Database.Host = "localhost"
+		testConfig.Database.Host = localhostHost
 		testConfig.Database.Port = 5432
 		testConfig.Database.Name = "lerian_mcp_test"
 		testConfig.Database.User = "test_user"
@@ -51,7 +56,7 @@ func LoadTestConfig() (*IntegrationTestConfig, error) {
 	}
 
 	// Override Qdrant settings for testing
-	testConfig.Qdrant.Host = "localhost"
+	testConfig.Qdrant.Host = localhostHost
 	testConfig.Qdrant.Port = 6333
 	testConfig.Qdrant.Collection = "lerian_mcp_test_collection"
 
@@ -64,7 +69,7 @@ func LoadTestConfig() (*IntegrationTestConfig, error) {
 	testConfig.OpenAI.RateLimitRPM = 10
 
 	// Override server settings for testing
-	testConfig.Server.Host = "localhost"
+	testConfig.Server.Host = localhostHost
 	testConfig.Server.Port = 9081 // Different port to avoid conflicts
 
 	// Set log level based on verbose setting
@@ -126,10 +131,10 @@ type TestEnvironment struct {
 // DetectTestEnvironment analyzes the current environment for testing capabilities
 func DetectTestEnvironment() *TestEnvironment {
 	return &TestEnvironment{
-		IsCI:              os.Getenv("CI") == "true",
+		IsCI:              os.Getenv("CI") == trueString,
 		HasRealStorage:    os.Getenv("TEST_DATABASE_URL") != "" || os.Getenv("QDRANT_URL") != "",
 		HasRealAI:         os.Getenv("TEST_OPENAI_API_KEY") != "" || os.Getenv("OPENAI_API_KEY") != "",
-		CanRunIntegration: os.Getenv("RUN_INTEGRATION_TESTS") == "true",
+		CanRunIntegration: os.Getenv("RUN_INTEGRATION_TESTS") == trueString,
 	}
 }
 
@@ -149,12 +154,12 @@ func (te *TestEnvironment) GetTestingRecommendations() []string {
 
 	if !te.HasRealAI {
 		recommendations = append(recommendations,
-			"Set TEST_OPENAI_API_KEY for AI-powered integration tests (or use SKIP_REAL_AI=true)")
+			"Set TEST_OPENAI_API_KEY for AI-powered integration tests (or use SKIP_REAL_AI="+trueString+")")
 	}
 
 	if !te.CanRunIntegration {
 		recommendations = append(recommendations,
-			"Set RUN_INTEGRATION_TESTS=true to enable integration test execution")
+			"Set RUN_INTEGRATION_TESTS="+trueString+" to enable integration test execution")
 	}
 
 	return recommendations

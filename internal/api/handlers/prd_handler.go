@@ -94,17 +94,18 @@ func (h *PRDHandler) ImportPRD(w http.ResponseWriter, r *http.Request) {
 	var req types.PRDImportRequest
 	contentType := r.Header.Get("Content-Type")
 
-	if strings.Contains(contentType, "multipart/form-data") {
+	switch {
+	case strings.Contains(contentType, "multipart/form-data"):
 		if err := h.parseMultipartRequest(r, &req); err != nil {
 			response.WriteError(w, http.StatusBadRequest, "Invalid multipart request", err.Error())
 			return
 		}
-	} else if strings.Contains(contentType, "application/json") {
+	case strings.Contains(contentType, "application/json"):
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
 			return
 		}
-	} else {
+	default:
 		response.WriteError(w, http.StatusBadRequest, "Unsupported content type", "Use multipart/form-data or application/json")
 		return
 	}

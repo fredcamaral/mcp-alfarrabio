@@ -30,6 +30,62 @@ func NewPatternSQLStorage(db *sql.DB, logger logging.Logger) intelligence.Patter
 	}
 }
 
+// scanPatterns is a helper function to scan pattern rows and handle common unmarshaling logic
+func (p *PatternSQLStorage) scanPatterns(rows *sql.Rows) ([]intelligence.Pattern, error) {
+	var patterns []intelligence.Pattern
+	for rows.Next() {
+		var pattern intelligence.Pattern
+		var signatureBytes, metadataBytes []byte
+		var embeddings pq.Float64Array
+
+		err := rows.Scan(
+			&pattern.ID,
+			&pattern.Type,
+			&pattern.Name,
+			&pattern.Description,
+			&pattern.Category,
+			&signatureBytes,
+			pq.Array(&pattern.Keywords),
+			&pattern.RepositoryURL,
+			pq.Array(&pattern.FilePatterns),
+			&pattern.Language,
+			&pattern.ConfidenceScore,
+			&pattern.ConfidenceLevel,
+			&pattern.ValidationStatus,
+			&pattern.OccurrenceCount,
+			&pattern.PositiveFeedback,
+			&pattern.NegativeFeedback,
+			&pattern.LastSeenAt,
+			&pattern.ParentPatternID,
+			&pattern.EvolutionReason,
+			&pattern.Version,
+			&metadataBytes,
+			&embeddings,
+			&pattern.CreatedAt,
+			&pattern.UpdatedAt,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan pattern: %w", err)
+		}
+
+		// Unmarshal JSON fields
+		if err := json.Unmarshal(signatureBytes, &pattern.Signature); err != nil {
+			p.logger.Error("Failed to unmarshal signature", "pattern_id", pattern.ID, "error", err)
+			pattern.Signature = make(map[string]interface{})
+		}
+
+		if err := json.Unmarshal(metadataBytes, &pattern.Metadata); err != nil {
+			p.logger.Error("Failed to unmarshal metadata", "pattern_id", pattern.ID, "error", err)
+			pattern.Metadata = make(map[string]interface{})
+		}
+
+		pattern.Embeddings = []float64(embeddings)
+		patterns = append(patterns, pattern)
+	}
+
+	return patterns, rows.Err()
+}
+
 // StorePattern stores a new pattern
 func (p *PatternSQLStorage) StorePattern(ctx context.Context, pattern *intelligence.Pattern) error {
 	query := `
@@ -188,60 +244,13 @@ func (p *PatternSQLStorage) ListPatterns(ctx context.Context, patternType *intel
 	if err != nil {
 		return nil, fmt.Errorf("failed to list patterns: %w", err)
 	}
-	defer rows.Close()
-
-	var patterns []intelligence.Pattern
-	for rows.Next() {
-		var pattern intelligence.Pattern
-		var signatureBytes, metadataBytes []byte
-		var embeddings pq.Float64Array
-
-		err := rows.Scan(
-			&pattern.ID,
-			&pattern.Type,
-			&pattern.Name,
-			&pattern.Description,
-			&pattern.Category,
-			&signatureBytes,
-			pq.Array(&pattern.Keywords),
-			&pattern.RepositoryURL,
-			pq.Array(&pattern.FilePatterns),
-			&pattern.Language,
-			&pattern.ConfidenceScore,
-			&pattern.ConfidenceLevel,
-			&pattern.ValidationStatus,
-			&pattern.OccurrenceCount,
-			&pattern.PositiveFeedback,
-			&pattern.NegativeFeedback,
-			&pattern.LastSeenAt,
-			&pattern.ParentPatternID,
-			&pattern.EvolutionReason,
-			&pattern.Version,
-			&metadataBytes,
-			&embeddings,
-			&pattern.CreatedAt,
-			&pattern.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan pattern: %w", err)
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
 		}
+	}()
 
-		// Unmarshal JSON fields
-		if err := json.Unmarshal(signatureBytes, &pattern.Signature); err != nil {
-			p.logger.Error("Failed to unmarshal signature", "pattern_id", pattern.ID, "error", err)
-			pattern.Signature = make(map[string]interface{})
-		}
-
-		if err := json.Unmarshal(metadataBytes, &pattern.Metadata); err != nil {
-			p.logger.Error("Failed to unmarshal metadata", "pattern_id", pattern.ID, "error", err)
-			pattern.Metadata = make(map[string]interface{})
-		}
-
-		pattern.Embeddings = []float64(embeddings)
-		patterns = append(patterns, pattern)
-	}
-
-	return patterns, rows.Err()
+	return p.scanPatterns(rows)
 }
 
 // UpdatePattern updates an existing pattern
@@ -358,60 +367,13 @@ func (p *PatternSQLStorage) SearchPatterns(ctx context.Context, query string, li
 	if err != nil {
 		return nil, fmt.Errorf("failed to search patterns: %w", err)
 	}
-	defer rows.Close()
-
-	var patterns []intelligence.Pattern
-	for rows.Next() {
-		var pattern intelligence.Pattern
-		var signatureBytes, metadataBytes []byte
-		var embeddings pq.Float64Array
-
-		err := rows.Scan(
-			&pattern.ID,
-			&pattern.Type,
-			&pattern.Name,
-			&pattern.Description,
-			&pattern.Category,
-			&signatureBytes,
-			pq.Array(&pattern.Keywords),
-			&pattern.RepositoryURL,
-			pq.Array(&pattern.FilePatterns),
-			&pattern.Language,
-			&pattern.ConfidenceScore,
-			&pattern.ConfidenceLevel,
-			&pattern.ValidationStatus,
-			&pattern.OccurrenceCount,
-			&pattern.PositiveFeedback,
-			&pattern.NegativeFeedback,
-			&pattern.LastSeenAt,
-			&pattern.ParentPatternID,
-			&pattern.EvolutionReason,
-			&pattern.Version,
-			&metadataBytes,
-			&embeddings,
-			&pattern.CreatedAt,
-			&pattern.UpdatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("failed to scan pattern: %w", err)
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
 		}
+	}()
 
-		// Unmarshal JSON fields
-		if err := json.Unmarshal(signatureBytes, &pattern.Signature); err != nil {
-			p.logger.Error("Failed to unmarshal signature", "pattern_id", pattern.ID, "error", err)
-			pattern.Signature = make(map[string]interface{})
-		}
-
-		if err := json.Unmarshal(metadataBytes, &pattern.Metadata); err != nil {
-			p.logger.Error("Failed to unmarshal metadata", "pattern_id", pattern.ID, "error", err)
-			pattern.Metadata = make(map[string]interface{})
-		}
-
-		pattern.Embeddings = []float64(embeddings)
-		patterns = append(patterns, pattern)
-	}
-
-	return patterns, rows.Err()
+	return p.scanPatterns(rows)
 }
 
 // StoreOccurrence stores a pattern occurrence
@@ -471,7 +433,11 @@ func (p *PatternSQLStorage) GetOccurrences(ctx context.Context, patternID string
 	if err != nil {
 		return nil, fmt.Errorf("failed to get occurrences: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
+		}
+	}()
 
 	var occurrences []intelligence.PatternOccurrence
 	for rows.Next() {
@@ -574,7 +540,11 @@ func (p *PatternSQLStorage) GetRelationships(ctx context.Context, patternID stri
 	if err != nil {
 		return nil, fmt.Errorf("failed to get relationships: %w", err)
 	}
-	defer rows.Close()
+	defer func() {
+		if closeErr := rows.Close(); closeErr != nil {
+			fmt.Printf("Warning: failed to close rows: %v\n", closeErr)
+		}
+	}()
 
 	var relationships []intelligence.PatternRelationship
 	for rows.Next() {
@@ -670,134 +640,176 @@ func (p *PatternSQLStorage) UpdateConfidence(ctx context.Context, patternID stri
 func (p *PatternSQLStorage) GetPatternStatistics(ctx context.Context) (map[string]interface{}, error) {
 	stats := make(map[string]interface{})
 
-	// Total patterns by type
-	typeQuery := `
-		SELECT type, COUNT(*) as count 
-		FROM patterns 
-		GROUP BY type`
-
-	rows, err := p.db.QueryContext(ctx, typeQuery)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get type statistics: %w", err)
+	if err := p.addDistributionStatistics(ctx, stats); err != nil {
+		return nil, err
 	}
-	defer rows.Close()
+
+	p.addTotalCounts(ctx, stats)
+	p.addAverageConfidence(ctx, stats)
+
+	if err := p.addTopPatterns(ctx, stats); err != nil {
+		return nil, err
+	}
+
+	return stats, nil
+}
+
+// addDistributionStatistics adds pattern distribution statistics
+func (p *PatternSQLStorage) addDistributionStatistics(ctx context.Context, stats map[string]interface{}) error {
+	if err := p.addPatternsByType(ctx, stats); err != nil {
+		return err
+	}
+
+	if err := p.addPatternsByConfidence(ctx, stats); err != nil {
+		return err
+	}
+
+	if err := p.addPatternsByValidation(ctx, stats); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// addPatternsByType adds patterns by type statistics
+func (p *PatternSQLStorage) addPatternsByType(ctx context.Context, stats map[string]interface{}) error {
+	query := `SELECT type, COUNT(*) as count FROM patterns GROUP BY type`
+
+	rows, err := p.db.QueryContext(ctx, query)
+	if err != nil {
+		return fmt.Errorf("failed to get type statistics: %w", err)
+	}
+	defer p.closeRows(rows, "type stats")
 
 	typeStats := make(map[string]int)
 	for rows.Next() {
 		var patternType string
 		var count int
 		if err := rows.Scan(&patternType, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan type stats: %w", err)
+			return fmt.Errorf("failed to scan type stats: %w", err)
 		}
 		typeStats[patternType] = count
 	}
+
 	stats["patterns_by_type"] = typeStats
+	return nil
+}
 
-	// Confidence level distribution
-	confidenceQuery := `
-		SELECT confidence_level, COUNT(*) as count 
-		FROM patterns 
-		GROUP BY confidence_level`
+// addPatternsByConfidence adds patterns by confidence level statistics
+func (p *PatternSQLStorage) addPatternsByConfidence(ctx context.Context, stats map[string]interface{}) error {
+	query := `SELECT confidence_level, COUNT(*) as count FROM patterns GROUP BY confidence_level`
 
-	rows2, err := p.db.QueryContext(ctx, confidenceQuery)
+	rows, err := p.db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get confidence statistics: %w", err)
+		return fmt.Errorf("failed to get confidence statistics: %w", err)
 	}
-	defer rows2.Close()
+	defer p.closeRows(rows, "confidence stats")
 
 	confidenceStats := make(map[string]int)
-	for rows2.Next() {
+	for rows.Next() {
 		var level string
 		var count int
-		if err := rows2.Scan(&level, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan confidence stats: %w", err)
+		if err := rows.Scan(&level, &count); err != nil {
+			return fmt.Errorf("failed to scan confidence stats: %w", err)
 		}
 		confidenceStats[level] = count
 	}
+
 	stats["patterns_by_confidence"] = confidenceStats
+	return nil
+}
 
-	// Validation status distribution
-	validationQuery := `
-		SELECT validation_status, COUNT(*) as count 
-		FROM patterns 
-		GROUP BY validation_status`
+// addPatternsByValidation adds patterns by validation status statistics
+func (p *PatternSQLStorage) addPatternsByValidation(ctx context.Context, stats map[string]interface{}) error {
+	query := `SELECT validation_status, COUNT(*) as count FROM patterns GROUP BY validation_status`
 
-	rows3, err := p.db.QueryContext(ctx, validationQuery)
+	rows, err := p.db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get validation statistics: %w", err)
+		return fmt.Errorf("failed to get validation statistics: %w", err)
 	}
-	defer rows3.Close()
+	defer p.closeRows(rows, "validation stats")
 
 	validationStats := make(map[string]int)
-	for rows3.Next() {
+	for rows.Next() {
 		var status string
 		var count int
-		if err := rows3.Scan(&status, &count); err != nil {
-			return nil, fmt.Errorf("failed to scan validation stats: %w", err)
+		if err := rows.Scan(&status, &count); err != nil {
+			return fmt.Errorf("failed to scan validation stats: %w", err)
 		}
 		validationStats[status] = count
 	}
+
 	stats["patterns_by_validation"] = validationStats
+	return nil
+}
 
-	// Total counts
-	var totalPatterns, totalOccurrences, totalRelationships int
+// addTotalCounts adds total count statistics
+func (p *PatternSQLStorage) addTotalCounts(ctx context.Context, stats map[string]interface{}) {
+	stats["total_patterns"] = p.getCountSafely(ctx, "SELECT COUNT(*) FROM patterns", "patterns")
+	stats["total_occurrences"] = p.getCountSafely(ctx, "SELECT COUNT(*) FROM pattern_occurrences", "occurrences")
+	stats["total_relationships"] = p.getCountSafely(ctx, "SELECT COUNT(*) FROM pattern_relationships", "relationships")
+}
 
-	err = p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM patterns").Scan(&totalPatterns)
-	if err != nil {
-		p.logger.Error("Failed to count patterns", "error", err)
+// getCountSafely safely gets a count with error logging
+func (p *PatternSQLStorage) getCountSafely(ctx context.Context, query, description string) int {
+	var count int
+	if err := p.db.QueryRowContext(ctx, query).Scan(&count); err != nil {
+		p.logger.Error("Failed to count "+description, "error", err)
+		return 0
 	}
-	stats["total_patterns"] = totalPatterns
+	return count
+}
 
-	err = p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pattern_occurrences").Scan(&totalOccurrences)
-	if err != nil {
-		p.logger.Error("Failed to count occurrences", "error", err)
-	}
-	stats["total_occurrences"] = totalOccurrences
-
-	err = p.db.QueryRowContext(ctx, "SELECT COUNT(*) FROM pattern_relationships").Scan(&totalRelationships)
-	if err != nil {
-		p.logger.Error("Failed to count relationships", "error", err)
-	}
-	stats["total_relationships"] = totalRelationships
-
-	// Average confidence score
+// addAverageConfidence adds average confidence statistics
+func (p *PatternSQLStorage) addAverageConfidence(ctx context.Context, stats map[string]interface{}) {
 	var avgConfidence sql.NullFloat64
-	err = p.db.QueryRowContext(ctx, "SELECT AVG(confidence_score) FROM patterns").Scan(&avgConfidence)
-	if err != nil {
+	if err := p.db.QueryRowContext(ctx, "SELECT AVG(confidence_score) FROM patterns").Scan(&avgConfidence); err != nil {
 		p.logger.Error("Failed to get average confidence", "error", err)
+		return
 	}
+
 	if avgConfidence.Valid {
 		stats["average_confidence"] = avgConfidence.Float64
 	}
+}
 
-	// Top patterns by occurrence count
-	topPatternsQuery := `
+// addTopPatterns adds top patterns statistics
+func (p *PatternSQLStorage) addTopPatterns(ctx context.Context, stats map[string]interface{}) error {
+	query := `
 		SELECT name, occurrence_count, confidence_score 
 		FROM patterns 
 		ORDER BY occurrence_count DESC 
 		LIMIT 10`
 
-	rows4, err := p.db.QueryContext(ctx, topPatternsQuery)
+	rows, err := p.db.QueryContext(ctx, query)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get top patterns: %w", err)
+		return fmt.Errorf("failed to get top patterns: %w", err)
 	}
-	defer rows4.Close()
+	defer p.closeRows(rows, "top patterns")
 
 	var topPatterns []map[string]interface{}
-	for rows4.Next() {
+	for rows.Next() {
 		var name string
 		var occurrences int
 		var confidence float64
-		if err := rows4.Scan(&name, &occurrences, &confidence); err != nil {
-			return nil, fmt.Errorf("failed to scan top patterns: %w", err)
+		if err := rows.Scan(&name, &occurrences, &confidence); err != nil {
+			return fmt.Errorf("failed to scan top patterns: %w", err)
 		}
+
 		topPatterns = append(topPatterns, map[string]interface{}{
 			"name":        name,
 			"occurrences": occurrences,
 			"confidence":  confidence,
 		})
 	}
-	stats["top_patterns"] = topPatterns
 
-	return stats, nil
+	stats["top_patterns"] = topPatterns
+	return nil
+}
+
+// closeRows safely closes database rows with logging
+func (p *PatternSQLStorage) closeRows(rows *sql.Rows, description string) {
+	if closeErr := rows.Close(); closeErr != nil {
+		p.logger.Error("Failed to close rows", "description", description, "error", closeErr)
+	}
 }

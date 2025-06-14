@@ -4,9 +4,12 @@
 # Usage:
 #   Development:  docker-compose --profile dev up
 #   Production:   docker-compose --profile prod up
-#   Monitoring:   docker-compose --profile monitoring up
 #
-# Copy .env.example to .env and configure as needed
+# Configuration:
+#   - Copy .env.example to .env and configure as needed
+#   - All variables from .env are automatically passed to containers via env_file
+#   - Additional environment variables below provide container-specific overrides and defaults
+#   - API keys (OPENAI_API_KEY, CLAUDE_API_KEY, etc.) are passed through automatically
 
 services:
   # Qdrant Vector Database - Core service for all profiles
@@ -26,7 +29,7 @@ services:
       - qdrant_data:/qdrant/storage
     networks:
       - lerian_network
-    profiles: ["dev", "prod", "monitoring"]
+    profiles: ["dev", "prod"]
 
   # Lerian MCP Memory Server - Production version
   lerian-mcp-memory:
@@ -37,7 +40,7 @@ services:
       - qdrant
     ports:
       - "${MCP_HOST_PORT:-9080}:9080"    # MCP API port
-      - "${MCP_HEALTH_PORT:-8081}:8081"  # Health check port
+      - "${MCP_HEALTH_PORT:-9081}:8081"  # Health check port
       - "${MCP_METRICS_PORT:-9082}:8082" # Metrics port (optional)
     env_file:
       - .env
@@ -49,7 +52,33 @@ services:
       - MCP_MEMORY_HTTP_PORT=9080
       - MCP_MEMORY_HEALTH_PORT=8081
       - MCP_MEMORY_METRICS_PORT=8082
+      # Use environment variables from .env file with defaults
       - MCP_MEMORY_LOG_LEVEL=${MCP_MEMORY_LOG_LEVEL:-info}
+      - MCP_MEMORY_HOST=${MCP_MEMORY_HOST:-0.0.0.0}
+      - MCP_MEMORY_CORS_ENABLED=${MCP_MEMORY_CORS_ENABLED:-true}
+      - MCP_MEMORY_CORS_ORIGINS=${MCP_MEMORY_CORS_ORIGINS:-http://localhost:*,https://localhost:*}
+      - MCP_MEMORY_ENCRYPTION_ENABLED=${MCP_MEMORY_ENCRYPTION_ENABLED:-true}
+      - MCP_MEMORY_BACKUP_ENABLED=${MCP_MEMORY_BACKUP_ENABLED:-true}
+      - MCP_MEMORY_EMBEDDING_DIMENSION=${MCP_MEMORY_EMBEDDING_DIMENSION:-1536}
+      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-claude_memory}
+      - RETENTION_DAYS=${RETENTION_DAYS:-90}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      # AI provider configuration
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      # Protocol support
+      - MCP_STDIO_ENABLED=${MCP_STDIO_ENABLED:-true}
+      - MCP_HTTP_ENABLED=${MCP_HTTP_ENABLED:-true}
+      - MCP_WS_ENABLED=${MCP_WS_ENABLED:-true}
+      - MCP_SSE_ENABLED=${MCP_SSE_ENABLED:-true}
+      # Database configuration
+      - MCP_MEMORY_STORAGE_PROVIDER=${MCP_MEMORY_STORAGE_PROVIDER:-qdrant}
+      - MCP_MEMORY_DB_TYPE=${MCP_MEMORY_DB_TYPE:-sqlite}
+      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/app/data/memory.db}
+      # Performance settings
+      - MCP_MEMORY_MAX_CONNECTIONS=${MCP_MEMORY_MAX_CONNECTIONS:-10}
+      - MCP_MEMORY_CONNECTION_TIMEOUT_SECONDS=${MCP_MEMORY_CONNECTION_TIMEOUT_SECONDS:-30}
+      - MCP_MEMORY_QUERY_TIMEOUT_SECONDS=${MCP_MEMORY_QUERY_TIMEOUT_SECONDS:-60}
     volumes:
       - mcp_data:/app/data
       - mcp_logs:/app/logs
@@ -79,11 +108,10 @@ services:
     restart: unless-stopped
     depends_on:
       - qdrant
-      - postgres
     ports:
       - "${MCP_HOST_PORT:-9080}:9080"
-      - "${MCP_HEALTH_PORT:-8081}:8081"
-      - "${MCP_METRICS_PORT:-8082}:8082"
+      - "${MCP_HEALTH_PORT:-9081}:8081"
+      - "${MCP_METRICS_PORT:-9082}:8082"
     env_file:
       - .env
     environment:
@@ -95,19 +123,37 @@ services:
       - MCP_MEMORY_DEV_MODE=true
       - CGO_ENABLED=0
       - GOOS=linux
+      # Use environment variables from .env file with dev overrides
+      - MCP_MEMORY_HOST=${MCP_MEMORY_HOST:-0.0.0.0}
+      - MCP_MEMORY_CORS_ENABLED=${MCP_MEMORY_CORS_ENABLED:-true}
+      - MCP_MEMORY_CORS_ORIGINS=${MCP_MEMORY_CORS_ORIGINS:-*}
+      - MCP_MEMORY_ENCRYPTION_ENABLED=${MCP_MEMORY_ENCRYPTION_ENABLED:-false}
+      - MCP_MEMORY_BACKUP_ENABLED=${MCP_MEMORY_BACKUP_ENABLED:-false}
+      - MCP_MEMORY_EMBEDDING_DIMENSION=${MCP_MEMORY_EMBEDDING_DIMENSION:-1536}
+      - QDRANT_COLLECTION=${QDRANT_COLLECTION:-claude_memory}
+      - RETENTION_DAYS=${RETENTION_DAYS:-90}
+      - LOG_FORMAT=${LOG_FORMAT:-json}
+      # AI provider configuration
+      - AI_PROVIDER=${AI_PROVIDER:-openai}
+      - OPENAI_MODEL=${OPENAI_MODEL:-gpt-4o}
+      # Protocol support
+      - MCP_STDIO_ENABLED=${MCP_STDIO_ENABLED:-true}
+      - MCP_HTTP_ENABLED=${MCP_HTTP_ENABLED:-true}
+      - MCP_WS_ENABLED=${MCP_WS_ENABLED:-true}
+      - MCP_SSE_ENABLED=${MCP_SSE_ENABLED:-true}
       # Database configuration
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_NAME=lerian_mcp_memory
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_SSLMODE=disable
+      - MCP_MEMORY_STORAGE_PROVIDER=${MCP_MEMORY_STORAGE_PROVIDER:-qdrant}
+      - MCP_MEMORY_DB_TYPE=${MCP_MEMORY_DB_TYPE:-sqlite}
+      - SQLITE_DB_PATH=${SQLITE_DB_PATH:-/app/data/memory.db}
+      # Performance settings
+      - MCP_MEMORY_MAX_CONNECTIONS=${MCP_MEMORY_MAX_CONNECTIONS:-10}
+      - MCP_MEMORY_CONNECTION_TIMEOUT_SECONDS=${MCP_MEMORY_CONNECTION_TIMEOUT_SECONDS:-30}
+      - MCP_MEMORY_QUERY_TIMEOUT_SECONDS=${MCP_MEMORY_QUERY_TIMEOUT_SECONDS:-60}
     volumes:
       # Mount source code for hot reload
       - ./cmd:/app/cmd:ro
       - ./internal:/app/internal:ro
       - ./pkg:/app/pkg:ro
-      - ./configs:/app/configs:ro
       - ./go.mod:/app/go.mod:ro
       - ./go.sum:/app/go.sum:ro
       # Persistent data volumes
@@ -125,103 +171,6 @@ services:
       - lerian_network
     profiles: ["dev"]
 
-  # PostgreSQL Database - For development and monitoring
-  postgres:
-    image: postgres:16-alpine
-    container_name: lerian-mcp-memory-postgres
-    restart: unless-stopped
-    environment:
-      - POSTGRES_DB=${POSTGRES_DB:-lerian_mcp_memory}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-      - ./scripts/init-postgres.sql:/docker-entrypoint-initdb.d/init.sql:ro
-    ports:
-      - "${POSTGRES_PORT:-5432}:5432"
-    networks:
-      - lerian_network
-    profiles: ["dev", "monitoring"]
-
-  # Prometheus - Metrics collection
-  prometheus:
-    image: prom/prometheus:latest
-    container_name: lerian-mcp-memory-prometheus
-    restart: unless-stopped
-    ports:
-      - "${PROMETHEUS_PORT:-9090}:9090"
-    volumes:
-      - prometheus_data:/prometheus
-      - ./configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=200h'
-      - '--web.enable-lifecycle'
-    networks:
-      - lerian_network
-    profiles: ["monitoring"]
-
-  # Grafana - Metrics visualization
-  grafana:
-    image: grafana/grafana:latest
-    container_name: lerian-mcp-memory-grafana
-    restart: unless-stopped
-    ports:
-      - "${GRAFANA_PORT:-3000}:3000"
-    environment:
-      - GF_SECURITY_ADMIN_USER=${GRAFANA_USER:-admin}
-      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
-      - GF_USERS_ALLOW_SIGN_UP=false
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./configs/monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
-    depends_on:
-      - prometheus
-    networks:
-      - lerian_network
-    profiles: ["monitoring"]
-
-  # Alertmanager - Alert management
-  alertmanager:
-    image: prom/alertmanager:latest
-    container_name: lerian-mcp-memory-alertmanager
-    restart: unless-stopped
-    ports:
-      - "${ALERTMANAGER_PORT:-9093}:9093"
-    volumes:
-      - alertmanager_data:/alertmanager
-      - ./configs/monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
-    command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
-      - '--cluster.advertise-address=0.0.0.0:9093'
-    networks:
-      - lerian_network
-    profiles: ["monitoring"]
-
-  # Node Exporter - System metrics
-  node-exporter:
-    image: prom/node-exporter:latest
-    container_name: lerian-mcp-memory-node-exporter
-    restart: unless-stopped
-    ports:
-      - "${NODE_EXPORTER_PORT:-9100}:9100"
-    command:
-      - '--path.procfs=/host/proc'
-      - '--path.rootfs=/rootfs'
-      - '--path.sysfs=/host/sys'
-      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
-    volumes:
-      - /proc:/host/proc:ro
-      - /sys:/host/sys:ro
-      - /:/rootfs:ro
-    networks:
-      - lerian_network
-    profiles: ["monitoring"]
 
 # Networks
 networks:
@@ -249,20 +198,3 @@ volumes:
   mcp_backups:
     driver: local
     name: mcp_memory_backups
-
-  # Monitoring data (only for monitoring profile)
-  postgres_data:
-    driver: local
-    name: mcp_memory_postgres_data
-
-  prometheus_data:
-    driver: local
-    name: mcp_memory_prometheus_data
-
-  grafana_data:
-    driver: local
-    name: mcp_memory_grafana_data
-
-  alertmanager_data:
-    driver: local
-    name: mcp_memory_alertmanager_data

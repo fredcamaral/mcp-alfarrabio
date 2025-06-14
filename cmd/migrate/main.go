@@ -17,10 +17,6 @@ import (
 	_ "github.com/lib/pq" // PostgreSQL driver
 )
 
-const (
-	migrationVersion = "1.0.0"
-)
-
 func main() {
 	os.Exit(run())
 }
@@ -58,7 +54,7 @@ func run() int {
 		logger.Fatal("Failed to connect to database", "error", err)
 		return 1
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 
 	// Create migration safety manager
 	safetyManager := migration.NewMigrationSafetyManager(db, *migrationsDir, *backupDir, logger)
@@ -184,12 +180,13 @@ func executePlan(ctx context.Context, safetyManager *migration.MigrationSafetyMa
 	}
 
 	fmt.Printf("\nMigrations to execute:\n")
-	for i, migration := range plan.Migrations {
-		fmt.Printf("  %d. %s (%s)\n", i+1, migration.Name, migration.Version)
+	for i := range plan.Migrations {
+		migrationEntry := &plan.Migrations[i]
+		fmt.Printf("  %d. %s (%s)\n", i+1, migrationEntry.Name, migrationEntry.Version)
 		fmt.Printf("     Risk: %s, Time: %s, Rollback: %t\n",
-			migration.RiskLevel, migration.EstimatedTime.String(), migration.HasRollback)
-		if len(migration.Operations) > 0 {
-			fmt.Printf("     Operations: %v\n", migration.Operations)
+			migrationEntry.RiskLevel, migrationEntry.EstimatedTime.String(), migrationEntry.HasRollback)
+		if len(migrationEntry.Operations) > 0 {
+			fmt.Printf("     Operations: %v\n", migrationEntry.Operations)
 		}
 	}
 
@@ -226,7 +223,7 @@ func executeMigrate(ctx context.Context, safetyManager *migration.MigrationSafet
 	if !force && !dryRun {
 		fmt.Printf("\nProceed with migration? [y/N]: ")
 		var response string
-		fmt.Scanln(&response)
+		_, _ = fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
 			fmt.Println("Migration cancelled")
 			return nil
@@ -301,7 +298,7 @@ func executeRollback(ctx context.Context, safetyManager *migration.MigrationSafe
 		fmt.Printf("\nWARNING: Rollback may cause data loss (Risk: %s)\n", plan.DataLossRisk)
 		fmt.Printf("Proceed with rollback? [y/N]: ")
 		var response string
-		fmt.Scanln(&response)
+		_, _ = fmt.Scanln(&response)
 		if response != "y" && response != "Y" {
 			fmt.Println("Rollback cancelled")
 			return nil

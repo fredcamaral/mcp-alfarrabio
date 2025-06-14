@@ -98,7 +98,11 @@ func TestServer_HandleUpgrade(t *testing.T) {
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
-	defer server.Stop()
+	defer func() {
+		if stopErr := server.Stop(); stopErr != nil {
+			t.Logf("Warning: failed to stop server: %v", stopErr)
+		}
+	}()
 
 	// Give server time to fully start
 	time.Sleep(200 * time.Millisecond)
@@ -140,6 +144,13 @@ func TestServer_HandleUpgrade(t *testing.T) {
 			}
 
 			conn, resp, err := websocket.DefaultDialer.Dial(wsURL+tt.query, header)
+			if resp != nil && resp.Body != nil {
+				defer func() {
+					if closeErr := resp.Body.Close(); closeErr != nil {
+						t.Logf("Warning: failed to close response body: %v", closeErr)
+					}
+				}()
+			}
 			if tt.wantStatus == http.StatusSwitchingProtocols {
 				require.NoError(t, err)
 				assert.NotNil(t, conn)
@@ -152,7 +163,7 @@ func TestServer_HandleUpgrade(t *testing.T) {
 				assert.GreaterOrEqual(t, server.GetConnectionCount(), 1)
 
 				// Try to read welcome message with generous timeout
-				conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+				_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 
 				// Use a separate goroutine to read message to avoid blocking test
 				msgChan := make(chan MemoryEvent, 1)
@@ -181,12 +192,11 @@ func TestServer_HandleUpgrade(t *testing.T) {
 					// Connection established successfully even if welcome message timed out
 				}
 
-				// Close connection
-				conn.Close()
+				// Close connection - error ignored in test cleanup
+				_ = conn.Close()
 
 				// Wait for disconnection to process
 				time.Sleep(100 * time.Millisecond)
-
 			} else {
 				assert.Error(t, err)
 				if resp != nil {
@@ -213,7 +223,11 @@ func TestServer_Authentication(t *testing.T) {
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
-	defer server.Stop()
+	defer func() {
+		if stopErr := server.Stop(); stopErr != nil {
+			t.Logf("Warning: failed to stop server: %v", stopErr)
+		}
+	}()
 
 	// Give server time to fully start
 	time.Sleep(200 * time.Millisecond)
@@ -257,6 +271,9 @@ func TestServer_Authentication(t *testing.T) {
 			}
 
 			conn, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if tt.wantError {
 				assert.Error(t, err)
 				if resp != nil {
@@ -275,7 +292,7 @@ func TestServer_Authentication(t *testing.T) {
 				assert.GreaterOrEqual(t, server.GetConnectionCount(), 1)
 
 				// Try to read welcome message with timeout
-				conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+				_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 				var welcomeMsg MemoryEvent
 				err = conn.ReadJSON(&welcomeMsg)
 				if err != nil {
@@ -284,8 +301,8 @@ func TestServer_Authentication(t *testing.T) {
 					assert.Equal(t, "connection", welcomeMsg.Type)
 				}
 
-				// Close connection
-				conn.Close()
+				// Close connection - error ignored in test cleanup
+				_ = conn.Close()
 				time.Sleep(100 * time.Millisecond)
 			}
 		})
@@ -308,7 +325,11 @@ func TestServer_ConnectionLimit(t *testing.T) {
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
-	defer server.Stop()
+	defer func() {
+		if stopErr := server.Stop(); stopErr != nil {
+			t.Logf("Warning: failed to stop server: %v", stopErr)
+		}
+	}()
 
 	// Give server time to fully start
 	time.Sleep(200 * time.Millisecond)
@@ -319,14 +340,17 @@ func TestServer_ConnectionLimit(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
 
 	// Connect first client
-	conn1, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn1, resp1, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp1 != nil && resp1.Body != nil {
+		defer func() { _ = resp1.Body.Close() }()
+	}
 	require.NoError(t, err)
 
 	// Give connection time to establish and hub to register
 	time.Sleep(150 * time.Millisecond)
 
 	// Try to read welcome message for first client (with timeout)
-	conn1.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn1.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var msg1 MemoryEvent
 	err = conn1.ReadJSON(&msg1)
 	if err != nil {
@@ -336,14 +360,17 @@ func TestServer_ConnectionLimit(t *testing.T) {
 	}
 
 	// Connect second client
-	conn2, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn2, resp2, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp2 != nil && resp2.Body != nil {
+		defer func() { _ = resp2.Body.Close() }()
+	}
 	require.NoError(t, err)
 
 	// Give connection time to establish
 	time.Sleep(150 * time.Millisecond)
 
 	// Try to read welcome message for second client (with timeout)
-	conn2.SetReadDeadline(time.Now().Add(2 * time.Second))
+	_ = conn2.SetReadDeadline(time.Now().Add(2 * time.Second))
 	var msg2 MemoryEvent
 	err = conn2.ReadJSON(&msg2)
 	if err != nil {
@@ -360,14 +387,17 @@ func TestServer_ConnectionLimit(t *testing.T) {
 
 	// Try to connect third client (should fail due to limit)
 	_, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	assert.Error(t, err)
 	if resp != nil {
 		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 	}
 
-	// Close connections in order
-	conn1.Close()
-	conn2.Close()
+	// Close connections in order - errors ignored in test cleanup
+	_ = conn1.Close()
+	_ = conn2.Close()
 
 	// Wait for connections to close properly
 	time.Sleep(200 * time.Millisecond)
@@ -385,7 +415,11 @@ func TestServer_MessageBroadcast(t *testing.T) {
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
-	defer server.Stop()
+	defer func() {
+		if stopErr := server.Stop(); stopErr != nil {
+			t.Logf("Warning: failed to stop server: %v", stopErr)
+		}
+	}()
 
 	// Give server time to fully start
 	time.Sleep(200 * time.Millisecond)
@@ -396,13 +430,16 @@ func TestServer_MessageBroadcast(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
 
 	// Connect client
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL+"?repository=test-repo", nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL+"?repository=test-repo", nil)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	require.NoError(t, err)
 
 	// Establish stable connection by waiting for welcome message or timeout
 	connEstablished := make(chan bool, 1)
 	go func() {
-		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 		var welcomeMsg MemoryEvent
 		err := conn.ReadJSON(&welcomeMsg)
 		if err != nil {
@@ -443,7 +480,7 @@ func TestServer_MessageBroadcast(t *testing.T) {
 
 	// Receive broadcast with generous timeout and better error handling
 	var receivedEvent MemoryEvent
-	conn.SetReadDeadline(time.Now().Add(10 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(10 * time.Second))
 	err = conn.ReadJSON(&receivedEvent)
 	if err != nil {
 		// If broadcast fails, it might be due to timing - this is acceptable for this test
@@ -457,8 +494,8 @@ func TestServer_MessageBroadcast(t *testing.T) {
 		assert.Equal(t, testEvent.Content, receivedEvent.Content)
 	}
 
-	// Close connection
-	conn.Close()
+	// Close connection - error ignored in test cleanup
+	_ = conn.Close()
 
 	// Wait for connection to close properly
 	time.Sleep(200 * time.Millisecond)
@@ -476,7 +513,11 @@ func TestServer_ClientMessages(t *testing.T) {
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
-	defer server.Stop()
+	defer func() {
+		if stopErr := server.Stop(); stopErr != nil {
+			t.Logf("Warning: failed to stop server: %v", stopErr)
+		}
+	}()
 
 	// Give server time to fully start
 	time.Sleep(200 * time.Millisecond)
@@ -487,13 +528,16 @@ func TestServer_ClientMessages(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
 
 	// Connect client
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	require.NoError(t, err)
 
 	// Try to establish stable connection
 	connEstablished := make(chan bool, 1)
 	go func() {
-		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 		var welcomeMsg MemoryEvent
 		err := conn.ReadJSON(&welcomeMsg)
 		if err != nil {
@@ -532,7 +576,7 @@ func TestServer_ClientMessages(t *testing.T) {
 
 	// Receive pong
 	var pongMsg MemoryEvent
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	err = conn.ReadJSON(&pongMsg)
 	if err != nil {
 		t.Logf("Pong receive failed (may be timing-related): %v", err)
@@ -580,7 +624,7 @@ func TestServer_ClientMessages(t *testing.T) {
 
 	// Try to receive the broadcast event
 	var event MemoryEvent
-	conn.SetReadDeadline(time.Now().Add(5 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 	err = conn.ReadJSON(&event)
 	if err != nil {
 		t.Logf("Broadcast receive failed (may be timing-related): %v", err)
@@ -589,8 +633,8 @@ func TestServer_ClientMessages(t *testing.T) {
 		assert.Equal(t, "new-repo", event.Repository)
 	}
 
-	// Close connection
-	conn.Close()
+	// Close connection - error ignored in test cleanup
+	_ = conn.Close()
 
 	// Wait for connection to close properly
 	time.Sleep(200 * time.Millisecond)
@@ -610,7 +654,11 @@ func TestServer_Heartbeat(t *testing.T) {
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
-	defer server.Stop()
+	defer func() {
+		if stopErr := server.Stop(); stopErr != nil {
+			t.Logf("Warning: failed to stop server: %v", stopErr)
+		}
+	}()
 
 	// Give server time to fully start
 	time.Sleep(200 * time.Millisecond)
@@ -621,15 +669,18 @@ func TestServer_Heartbeat(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
 
 	// Connect client
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Give connection time to establish and hub to register
 	time.Sleep(150 * time.Millisecond)
 
 	// Try to read welcome message
-	conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+	_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 	var welcomeMsg MemoryEvent
 	err = conn.ReadJSON(&welcomeMsg)
 	if err != nil {
@@ -640,13 +691,13 @@ func TestServer_Heartbeat(t *testing.T) {
 
 	// Wait for heartbeat with generous timeout
 	heartbeatReceived := false
-	
+
 	// Set up goroutine to read messages
 	heartbeatChan := make(chan bool, 1)
 	errorChan := make(chan error, 1)
 
 	go func() {
-		conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 		for i := 0; i < 15; i++ {
 			var msg MemoryEvent
 			err := conn.ReadJSON(&msg)
@@ -683,8 +734,8 @@ func TestServer_Heartbeat(t *testing.T) {
 		t.Log("No heartbeat received, but connection appears stable (test passes)")
 	}
 
-	// Close connection
-	conn.Close()
+	// Close connection - error ignored in test cleanup
+	_ = conn.Close()
 
 	// Wait for connection to close properly
 	time.Sleep(200 * time.Millisecond)
@@ -701,7 +752,11 @@ func TestServer_Metrics(t *testing.T) {
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
-	defer server.Stop()
+	defer func() {
+		if stopErr := server.Stop(); stopErr != nil {
+			t.Logf("Warning: failed to stop server: %v", stopErr)
+		}
+	}()
 
 	// Give server time to fully start
 	time.Sleep(200 * time.Millisecond)
@@ -717,13 +772,16 @@ func TestServer_Metrics(t *testing.T) {
 	wsURL := "ws" + strings.TrimPrefix(ts.URL, "http")
 
 	// Connect client
-	conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	require.NoError(t, err)
 
 	// Try to establish stable connection
 	connEstablished := make(chan bool, 1)
 	go func() {
-		conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+		_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 		var welcomeMsg MemoryEvent
 		err := conn.ReadJSON(&welcomeMsg)
 		if err != nil {
@@ -748,8 +806,8 @@ func TestServer_Metrics(t *testing.T) {
 	} else {
 		assert.GreaterOrEqual(t, connCount, 1, "Should have at least 1 connection registered")
 
-		// Close connection
-		conn.Close()
+		// Close connection - error ignored in test cleanup
+		_ = conn.Close()
 
 		// Allow time for disconnection to process with retry logic
 		for i := 0; i < 10; i++ {
@@ -813,7 +871,11 @@ func TestServer_CORS(t *testing.T) {
 			// Start server
 			err := server.Start()
 			require.NoError(t, err)
-			defer server.Stop()
+			defer func() {
+				if stopErr := server.Stop(); stopErr != nil {
+					t.Logf("Warning: failed to stop server: %v", stopErr)
+				}
+			}()
 
 			// Give server time to fully start
 			time.Sleep(150 * time.Millisecond)
@@ -830,17 +892,20 @@ func TestServer_CORS(t *testing.T) {
 				header.Set("Origin", tt.origin)
 			}
 
-			conn, _, err := websocket.DefaultDialer.Dial(wsURL, header)
+			conn, resp, err := websocket.DefaultDialer.Dial(wsURL, header)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if tt.shouldConnect {
 				require.NoError(t, err)
 				assert.NotNil(t, conn)
-				defer conn.Close()
+				defer func() { _ = conn.Close() }()
 
 				// Give connection time to establish
 				time.Sleep(100 * time.Millisecond)
 
 				// Try to read welcome message
-				conn.SetReadDeadline(time.Now().Add(2 * time.Second))
+				_ = conn.SetReadDeadline(time.Now().Add(2 * time.Second))
 				var welcomeMsg MemoryEvent
 				err = conn.ReadJSON(&welcomeMsg)
 				if err != nil {
@@ -865,7 +930,11 @@ func TestServer_ConcurrentConnections(t *testing.T) {
 	// Start server
 	err := server.Start()
 	require.NoError(t, err)
-	defer server.Stop()
+	defer func() {
+		if stopErr := server.Stop(); stopErr != nil {
+			t.Logf("Warning: failed to stop server: %v", stopErr)
+		}
+	}()
 
 	// Give server time to fully start
 	time.Sleep(200 * time.Millisecond)
@@ -893,7 +962,10 @@ func TestServer_ConcurrentConnections(t *testing.T) {
 			// Add small stagger to avoid overwhelming the server
 			time.Sleep(time.Duration(id*50) * time.Millisecond)
 
-			conn, _, err := websocket.DefaultDialer.Dial(wsURL, nil)
+			conn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if err != nil {
 				t.Logf("Client %d failed to connect (may be timing-related): %v", id, err)
 				done <- false
@@ -909,7 +981,7 @@ func TestServer_ConcurrentConnections(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 
 			// Try to read welcome message
-			conn.SetReadDeadline(time.Now().Add(3 * time.Second))
+			_ = conn.SetReadDeadline(time.Now().Add(3 * time.Second))
 			var msg MemoryEvent
 			err = conn.ReadJSON(&msg)
 			if err != nil {
@@ -934,8 +1006,8 @@ func TestServer_ConcurrentConnections(t *testing.T) {
 				// Ping failure is acceptable in concurrent tests
 			}
 
-			// Close the connection
-			conn.Close()
+			// Close the connection - error ignored in test cleanup
+			_ = conn.Close()
 			done <- true
 		}(i)
 	}
@@ -958,10 +1030,10 @@ func TestServer_ConcurrentConnections(t *testing.T) {
 	// Perfect success rate is nice but not required due to timing challenges
 	assert.GreaterOrEqual(t, successCount, numClients-1, "Most clients should connect successfully")
 
-	// Close any remaining connections
+	// Close any remaining connections - errors ignored in test cleanup
 	connectionsMutex.Lock()
 	for _, conn := range connections {
-		conn.Close()
+		_ = conn.Close()
 	}
 	connectionsMutex.Unlock()
 

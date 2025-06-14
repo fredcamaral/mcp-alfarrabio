@@ -57,7 +57,7 @@ Commands:
 
 Options:
     -e, --env FILE        Environment file (default: .env.production)
-    -c, --config DIR      Configuration directory (default: configs/production)
+    -c, --config DIR      Configuration directory (deprecated - ignored, using .env file)
     -v, --version TAG     Docker image tag to deploy (default: latest)
     -f, --force           Force deployment without confirmations
     -d, --dry-run         Show what would be done without executing
@@ -77,7 +77,7 @@ EOF
 
 # Default values
 ENV_FILE=".env.production"
-CONFIG_DIR="configs/production"
+CONFIG_DIR=""  # deprecated - ignored, using .env file instead
 IMAGE_TAG="latest"
 FORCE=false
 DRY_RUN=false
@@ -94,7 +94,7 @@ parse_args() {
                 shift 2
                 ;;
             -c|--config)
-                CONFIG_DIR="$2"
+                log_warning "--config option is deprecated and ignored, using .env file instead"
                 shift 2
                 ;;
             -v|--version)
@@ -167,11 +167,7 @@ check_prerequisites() {
         exit 1
     fi
     
-    # Check configuration directory
-    if [[ ! -d "${PROJECT_DIR}/${CONFIG_DIR}" ]]; then
-        log_error "Configuration directory not found: ${CONFIG_DIR}"
-        exit 1
-    fi
+    # Configuration directory check removed - using .env file only
     
     # Create necessary directories
     mkdir -p "${DATA_DIR}" "${LOG_DIR}" "${BACKUP_DIR}"
@@ -264,9 +260,10 @@ create_backup() {
         docker exec "${COMPOSE_PROJECT_NAME}_postgres_1" pg_dump -U "${POSTGRES_USER}" "${POSTGRES_DB}" > "${backup_path}/postgres_dump.sql"
     fi
     
-    # Backup configurations
+    # Backup configurations (now only .env files)
     log_info "Backing up configurations..."
-    cp -r "${PROJECT_DIR}/${CONFIG_DIR}" "${backup_path}/configs"
+    mkdir -p "${backup_path}/configs"
+    cp "${PROJECT_DIR}/.env"* "${backup_path}/configs/" 2>/dev/null || log_warning "No .env files found to backup"
     
     # Backup data directories (excluding large files)
     log_info "Backing up critical data..."
@@ -280,7 +277,7 @@ create_backup() {
     "deployment_id": "${DEPLOYMENT_ID}",
     "image_tag": "${IMAGE_TAG}",
     "environment": "${ENV_FILE}",
-    "config_dir": "${CONFIG_DIR}"
+    "config_source": ".env file"
 }
 EOF
     
@@ -300,7 +297,7 @@ deploy_services() {
     if [[ "$DRY_RUN" == true ]]; then
         log_info "[DRY RUN] Would deploy services with configuration:"
         log_info "  - Environment: $ENV_FILE"
-        log_info "  - Config Dir: $CONFIG_DIR"
+        log_info "  - Config: .env file only"
         log_info "  - Image Tag: $IMAGE_TAG"
         log_info "  - Monitoring: $INCLUDE_MONITORING"
         return 0
@@ -440,7 +437,9 @@ rollback_deployment() {
     tar -xzf "$backup_file" -C "${BACKUP_DIR}"
     
     # Restore configurations
-    cp -r "${BACKUP_DIR}/${backup_name}/configs" "${PROJECT_DIR}/"
+    if [[ -d "${BACKUP_DIR}/${backup_name}/configs" ]]; then
+        cp "${BACKUP_DIR}/${backup_name}/configs/".env* "${PROJECT_DIR}/" 2>/dev/null || log_warning "No .env files to restore"
+    fi
     
     # Restore critical data
     rsync -av "${BACKUP_DIR}/${backup_name}/data/" "${DATA_DIR}/"
@@ -481,7 +480,7 @@ main() {
     parse_args "$@"
     
     log_info "Starting deployment script with command: $COMMAND"
-    log_info "Configuration: env=$ENV_FILE, config=$CONFIG_DIR, tag=$IMAGE_TAG"
+    log_info "Configuration: env=$ENV_FILE, tag=$IMAGE_TAG"
     
     case "$COMMAND" in
         deploy)

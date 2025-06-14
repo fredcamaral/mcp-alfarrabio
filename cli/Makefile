@@ -60,10 +60,13 @@ test-perf: build ## Run performance tests
 
 test-all: test test-integration test-e2e ## Run all tests
 
-install: build ## Install the binary to GOPATH/bin
+install: build ## Install the binary and setup configuration
 	@echo "Installing $(BINARY_NAME)..."
 	@cp $(BUILD_DIR)/$(BINARY_NAME) $(GOPATH)/bin/
-	@echo "Installed to $(GOPATH)/bin/$(BINARY_NAME)"
+	@echo "✓ Binary installed to $(GOPATH)/bin/$(BINARY_NAME)"
+	@echo ""
+	@echo "Setting up configuration..."
+	@./scripts/install-config.sh
 
 uninstall: ## Uninstall the binary from GOPATH/bin
 	@echo "Uninstalling $(BINARY_NAME)..."

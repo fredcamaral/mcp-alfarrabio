@@ -20,7 +20,7 @@ func NewClaudeAdapter(cfg *config.ClaudeClientConfig) (*ClaudeAdapter, error) {
 	// Use API key from config or environment
 	apiKey := cfg.APIKey
 	if apiKey == "" {
-		return nil, fmt.Errorf("Claude API key is required")
+		return nil, fmt.Errorf("claude API key is required")
 	}
 
 	// Use base URL from config or default
@@ -80,7 +80,7 @@ func (a *ClaudeAdapter) ProcessRequest(ctx context.Context, req *Request) (*Resp
 
 	// Execute the request
 	startTime := time.Now()
-	resp, err := a.client.Complete(ctx, completionReq)
+	resp, err := a.client.Complete(ctx, &completionReq)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +136,7 @@ func (a *ClaudeAdapter) IsHealthy(ctx context.Context) error {
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	_, err := a.client.Complete(ctx, req)
+	_, err := a.client.Complete(ctx, &req)
 	return err
 }
 

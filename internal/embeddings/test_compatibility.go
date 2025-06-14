@@ -3,7 +3,6 @@ package embeddings
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"time"
 
@@ -124,22 +123,9 @@ func (s *CompatibilityService) GetCacheStats() map[string]interface{} {
 	return result
 }
 
-// GenerateEmbedding generates embeddings for given text (with optional context)
-func (s *CompatibilityService) GenerateEmbedding(args ...interface{}) ([]float64, error) {
-	if len(args) == 1 {
-		// Single argument: text only
-		if text, ok := args[0].(string); ok {
-			return s.Generate(nil, text)
-		}
-	} else if len(args) == 2 {
-		// Two arguments: context and text
-		if ctx, ok := args[0].(context.Context); ok {
-			if text, ok := args[1].(string); ok {
-				return s.Generate(ctx, text)
-			}
-		}
-	}
-	return nil, fmt.Errorf("invalid arguments to GenerateEmbedding")
+// GenerateEmbedding generates embeddings for given text with context
+func (s *CompatibilityService) GenerateEmbedding(ctx context.Context, text string) ([]float64, error) {
+	return s.Generate(ctx, text)
 }
 
 // GenerateBatchEmbeddings generates embeddings for multiple texts

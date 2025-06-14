@@ -225,7 +225,7 @@ func (g *DocsGenerator) generateDocumentation(format string) error {
 	}
 
 	// Create output directory
-	if err := os.MkdirAll(g.outputDir, 0755); err != nil {
+	if err := os.MkdirAll(g.outputDir, 0750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -256,7 +256,7 @@ func (g *DocsGenerator) generateDocumentation(format string) error {
 
 	// Write to file
 	outputPath := filepath.Join(g.outputDir, filename)
-	if err := os.WriteFile(outputPath, data, 0644); err != nil {
+	if err := os.WriteFile(outputPath, data, 0600); err != nil {
 		return fmt.Errorf("failed to write file: %w", err)
 	}
 
@@ -588,7 +588,7 @@ func (g *DocsGenerator) getSchemaTypeFromFlag(flag *pflag.Flag) string {
 func (g *DocsGenerator) generateHTMLDocs(spec *OpenAPISpec) error {
 	htmlPath := filepath.Join(g.outputDir, "index.html")
 	html := g.generateSwaggerUI()
-	return os.WriteFile(htmlPath, []byte(html), 0644)
+	return os.WriteFile(htmlPath, []byte(html), 0600)
 }
 
 func (g *DocsGenerator) generateSwaggerUI() string {
@@ -650,7 +650,18 @@ func (g *DocsGenerator) serveDocumentation(autoRefresh bool) error {
 	}
 
 	fmt.Println("Press Ctrl+C to stop server")
-	return http.ListenAndServe(":"+g.serverPort, nil)
+
+	// Create HTTP server with timeouts for security
+	server := &http.Server{
+		Addr:           ":" + g.serverPort,
+		Handler:        nil,
+		ReadTimeout:    15 * time.Second,
+		WriteTimeout:   15 * time.Second,
+		IdleTimeout:    60 * time.Second,
+		MaxHeaderBytes: 1 << 20, // 1 MB
+	}
+
+	return server.ListenAndServe()
 }
 
 func (g *DocsGenerator) validateDocumentation() error {

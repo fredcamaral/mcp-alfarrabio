@@ -4,6 +4,7 @@ package testing
 import (
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -151,7 +152,7 @@ func NewTestSuite(config *TestConfig) *TestSuite {
 		config = DefaultTestConfig()
 	}
 
-	suite := &TestSuite{
+	testSuite := &TestSuite{
 		config:      config,
 		cleanup:     make([]func(), 0),
 		testData:    NewTestDataManager(config),
@@ -160,7 +161,7 @@ func NewTestSuite(config *TestConfig) *TestSuite {
 		performance: NewPerformanceTracker(config.PerformanceThresholds),
 	}
 
-	return suite
+	return testSuite
 }
 
 // SetupSuite initializes the test suite
@@ -176,7 +177,7 @@ func (ts *TestSuite) SetupSuite() {
 	}
 
 	// Initialize fixtures
-	ts.fixtures.LoadAll()
+	_ = ts.fixtures.LoadAll()
 
 	// Setup performance tracking
 	if ts.config.EnablePerformanceTracking {
@@ -196,7 +197,7 @@ func (ts *TestSuite) TearDownSuite() {
 
 	// Cleanup database
 	if ts.db != nil {
-		ts.db.Close()
+		_ = ts.db.Close()
 	}
 
 	// Stop performance tracking
@@ -306,7 +307,7 @@ func (ts *TestSuite) CreateTempDir(pattern string) string {
 	ts.Require().NoError(err)
 
 	ts.AddCleanup(func() {
-		os.RemoveAll(dir)
+		_ = os.RemoveAll(dir)
 	})
 
 	return dir
@@ -558,7 +559,7 @@ func (jfs *JSONFixtureSource) List() ([]string, error) {
 		return nil, err
 	}
 
-	var names []string
+	names := make([]string, 0, len(files))
 	for _, file := range files {
 		base := filepath.Base(file)
 		name := base[:len(base)-5] // Remove .json extension
@@ -597,7 +598,7 @@ func (yfs *YAMLFixtureSource) List() ([]string, error) {
 		return nil, err
 	}
 
-	var names []string
+	names := make([]string, 0, len(files))
 	for _, file := range files {
 		base := filepath.Base(file)
 		name := base[:len(base)-5] // Remove .yaml extension
@@ -639,11 +640,24 @@ func (pt *PerformanceTracker) StartTest(testName string) {
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
 
+	// Safe conversion with overflow check
+	var memUsage, allocations int64
+	if m.Alloc > math.MaxInt64 {
+		memUsage = math.MaxInt64
+	} else {
+		memUsage = int64(m.Alloc)
+	}
+	if m.Mallocs > math.MaxInt64 {
+		allocations = math.MaxInt64
+	} else {
+		allocations = int64(m.Mallocs)
+	}
+
 	pt.metrics[testName] = &TestMetrics{
 		TestName:    testName,
 		StartTime:   time.Now(),
-		MemoryUsage: int64(m.Alloc),
-		Allocations: int64(m.Mallocs),
+		MemoryUsage: memUsage,
+		Allocations: allocations,
 	}
 }
 
@@ -662,8 +676,22 @@ func (pt *PerformanceTracker) EndTest(testName string, success bool) {
 
 	metric.EndTime = time.Now()
 	metric.Duration = metric.EndTime.Sub(metric.StartTime)
-	metric.MemoryUsage = int64(m.Alloc) - metric.MemoryUsage
-	metric.Allocations = int64(m.Mallocs) - metric.Allocations
+
+	// Safe conversion with overflow check
+	var currentMem, currentAllocs int64
+	if m.Alloc > math.MaxInt64 {
+		currentMem = math.MaxInt64
+	} else {
+		currentMem = int64(m.Alloc)
+	}
+	if m.Mallocs > math.MaxInt64 {
+		currentAllocs = math.MaxInt64
+	} else {
+		currentAllocs = int64(m.Mallocs)
+	}
+
+	metric.MemoryUsage = currentMem - metric.MemoryUsage
+	metric.Allocations = currentAllocs - metric.Allocations
 	metric.Success = success
 }
 

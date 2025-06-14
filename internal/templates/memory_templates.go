@@ -2046,13 +2046,42 @@ func (tm *TemplateManager) createSecurityAnalysisTemplate() *MemoryTemplate {
 	}
 }
 
-func (tm *TemplateManager) createPerformanceAnalysisTemplate() *MemoryTemplate {
+// analysisTemplateConfig provides a configuration structure for analysis templates
+type analysisTemplateConfig struct {
+	ID             string
+	Name           string
+	Description    string
+	RequiredFields []TemplateField
+	OptionalFields []TemplateField
+	AutoTags       []string
+	Category       string
+}
+
+// buildAnalysisTemplate builds an analysis template from configuration
+func (tm *TemplateManager) buildAnalysisTemplate(config *analysisTemplateConfig) *MemoryTemplate {
 	return &MemoryTemplate{
+		ID:             config.ID,
+		Name:           config.Name,
+		Description:    config.Description,
+		Version:        "1.0",
+		ChunkType:      types.ChunkTypeAnalysis,
+		RequiredFields: config.RequiredFields,
+		OptionalFields: config.OptionalFields,
+		AutoTags:       config.AutoTags,
+		DefaultMetadata: map[string]interface{}{
+			"analysis_type": config.Category,
+			"category":      "infrastructure",
+		},
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
+	}
+}
+
+func (tm *TemplateManager) createPerformanceAnalysisTemplate() *MemoryTemplate {
+	config := analysisTemplateConfig{
 		ID:          "performance_analysis",
 		Name:        "Performance Optimization Analysis",
 		Description: "Performance profiling and optimization recommendations",
-		Version:     "1.0",
-		ChunkType:   types.ChunkTypeAnalysis,
 		RequiredFields: []TemplateField{
 			{
 				Name:        "performance_metrics",
@@ -2096,22 +2125,17 @@ func (tm *TemplateManager) createPerformanceAnalysisTemplate() *MemoryTemplate {
 			},
 		},
 		AutoTags: []string{"performance", "optimization", "analysis"},
-		DefaultMetadata: map[string]interface{}{
-			"analysis_type": "performance_analysis",
-			"category":      "infrastructure",
-		},
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		Category: "infrastructure",
 	}
+
+	return tm.buildAnalysisTemplate(&config)
 }
 
 func (tm *TemplateManager) createCodeQualityTemplate() *MemoryTemplate {
-	return &MemoryTemplate{
+	config := analysisTemplateConfig{
 		ID:          "code_quality",
 		Name:        "Code Quality Assessment",
 		Description: "Code quality analysis with maintainability and technical debt assessment",
-		Version:     "1.0",
-		ChunkType:   types.ChunkTypeAnalysis,
 		RequiredFields: []TemplateField{
 			{
 				Name:        "quality_score",
@@ -2159,22 +2183,17 @@ func (tm *TemplateManager) createCodeQualityTemplate() *MemoryTemplate {
 			},
 		},
 		AutoTags: []string{"code-quality", "refactoring", "technical-debt"},
-		DefaultMetadata: map[string]interface{}{
-			"analysis_type": "code_quality",
-			"category":      "maintainability",
-		},
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		Category: "maintainability",
 	}
+
+	return tm.buildAnalysisTemplate(&config)
 }
 
 func (tm *TemplateManager) createAPIAnalysisTemplate() *MemoryTemplate {
-	return &MemoryTemplate{
+	config := analysisTemplateConfig{
 		ID:          "api_analysis",
 		Name:        "API Contract Analysis",
 		Description: "API design analysis with contract consistency and documentation assessment",
-		Version:     "1.0",
-		ChunkType:   types.ChunkTypeAnalysis,
 		RequiredFields: []TemplateField{
 			{
 				Name:        "endpoint_inventory",
@@ -2218,22 +2237,17 @@ func (tm *TemplateManager) createAPIAnalysisTemplate() *MemoryTemplate {
 			},
 		},
 		AutoTags: []string{"api", "documentation", "consistency"},
-		DefaultMetadata: map[string]interface{}{
-			"analysis_type": "api_analysis",
-			"category":      "interface",
-		},
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		Category: "interface",
 	}
+
+	return tm.buildAnalysisTemplate(&config)
 }
 
 func (tm *TemplateManager) createDatabaseOptimizationTemplate() *MemoryTemplate {
-	return &MemoryTemplate{
+	config := analysisTemplateConfig{
 		ID:          "database_optimization",
 		Name:        "Database Optimization Analysis",
 		Description: "Database performance analysis with query optimization and schema recommendations",
-		Version:     "1.0",
-		ChunkType:   types.ChunkTypeAnalysis,
 		RequiredFields: []TemplateField{
 			{
 				Name:        "schema_analysis",
@@ -2277,13 +2291,10 @@ func (tm *TemplateManager) createDatabaseOptimizationTemplate() *MemoryTemplate 
 			},
 		},
 		AutoTags: []string{"database", "optimization", "performance"},
-		DefaultMetadata: map[string]interface{}{
-			"analysis_type": "database_optimization",
-			"category":      "data",
-		},
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		Category: "data",
 	}
+
+	return tm.buildAnalysisTemplate(&config)
 }
 
 func (tm *TemplateManager) createProductionReadinessTemplate() *MemoryTemplate {

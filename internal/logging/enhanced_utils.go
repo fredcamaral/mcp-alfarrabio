@@ -2,6 +2,7 @@ package logging
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	mcperrors "lerian-mcp-memory/internal/errors"
@@ -31,7 +32,7 @@ func NewEnhancedLogger(component string) *EnhancedLogger {
 // WithContext creates a logger with context information
 func (l *EnhancedLogger) WithContext(ctx context.Context) *EnhancedLogger {
 	traceID := getTraceIDFromContext(ctx)
-	newLogger := l.Logger.WithTraceID(traceID)
+	newLogger := l.WithTraceID(traceID)
 
 	return &EnhancedLogger{
 		Logger:    newLogger,
@@ -46,7 +47,8 @@ func (l *EnhancedLogger) WithError(err error) *EnhancedLogger {
 	}
 
 	// If it's an enhanced error, extract additional information
-	if enhancedErr, ok := err.(*mcperrors.EnhancedError); ok {
+	var enhancedErr *mcperrors.EnhancedError
+	if errors.As(err, &enhancedErr) {
 		// For now, log basic error information
 		// This could be extended to use the enhanced error context
 		l.Error("Enhanced error occurred",

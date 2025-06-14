@@ -6,9 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
-	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -459,19 +457,4 @@ func (qo *QueryOptimizer) GetOptimizationReport() map[string]interface{} {
 			"query_rewrites":    qo.stats.QueryRewrites,
 		},
 	}
-}
-
-// getEnvBool gets a boolean environment variable with a default value
-func getEnvBool(key string, defaultValue bool) bool {
-	value := os.Getenv(key)
-	if value == "" {
-		return defaultValue
-	}
-
-	boolValue, err := strconv.ParseBool(value)
-	if err != nil {
-		return defaultValue
-	}
-
-	return boolValue
 }

@@ -12,6 +12,8 @@ import (
 	"lerian-mcp-memory/pkg/types"
 
 	"github.com/google/uuid"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 )
 
 // TemplateEngine handles template instantiation and task generation
@@ -28,8 +30,9 @@ func NewTemplateEngine() *TemplateEngine {
 	}
 
 	// Load builtin templates
-	for _, tmpl := range GetBuiltinTemplates() {
-		engine.templates[tmpl.ID] = tmpl
+	builtinTemplates := GetBuiltinTemplates()
+	for i := range builtinTemplates {
+		engine.templates[builtinTemplates[i].ID] = builtinTemplates[i]
 	}
 
 	return engine
@@ -38,7 +41,7 @@ func NewTemplateEngine() *TemplateEngine {
 // createTemplateFuncMap creates custom functions for template processing
 func createTemplateFuncMap() template.FuncMap {
 	return template.FuncMap{
-		"title":     strings.Title,
+		"title":     cases.Title(language.English, cases.NoLower).String,
 		"upper":     strings.ToUpper,
 		"lower":     strings.ToLower,
 		"replace":   strings.ReplaceAll,
@@ -184,7 +187,7 @@ func (te *TemplateEngine) validateVariables(tmpl *BuiltinTemplate, variables map
 			}
 
 			// Type validation
-			if err := te.validateVariableType(variable, value); err != nil {
+			if err := te.validateVariableType(&variable, value); err != nil {
 				errors = append(errors, fmt.Sprintf("variable '%s': %v", variable.Name, err))
 			}
 		}
@@ -207,7 +210,7 @@ func (te *TemplateEngine) validateVariables(tmpl *BuiltinTemplate, variables map
 }
 
 // validateVariableType validates the type of a variable value
-func (te *TemplateEngine) validateVariableType(variable TemplateVariable, value interface{}) error {
+func (te *TemplateEngine) validateVariableType(variable *TemplateVariable, value interface{}) error {
 	switch variable.Type {
 	case "string":
 		str, ok := value.(string)
@@ -253,39 +256,37 @@ func (te *TemplateEngine) validateVariableType(variable TemplateVariable, value 
 }
 
 // generateTasks creates tasks from template with variable substitution
-func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInstantiationRequest) ([]GeneratedTask, []string, []string) {
-	var tasks []GeneratedTask
-	var warnings []string
-	var errors []string
+func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInstantiationRequest) (tasks []GeneratedTask, warnings, errors []string) {
+	tasks = make([]GeneratedTask, 0, len(tmpl.Tasks))
 
 	// Create task ID mapping for dependency resolution
 	taskNameToID := make(map[string]string)
 
 	// First pass: create tasks with basic info
-	for _, templateTask := range tmpl.Tasks {
+	for i := range tmpl.Tasks {
 		taskID := uuid.New().String()
-		taskNameToID[templateTask.Name] = taskID
+		taskNameToID[tmpl.Tasks[i].Name] = taskID
 
 		// Process template strings
-		name, err := te.processTemplateString(templateTask.Name, req.Variables)
+		name, err := te.processTemplateString(tmpl.Tasks[i].Name, req.Variables)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error processing task name '%s': %v", templateTask.Name, err))
+			errors = append(errors, fmt.Sprintf("error processing task name '%s': %v", tmpl.Tasks[i].Name, err))
 			continue
 		}
 
-		description, err := te.processTemplateString(templateTask.Description, req.Variables)
+		description, err := te.processTemplateString(tmpl.Tasks[i].Description, req.Variables)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error processing task description '%s': %v", templateTask.Description, err))
+			errors = append(errors, fmt.Sprintf("error processing task description '%s': %v", tmpl.Tasks[i].Description, err))
 			continue
 		}
 
-		template, err := te.processTemplateString(templateTask.Template, req.Variables)
+		templateStr, err := te.processTemplateString(tmpl.Tasks[i].Template, req.Variables)
 		if err != nil {
-			errors = append(errors, fmt.Sprintf("error processing task template '%s': %v", templateTask.Template, err))
+			errors = append(errors, fmt.Sprintf("error processing task template '%s': %v", tmpl.Tasks[i].Template, err))
 			continue
 		}
 
-		priority, _ := te.processTemplateString(templateTask.Priority, req.Variables)
+		priority, _ := te.processTemplateString(tmpl.Tasks[i].Priority, req.Variables)
 
 		// Apply prefix if provided
 		if req.Prefix != "" {
@@ -294,7 +295,7 @@ func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInst
 
 		// Process tags
 		var processedTags []string
-		for _, tag := range templateTask.Tags {
+		for _, tag := range tmpl.Tasks[i].Tags {
 			processedTag, err := te.processTemplateString(tag, req.Variables)
 			if err != nil {
 				warnings = append(warnings, fmt.Sprintf("error processing tag '%s': %v", tag, err))
@@ -306,11 +307,11 @@ func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInst
 
 		// Create metadata
 		metadata := make(map[string]interface{})
-		for k, v := range templateTask.Metadata {
+		for k, v := range tmpl.Tasks[i].Metadata {
 			metadata[k] = v
 		}
 		metadata["template_id"] = req.TemplateID
-		metadata["template_task_name"] = templateTask.Name
+		metadata["template_task_name"] = tmpl.Tasks[i].Name
 		metadata["generated_from_template"] = true
 
 		// Add request metadata
@@ -321,10 +322,10 @@ func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInst
 		task := GeneratedTask{
 			ID:            taskID,
 			Name:          name,
-			Description:   description + "\n\n" + template,
-			Type:          templateTask.Type,
+			Description:   description + "\n\n" + templateStr,
+			Type:          tmpl.Tasks[i].Type,
 			Priority:      priority,
-			EstimatedTime: templateTask.EstimatedTime,
+			EstimatedTime: tmpl.Tasks[i].EstimatedTime,
 			Dependencies:  []string{}, // Will be filled in second pass
 			Tags:          processedTags,
 			Metadata:      metadata,
@@ -339,17 +340,17 @@ func (te *TemplateEngine) generateTasks(tmpl *BuiltinTemplate, req *TemplateInst
 	}
 
 	// Second pass: resolve dependencies
-	for i, templateTask := range tmpl.Tasks {
+	for i := range tmpl.Tasks {
 		if i >= len(tasks) {
 			break // Skip if task creation failed
 		}
 
 		var dependencyIDs []string
-		for _, depName := range templateTask.Dependencies {
+		for _, depName := range tmpl.Tasks[i].Dependencies {
 			if depID, exists := taskNameToID[depName]; exists {
 				dependencyIDs = append(dependencyIDs, depID)
 			} else {
-				warnings = append(warnings, fmt.Sprintf("dependency '%s' not found for task '%s'", depName, templateTask.Name))
+				warnings = append(warnings, fmt.Sprintf("dependency '%s' not found for task '%s'", depName, tmpl.Tasks[i].Name))
 			}
 		}
 		tasks[i].Dependencies = dependencyIDs
@@ -381,8 +382,8 @@ func (te *TemplateEngine) processTemplateString(templateStr string, variables ma
 func (te *TemplateEngine) calculateTotalEstimatedTime(tasks []GeneratedTask) string {
 	totalMinutes := 0
 
-	for _, task := range tasks {
-		minutes := te.parseEstimatedTime(task.EstimatedTime)
+	for i := range tasks {
+		minutes := te.parseEstimatedTime(tasks[i].EstimatedTime)
 		totalMinutes += minutes
 	}
 
@@ -434,7 +435,7 @@ func (te *TemplateEngine) parseEstimatedTime(timeStr string) int {
 		for _, match := range matches {
 			if len(match) > 1 {
 				var value int
-				fmt.Sscanf(match[1], "%d", &value)
+				_, _ = fmt.Sscanf(match[1], "%d", &value)
 				totalMinutes += value * multiplier
 			}
 		}
@@ -455,8 +456,8 @@ func (te *TemplateEngine) GetTemplate(templateID string) (*BuiltinTemplate, erro
 // ListTemplates returns all available templates
 func (te *TemplateEngine) ListTemplates() []BuiltinTemplate {
 	templates := make([]BuiltinTemplate, 0, len(te.templates))
-	for _, tmpl := range te.templates {
-		templates = append(templates, tmpl)
+	for id := range te.templates {
+		templates = append(templates, te.templates[id])
 	}
 	return templates
 }
@@ -464,7 +465,8 @@ func (te *TemplateEngine) ListTemplates() []BuiltinTemplate {
 // ListTemplatesByCategory returns templates filtered by category
 func (te *TemplateEngine) ListTemplatesByCategory(category string) []BuiltinTemplate {
 	var templates []BuiltinTemplate
-	for _, tmpl := range te.templates {
+	for id := range te.templates {
+		tmpl := te.templates[id]
 		if tmpl.Category == category {
 			templates = append(templates, tmpl)
 		}
@@ -475,7 +477,8 @@ func (te *TemplateEngine) ListTemplatesByCategory(category string) []BuiltinTemp
 // ListTemplatesByProjectType returns templates filtered by project type
 func (te *TemplateEngine) ListTemplatesByProjectType(projectType types.ProjectType) []BuiltinTemplate {
 	var templates []BuiltinTemplate
-	for _, tmpl := range te.templates {
+	for id := range te.templates {
+		tmpl := te.templates[id]
 		if tmpl.ProjectType == projectType || tmpl.ProjectType == types.ProjectTypeAny {
 			templates = append(templates, tmpl)
 		}
@@ -485,6 +488,18 @@ func (te *TemplateEngine) ListTemplatesByProjectType(projectType types.ProjectTy
 
 // ValidateTemplate validates a template structure
 func (te *TemplateEngine) ValidateTemplate(tmpl *BuiltinTemplate) []string {
+	var errors []string
+
+	errors = append(errors, te.validateBasicTemplateFields(tmpl)...)
+	errors = append(errors, te.validateTasks(tmpl)...)
+	errors = append(errors, te.validateTaskDependencies(tmpl)...)
+	errors = append(errors, te.validateVariableDefinitions(tmpl)...)
+
+	return errors
+}
+
+// validateBasicTemplateFields validates basic template fields
+func (te *TemplateEngine) validateBasicTemplateFields(tmpl *BuiltinTemplate) []string {
 	var errors []string
 
 	if tmpl.ID == "" {
@@ -499,21 +514,38 @@ func (te *TemplateEngine) ValidateTemplate(tmpl *BuiltinTemplate) []string {
 		errors = append(errors, "template must have at least one task")
 	}
 
-	// Validate task names are unique
+	return errors
+}
+
+// validateTasks validates task structure and uniqueness
+func (te *TemplateEngine) validateTasks(tmpl *BuiltinTemplate) []string {
+	var errors []string
 	taskNames := make(map[string]bool)
-	for _, task := range tmpl.Tasks {
+
+	for i := range tmpl.Tasks {
+		task := &tmpl.Tasks[i]
 		if task.Name == "" {
 			errors = append(errors, "task name is required")
 			continue
 		}
+
 		if taskNames[task.Name] {
 			errors = append(errors, fmt.Sprintf("duplicate task name: %s", task.Name))
 		}
+
 		taskNames[task.Name] = true
 	}
 
-	// Validate dependencies exist
-	for _, task := range tmpl.Tasks {
+	return errors
+}
+
+// validateTaskDependencies validates that task dependencies exist
+func (te *TemplateEngine) validateTaskDependencies(tmpl *BuiltinTemplate) []string {
+	var errors []string
+	taskNames := te.getTaskNamesMap(tmpl)
+
+	for i := range tmpl.Tasks {
+		task := &tmpl.Tasks[i]
 		for _, dep := range task.Dependencies {
 			if !taskNames[dep] {
 				errors = append(errors, fmt.Sprintf("task '%s' has invalid dependency: %s", task.Name, dep))
@@ -521,43 +553,71 @@ func (te *TemplateEngine) ValidateTemplate(tmpl *BuiltinTemplate) []string {
 		}
 	}
 
-	// Validate variables
+	return errors
+}
+
+// getTaskNamesMap creates a map of task names for dependency validation
+func (te *TemplateEngine) getTaskNamesMap(tmpl *BuiltinTemplate) map[string]bool {
+	taskNames := make(map[string]bool)
+	for i := range tmpl.Tasks {
+		task := &tmpl.Tasks[i]
+		if task.Name != "" {
+			taskNames[task.Name] = true
+		}
+	}
+	return taskNames
+}
+
+// validateVariables validates template variables
+func (te *TemplateEngine) validateVariableDefinitions(tmpl *BuiltinTemplate) []string {
+	var errors []string
 	variableNames := make(map[string]bool)
+
 	for _, variable := range tmpl.Variables {
 		if variable.Name == "" {
 			errors = append(errors, "variable name is required")
 			continue
 		}
+
 		if variableNames[variable.Name] {
 			errors = append(errors, fmt.Sprintf("duplicate variable name: %s", variable.Name))
 		}
-		variableNames[variable.Name] = true
 
-		// Validate variable type
-		validTypes := []string{"string", "number", "boolean", "choice"}
-		validType := false
-		for _, vt := range validTypes {
-			if variable.Type == vt {
-				validType = true
-				break
-			}
+		variableNames[variable.Name] = true
+		errors = append(errors, te.validateVariableTypeDefinition(&variable)...)
+	}
+
+	return errors
+}
+
+// validateVariableTypeDefinition validates a single variable's type definition
+func (te *TemplateEngine) validateVariableTypeDefinition(variable *TemplateVariable) []string {
+	var errors []string
+	validTypes := []string{"string", "number", "boolean", "choice"}
+
+	validType := false
+	for _, vt := range validTypes {
+		if variable.Type == vt {
+			validType = true
+			break
 		}
-		if !validType {
-			errors = append(errors, fmt.Sprintf("variable '%s' has invalid type: %s", variable.Name, variable.Type))
-		}
+	}
+
+	if !validType {
+		errors = append(errors, fmt.Sprintf("variable '%s' has invalid type: %s", variable.Name, variable.Type))
 	}
 
 	return errors
 }
 
 // AddCustomTemplate adds a custom template to the engine
-func (te *TemplateEngine) AddCustomTemplate(tmpl BuiltinTemplate) error {
+func (te *TemplateEngine) AddCustomTemplate(tmpl *BuiltinTemplate) error {
 	// Validate template
-	if validationErrors := te.ValidateTemplate(&tmpl); len(validationErrors) > 0 {
+	if validationErrors := te.ValidateTemplate(tmpl); len(validationErrors) > 0 {
 		return fmt.Errorf("template validation failed: %s", strings.Join(validationErrors, "; "))
 	}
 
-	te.templates[tmpl.ID] = tmpl
+	te.templates[tmpl.ID] = *tmpl
 	return nil
 }
 

@@ -37,6 +37,8 @@ type Router struct {
 }
 
 // NewRouter creates a new API router with middleware and routes
+//
+//nolint:gocritic // ptrToRefParam: API consistency - aiService is consistently used as pointer throughout codebase
 func NewRouter(cfg *config.Config, aiService *ai.Service, prdStorage handlers.PRDStorage) *Router {
 	r := &Router{
 		config:        cfg,
@@ -135,7 +137,7 @@ func (r *Router) isCircuitBreakerEnabled() bool {
 // createCircuitBreakerMiddleware creates circuit breaker middleware with appropriate configuration
 func (r *Router) createCircuitBreakerMiddleware() *middleware.CircuitBreakerManager {
 	// Create circuit breaker configuration
-	config := middleware.CircuitBreakerConfig{
+	cbConfig := middleware.CircuitBreakerConfig{
 		Enabled: true,
 		DefaultSettings: middleware.BreakerConfig{
 			FailureThreshold:  5,                // Open after 5 failures
@@ -173,7 +175,7 @@ func (r *Router) createCircuitBreakerMiddleware() *middleware.CircuitBreakerMana
 		EnableMetrics:   true,
 	}
 
-	return middleware.NewCircuitBreakerManager(&config)
+	return middleware.NewCircuitBreakerManager(&cbConfig)
 }
 
 // setupRoutes configures API routes
@@ -243,7 +245,8 @@ func (r *Router) setupRoutes() {
 		// Note: In production, you'd inject a real task service with database connection
 		if true { // Always enable CRUD operations
 			// Create real task service with database connection
-			taskService, err := createRealTaskService(r.config)
+			// Using context.Background() for service initialization is appropriate here
+			taskService, err := createRealTaskService(context.Background(), r.config)
 			if err != nil {
 				// Fall back to mock service if database connection fails
 				taskService = createMockTaskService()
@@ -680,9 +683,9 @@ func (m *MockTaskRepository) GetByIDs(ctx context.Context, ids []string) ([]type
 }
 
 // createRealTaskService creates a real task service with database connection
-func createRealTaskService(cfg *config.Config) (*tasks.Service, error) {
+func createRealTaskService(ctx context.Context, cfg *config.Config) (*tasks.Service, error) {
 	// Connect to PostgreSQL database
-	db, err := connectToDatabase(cfg)
+	db, err := connectToDatabase(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -698,7 +701,7 @@ func createRealTaskService(cfg *config.Config) (*tasks.Service, error) {
 }
 
 // connectToDatabase establishes a connection to the PostgreSQL database
-func connectToDatabase(cfg *config.Config) (*sql.DB, error) {
+func connectToDatabase(ctx context.Context, cfg *config.Config) (*sql.DB, error) {
 	dsn := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		cfg.Database.Host,
 		cfg.Database.Port,
@@ -720,10 +723,10 @@ func connectToDatabase(cfg *config.Config) (*sql.DB, error) {
 	db.SetConnMaxIdleTime(cfg.Database.ConnMaxIdleTime)
 
 	// Test connection
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	pingCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
-	if err := db.PingContext(ctx); err != nil {
+	if err := db.PingContext(pingCtx); err != nil {
 		_ = db.Close()
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}

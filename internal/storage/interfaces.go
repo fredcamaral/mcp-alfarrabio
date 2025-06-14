@@ -190,7 +190,7 @@ type BatchOperationMetrics struct {
 	BytesPerSec float64       `json:"bytes_per_sec"`
 }
 
-// Filter types for different operations
+// ProjectFilter defines filtering criteria for project operations.
 type ProjectFilter struct {
 	ProjectIDs    []types.ProjectID      `json:"project_ids,omitempty"`
 	CreatedAfter  *time.Time             `json:"created_after,omitempty"`

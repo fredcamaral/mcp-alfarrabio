@@ -125,8 +125,7 @@ func WrapAIServiceError(err error, model, operation string) error {
 	}
 
 	enhanced := NewEnhancedError(err, "ai_service", operation, category)
-	enhanced.WithMetadata("model", model)
-	return enhanced
+	return enhanced.WithMetadata("model", model)
 }
 
 // WrapStorageError wraps vector storage errors
@@ -150,8 +149,7 @@ func WrapValidationError(err error, field string) error {
 	}
 
 	enhanced := NewEnhancedError(err, "validation", "field_validation", ErrorCategoryValidation)
-	enhanced.WithMetadata("field", field)
-	return enhanced
+	return enhanced.WithMetadata("field", field)
 }
 
 // WrapTimeoutError wraps timeout errors
@@ -161,8 +159,7 @@ func WrapTimeoutError(err error, operation string, timeout time.Duration) error 
 	}
 
 	enhanced := NewEnhancedError(err, "timeout", operation, ErrorCategoryTimeout)
-	enhanced.WithMetadata("timeout_duration", timeout.String())
-	return enhanced
+	return enhanced.WithMetadata("timeout_duration", timeout.String())
 }
 
 // WrapMCPError wraps MCP protocol errors

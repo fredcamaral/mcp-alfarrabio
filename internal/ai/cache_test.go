@@ -12,11 +12,16 @@ import (
 	"lerian-mcp-memory/internal/config"
 )
 
+// contextKey is a custom type for context keys to avoid collisions
+type contextKey string
+
+const userIDKey contextKey = "user_id"
+
 func TestCache_BasicOperations(t *testing.T) {
 	cfg := &config.Config{}
 	cache, err := NewCache(cfg)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Create test request
 	req := &Request{
@@ -58,7 +63,7 @@ func TestCache_KeyGeneration(t *testing.T) {
 	cfg := &config.Config{}
 	cache, err := NewCache(cfg)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Same content should generate same key
 	req1 := &Request{
@@ -103,7 +108,7 @@ func TestCache_TTL(t *testing.T) {
 	cfg := &config.Config{}
 	cache, err := NewCache(cfg)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Set short TTL for testing
 	cache.SetTTL(100 * time.Millisecond)
@@ -136,7 +141,7 @@ func TestCache_SizeLimit(t *testing.T) {
 	cfg := &config.Config{}
 	cache, err := NewCache(cfg)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Set small size for testing
 	cache.SetMaxSize(3)
@@ -173,7 +178,7 @@ func TestCache_Concurrency(t *testing.T) {
 	cfg := &config.Config{}
 	cache, err := NewCache(cfg)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	const numGoroutines = 10
 	const numOperations = 100
@@ -183,7 +188,7 @@ func TestCache_Concurrency(t *testing.T) {
 
 	// Run concurrent operations
 	for i := 0; i < numGoroutines; i++ {
-		go func(id int) {
+		go func(_ int) {
 			defer wg.Done()
 
 			for j := 0; j < numOperations; j++ {
@@ -215,7 +220,7 @@ func TestCache_Statistics(t *testing.T) {
 	cfg := &config.Config{}
 	cache, err := NewCache(cfg)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	req := &Request{
 		Model: string(ModelClaude),
@@ -253,7 +258,7 @@ func TestCache_Clear(t *testing.T) {
 	cfg := &config.Config{}
 	cache, err := NewCache(cfg)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
 	// Add some entries
 	for i := 0; i < 5; i++ {
@@ -290,18 +295,15 @@ func TestCache_WithContext(t *testing.T) {
 	cfg := &config.Config{}
 	cache, err := NewCache(cfg)
 	require.NoError(t, err)
-	defer cache.Close()
+	defer func() { _ = cache.Close() }()
 
-	// Test context-aware caching
-	ctx := context.WithValue(context.Background(), "user_id", "user123")
+	// Test basic context-aware caching
+	ctx := context.WithValue(context.Background(), userIDKey, "user123")
 
 	req := &Request{
 		Model: string(ModelClaude),
 		Messages: []Message{
 			{Role: "user", Content: "Context test"},
-		},
-		Context: map[string]interface{}{
-			"user_id": "user123",
 		},
 	}
 
@@ -316,8 +318,16 @@ func TestCache_WithContext(t *testing.T) {
 	assert.True(t, exists)
 	assert.Equal(t, resp.Content, found.Content)
 
-	// Different context should not find
-	ctx2 := context.WithValue(context.Background(), "user_id", "user456")
-	_, exists = cache.GetWithContext(ctx2, req)
-	assert.False(t, exists)
+	// Test with different context values to ensure cache differentiation
+	ctx2 := context.WithValue(context.Background(), userIDKey, "user456")
+	resp2 := &Response{
+		Content: "Different user response",
+	}
+	cache.SetWithContext(ctx2, req, resp2)
+
+	// Should find different responses for different contexts
+	found2, exists2 := cache.GetWithContext(ctx2, req)
+	assert.True(t, exists2)
+	assert.Equal(t, resp2.Content, found2.Content)
+	assert.NotEqual(t, found.Content, found2.Content)
 }

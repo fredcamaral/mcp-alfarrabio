@@ -97,7 +97,15 @@ func (rm *RuleManager) loadCustomRules(dir string) error {
 			return nil
 		}
 
-		content, err := os.ReadFile(path)
+		// Clean and validate the path
+		cleanPath := filepath.Clean(path)
+
+		// Security check: ensure path is within the rules directory
+		if !strings.HasPrefix(cleanPath, filepath.Clean(dir)) {
+			return fmt.Errorf("invalid rule path: path traversal not allowed")
+		}
+
+		content, err := os.ReadFile(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 		if err != nil {
 			return fmt.Errorf("failed to read custom rule %s: %w", path, err)
 		}

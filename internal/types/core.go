@@ -38,7 +38,7 @@ func (p ProjectID) String() string {
 
 // IsEmpty returns true if the ProjectID is empty
 func (p ProjectID) IsEmpty() bool {
-	return len(strings.TrimSpace(string(p))) == 0
+	return strings.TrimSpace(string(p)) == ""
 }
 
 // SessionID represents a user session for scoped operations
@@ -70,7 +70,7 @@ func (s SessionID) String() string {
 
 // IsEmpty returns true if the SessionID is empty
 func (s SessionID) IsEmpty() bool {
-	return len(strings.TrimSpace(string(s))) == 0
+	return strings.TrimSpace(string(s)) == ""
 }
 
 // OperationScope defines the access level for operations

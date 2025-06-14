@@ -107,10 +107,21 @@ func TestWebSocketConnection(t *testing.T) {
 	}
 
 	conn, resp, err := dialer.Dial(wsURL, nil)
+	if resp != nil && resp.Body != nil {
+		defer func() {
+			if closeErr := resp.Body.Close(); closeErr != nil {
+				t.Logf("Warning: failed to close response body: %v", closeErr)
+			}
+		}()
+	}
 	if err != nil {
 		t.Fatalf("Failed to connect to WebSocket: %v", err)
 	}
-	defer conn.Close()
+	defer func() {
+		if closeErr := conn.Close(); closeErr != nil {
+			t.Logf("Warning: failed to close websocket connection: %v", closeErr)
+		}
+	}()
 
 	assert.Equal(t, http.StatusSwitchingProtocols, resp.StatusCode)
 	assert.NotNil(t, conn)
@@ -165,13 +176,16 @@ func TestWebSocketAuthentication(t *testing.T) {
 				HandshakeTimeout: 5 * time.Second,
 			}
 
-			conn, _, err := dialer.Dial(wsURL, tt.headers)
+			conn, resp, err := dialer.Dial(wsURL, tt.headers)
+			if resp != nil && resp.Body != nil {
+				defer func() { _ = resp.Body.Close() }()
+			}
 			if tt.wantError {
 				assert.Error(t, err, "Expected authentication error")
 			} else {
 				assert.NoError(t, err, "Expected successful connection with auth")
 				if conn != nil {
-					conn.Close()
+					_ = conn.Close()
 				}
 			}
 		})
@@ -221,8 +235,11 @@ func TestWebSocketMessageBroadcasting(t *testing.T) {
 	assert.Equal(t, event.Type, response.Data["event_type"])
 }
 
-// TestWebSocketFilteringByRepository tests filtering connections by repository
-func TestWebSocketFilteringByRepository(t *testing.T) {
+// testWebSocketFiltering is a helper function to test WebSocket connection filtering
+// This reduces duplication between similar filtering test cases
+func testWebSocketFiltering(t *testing.T, queryParam, expectedValue, responseKey string) {
+	t.Helper()
+
 	cfg := config.DefaultConfig()
 	cfg.WebSocket.EnableAuth = false
 	router := NewBasicRouter(cfg)
@@ -231,8 +248,9 @@ func TestWebSocketFilteringByRepository(t *testing.T) {
 	err := router.wsHandler.Initialize()
 	require.NoError(t, err)
 
-	// Test getting connections by repository
-	req := httptest.NewRequest("GET", "/ws/connections?repository=test-repo", http.NoBody)
+	// Test getting connections with the specified filter
+	url := "/ws/connections?" + queryParam + "=" + expectedValue
+	req := httptest.NewRequest("GET", url, http.NoBody)
 	w := httptest.NewRecorder()
 
 	router.Handler().ServeHTTP(w, req)
@@ -245,38 +263,19 @@ func TestWebSocketFilteringByRepository(t *testing.T) {
 	err = json.NewDecoder(w.Body).Decode(&response)
 	require.NoError(t, err)
 
-	assert.Equal(t, "test-repo", response.Data["repository"])
+	assert.Equal(t, expectedValue, response.Data[responseKey])
 	assert.NotNil(t, response.Data["connections"])
 	assert.NotNil(t, response.Data["count"])
 }
 
+// TestWebSocketFilteringByRepository tests filtering connections by repository
+func TestWebSocketFilteringByRepository(t *testing.T) {
+	testWebSocketFiltering(t, "repository", "test-repo", "repository")
+}
+
 // TestWebSocketFilteringBySession tests filtering connections by session
 func TestWebSocketFilteringBySession(t *testing.T) {
-	cfg := config.DefaultConfig()
-	cfg.WebSocket.EnableAuth = false
-	router := NewBasicRouter(cfg)
-
-	// Initialize WebSocket handler
-	err := router.wsHandler.Initialize()
-	require.NoError(t, err)
-
-	// Test getting connections by session
-	req := httptest.NewRequest("GET", "/ws/connections?session_id=test-session", http.NoBody)
-	w := httptest.NewRecorder()
-
-	router.Handler().ServeHTTP(w, req)
-
-	assert.Equal(t, http.StatusOK, w.Code)
-
-	var response struct {
-		Data map[string]interface{} `json:"data"`
-	}
-	err = json.NewDecoder(w.Body).Decode(&response)
-	require.NoError(t, err)
-
-	assert.Equal(t, "test-session", response.Data["session_id"])
-	assert.NotNil(t, response.Data["connections"])
-	assert.NotNil(t, response.Data["count"])
+	testWebSocketFiltering(t, "session_id", "test-session", "session_id")
 }
 
 // TestWebSocketMetricsEndpoints tests metrics retrieval endpoints
@@ -356,9 +355,12 @@ func TestWebSocketGracefulShutdown(t *testing.T) {
 		HandshakeTimeout: 5 * time.Second,
 	}
 
-	conn, _, err := dialer.Dial(wsURL, nil)
+	conn, resp, err := dialer.Dial(wsURL, nil)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	require.NoError(t, err)
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	// Shutdown the router
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -406,18 +408,24 @@ func TestWebSocketConnectionLimits(t *testing.T) {
 	// Create connections up to the limit
 	connections := make([]*websocket.Conn, 0, cfg.WebSocket.MaxConnections)
 	for i := 0; i < cfg.WebSocket.MaxConnections; i++ {
-		conn, _, err := dialer.Dial(wsURL, nil)
+		conn, resp, err := dialer.Dial(wsURL, nil)
+		if resp != nil && resp.Body != nil {
+			_ = resp.Body.Close()
+		}
 		require.NoError(t, err, "Connection %d should succeed", i+1)
 		connections = append(connections, conn)
 	}
 
 	// Try to exceed the limit
-	_, _, err = dialer.Dial(wsURL, nil)
+	_, resp, err := dialer.Dial(wsURL, nil)
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
 	assert.Error(t, err, "Connection should fail when limit is exceeded")
 
-	// Close all connections
+	// Close all connections - errors ignored in test cleanup
 	for _, conn := range connections {
-		conn.Close()
+		_ = conn.Close()
 	}
 }
 

@@ -238,23 +238,30 @@ func (c *CLI) downloadAndInstall(downloadURL, filename string) error {
 	// Replace current binary
 	if err := c.copyFile(binaryPath, currentExec); err != nil {
 		// Restore backup on failure
-		os.Rename(backupPath, currentExec)
+		_ = os.Rename(backupPath, currentExec)
 		return err
 	}
 
-	// Make executable
-	if err := os.Chmod(currentExec, 0755); err != nil {
+	// Make executable with secure permissions
+	// #nosec G302 -- Owner-only executable permissions are secure for binary updates
+	if err := os.Chmod(currentExec, 0o700); err != nil {
 		return err
 	}
 
 	// Remove backup on success
-	os.Remove(backupPath)
+	_ = os.Remove(backupPath)
 
 	return nil
 }
 
 // downloadFile downloads a file from URL to local path
 func (c *CLI) downloadFile(url, filepath string) error {
+	// Clean and validate the file path
+	filepath = filepath.Clean(filepath)
+	if strings.Contains(filepath, "..") {
+		return fmt.Errorf("path traversal detected: %s", filepath)
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
@@ -274,7 +281,7 @@ func (c *CLI) downloadFile(url, filepath string) error {
 		return fmt.Errorf("download failed with status %d", resp.StatusCode)
 	}
 
-	out, err := os.Create(filepath)
+	out, err := os.Create(filepath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return err
 	}
@@ -320,14 +327,22 @@ func (c *CLI) extractZipFile(f *zip.File, extractDir string) (string, error) {
 	}
 	defer rc.Close()
 
-	path := filepath.Join(extractDir, f.Name)
-	outFile, err := os.Create(path)
+	// Validate file path to prevent directory traversal
+	cleanName := filepath.Clean(f.Name)
+	if strings.Contains(cleanName, "..") || filepath.IsAbs(cleanName) {
+		return "", fmt.Errorf("unsafe file path: %s", f.Name)
+	}
+
+	path := filepath.Join(extractDir, cleanName)
+	outFile, err := os.Create(path) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return "", err
 	}
 	defer outFile.Close()
 
-	_, err = io.Copy(outFile, rc)
+	// Limit extraction size to prevent decompression bombs (100MB limit)
+	limitedReader := io.LimitReader(rc, 100*1024*1024)
+	_, err = io.Copy(outFile, limitedReader)
 	if err != nil {
 		return "", err
 	}
@@ -337,7 +352,13 @@ func (c *CLI) extractZipFile(f *zip.File, extractDir string) (string, error) {
 
 // extractFromTarGz extracts binary from tar.gz archive
 func (c *CLI) extractFromTarGz(tarPath, extractDir string) (string, error) {
-	f, err := os.Open(tarPath)
+	// Clean and validate the tar path
+	tarPath = filepath.Clean(tarPath)
+	if strings.Contains(tarPath, "..") {
+		return "", fmt.Errorf("path traversal detected: %s", tarPath)
+	}
+
+	f, err := os.Open(tarPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return "", err
 	}
@@ -361,14 +382,22 @@ func (c *CLI) extractFromTarGz(tarPath, extractDir string) (string, error) {
 		}
 
 		if strings.Contains(header.Name, "lmmc") && !strings.Contains(header.Name, "/") {
-			path := filepath.Join(extractDir, header.Name)
-			outFile, err := os.Create(path)
+			// Validate file path to prevent directory traversal
+			cleanName := filepath.Clean(header.Name)
+			if strings.Contains(cleanName, "..") || filepath.IsAbs(cleanName) {
+				return "", fmt.Errorf("unsafe file path: %s", header.Name)
+			}
+
+			path := filepath.Join(extractDir, cleanName)
+			outFile, err := os.Create(path) // #nosec G304 -- Path is cleaned and validated above
 			if err != nil {
 				return "", err
 			}
 			defer outFile.Close()
 
-			_, err = io.Copy(outFile, tr)
+			// Limit extraction size to prevent decompression bombs (100MB limit)
+			limitedReader := io.LimitReader(tr, 100*1024*1024)
+			_, err = io.Copy(outFile, limitedReader)
 			if err != nil {
 				return "", err
 			}
@@ -382,13 +411,20 @@ func (c *CLI) extractFromTarGz(tarPath, extractDir string) (string, error) {
 
 // copyFile copies a file from src to dst
 func (c *CLI) copyFile(src, dst string) error {
+	// Clean and validate the file paths
+	src = filepath.Clean(src)
+	dst = filepath.Clean(dst)
+	if strings.Contains(src, "..") || strings.Contains(dst, "..") {
+		return fmt.Errorf("path traversal detected: src=%s, dst=%s", src, dst)
+	}
+
 	sourceFile, err := os.Open(src)
 	if err != nil {
 		return err
 	}
 	defer sourceFile.Close()
 
-	destFile, err := os.Create(dst)
+	destFile, err := os.Create(dst) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return err
 	}

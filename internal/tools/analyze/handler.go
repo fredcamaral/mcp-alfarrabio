@@ -16,8 +16,8 @@ import (
 	"lerian-mcp-memory/internal/validation"
 )
 
-// min returns the minimum of two integers
-func min(a, b int) int {
+// minInt returns the minimum of two integers
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -192,6 +192,40 @@ func (h *Handler) HandleOperation(ctx context.Context, operation string, params 
 
 // handleDetectPatterns identifies patterns in content and behavior
 func (h *Handler) handleDetectPatterns(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	req, err := h.parseDetectPatternsRequest(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := h.validateDetectPatternsRequest(req); err != nil {
+		return nil, err
+	}
+
+	if err := h.updateSessionIfNeeded(req.ProjectID, req.SessionID); err != nil {
+		return nil, err
+	}
+
+	memories, err := h.retrieveMemoriesForPatternAnalysis(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	memoryData := h.convertToMemoryData(memories)
+	timeSpan := h.calculateTimeSpan(req.TimeframeType)
+
+	result, err := h.performPatternDetection(ctx, req.ProjectID, memoryData, timeSpan)
+	if err != nil {
+		return nil, err
+	}
+
+	patterns := h.convertDetectedPatterns(result.Patterns)
+	patterns = h.applyPatternsFiltering(patterns, req)
+
+	return h.buildPatternsResponse(patterns, req, result, timeSpan), nil
+}
+
+// parseDetectPatternsRequest parses the detect patterns request parameters
+func (h *Handler) parseDetectPatternsRequest(params map[string]interface{}) (*DetectPatternsRequest, error) {
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -202,11 +236,21 @@ func (h *Handler) handleDetectPatterns(ctx context.Context, params map[string]in
 		return nil, fmt.Errorf("failed to parse detect patterns request: %w", err)
 	}
 
-	// Validate parameters
+	return &req, nil
+}
+
+// validateDetectPatternsRequest validates the detect patterns request parameters
+func (h *Handler) validateDetectPatternsRequest(req *DetectPatternsRequest) error {
 	if err := h.validator.ValidateOperation(string(tools.OpDetectPatterns), &req.StandardParams); err != nil {
-		return nil, fmt.Errorf("parameter validation failed: %w", err)
+		return fmt.Errorf("parameter validation failed: %w", err)
 	}
 
+	h.setDetectPatternsDefaults(req)
+	return nil
+}
+
+// setDetectPatternsDefaults sets default values for detect patterns request
+func (h *Handler) setDetectPatternsDefaults(req *DetectPatternsRequest) {
 	if req.Scope == "" {
 		req.Scope = "project"
 	}
@@ -216,42 +260,36 @@ func (h *Handler) handleDetectPatterns(ctx context.Context, params map[string]in
 	if req.MinConfidence <= 0 {
 		req.MinConfidence = 0.6
 	}
+}
 
-	// Update session access if session provided
+// retrieveMemoriesForPatternAnalysis retrieves memories based on the request
+func (h *Handler) retrieveMemoriesForPatternAnalysis(ctx context.Context, req *DetectPatternsRequest) ([]*types.Content, error) {
+	filters := h.buildPatternAnalysisFilters(req)
+
 	if !req.SessionID.IsEmpty() {
-		if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
-			return nil, fmt.Errorf("failed to update session access: %w", err)
-		}
+		return h.searchStore.GetBySession(ctx, req.ProjectID, req.SessionID, filters)
 	}
+	return h.searchStore.GetByProject(ctx, req.ProjectID, filters)
+}
 
-	// Get memories from storage for pattern analysis
+// buildPatternAnalysisFilters builds filters for pattern analysis
+func (h *Handler) buildPatternAnalysisFilters(req *DetectPatternsRequest) *types.Filters {
 	filters := &types.Filters{}
+
 	if len(req.PatternTypes) > 0 {
 		filters.Types = req.PatternTypes
 	}
 
-	// Apply date range filtering if provided
 	if req.DateRange != nil {
 		filters.CreatedAfter = req.DateRange.Start
 		filters.CreatedBefore = req.DateRange.End
 	}
 
-	var memories []*types.Content
-	var retrieveErr error
+	return filters
+}
 
-	if !req.SessionID.IsEmpty() {
-		// Get session-specific memories for expanded access
-		memories, retrieveErr = h.searchStore.GetBySession(ctx, req.ProjectID, req.SessionID, filters)
-	} else {
-		// Get project-wide memories for read-only access
-		memories, retrieveErr = h.searchStore.GetByProject(ctx, req.ProjectID, filters)
-	}
-
-	if retrieveErr != nil {
-		return nil, fmt.Errorf("failed to retrieve memories for pattern analysis: %w", retrieveErr)
-	}
-
-	// Convert to MemoryData format for pattern detector
+// convertToMemoryData converts Content to MemoryData format
+func (h *Handler) convertToMemoryData(memories []*types.Content) []ai.MemoryData {
 	memoryData := make([]ai.MemoryData, len(memories))
 	for i, memory := range memories {
 		memoryData[i] = ai.MemoryData{
@@ -263,23 +301,34 @@ func (h *Handler) handleDetectPatterns(ctx context.Context, params map[string]in
 			Metadata:  memory.Metadata,
 		}
 	}
+	return memoryData
+}
 
-	// Perform AI-powered pattern detection
-	timeSpan := time.Hour * 24 * 30 // Default to last 30 days
-	if req.TimeframeType == "week" {
-		timeSpan = time.Hour * 24 * 7
-	} else if req.TimeframeType == "quarter" {
-		timeSpan = time.Hour * 24 * 90
+// calculateTimeSpan calculates the time span based on timeframe type
+func (h *Handler) calculateTimeSpan(timeframeType string) time.Duration {
+	switch timeframeType {
+	case "week":
+		return time.Hour * 24 * 7
+	case "quarter":
+		return time.Hour * 24 * 90
+	default:
+		return time.Hour * 24 * 30 // Default to last 30 days
 	}
+}
 
-	result, err := h.patternDetector.AnalyzeProjectPatterns(ctx, string(req.ProjectID), memoryData, timeSpan)
+// performPatternDetection performs AI-powered pattern detection
+func (h *Handler) performPatternDetection(ctx context.Context, projectID types.ProjectID, memoryData []ai.MemoryData, timeSpan time.Duration) (*ai.PatternDetectionResult, error) {
+	result, err := h.patternDetector.AnalyzeProjectPatterns(ctx, string(projectID), memoryData, timeSpan)
 	if err != nil {
 		return nil, fmt.Errorf("pattern detection failed: %w", err)
 	}
+	return result, nil
+}
 
-	// Convert detected patterns to response format
-	patterns := make([]Pattern, len(result.Patterns))
-	for i, detectedPattern := range result.Patterns {
+// convertDetectedPatterns converts detected patterns to response format
+func (h *Handler) convertDetectedPatterns(detectedPatterns []*ai.DetectedPattern) []Pattern {
+	patterns := make([]Pattern, len(detectedPatterns))
+	for i, detectedPattern := range detectedPatterns {
 		patterns[i] = Pattern{
 			PatternID:   detectedPattern.ID,
 			Type:        detectedPattern.Type,
@@ -295,23 +344,42 @@ func (h *Handler) handleDetectPatterns(ctx context.Context, params map[string]in
 			},
 		}
 	}
+	return patterns
+}
 
-	// Apply confidence filtering
-	if req.MinConfidence > 0 {
-		filteredPatterns := make([]Pattern, 0)
-		for _, pattern := range patterns {
-			if pattern.Confidence >= req.MinConfidence {
-				filteredPatterns = append(filteredPatterns, pattern)
-			}
+// applyPatternsFiltering applies confidence and limit filtering to patterns
+func (h *Handler) applyPatternsFiltering(patterns []Pattern, req *DetectPatternsRequest) []Pattern {
+	patterns = h.applyConfidenceFiltering(patterns, req.MinConfidence)
+	patterns = h.applyPatternsLimit(patterns, req.Limit)
+	return patterns
+}
+
+// applyConfidenceFiltering filters patterns by minimum confidence
+func (h *Handler) applyConfidenceFiltering(patterns []Pattern, minConfidence float64) []Pattern {
+	if minConfidence <= 0 {
+		return patterns
+	}
+
+	filteredPatterns := make([]Pattern, 0)
+	for i := range patterns {
+		pattern := &patterns[i]
+		if pattern.Confidence >= minConfidence {
+			filteredPatterns = append(filteredPatterns, *pattern)
 		}
-		patterns = filteredPatterns
 	}
+	return filteredPatterns
+}
 
-	// Apply limit
-	if req.Limit > 0 && len(patterns) > req.Limit {
-		patterns = patterns[:req.Limit]
+// applyPatternsLimit applies limit to patterns
+func (h *Handler) applyPatternsLimit(patterns []Pattern, limit int) []Pattern {
+	if limit > 0 && len(patterns) > limit {
+		return patterns[:limit]
 	}
+	return patterns
+}
 
+// buildPatternsResponse builds the patterns response
+func (h *Handler) buildPatternsResponse(patterns []Pattern, req *DetectPatternsRequest, result *ai.PatternDetectionResult, timeSpan time.Duration) map[string]interface{} {
 	return map[string]interface{}{
 		"patterns":     patterns,
 		"total":        len(patterns),
@@ -320,11 +388,42 @@ func (h *Handler) handleDetectPatterns(ctx context.Context, params map[string]in
 		"analysis_id":  result.AnalysisID,
 		"memory_count": result.MemoryCount,
 		"time_span":    timeSpan.String(),
-	}, nil
+	}
 }
 
 // handleSuggestRelated suggests related content
 func (h *Handler) handleSuggestRelated(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	req, err := h.parseSuggestRelatedRequest(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := h.validateSuggestRelatedRequest(req); err != nil {
+		return nil, err
+	}
+
+	if err := h.updateSessionIfNeeded(req.ProjectID, req.SessionID); err != nil {
+		return nil, err
+	}
+
+	suggestions, err := h.getSuggestions(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	suggestions = h.applyRelationTypeFiltering(suggestions, req.RelationTypes)
+	suggestions = h.applyLimit(suggestions, req.Limit)
+
+	return map[string]interface{}{
+		"suggestions": suggestions,
+		"total":       len(suggestions),
+		"context":     req.Context,
+		"content_id":  req.ContentID,
+	}, nil
+}
+
+// parseSuggestRelatedRequest parses the request parameters
+func (h *Handler) parseSuggestRelatedRequest(params map[string]interface{}) (*SuggestRelatedRequest, error) {
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -335,131 +434,201 @@ func (h *Handler) handleSuggestRelated(ctx context.Context, params map[string]in
 		return nil, fmt.Errorf("failed to parse suggest related request: %w", err)
 	}
 
-	// Validate parameters
+	return &req, nil
+}
+
+// validateSuggestRelatedRequest validates the request parameters
+func (h *Handler) validateSuggestRelatedRequest(req *SuggestRelatedRequest) error {
 	if err := h.validator.ValidateOperation(string(tools.OpSuggestRelated), &req.StandardParams); err != nil {
-		return nil, fmt.Errorf("parameter validation failed: %w", err)
+		return fmt.Errorf("parameter validation failed: %w", err)
 	}
 
 	if req.ContentID == "" && req.Context == "" {
-		return nil, fmt.Errorf("either content_id or context is required")
+		return fmt.Errorf("either content_id or context is required")
 	}
 
 	if req.Limit <= 0 {
 		req.Limit = 5
 	}
 
-	// Update session access if session provided
-	if !req.SessionID.IsEmpty() {
-		if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
-			return nil, fmt.Errorf("failed to update session access: %w", err)
+	return nil
+}
+
+// updateSessionIfNeeded updates session access if session ID is provided
+func (h *Handler) updateSessionIfNeeded(projectID types.ProjectID, sessionID types.SessionID) error {
+	if sessionID.IsEmpty() {
+		return nil
+	}
+
+	return h.sessionManager.UpdateSessionAccess(projectID, sessionID)
+}
+
+// getSuggestions retrieves suggestions based on content ID or context
+func (h *Handler) getSuggestions(ctx context.Context, req *SuggestRelatedRequest) ([]RelatedSuggestion, error) {
+	if req.ContentID != "" {
+		return h.getSuggestionsByContentID(ctx, req)
+	}
+	if req.Context != "" {
+		return h.getSuggestionsByContext(ctx, req)
+	}
+	return nil, fmt.Errorf("no valid suggestion source provided")
+}
+
+// getSuggestionsByContentID gets suggestions based on content ID
+func (h *Handler) getSuggestionsByContentID(ctx context.Context, req *SuggestRelatedRequest) ([]RelatedSuggestion, error) {
+	targetContent, err := h.findTargetContent(ctx, req.ProjectID, req.ContentID)
+	if err != nil {
+		return nil, err
+	}
+
+	similarContent, err := h.searchStore.FindSimilar(ctx, targetContent.Content, req.ProjectID, req.SessionID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find similar content: %w", err)
+	}
+
+	return h.convertToSimilarSuggestions(similarContent, req.ContentID), nil
+}
+
+// getSuggestionsByContext gets suggestions based on context
+func (h *Handler) getSuggestionsByContext(ctx context.Context, req *SuggestRelatedRequest) ([]RelatedSuggestion, error) {
+	searchQuery := &types.SearchQuery{
+		Query:     req.Context,
+		ProjectID: req.ProjectID,
+		SessionID: req.SessionID,
+		Limit:     req.Limit * 2, // Get more to filter down
+	}
+
+	searchResults, err := h.searchStore.Search(ctx, searchQuery)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search for related content: %w", err)
+	}
+
+	return h.convertToContextSuggestions(searchResults.Results), nil
+}
+
+// findTargetContent finds the target content by ID
+func (h *Handler) findTargetContent(ctx context.Context, projectID types.ProjectID, contentID string) (*types.Content, error) {
+	allContent, err := h.searchStore.GetByProject(ctx, projectID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get content: %w", err)
+	}
+
+	for _, content := range allContent {
+		if content.ID == contentID {
+			return content, nil
 		}
 	}
 
-	var suggestions []RelatedSuggestion
+	return nil, fmt.Errorf("target content not found: %s", contentID)
+}
 
-	if req.ContentID != "" {
-		// Find similar content based on content ID
-		// First, get all content and then filter for the specific ID
-		allContent, err := h.searchStore.GetByProject(ctx, req.ProjectID, nil)
-		var targetContent []*types.Content
-		if err == nil {
-			for _, content := range allContent {
-				if content.ID == req.ContentID {
-					targetContent = append(targetContent, content)
-					break
-				}
-			}
-		}
-		if err != nil || len(targetContent) == 0 {
-			return nil, fmt.Errorf("target content not found: %s", req.ContentID)
-		}
-
-		// Find similar content using semantic search
-		similarContent, err := h.searchStore.FindSimilar(ctx, targetContent[0].Content, req.ProjectID, req.SessionID)
-		if err != nil {
-			return nil, fmt.Errorf("failed to find similar content: %w", err)
-		}
-
-		// Convert to suggestions
-		for _, content := range similarContent {
-			if content.ID != req.ContentID { // Exclude the original content
-				suggestion := RelatedSuggestion{
-					ContentID:    content.ID,
-					Type:         content.Type,
-					Title:        content.Summary,
-					Summary:      content.Content[:min(200, len(content.Content))], // First 200 chars
-					Relevance:    0.8,                                              // TODO: Calculate actual relevance score
-					Relationship: "Semantically similar content",
-					Tags:         content.Tags,
-					CreatedAt:    content.CreatedAt,
-					Metadata:     content.Metadata,
-				}
-				suggestions = append(suggestions, suggestion)
-			}
-		}
-	} else if req.Context != "" {
-		// Find content related to the context/query
-		searchQuery := &types.SearchQuery{
-			Query:     req.Context,
-			ProjectID: req.ProjectID,
-			SessionID: req.SessionID,
-			Limit:     req.Limit * 2, // Get more to filter down
-		}
-
-		searchResults, err := h.searchStore.Search(ctx, searchQuery)
-		if err != nil {
-			return nil, fmt.Errorf("failed to search for related content: %w", err)
-		}
-
-		// Convert search results to suggestions
-		for _, result := range searchResults.Results {
+// convertToSimilarSuggestions converts content to similar suggestions
+func (h *Handler) convertToSimilarSuggestions(content []*types.Content, excludeID string) []RelatedSuggestion {
+	suggestions := make([]RelatedSuggestion, 0, len(content))
+	for _, c := range content {
+		if c.ID != excludeID {
 			suggestion := RelatedSuggestion{
-				ContentID:    result.Content.ID,
-				Type:         result.Content.Type,
-				Title:        result.Content.Summary,
-				Summary:      result.Content.Content[:min(200, len(result.Content.Content))],
-				Relevance:    result.Relevance,
-				Relationship: "Matches search context",
-				Tags:         result.Content.Tags,
-				CreatedAt:    result.Content.CreatedAt,
-				Metadata:     result.Content.Metadata,
+				ContentID:    c.ID,
+				Type:         c.Type,
+				Title:        c.Summary,
+				Summary:      c.Content[:minInt(200, len(c.Content))],
+				Relevance:    0.8, // TODO: Calculate actual relevance score
+				Relationship: "Semantically similar content",
+				Tags:         c.Tags,
+				CreatedAt:    c.CreatedAt,
+				Metadata:     c.Metadata,
 			}
 			suggestions = append(suggestions, suggestion)
 		}
 	}
+	return suggestions
+}
 
-	// Apply relation type filtering if specified
-	if len(req.RelationTypes) > 0 {
-		filteredSuggestions := make([]RelatedSuggestion, 0)
-		for _, suggestion := range suggestions {
-			for _, relType := range req.RelationTypes {
-				if relType == "similar" && suggestion.Relationship == "Semantically similar content" {
-					filteredSuggestions = append(filteredSuggestions, suggestion)
-					break
-				} else if relType == "references" && suggestion.Relationship == "Matches search context" {
-					filteredSuggestions = append(filteredSuggestions, suggestion)
-					break
-				}
-			}
+// convertToContextSuggestions converts search results to context suggestions
+func (h *Handler) convertToContextSuggestions(results []*types.SearchResult) []RelatedSuggestion {
+	suggestions := make([]RelatedSuggestion, 0, len(results))
+	for _, result := range results {
+		suggestion := RelatedSuggestion{
+			ContentID:    result.Content.ID,
+			Type:         result.Content.Type,
+			Title:        result.Content.Summary,
+			Summary:      result.Content.Content[:minInt(200, len(result.Content.Content))],
+			Relevance:    result.Relevance,
+			Relationship: "Matches search context",
+			Tags:         result.Content.Tags,
+			CreatedAt:    result.Content.CreatedAt,
+			Metadata:     result.Content.Metadata,
 		}
-		suggestions = filteredSuggestions
+		suggestions = append(suggestions, suggestion)
+	}
+	return suggestions
+}
+
+// applyRelationTypeFiltering filters suggestions by relation types
+func (h *Handler) applyRelationTypeFiltering(suggestions []RelatedSuggestion, relationTypes []string) []RelatedSuggestion {
+	if len(relationTypes) == 0 {
+		return suggestions
 	}
 
-	// Apply limit
-	if req.Limit > 0 && len(suggestions) > req.Limit {
-		suggestions = suggestions[:req.Limit]
+	var filtered []RelatedSuggestion
+	for i := range suggestions {
+		if h.matchesRelationType(&suggestions[i], relationTypes) {
+			filtered = append(filtered, suggestions[i])
+		}
 	}
+	return filtered
+}
 
-	return map[string]interface{}{
-		"suggestions": suggestions,
-		"total":       len(suggestions),
-		"context":     req.Context,
-		"content_id":  req.ContentID,
-	}, nil
+// matchesRelationType checks if suggestion matches any of the relation types
+func (h *Handler) matchesRelationType(suggestion *RelatedSuggestion, relationTypes []string) bool {
+	for _, relType := range relationTypes {
+		if h.isRelationTypeMatch(suggestion, relType) {
+			return true
+		}
+	}
+	return false
+}
+
+// isRelationTypeMatch checks if suggestion matches a specific relation type
+func (h *Handler) isRelationTypeMatch(sug *RelatedSuggestion, relType string) bool {
+	switch relType {
+	case "similar":
+		return sug.Relationship == "Semantically similar content"
+	case "references":
+		return sug.Relationship == "Matches search context"
+	default:
+		return false
+	}
+}
+
+// applyLimit applies the limit to suggestions
+func (h *Handler) applyLimit(suggestions []RelatedSuggestion, limit int) []RelatedSuggestion {
+	if limit > 0 && len(suggestions) > limit {
+		return suggestions[:limit]
+	}
+	return suggestions
 }
 
 // handleAnalyzeQuality analyzes content quality
 func (h *Handler) handleAnalyzeQuality(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+	req, err := h.parseAnalyzeQualityRequest(params)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := h.validateAnalyzeQualityRequest(req); err != nil {
+		return nil, err
+	}
+
+	if err := h.updateSessionIfNeeded(req.ProjectID, req.SessionID); err != nil {
+		return nil, err
+	}
+
+	return h.performQualityAnalysis(ctx, req)
+}
+
+// parseAnalyzeQualityRequest parses the request parameters
+func (h *Handler) parseAnalyzeQualityRequest(params map[string]interface{}) (*AnalyzeQualityRequest, error) {
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -470,137 +639,182 @@ func (h *Handler) handleAnalyzeQuality(ctx context.Context, params map[string]in
 		return nil, fmt.Errorf("failed to parse analyze quality request: %w", err)
 	}
 
-	// Validate parameters
+	return &req, nil
+}
+
+// validateAnalyzeQualityRequest validates the request parameters
+func (h *Handler) validateAnalyzeQualityRequest(req *AnalyzeQualityRequest) error {
 	if err := h.validator.ValidateOperation(string(tools.OpAnalyzeQuality), &req.StandardParams); err != nil {
-		return nil, fmt.Errorf("parameter validation failed: %w", err)
+		return fmt.Errorf("parameter validation failed: %w", err)
 	}
 
 	if req.Scope == "" {
 		req.Scope = "project"
 	}
 
-	// Update session access if session provided
-	if !req.SessionID.IsEmpty() {
-		if err := h.sessionManager.UpdateSessionAccess(req.ProjectID, req.SessionID); err != nil {
-			return nil, fmt.Errorf("failed to update session access: %w", err)
-		}
-	}
+	return nil
+}
 
-	var content *types.Content
-	var contents []*types.Content
-
+// performQualityAnalysis performs the actual quality analysis
+func (h *Handler) performQualityAnalysis(ctx context.Context, req *AnalyzeQualityRequest) (*QualityAnalysis, error) {
 	if req.ContentID != "" {
-		// Analyze specific content
-		// First, get all content and then filter for the specific ID
-		allContent, err := h.searchStore.GetByProject(ctx, req.ProjectID, nil)
-		var contentItems []*types.Content
-		if err == nil {
-			for _, content := range allContent {
-				if content.ID == req.ContentID {
-					contentItems = append(contentItems, content)
-					break
-				}
-			}
-		}
-		if err != nil || len(contentItems) == 0 {
-			return nil, fmt.Errorf("content not found: %s", req.ContentID)
-		}
-		content = contentItems[0]
-	} else {
-		// Analyze project or session content
-		var err error
-		if !req.SessionID.IsEmpty() {
-			contents, err = h.searchStore.GetBySession(ctx, req.ProjectID, req.SessionID, nil)
-		} else {
-			contents, err = h.searchStore.GetByProject(ctx, req.ProjectID, nil)
-		}
-		if err != nil {
-			return nil, fmt.Errorf("failed to retrieve content for analysis: %w", err)
+		return h.analyzeSingleContent(ctx, req)
+	}
+	return h.analyzeMultipleContent(ctx, req)
+}
+
+// analyzeSingleContent analyzes a single content item
+func (h *Handler) analyzeSingleContent(ctx context.Context, req *AnalyzeQualityRequest) (*QualityAnalysis, error) {
+	content, err := h.findTargetContent(ctx, req.ProjectID, req.ContentID)
+	if err != nil {
+		return nil, err
+	}
+
+	qualityMetrics, err := h.aiService.AssessQuality(ctx, content.Content)
+	if err != nil {
+		return nil, fmt.Errorf("failed to assess content quality: %w", err)
+	}
+
+	return &QualityAnalysis{
+		OverallScore:    qualityMetrics.OverallScore,
+		Completeness:    qualityMetrics.Completeness,
+		Clarity:         qualityMetrics.Clarity,
+		Relevance:       qualityMetrics.Relevance,
+		Recency:         h.calculateRecencyScore(content.CreatedAt),
+		Issues:          h.extractQualityIssues(qualityMetrics, content.ID),
+		Recommendations: h.extractRecommendations(qualityMetrics),
+		AnalyzedAt:      time.Now(),
+	}, nil
+}
+
+// analyzeMultipleContent analyzes multiple content items
+func (h *Handler) analyzeMultipleContent(ctx context.Context, req *AnalyzeQualityRequest) (*QualityAnalysis, error) {
+	contents, err := h.getContentsForAnalysis(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(contents) == 0 {
+		return h.createEmptyAnalysis(), nil
+	}
+
+	return h.aggregateQualityMetrics(ctx, contents)
+}
+
+// getContentsForAnalysis retrieves contents based on the request scope
+func (h *Handler) getContentsForAnalysis(ctx context.Context, req *AnalyzeQualityRequest) ([]*types.Content, error) {
+	if !req.SessionID.IsEmpty() {
+		return h.searchStore.GetBySession(ctx, req.ProjectID, req.SessionID, nil)
+	}
+	return h.searchStore.GetByProject(ctx, req.ProjectID, nil)
+}
+
+// aggregateQualityMetrics aggregates quality metrics from multiple content items
+func (h *Handler) aggregateQualityMetrics(ctx context.Context, contents []*types.Content) (*QualityAnalysis, error) {
+	aggregator := newQualityAggregator()
+
+	for _, item := range contents {
+		if err := h.processContentForAggregation(ctx, item, aggregator); err != nil {
+			continue // Skip failed assessments but continue with others
 		}
 	}
 
-	var analysis *QualityAnalysis
+	return aggregator.buildAnalysis(len(contents)), nil
+}
 
-	if content != nil {
-		// Analyze single content item
-		qualityMetrics, err := h.aiService.AssessQuality(ctx, content.Content)
-		if err != nil {
-			return nil, fmt.Errorf("failed to assess content quality: %w", err)
-		}
-
-		analysis = &QualityAnalysis{
-			OverallScore:    qualityMetrics.OverallScore,
-			Completeness:    qualityMetrics.Completeness,
-			Clarity:         qualityMetrics.Clarity,
-			Relevance:       qualityMetrics.Relevance,
-			Recency:         h.calculateRecencyScore(content.CreatedAt),
-			Issues:          h.extractQualityIssues(qualityMetrics, content.ID),
-			Recommendations: h.extractRecommendations(qualityMetrics),
-			AnalyzedAt:      time.Now(),
-		}
-	} else {
-		// Analyze multiple content items (project/session analysis)
-		totalScore := 0.0
-		totalCompleteness := 0.0
-		totalClarity := 0.0
-		totalRelevance := 0.0
-		totalRecency := 0.0
-		issues := make([]QualityIssue, 0)
-		allRecommendations := make(map[string]bool) // Use map to deduplicate
-
-		for _, item := range contents {
-			qualityMetrics, err := h.aiService.AssessQuality(ctx, item.Content)
-			if err != nil {
-				continue // Skip failed assessments but continue with others
-			}
-
-			totalScore += qualityMetrics.OverallScore
-			totalCompleteness += qualityMetrics.Completeness
-			totalClarity += qualityMetrics.Clarity
-			totalRelevance += qualityMetrics.Relevance
-			totalRecency += h.calculateRecencyScore(item.CreatedAt)
-
-			// Extract issues from this content
-			contentIssues := h.extractQualityIssues(qualityMetrics, item.ID)
-			issues = append(issues, contentIssues...)
-
-			// Collect recommendations
-			for _, rec := range h.extractRecommendations(qualityMetrics) {
-				allRecommendations[rec] = true
-			}
-		}
-
-		count := float64(len(contents))
-		if count > 0 {
-			recommendations := make([]string, 0, len(allRecommendations))
-			for rec := range allRecommendations {
-				recommendations = append(recommendations, rec)
-			}
-
-			analysis = &QualityAnalysis{
-				OverallScore:    totalScore / count,
-				Completeness:    totalCompleteness / count,
-				Clarity:         totalClarity / count,
-				Relevance:       totalRelevance / count,
-				Recency:         totalRecency / count,
-				Issues:          issues,
-				Recommendations: recommendations,
-				AnalyzedAt:      time.Now(),
-			}
-		} else {
-			// No content to analyze
-			analysis = &QualityAnalysis{
-				OverallScore: 0.0,
-				AnalyzedAt:   time.Now(),
-			}
-		}
+// processContentForAggregation processes a single content item for aggregation
+func (h *Handler) processContentForAggregation(ctx context.Context, content *types.Content, aggregator *qualityAggregator) error {
+	qualityMetrics, err := h.aiService.AssessQuality(ctx, content.Content)
+	if err != nil {
+		return err
 	}
 
-	return analysis, nil
+	aggregator.addMetrics(qualityMetrics, content, h)
+	return nil
+}
+
+// createEmptyAnalysis creates an empty quality analysis
+func (h *Handler) createEmptyAnalysis() *QualityAnalysis {
+	return &QualityAnalysis{
+		OverallScore: 0.0,
+		AnalyzedAt:   time.Now(),
+	}
+}
+
+// qualityAggregator helps aggregate quality metrics
+type qualityAggregator struct {
+	totalScore        float64
+	totalCompleteness float64
+	totalClarity      float64
+	totalRelevance    float64
+	totalRecency      float64
+	issues            []QualityIssue
+	recommendations   map[string]bool
+}
+
+// newQualityAggregator creates a new quality aggregator
+func newQualityAggregator() *qualityAggregator {
+	return &qualityAggregator{
+		issues:          make([]QualityIssue, 0),
+		recommendations: make(map[string]bool),
+	}
+}
+
+// addMetrics adds metrics from a content item to the aggregator
+func (qa *qualityAggregator) addMetrics(metrics interface{}, content *types.Content, h *Handler) {
+	// Type assertion to extract metrics (assuming metrics has these fields)
+	type QualityMetrics struct {
+		OverallScore float64
+		Completeness float64
+		Clarity      float64
+		Relevance    float64
+	}
+
+	qm, ok := metrics.(QualityMetrics)
+	if !ok {
+		return
+	}
+
+	qa.totalScore += qm.OverallScore
+	qa.totalCompleteness += qm.Completeness
+	qa.totalClarity += qm.Clarity
+	qa.totalRelevance += qm.Relevance
+	qa.totalRecency += h.calculateRecencyScore(content.CreatedAt)
+
+	// Extract issues from this content
+	if qualityMetrics, ok := metrics.(*ai.UnifiedQualityMetrics); ok {
+		contentIssues := h.extractQualityIssues(qualityMetrics, content.ID)
+		qa.issues = append(qa.issues, contentIssues...)
+
+		// Collect recommendations
+		for _, rec := range h.extractRecommendations(qualityMetrics) {
+			qa.recommendations[rec] = true
+		}
+	}
+}
+
+// buildAnalysis builds the final quality analysis
+func (qa *qualityAggregator) buildAnalysis(count int) *QualityAnalysis {
+	fCount := float64(count)
+	recommendations := make([]string, 0, len(qa.recommendations))
+	for rec := range qa.recommendations {
+		recommendations = append(recommendations, rec)
+	}
+
+	return &QualityAnalysis{
+		OverallScore:    qa.totalScore / fCount,
+		Completeness:    qa.totalCompleteness / fCount,
+		Clarity:         qa.totalClarity / fCount,
+		Relevance:       qa.totalRelevance / fCount,
+		Recency:         qa.totalRecency / fCount,
+		Issues:          qa.issues,
+		Recommendations: recommendations,
+		AnalyzedAt:      time.Now(),
+	}
 }
 
 // handleDetectConflicts identifies conflicting information
-func (h *Handler) handleDetectConflicts(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleDetectConflicts(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	reqBytes, err := json.Marshal(params)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal parameters: %w", err)
@@ -650,7 +864,7 @@ func (h *Handler) handleDetectConflicts(ctx context.Context, params map[string]i
 }
 
 // handleGenerateInsights generates insights from data patterns
-func (h *Handler) handleGenerateInsights(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handleGenerateInsights(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	// TODO: Implement insight generation
 	mockInsights := []Insight{
 		{
@@ -673,7 +887,7 @@ func (h *Handler) handleGenerateInsights(ctx context.Context, params map[string]
 }
 
 // handlePredictTrends predicts future trends
-func (h *Handler) handlePredictTrends(ctx context.Context, params map[string]interface{}) (interface{}, error) {
+func (h *Handler) handlePredictTrends(ctx context.Context, params map[string]interface{}) (interface{}, error) { //nolint:unparam // context part of MCP handler interface
 	// TODO: Implement trend prediction
 	return map[string]interface{}{
 		"trends": []map[string]interface{}{
@@ -696,15 +910,16 @@ func (h *Handler) calculateRecencyScore(createdAt time.Time) float64 {
 	days := age.Hours() / 24
 
 	// Newer content gets higher scores
-	if days <= 7 {
+	switch {
+	case days <= 7:
 		return 1.0 // Very recent
-	} else if days <= 30 {
+	case days <= 30:
 		return 0.8 // Recent
-	} else if days <= 90 {
+	case days <= 90:
 		return 0.6 // Moderately recent
-	} else if days <= 365 {
+	case days <= 365:
 		return 0.4 // Older
-	} else {
+	default:
 		return 0.2 // Very old
 	}
 }
@@ -780,9 +995,10 @@ func (h *Handler) extractRecommendations(metrics *ai.UnifiedQualityMetrics) []st
 
 	// Generic quality improvement suggestions
 	if metrics.OverallScore < 0.6 {
-		recommendations = append(recommendations, "Consider restructuring content for better readability")
-		recommendations = append(recommendations, "Add relevant examples and use cases")
-		recommendations = append(recommendations, "Include links to related resources")
+		recommendations = append(recommendations,
+			"Consider restructuring content for better readability",
+			"Add relevant examples and use cases",
+			"Include links to related resources")
 	}
 
 	return recommendations

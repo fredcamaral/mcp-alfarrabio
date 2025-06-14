@@ -463,24 +463,6 @@ func (bsr *BasicSequenceRecognizer) calculateSequenceConfidence(chunks []types.C
 	return math.Min(baseConfidence, 1.0)
 }
 
-func (bsr *BasicSequenceRecognizer) calculateSuccessRateFromOutcome(outcome PatternOutcome) float64 {
-	switch outcome {
-	case OutcomeSuccess:
-		return 1.0
-	case OutcomePartial:
-		return 0.6
-	case OutcomeFailure:
-		return 0.2
-	case OutcomeInterrupted:
-		return 0.4
-	case OutcomeUnknown:
-		return 0.5
-	default:
-		// Unknown outcomes get a neutral success rate
-		return 0.5
-	}
-}
-
 func (bsr *BasicSequenceRecognizer) extractSequenceKeywords(chunks []types.ConversationChunk) []string {
 	text := extractText(chunks)
 	words := strings.Fields(strings.ToLower(text))
@@ -505,43 +487,6 @@ func (bsr *BasicSequenceRecognizer) extractSequenceKeywords(chunks []types.Conve
 	}
 
 	return keywords
-}
-
-func (bsr *BasicSequenceRecognizer) extractSequenceTriggers(chunks []types.ConversationChunk) []string {
-	var triggers []string
-
-	for i := range chunks {
-		content := strings.ToLower(chunks[i].Content)
-
-		if regexp.MustCompile(`(?i)(error|issue|problem)`).MatchString(content) {
-			triggers = append(triggers, "problem_detected")
-		}
-		if regexp.MustCompile(`(?i)(help|assist|support)`).MatchString(content) {
-			triggers = append(triggers, "help_requested")
-		}
-		if regexp.MustCompile(`(?i)(create|build|make)`).MatchString(content) {
-			triggers = append(triggers, "creation_needed")
-		}
-	}
-
-	return unique(triggers)
-}
-
-func (bsr *BasicSequenceRecognizer) extractSequenceOutcomes(chunks []types.ConversationChunk, outcome PatternOutcome) []string {
-	outcomes := []string{string(outcome)}
-
-	for i := range chunks {
-		content := strings.ToLower(chunks[i].Content)
-
-		if regexp.MustCompile(`(?i)(complete|done|finished|success)`).MatchString(content) {
-			outcomes = append(outcomes, "task_completed")
-		}
-		if regexp.MustCompile(`(?i)(working|fixed|resolved)`).MatchString(content) {
-			outcomes = append(outcomes, "issue_resolved")
-		}
-	}
-
-	return unique(outcomes)
 }
 
 func (bsr *BasicSequenceRecognizer) convertActionsToSteps(actions []string, chunks []types.ConversationChunk) []PatternStep {

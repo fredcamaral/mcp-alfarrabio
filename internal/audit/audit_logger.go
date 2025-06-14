@@ -350,7 +350,7 @@ func (al *Logger) Search(_ context.Context, criteria *SearchCriteria) ([]Event, 
 
 	// Search each file
 	for _, filename := range files {
-		fileEvents, err := al.searchFile(filename, *criteria)
+		fileEvents, err := al.searchFile(filename, criteria)
 		if err != nil {
 			logging.Error("Failed to search audit file", "file", filename, "error", err)
 			continue
@@ -367,8 +367,8 @@ func (al *Logger) Search(_ context.Context, criteria *SearchCriteria) ([]Event, 
 }
 
 // searchFile searches a single audit file
-func (al *Logger) searchFile(filename string, criteria SearchCriteria) ([]Event, error) { //nolint:gocritic // Delegate function to optimize for large parameter
-	return al.searchFileWithCriteria(filename, &criteria)
+func (al *Logger) searchFile(filename string, criteria *SearchCriteria) ([]Event, error) {
+	return al.searchFileWithCriteria(filename, criteria)
 }
 
 func (al *Logger) searchFileWithCriteria(filename string, criteria *SearchCriteria) ([]Event, error) {

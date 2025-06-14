@@ -360,6 +360,12 @@ func (fa *fileAnalyzerImpl) findFilesByPattern(ctx context.Context, basePath, pa
 }
 
 func (fa *fileAnalyzerImpl) readConfigFile(filePath string) (interface{}, error) {
+	// Clean and validate the file path
+	filePath = filepath.Clean(filePath)
+	if strings.Contains(filePath, "..") {
+		return nil, fmt.Errorf("path traversal detected: %s", filePath)
+	}
+
 	// Check file size
 	info, err := os.Stat(filePath)
 	if err != nil {

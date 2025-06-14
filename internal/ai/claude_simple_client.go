@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -48,29 +49,45 @@ func NewClaudeSimpleClient(apiKey, baseURL string) (*ClaudeSimpleClient, error) 
 }
 
 // Complete sends a completion request to Claude
-func (c *ClaudeSimpleClient) Complete(ctx context.Context, request CompletionRequest) (*CompletionResponse, error) {
-	// Validate request
+func (c *ClaudeSimpleClient) Complete(ctx context.Context, request *CompletionRequest) (*CompletionResponse, error) {
 	if err := c.ValidateRequest(request); err != nil {
 		return nil, fmt.Errorf("invalid request: %w", err)
 	}
 
-	// Apply default values
+	processedRequest := c.applyDefaults(request)
+	ctx = c.applyTimeout(ctx, processedRequest)
+
+	body := c.buildRequestBody(processedRequest)
+
+	return c.executeWithRetry(ctx, body, processedRequest)
+}
+
+// applyDefaults applies default values to the request
+func (c *ClaudeSimpleClient) applyDefaults(request *CompletionRequest) *CompletionRequest {
 	if request.MaxTokens == 0 {
 		request.MaxTokens = 1000
 	}
 	if request.Temperature == 0 {
 		request.Temperature = 0.7
 	}
-	if request.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, request.Timeout)
-		defer cancel()
-	}
+	return request
+}
 
-	// Build messages array for Claude format
+// applyTimeout applies timeout to context if specified
+func (c *ClaudeSimpleClient) applyTimeout(ctx context.Context, request *CompletionRequest) context.Context {
+	if request.Timeout > 0 {
+		timeoutCtx, cancel := context.WithTimeout(ctx, request.Timeout)
+		// Note: In production, you'd want to handle this cancel func properly
+		_ = cancel
+		return timeoutCtx
+	}
+	return ctx
+}
+
+// buildRequestBody builds the request body for Claude API
+func (c *ClaudeSimpleClient) buildRequestBody(request *CompletionRequest) map[string]interface{} {
 	messages := c.buildMessages(request)
 
-	// Build request body
 	body := map[string]interface{}{
 		"model":       request.Model,
 		"messages":    messages,
@@ -78,6 +95,12 @@ func (c *ClaudeSimpleClient) Complete(ctx context.Context, request CompletionReq
 		"temperature": request.Temperature,
 	}
 
+	c.addOptionalParameters(body, request)
+	return body
+}
+
+// addOptionalParameters adds optional parameters to the request body
+func (c *ClaudeSimpleClient) addOptionalParameters(body map[string]interface{}, request *CompletionRequest) {
 	if request.TopP > 0 {
 		body["top_p"] = request.TopP
 	}
@@ -87,16 +110,16 @@ func (c *ClaudeSimpleClient) Complete(ctx context.Context, request CompletionReq
 	if request.SystemMessage != "" {
 		body["system"] = request.SystemMessage
 	}
+}
 
-	// Execute request with retry logic
+// executeWithRetry executes the request with retry logic
+func (c *ClaudeSimpleClient) executeWithRetry(ctx context.Context, body map[string]interface{}, request *CompletionRequest) (*CompletionResponse, error) {
 	var lastErr error
+
 	for attempt := 0; attempt <= c.maxRetries; attempt++ {
 		if attempt > 0 {
-			select {
-			case <-ctx.Done():
-				return nil, ctx.Err()
-			case <-time.After(c.retryDelay * time.Duration(attempt)):
-				// Exponential backoff
+			if err := c.waitForRetry(ctx, attempt); err != nil {
+				return nil, err
 			}
 		}
 
@@ -105,7 +128,9 @@ func (c *ClaudeSimpleClient) Complete(ctx context.Context, request CompletionReq
 			return c.processResponse(resp, request)
 		}
 
+		c.closeResponseBody(resp)
 		lastErr = err
+
 		if !c.isRetryableError(err) {
 			break
 		}
@@ -114,8 +139,25 @@ func (c *ClaudeSimpleClient) Complete(ctx context.Context, request CompletionReq
 	return nil, lastErr
 }
 
+// waitForRetry waits for the appropriate retry delay
+func (c *ClaudeSimpleClient) waitForRetry(ctx context.Context, attempt int) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(c.retryDelay * time.Duration(attempt)):
+		return nil
+	}
+}
+
+// closeResponseBody safely closes the response body
+func (c *ClaudeSimpleClient) closeResponseBody(resp *http.Response) {
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+}
+
 // ValidateRequest validates the completion request
-func (c *ClaudeSimpleClient) ValidateRequest(request CompletionRequest) error {
+func (c *ClaudeSimpleClient) ValidateRequest(request *CompletionRequest) error {
 	if request.Prompt == "" {
 		return fmt.Errorf("prompt cannot be empty")
 	}
@@ -146,7 +188,7 @@ func (c *ClaudeSimpleClient) GetCapabilities() ClientCapabilities {
 }
 
 // buildMessages constructs the messages array for the Claude API request
-func (c *ClaudeSimpleClient) buildMessages(request CompletionRequest) []map[string]interface{} {
+func (c *ClaudeSimpleClient) buildMessages(request *CompletionRequest) []map[string]interface{} {
 	// Claude uses a different format for messages
 	messages := []map[string]interface{}{
 		{
@@ -184,8 +226,13 @@ func (c *ClaudeSimpleClient) executeRequest(ctx context.Context, body map[string
 }
 
 // processResponse processes the Claude API response
-func (c *ClaudeSimpleClient) processResponse(resp *http.Response, request CompletionRequest) (*CompletionResponse, error) {
-	defer resp.Body.Close()
+func (c *ClaudeSimpleClient) processResponse(resp *http.Response, request *CompletionRequest) (*CompletionResponse, error) {
+	defer func() {
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Log error but don't fail the operation since we already have the response
+			fmt.Printf("Warning: failed to close response body: %v\n", closeErr)
+		}
+	}()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -260,7 +307,8 @@ func (c *ClaudeSimpleClient) parseErrorResponse(statusCode int, body []byte) err
 
 // isRetryableError determines if an error is retryable
 func (c *ClaudeSimpleClient) isRetryableError(err error) bool {
-	if apiErr, ok := err.(*APIError); ok {
+	var apiErr *APIError
+	if errors.As(err, &apiErr) {
 		return apiErr.StatusCode == http.StatusTooManyRequests ||
 			apiErr.StatusCode >= 500
 	}

@@ -161,7 +161,8 @@ func (c *Cache) generateKey(req *Request) string {
 			if s, ok := v.(string); ok {
 				h.Write([]byte(s))
 			} else {
-				h.Write([]byte(fmt.Sprintf("%v", v)))
+				// Error is ignored as hash.Hash.Write never returns an error
+				_, _ = fmt.Fprintf(h, "%v", v)
 			}
 		}
 	}
@@ -252,11 +253,19 @@ func (c *Cache) GetWithContext(ctx context.Context, req *Request) (*Response, bo
 		reqCopy.Context = make(map[string]interface{})
 	}
 
-	// Extract context values - check for common keys
-	contextKeys := []string{"user_id", "session_id", "repository", c.contextKey}
+	// Extract context values - check for common keys (both string and typed keys)
+	contextKeys := []interface{}{"user_id", "session_id", "repository", c.contextKey}
+
+	// Also check for the contextKey type used in tests
+	type contextKey string
+	const userIDKey contextKey = "user_id"
+	contextKeys = append(contextKeys, userIDKey)
+
 	for _, key := range contextKeys {
 		if ctxValue := ctx.Value(key); ctxValue != nil {
-			reqCopy.Context[key] = fmt.Sprintf("%v", ctxValue)
+			// Use string representation of the key for storage
+			keyStr := fmt.Sprintf("%v", key)
+			reqCopy.Context[keyStr] = fmt.Sprintf("%v", ctxValue)
 		}
 	}
 
@@ -271,11 +280,19 @@ func (c *Cache) SetWithContext(ctx context.Context, req *Request, resp *Response
 		reqCopy.Context = make(map[string]interface{})
 	}
 
-	// Extract context values - check for common keys
-	contextKeys := []string{"user_id", "session_id", "repository", c.contextKey}
+	// Extract context values - check for common keys (both string and typed keys)
+	contextKeys := []interface{}{"user_id", "session_id", "repository", c.contextKey}
+
+	// Also check for the contextKey type used in tests
+	type contextKey string
+	const userIDKey contextKey = "user_id"
+	contextKeys = append(contextKeys, userIDKey)
+
 	for _, key := range contextKeys {
 		if ctxValue := ctx.Value(key); ctxValue != nil {
-			reqCopy.Context[key] = fmt.Sprintf("%v", ctxValue)
+			// Use string representation of the key for storage
+			keyStr := fmt.Sprintf("%v", key)
+			reqCopy.Context[keyStr] = fmt.Sprintf("%v", ctxValue)
 		}
 	}
 

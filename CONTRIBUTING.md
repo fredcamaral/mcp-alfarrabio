@@ -198,7 +198,7 @@ lerian-mcp-memory/
 │   └── workflow/         # Workflow management
 ├── pkg/                   # Public libraries
 │   └── mcp/              # MCP Go SDK
-├── configs/              # Configuration files
+├── .env.example          # Configuration template (main config source)
 ├── docs/                 # Documentation
 └── tests/                # Integration tests
 ```
