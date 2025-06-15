@@ -180,7 +180,7 @@ func (pa *patternAggregatorImpl) AnonymizePattern(
 	}
 
 	// Generalize project type if needed
-	if settings.AnonymizationLevel == "high" {
+	if settings.AnonymizationLevel == SeverityHigh {
 		anonymized.Metadata["project_type"] = pa.generalizeProjectType(
 			anonymized.Metadata["project_type"],
 		)

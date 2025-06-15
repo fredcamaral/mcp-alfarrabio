@@ -280,11 +280,11 @@ func (c *CLI) runWorkflowContinue(from string) error {
 		case "prd":
 			status = "ready_to_start"
 		case "trd":
-			status = "ready_for_trd"
+			status = WorkflowStatusReadyForTRD
 		case "tasks":
-			status = "ready_for_tasks"
+			status = WorkflowStatusReadyForTasks
 		case "subtasks":
-			status = "ready_for_subtasks"
+			status = WorkflowStatusReadyForSubtasks
 		default:
 			return fmt.Errorf("invalid step: %s (valid: prd, trd, tasks, subtasks)", from)
 		}
@@ -296,20 +296,20 @@ func (c *CLI) runWorkflowContinue(from string) error {
 		fmt.Printf("📝 Starting with PRD creation...\n\n")
 		return c.runPRDCreate(true, "", "", "", "", "")
 
-	case "ready_for_trd":
+	case WorkflowStatusReadyForTRD:
 		fmt.Printf("🔧 Continuing with TRD generation...\n\n")
 		return c.runTRDCreate("", "", true)
 
-	case "ready_for_tasks":
+	case WorkflowStatusReadyForTasks:
 		fmt.Printf("📋 Continuing with task generation...\n\n")
 		return c.runTasksGenerate("", "", "", true)
 
-	case "ready_for_subtasks":
+	case WorkflowStatusReadyForSubtasks:
 		fmt.Printf("🔍 Ready to generate sub-tasks.\n")
 		fmt.Printf("Use: lmmc subtasks generate MT-001\n")
 		return nil
 
-	case "ready_for_implementation":
+	case WorkflowStatusReadyForImplementation:
 		fmt.Printf("✅ Workflow complete! All documents generated.\n")
 		fmt.Printf("Start implementation with: lmmc add --from-task MT-001\n")
 		return nil

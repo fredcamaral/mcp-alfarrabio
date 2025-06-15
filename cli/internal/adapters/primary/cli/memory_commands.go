@@ -206,7 +206,7 @@ func (c *CLI) createMemorySearchCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project")
 	cmd.Flags().IntVarP(&limit, "limit", "l", 10, "Maximum number of results")
-	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json, plain)")
+	cmd.Flags().StringVarP(&format, "format", "f", OutputFormatTable, "Output format ("+OutputFormatTable+", "+OutputFormatJSON+", "+OutputFormatPlain+")")
 
 	return cmd
 }
@@ -223,7 +223,7 @@ func (c *CLI) createMemoryGetCommand() *cobra.Command {
   lmmc memory get prd abc123
   
   # Get a TRD with JSON output
-  lmmc memory get trd xyz789 --format json`,
+  lmmc memory get trd xyz789 --format ` + OutputFormatJSON + ``,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return c.runMemoryGet(cmd, args[0], args[1], format)
@@ -231,7 +231,7 @@ func (c *CLI) createMemoryGetCommand() *cobra.Command {
 		ValidArgs: []string{"prd", "trd", "review", "decision"},
 	}
 
-	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json, plain)")
+	cmd.Flags().StringVarP(&format, "format", "f", OutputFormatTable, "Output format ("+OutputFormatTable+", "+OutputFormatJSON+", "+OutputFormatPlain+")")
 
 	return cmd
 }
@@ -263,7 +263,7 @@ func (c *CLI) createMemoryListCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&memoryType, "type", "t", "", "Filter by type (prd, trd, review, decision)")
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project")
 	cmd.Flags().IntVarP(&limit, "limit", "l", 20, "Maximum number of results")
-	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json, plain)")
+	cmd.Flags().StringVarP(&format, "format", "f", OutputFormatTable, "Output format ("+OutputFormatTable+", "+OutputFormatJSON+", "+OutputFormatPlain+")")
 
 	return cmd
 }
@@ -323,7 +323,7 @@ func (c *CLI) createMemoryPatternsCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project (required)")
 	cmd.Flags().StringVarP(&patternType, "type", "t", "", "Filter by pattern type")
-	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json, plain)")
+	cmd.Flags().StringVarP(&format, "format", "f", OutputFormatTable, "Output format ("+OutputFormatTable+", "+OutputFormatJSON+", "+OutputFormatPlain+")")
 
 	markFlagRequired(cmd, "project")
 
@@ -352,7 +352,7 @@ func (c *CLI) createMemorySuggestCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&feature, "for-feature", "f", "", "Feature to get suggestions for")
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Project context (required)")
-	cmd.Flags().StringVar(&format, "format", "table", "Output format (table, json, plain)")
+	cmd.Flags().StringVar(&format, "format", OutputFormatTable, "Output format ("+OutputFormatTable+", "+OutputFormatJSON+", "+OutputFormatPlain+")")
 
 	markFlagRequired(cmd, "project")
 
@@ -386,7 +386,7 @@ func (c *CLI) createMemoryInsightsCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&topic, "topic", "t", "", "Topic to analyze")
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Project to analyze")
 	cmd.Flags().BoolVar(&crossProject, "cross-project", false, "Include cross-project insights")
-	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json, plain)")
+	cmd.Flags().StringVarP(&format, "format", "f", OutputFormatTable, "Output format ("+OutputFormatTable+", "+OutputFormatJSON+", "+OutputFormatPlain+")")
 
 	return cmd
 }
@@ -413,7 +413,7 @@ func (c *CLI) createMemoryCompareCommand() *cobra.Command {
 
 	cmd.Flags().StringSliceVar(&projects, "projects", []string{}, "Projects to compare (comma-separated)")
 	cmd.Flags().StringVarP(&aspect, "aspect", "a", "", "Specific aspect to compare")
-	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json, plain)")
+	cmd.Flags().StringVarP(&format, "format", "f", OutputFormatTable, "Output format ("+OutputFormatTable+", "+OutputFormatJSON+", "+OutputFormatPlain+")")
 
 	markFlagRequired(cmd, "projects")
 
@@ -635,7 +635,7 @@ func (c *CLI) runMemorySearch(cmd *cobra.Command, query, project string, limit i
 	if project != "" {
 		options["repository"] = project
 	} else {
-		options["repository"] = "global"
+		options["repository"] = RepositoryGlobal
 	}
 
 	// Create request for memory_read tool
@@ -685,7 +685,7 @@ func (c *CLI) runMemoryGet(cmd *cobra.Command, memoryType, id, format string) er
 		"operation": "get_context",
 		"scope":     "single",
 		"options": map[string]interface{}{
-			"repository": "global", // Search across all repositories
+			"repository": RepositoryGlobal, // Search across all repositories
 			"chunk_id":   id,
 		},
 	})
@@ -695,7 +695,7 @@ func (c *CLI) runMemoryGet(cmd *cobra.Command, memoryType, id, format string) er
 	}
 
 	// Format output
-	if format == "json" {
+	if format == OutputFormatJSON {
 		jsonData, _ := json.MarshalIndent(result, "", "  ")
 		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", string(jsonData))
 	} else {
@@ -723,7 +723,7 @@ func (c *CLI) runMemoryList(cmd *cobra.Command, memoryType, project string, limi
 	if project != "" {
 		options["repository"] = project
 	} else {
-		options["repository"] = "global"
+		options["repository"] = RepositoryGlobal
 	}
 	if memoryType != "" {
 		options["type"] = memoryType
@@ -770,7 +770,7 @@ func (c *CLI) runMemoryLearnFromReview(cmd *cobra.Command, reviewID string) erro
 		"operation": "detect_threads",
 		"scope":     "single",
 		"options": map[string]interface{}{
-			"repository": "global",
+			"repository": RepositoryGlobal,
 			"session_id": reviewID,
 		},
 	})
@@ -919,7 +919,7 @@ func (c *CLI) runMemoryInsights(cmd *cobra.Command, topic, project string, cross
 	if crossProject {
 		scope = "cross_repo"
 		if repository == "" {
-			repository = "global"
+			repository = RepositoryGlobal
 		}
 	}
 

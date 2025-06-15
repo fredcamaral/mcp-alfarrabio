@@ -167,7 +167,7 @@ func (c *CLI) runTRDCreate(fromPRD, output string, useSession bool) error {
 	// Determine output file
 	if output == "" && useSession {
 		// Default output location with matching name
-		preDev := "docs/pre-development"
+		preDev := DefaultPreDevelopmentDir
 		if err := os.MkdirAll(preDev, 0750); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
 		}

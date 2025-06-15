@@ -88,23 +88,23 @@ func (c *CLI) runWorkflowStatus() error {
 	fmt.Printf("💡 Next Steps:\n")
 
 	switch status {
-	case "ready_to_start":
+	case WorkflowStatusReadyToStart:
 		fmt.Printf("   → Run: lmmc prd create \"your feature description\"\n")
 		fmt.Printf("   → Or: lmmc workflow start \"your feature\"\n")
 
-	case "ready_for_trd":
+	case WorkflowStatusReadyForTRD:
 		fmt.Printf("   → Run: lmmc trd create\n")
 		fmt.Printf("   → The PRD will be auto-detected from your session\n")
 
-	case "ready_for_tasks":
+	case WorkflowStatusReadyForTasks:
 		fmt.Printf("   → Run: lmmc tasks generate\n")
 		fmt.Printf("   → Both PRD and TRD will be auto-detected\n")
 
-	case "ready_for_subtasks":
+	case WorkflowStatusReadyForSubtasks:
 		fmt.Printf("   → Run: lmmc subtasks generate MT-001\n")
 		fmt.Printf("   → Or: lmmc workflow continue\n")
 
-	case "ready_for_implementation":
+	case WorkflowStatusReadyForImplementation:
 		fmt.Printf("   ✨ All documents generated! Ready to start coding.\n")
 		fmt.Printf("   → Run: lmmc add --from-task MT-001\n")
 		fmt.Printf("   → Or: lmmc review phase foundation\n")

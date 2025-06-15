@@ -282,23 +282,23 @@ func (c *CLI) executeExport(opts *ExportOptions, fields []string, splitBy string
 
 	var outputSize int64
 	switch strings.ToLower(opts.Format) {
-	case "json":
+	case OutputFormatJSON:
 		outputSize, err = c.exportJSON(tasks, outputFile, opts, fields)
-	case "yaml", "yml":
+	case FormatYAML, "yml":
 		outputSize, err = c.exportYAML(tasks, outputFile, opts, fields)
-	case "csv":
+	case FormatCSV:
 		outputSize, err = c.exportCSV(tasks, outputFile, opts, fields)
-	case "tsv":
+	case FormatTSV:
 		outputSize, err = c.exportTSV(tasks, outputFile, opts, fields)
-	case "xml":
+	case FormatXML:
 		outputSize, err = c.exportXML(tasks, outputFile, opts, fields)
-	case "pdf":
+	case FormatPDF:
 		outputSize, err = c.exportPDF(tasks, outputFile, opts, fields)
-	case "html":
+	case FormatHTML:
 		outputSize, err = c.exportHTML(tasks, outputFile, opts, fields)
-	case "markdown", "md":
+	case FormatMarkdown, "md":
 		outputSize, err = c.exportMarkdown(tasks, outputFile, opts, fields)
-	case "archive", "zip":
+	case "archive", FormatZip:
 		outputSize, err = c.exportArchive(tasks, outputFile, opts, fields)
 	default:
 		return nil, fmt.Errorf("unsupported export format: %s", opts.Format)
@@ -554,19 +554,19 @@ func (c *CLI) exportArchive(tasks []*entities.Task, outputFile string, opts *Exp
 		var filename string
 
 		switch format {
-		case "json":
+		case OutputFormatJSON:
 			exportData := c.prepareExportData(tasks, opts, fields)
 			data, _ = json.MarshalIndent(exportData, "", "  ")
 			filename = "tasks.json"
-		case "yaml":
+		case FormatYAML:
 			exportData := c.prepareExportData(tasks, opts, fields)
 			data, _ = yaml.Marshal(exportData)
 			filename = "tasks.yaml"
-		case "csv":
+		case FormatCSV:
 			filename = "tasks.csv"
 			// Generate CSV content
 			data = c.generateCSVBytes(tasks, fields)
-		case "markdown":
+		case FormatMarkdown:
 			content := c.generateMarkdown(tasks, opts, fields)
 			data = []byte(content)
 			filename = "tasks.md"
@@ -603,24 +603,24 @@ func (c *CLI) generateOutputFileName(opts *ExportOptions) string {
 
 func (c *CLI) getFileExtension(format string) string {
 	switch strings.ToLower(format) {
-	case "json":
-		return "json"
-	case "yaml", "yml":
-		return "yaml"
-	case "csv":
-		return "csv"
-	case "tsv":
-		return "tsv"
-	case "xml":
-		return "xml"
-	case "pdf":
-		return "pdf"
-	case "html":
-		return "html"
-	case "markdown", "md":
+	case OutputFormatJSON:
+		return OutputFormatJSON
+	case FormatYAML, "yml":
+		return FormatYAML
+	case FormatCSV:
+		return FormatCSV
+	case FormatTSV:
+		return FormatTSV
+	case FormatXML:
+		return FormatXML
+	case FormatPDF:
+		return FormatPDF
+	case FormatHTML:
+		return FormatHTML
+	case FormatMarkdown, "md":
 		return "md"
-	case "archive", "zip":
-		return "zip"
+	case "archive", FormatZip:
+		return FormatZip
 	default:
 		return "txt"
 	}

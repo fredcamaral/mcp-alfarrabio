@@ -100,8 +100,8 @@ func (c *CLI) createGenerateSamplePRDCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&projectType, "type", "t", "web-app", "Project type (e-commerce, api, web-app, mobile, cli, microservice)")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: docs/pre-development/sample-prd-<type>.md)")
+	cmd.Flags().StringVarP(&projectType, "type", "t", ProjectTypeWebApp, "Project type (e-commerce, "+ProjectTypeAPI+", "+ProjectTypeWebApp+", mobile, cli, microservice)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: "+DefaultPreDevelopmentDir+"/sample-prd-<type>.md)")
 	cmd.Flags().IntVar(&features, "features", 5, "Number of features to include")
 
 	return cmd
@@ -134,7 +134,7 @@ func (c *CLI) createGenerateSampleProjectCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&template, "template", "t", "api", "Project template (api, microservice, web-app, cli, library)")
+	cmd.Flags().StringVarP(&template, "template", "t", ProjectTypeAPI, "Project template ("+ProjectTypeAPI+", microservice, "+ProjectTypeWebApp+", cli, library)")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Project name (auto-generated if not specified)")
 	cmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory (default: ./<project-name>)")
 	cmd.Flags().BoolVar(&withTasks, "with-tasks", true, "Generate tasks from PRD/TRD")
@@ -380,10 +380,10 @@ func (c *CLI) runGenerateSamplePRD(cmd *cobra.Command, projectType, output strin
 
 	// Determine output path
 	if output == "" {
-		if err := os.MkdirAll("docs/pre-development", 0750); err != nil {
+		if err := os.MkdirAll(DefaultPreDevelopmentDir, 0750); err != nil {
 			return fmt.Errorf("failed to create docs directory: %w", err)
 		}
-		output = fmt.Sprintf("docs/pre-development/sample-prd-%s.md", projectType)
+		output = fmt.Sprintf("%s/sample-prd-%s.md", DefaultPreDevelopmentDir, projectType)
 	}
 
 	// Generate PRD content
@@ -617,14 +617,14 @@ func generateSampleTRD(projectType, projectName, path string) error {
 	content.WriteString("## Architecture Overview\n\n")
 
 	switch projectType {
-	case "api", "microservice":
+	case ProjectTypeAPI, "microservice":
 		content.WriteString("### System Architecture\n")
 		content.WriteString("- **Pattern**: RESTful API / Microservices\n")
 		content.WriteString("- **Communication**: HTTP/JSON, gRPC for internal services\n")
 		content.WriteString("- **Database**: PostgreSQL with Redis caching\n")
 		content.WriteString("- **Deployment**: Docker containers on Kubernetes\n\n")
 
-	case "web-app", "e-commerce":
+	case ProjectTypeWebApp, "e-commerce":
 		content.WriteString("### System Architecture\n")
 		content.WriteString("- **Frontend**: React with TypeScript\n")
 		content.WriteString("- **Backend**: Node.js with Express\n")
@@ -731,7 +731,7 @@ func generateGitignore(projectType, path string) error {
 
 	// Language-specific
 	switch projectType {
-	case "api", "microservice", "cli":
+	case ProjectTypeAPI, "microservice", "cli":
 		content.WriteString("# Go\n")
 		content.WriteString("*.exe\n")
 		content.WriteString("*.dll\n")
@@ -740,7 +740,7 @@ func generateGitignore(projectType, path string) error {
 		content.WriteString("bin/\n")
 		content.WriteString("vendor/\n\n")
 
-	case "web-app", "e-commerce":
+	case ProjectTypeWebApp, "e-commerce":
 		content.WriteString("# Node\n")
 		content.WriteString("node_modules/\n")
 		content.WriteString("dist/\n")

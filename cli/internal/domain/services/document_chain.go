@@ -759,13 +759,13 @@ func (s *DefaultDocumentChainService) estimateSubTaskDuration(step string) int {
 func (s *DefaultDocumentChainService) determineImplementationType(step string) string {
 	switch {
 	case contains(step, "test", "testing"):
-		return "testing"
+		return TaskTypeTesting
 	case contains(step, "doc", "documentation"):
 		return "documentation"
 	case contains(step, "research", "planning"):
-		return "research"
+		return TaskTypeResearch
 	default:
-		return "implementation"
+		return TaskTypeImplementation
 	}
 }
 

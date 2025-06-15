@@ -341,11 +341,11 @@ func (mm *MemoryManager) determineSyncStrategy(ctx context.Context, files []stri
 
 	// Add intelligent decisions based on context
 	if len(mappings) == 0 {
-		strategy["new_repo"] = "true"
-		strategy["full_sync"] = "true"
+		strategy["new_repo"] = BoolStringTrue
+		strategy["full_sync"] = BoolStringTrue
 	} else {
-		strategy["existing_repo"] = "true"
-		strategy["incremental_sync"] = "true"
+		strategy["existing_repo"] = BoolStringTrue
+		strategy["incremental_sync"] = BoolStringTrue
 	}
 
 	return strategy, nil

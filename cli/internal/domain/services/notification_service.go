@@ -204,7 +204,7 @@ func (n *NotificationService) handleTaskEvent(event *api.TaskEvent) {
 		} else {
 			message = fmt.Sprintf("📝 New task created (ID: %s)", event.TaskID)
 		}
-		severity = "info"
+		severity = SeverityInfo
 
 	case api.EventTypeTaskUpdated:
 		if event.Task != nil {
@@ -213,7 +213,7 @@ func (n *NotificationService) handleTaskEvent(event *api.TaskEvent) {
 		} else {
 			message = fmt.Sprintf("✏️  Task updated (ID: %s)", event.TaskID)
 		}
-		severity = "info"
+		severity = SeverityInfo
 
 	case api.EventTypeTaskDeleted:
 		message = fmt.Sprintf("🗑️  Task deleted (ID: %s)", event.TaskID)
@@ -221,7 +221,7 @@ func (n *NotificationService) handleTaskEvent(event *api.TaskEvent) {
 
 	default:
 		message = fmt.Sprintf("📋 Task event: %s (ID: %s)", event.Type, event.TaskID)
-		severity = "info"
+		severity = SeverityInfo
 	}
 
 	n.displayNotification(message, severity)

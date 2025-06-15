@@ -110,7 +110,7 @@ func (c *CLI) createAIProcessCommand() *cobra.Command {
 
 			// Set current context
 			repoInfo, _ := c.repositoryDetector.DetectCurrent(c.getContext())
-			repository := "local"
+			repository := RepositoryLocal
 			if repoInfo != nil {
 				repository = repoInfo.Name
 			}
@@ -184,7 +184,7 @@ func (c *CLI) createAISyncCommand() *cobra.Command {
 
 			// Set current context
 			repoInfo, _ := c.repositoryDetector.DetectCurrent(c.getContext())
-			repository := "local"
+			repository := RepositoryLocal
 			if repoInfo != nil {
 				repository = repoInfo.Name
 			}

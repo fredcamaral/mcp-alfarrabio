@@ -1799,7 +1799,7 @@ func (cra *crossRepoAnalyzer) detectOutliers(repoMetrics map[string]*entities.Wo
 		zScore := (score - mean) / stdDev
 
 		if zScore > 2 || zScore < -2 { // More than 2 standard deviations
-			outlierType := "positive"
+			outlierType := OutlierTypePositive
 			if zScore < 0 {
 				outlierType = "negative"
 			}

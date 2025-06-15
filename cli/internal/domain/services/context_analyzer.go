@@ -137,7 +137,7 @@ func (ca *contextAnalyzerImpl) AnalyzeCurrentContext(
 	projectType, err := ca.DetermineProjectType(ctx, repository)
 	if err != nil {
 		ca.logger.Warn("failed to determine project type", slog.Any("error", err))
-		projectType = "general"
+		projectType = ProjectTypeGeneral
 	}
 	workContext.ProjectType = projectType
 
@@ -829,13 +829,13 @@ func (ca *contextAnalyzerImpl) determineTimeOfDay(now time.Time) string {
 
 	switch {
 	case hour >= 5 && hour < 12:
-		return "morning"
+		return TimeOfDayMorning
 	case hour >= 12 && hour < 17:
-		return "afternoon"
+		return TimeOfDayAfternoon
 	case hour >= 17 && hour < 21:
-		return "evening"
+		return TimeOfDayEvening
 	default:
-		return "night"
+		return TimeOfDayNight
 	}
 }
 

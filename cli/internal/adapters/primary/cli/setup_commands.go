@@ -188,7 +188,7 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 
 	if response != "n" && response != "no" {
 		dirs := []string{
-			"docs/pre-development",
+			DefaultPreDevelopmentDir,
 			"docs/tasks",
 			"docs/reviews",
 			".lmmc",

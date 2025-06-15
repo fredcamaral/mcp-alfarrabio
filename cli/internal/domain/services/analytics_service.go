@@ -685,7 +685,7 @@ func (a *analyticsServiceImpl) detectCycleTimeBottlenecks(tasks []*entities.Task
 		if task.Status == entities.StatusCompleted {
 			duration := a.calculator.GetTaskDuration(task)
 			if duration > 0 {
-				taskType := "default"
+				taskType := TaskTypeDefault
 				if len(task.Tags) > 0 {
 					taskType = task.Tags[0]
 				}

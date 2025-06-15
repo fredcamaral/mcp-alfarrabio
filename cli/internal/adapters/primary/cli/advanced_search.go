@@ -327,7 +327,7 @@ func (c *CLI) applySortAndLimit(tasks []*entities.Task, opts *SearchOptions) []*
 		c.sortTasksByCreated(tasks)
 	case "updated":
 		c.sortTasksByUpdated(tasks)
-	case "priority":
+	case FieldPriority:
 		c.sortTasksByPriority(tasks)
 	case "due":
 		c.sortTasksByDue(tasks)
@@ -587,7 +587,7 @@ func (c *CLI) filtersToMap(filters *ports.TaskFilters) map[string]interface{} {
 		m["status"] = string(*filters.Status)
 	}
 	if filters.Priority != nil {
-		m["priority"] = string(*filters.Priority)
+		m[FieldPriority] = string(*filters.Priority)
 	}
 	if filters.Repository != "" {
 		m["repository"] = filters.Repository
@@ -631,7 +631,7 @@ func (c *CLI) mapToFilters(m map[string]interface{}) *ports.TaskFilters {
 		s := entities.Status(status)
 		filters.Status = &s
 	}
-	if priority, ok := m["priority"].(string); ok {
+	if priority, ok := m[FieldPriority].(string); ok {
 		p := entities.Priority(priority)
 		filters.Priority = &p
 	}

@@ -260,7 +260,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 	// Determine output file
 	if output == "" {
 		// Default output location
-		preDev := "docs/pre-development"
+		preDev := DefaultPreDevelopmentDir
 		if err := os.MkdirAll(preDev, 0750); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
 		}
@@ -325,7 +325,7 @@ func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, o
 	// Determine output file
 	if output == "" {
 		// Default output location
-		preDev := "docs/pre-development"
+		preDev := DefaultPreDevelopmentDir
 		if err := os.MkdirAll(preDev, 0750); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
 		}

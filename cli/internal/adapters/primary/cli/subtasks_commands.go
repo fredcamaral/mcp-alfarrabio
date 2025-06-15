@@ -174,7 +174,7 @@ func (c *CLI) loadMainTask(taskID string) (*services.MainTask, error) {
 
 func (c *CLI) getDefaultSubtasksOutputPath(taskID string) string {
 	// Create standard output path
-	preDev := "docs/pre-development/tasks"
+	preDev := DefaultPreDevelopmentDir + "/tasks"
 	if err := os.MkdirAll(preDev, 0750); err != nil {
 		// Log the error but continue with the path
 		c.logger.Warn("failed to create directory", "path", preDev, "error", err)

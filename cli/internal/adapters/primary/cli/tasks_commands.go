@@ -380,7 +380,7 @@ func (c *CLI) runTasksAtomicCheck(taskID string) error {
 
 func (c *CLI) getDefaultTasksOutputPath() string {
 	// Create standard output path
-	preDev := "docs/pre-development"
+	preDev := DefaultPreDevelopmentDir
 	if err := os.MkdirAll(preDev, 0750); err != nil {
 		// Log the error but continue with the path
 		c.logger.Warn("failed to create directory", "path", preDev, "error", err)
