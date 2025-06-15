@@ -255,7 +255,7 @@ func (c *CLI) formatDisplayID(fullTaskID string) string {
 }
 
 // processTagTasks handles batch tagging/untagging of tasks with reduced nesting
-func (c *CLI) processTagTasks(cmd *cobra.Command, taskIDs []string, tags []string, removeTags bool) error {
+func (c *CLI) processTagTasks(cmd *cobra.Command, taskIDs, tags []string, removeTags bool) error {
 	successCount := 0
 	failCount := 0
 

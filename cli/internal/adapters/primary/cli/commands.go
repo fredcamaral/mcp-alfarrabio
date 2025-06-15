@@ -713,7 +713,7 @@ Note: Suggestions improve with more task history and patterns in your repository
 }
 
 // resolveTaskID resolves a task ID from either a short ID prefix or full UUID
-func (c *CLI) resolveTaskID(ctx context.Context, idOrShort string, repository string) (string, error) {
+func (c *CLI) resolveTaskID(ctx context.Context, idOrShort, repository string) (string, error) {
 	// If it's already a full UUID, return it
 	if len(idOrShort) == 36 {
 		return idOrShort, nil
@@ -816,7 +816,7 @@ func getTimeOfDay() string {
 }
 
 // executeDeleteTask handles the task deletion with reduced nesting
-func (c *CLI) executeDeleteTask(cmd *cobra.Command, taskIDOrIndex string, repository string, force bool) error {
+func (c *CLI) executeDeleteTask(cmd *cobra.Command, taskIDOrIndex, repository string, force bool) error {
 	// Get repository if not specified
 	repository = c.getOrDetectRepository(repository)
 
@@ -858,7 +858,7 @@ func (c *CLI) getOrDetectRepository(repository string) string {
 }
 
 // resolveTaskIDFromInput resolves task ID from either numeric index or string ID
-func (c *CLI) resolveTaskIDFromInput(taskIDOrIndex string, repository string) (string, error) {
+func (c *CLI) resolveTaskIDFromInput(taskIDOrIndex, repository string) (string, error) {
 	// Check if it's a numeric index
 	if index, err := strconv.Atoi(taskIDOrIndex); err == nil {
 		return c.resolveTaskByIndex(index, repository)

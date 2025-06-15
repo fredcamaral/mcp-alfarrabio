@@ -153,19 +153,14 @@ func (ai *aiSuggestionGeneratorImpl) GenerateCreativeSuggestions(
 	suggestions := make([]*entities.TaskSuggestion, 0, len(creativeOpportunities))
 
 	for _, opportunity := range creativeOpportunities {
-		suggestion := entities.NewTaskSuggestion(
+		suggestion := ai.createBasicTaskSuggestion(
 			entities.SuggestionTypeLearning,
 			opportunity.suggestion,
-			entities.SuggestionSource{
-				Type:       "ai",
-				Name:       "creative_ai",
-				Algorithm:  "creative_opportunity_analysis",
-				Confidence: opportunity.confidence,
-			},
+			"creative_ai",
+			"creative_opportunity_analysis",
+			opportunity.confidence,
 			workContext.Repository,
 		)
-
-		suggestion.Confidence = opportunity.confidence
 		suggestion.Relevance = opportunity.relevance
 		suggestion.Urgency = 0.4 // Creative tasks are generally lower urgency
 		suggestion.Reasoning = opportunity.reasoning
@@ -198,19 +193,14 @@ func (ai *aiSuggestionGeneratorImpl) GenerateLearningPathSuggestions(
 	suggestions := make([]*entities.TaskSuggestion, 0, len(learningGaps))
 
 	for _, gap := range learningGaps {
-		suggestion := entities.NewTaskSuggestion(
+		suggestion := ai.createBasicTaskSuggestion(
 			entities.SuggestionTypeLearning,
 			"Learn: "+gap.topic,
-			entities.SuggestionSource{
-				Type:       "ai",
-				Name:       "learning_path_ai",
-				Algorithm:  "knowledge_gap_analysis",
-				Confidence: gap.confidence,
-			},
+			"learning_path_ai",
+			"knowledge_gap_analysis",
+			gap.confidence,
 			workContext.Repository,
 		)
-
-		suggestion.Confidence = gap.confidence
 		suggestion.Relevance = gap.relevance
 		suggestion.Urgency = gap.urgency
 		suggestion.Reasoning = gap.reasoning
@@ -234,41 +224,29 @@ func (ai *aiSuggestionGeneratorImpl) GenerateProductivityOptimizations(
 	ctx context.Context,
 	workContext *entities.WorkContext,
 ) ([]*entities.TaskSuggestion, error) {
-	ai.logger.Info("generating productivity optimization suggestions")
-
-	// Analyze productivity bottlenecks
 	bottlenecks := ai.analyzeProductivityBottlenecks(workContext)
-	suggestions := make([]*entities.TaskSuggestion, 0, len(bottlenecks))
-
-	for _, bottleneck := range bottlenecks {
-		suggestion := entities.NewTaskSuggestion(
-			entities.SuggestionTypeOptimize,
-			"Optimize: "+bottleneck.area,
-			entities.SuggestionSource{
-				Type:       "ai",
-				Name:       "productivity_optimizer_ai",
-				Algorithm:  "bottleneck_analysis",
-				Confidence: bottleneck.confidence,
-			},
-			workContext.Repository,
-		)
-
-		suggestion.Confidence = bottleneck.confidence
-		suggestion.Relevance = bottleneck.impact
-		suggestion.Urgency = bottleneck.severity
-		suggestion.Reasoning = bottleneck.explanation
-
-		// Add optimization actions
-		for i, action := range bottleneck.actions {
-			suggestion.AddAction("optimize", action, i+1)
-		}
-
-		suggestion.SetEstimatedTime(bottleneck.estimatedTime, "AI analysis of optimization time")
-
-		suggestions = append(suggestions, suggestion)
-	}
-
-	return suggestions, nil
+	return generateSuggestionsFromAnalysis(
+		ai,
+		"generating productivity optimization suggestions",
+		bottlenecks,
+		workContext,
+		func(b productivityBottleneck) suggestionConfig {
+			return suggestionConfig{
+				SuggestionType: entities.SuggestionTypeOptimize,
+				Title:          "Optimize: " + b.area,
+				SourceName:     "productivity_optimizer_ai",
+				Algorithm:      "bottleneck_analysis",
+				Confidence:     b.confidence,
+				Relevance:      b.impact,
+				Urgency:        b.severity,
+				Reasoning:      b.explanation,
+				Actions:        b.actions,
+				ActionType:     "optimize",
+				EstimatedTime:  b.estimatedTime,
+				TimeReason:     "AI analysis of optimization time",
+			}
+		},
+	)
 }
 
 // GenerateWorkflowImprovements generates workflow improvement suggestions
@@ -276,41 +254,29 @@ func (ai *aiSuggestionGeneratorImpl) GenerateWorkflowImprovements(
 	ctx context.Context,
 	workContext *entities.WorkContext,
 ) ([]*entities.TaskSuggestion, error) {
-	ai.logger.Info("generating workflow improvement suggestions")
-
-	// Analyze workflow inefficiencies
 	improvements := ai.analyzeWorkflowImprovements(workContext)
-	suggestions := make([]*entities.TaskSuggestion, 0, len(improvements))
-
-	for _, improvement := range improvements {
-		suggestion := entities.NewTaskSuggestion(
-			entities.SuggestionTypeWorkflow,
-			"Improve workflow: "+improvement.title,
-			entities.SuggestionSource{
-				Type:       "ai",
-				Name:       "workflow_analyzer_ai",
-				Algorithm:  "workflow_efficiency_analysis",
-				Confidence: improvement.confidence,
-			},
-			workContext.Repository,
-		)
-
-		suggestion.Confidence = improvement.confidence
-		suggestion.Relevance = improvement.relevance
-		suggestion.Urgency = improvement.urgency
-		suggestion.Reasoning = improvement.reasoning
-
-		// Add improvement actions
-		for i, action := range improvement.steps {
-			suggestion.AddAction("improve", action, i+1)
-		}
-
-		suggestion.SetEstimatedTime(improvement.estimatedTime, "AI workflow analysis")
-
-		suggestions = append(suggestions, suggestion)
-	}
-
-	return suggestions, nil
+	return generateSuggestionsFromAnalysis(
+		ai,
+		"generating workflow improvement suggestions",
+		improvements,
+		workContext,
+		func(i workflowImprovement) suggestionConfig {
+			return suggestionConfig{
+				SuggestionType: entities.SuggestionTypeWorkflow,
+				Title:          "Improve workflow: " + i.title,
+				SourceName:     "workflow_analyzer_ai",
+				Algorithm:      "workflow_efficiency_analysis",
+				Confidence:     i.confidence,
+				Relevance:      i.relevance,
+				Urgency:        i.urgency,
+				Reasoning:      i.reasoning,
+				Actions:        i.steps,
+				ActionType:     "improve",
+				EstimatedTime:  i.estimatedTime,
+				TimeReason:     "AI workflow analysis",
+			}
+		},
+	)
 }
 
 // GenerateGoalAlignedSuggestions generates suggestions aligned with user goals
@@ -318,41 +284,29 @@ func (ai *aiSuggestionGeneratorImpl) GenerateGoalAlignedSuggestions(
 	ctx context.Context,
 	workContext *entities.WorkContext,
 ) ([]*entities.TaskSuggestion, error) {
-	ai.logger.Info("generating goal-aligned suggestions")
-
-	// Analyze goal alignment opportunities
 	alignments := ai.analyzeGoalAlignment(workContext)
-	suggestions := make([]*entities.TaskSuggestion, 0, len(alignments))
-
-	for _, alignment := range alignments {
-		suggestion := entities.NewTaskSuggestion(
-			entities.SuggestionTypePriority,
-			"Align with goal: "+alignment.goal,
-			entities.SuggestionSource{
-				Type:       "ai",
-				Name:       "goal_alignment_ai",
-				Algorithm:  "goal_alignment_analysis",
-				Confidence: alignment.confidence,
-			},
-			workContext.Repository,
-		)
-
-		suggestion.Confidence = alignment.confidence
-		suggestion.Relevance = alignment.relevance
-		suggestion.Urgency = alignment.urgency
-		suggestion.Reasoning = alignment.reasoning
-
-		// Add goal-aligned actions
-		for i, action := range alignment.actions {
-			suggestion.AddAction("align", action, i+1)
-		}
-
-		suggestion.SetEstimatedTime(alignment.estimatedTime, "AI goal alignment analysis")
-
-		suggestions = append(suggestions, suggestion)
-	}
-
-	return suggestions, nil
+	return generateSuggestionsFromAnalysis(
+		ai,
+		"generating goal-aligned suggestions",
+		alignments,
+		workContext,
+		func(a goalAlignment) suggestionConfig {
+			return suggestionConfig{
+				SuggestionType: entities.SuggestionTypePriority,
+				Title:          "Align with goal: " + a.goal,
+				SourceName:     "goal_alignment_ai",
+				Algorithm:      "goal_alignment_analysis",
+				Confidence:     a.confidence,
+				Relevance:      a.relevance,
+				Urgency:        a.urgency,
+				Reasoning:      a.reasoning,
+				Actions:        a.actions,
+				ActionType:     "align",
+				EstimatedTime:  a.estimatedTime,
+				TimeReason:     "AI goal alignment analysis",
+			}
+		},
+	)
 }
 
 // AnalyzeTaskComplexity performs AI analysis of task complexity
@@ -567,19 +521,14 @@ func (ai *aiSuggestionGeneratorImpl) GenerateTaskBreakdown(task *entities.Task) 
 	suggestions := make([]*entities.TaskSuggestion, 0, len(breakdownSteps))
 
 	for i, step := range breakdownSteps {
-		suggestion := entities.NewTaskSuggestion(
+		suggestion := ai.createBasicTaskSuggestion(
 			entities.SuggestionTypeTemplate,
 			fmt.Sprintf("Subtask %d: %s", i+1, step.title),
-			entities.SuggestionSource{
-				Type:       "ai",
-				Name:       "task_breakdown_ai",
-				Algorithm:  "complexity_based_breakdown",
-				Confidence: step.confidence,
-			},
+			"task_breakdown_ai",
+			"complexity_based_breakdown",
+			step.confidence,
 			task.Repository,
 		)
-
-		suggestion.Confidence = step.confidence
 		suggestion.Relevance = 0.9 // Subtasks are highly relevant
 		// Convert priority to urgency score
 		if string(task.Priority) == constants.SeverityHigh {
@@ -651,6 +600,94 @@ func (ai *aiSuggestionGeneratorImpl) SuggestTaskOptimizations(
 	}
 
 	return suggestions, nil
+}
+
+// suggestionConfig holds configuration for creating a task suggestion
+type suggestionConfig struct {
+	SuggestionType entities.SuggestionType
+	Title          string
+	SourceName     string
+	Algorithm      string
+	Confidence     float64
+	Relevance      float64
+	Urgency        float64
+	Reasoning      string
+	Actions        []string
+	ActionType     string
+	EstimatedTime  time.Duration
+	TimeReason     string
+}
+
+// generateSuggestionsFromAnalysis is a generic helper that eliminates code duplication
+// for AI suggestion generation methods that follow the same pattern
+func generateSuggestionsFromAnalysis[T any](
+	ai *aiSuggestionGeneratorImpl,
+	logMessage string,
+	analysisResults []T,
+	workContext *entities.WorkContext,
+	configFunc func(T) suggestionConfig,
+) ([]*entities.TaskSuggestion, error) {
+	ai.logger.Info(logMessage)
+
+	suggestions := make([]*entities.TaskSuggestion, 0, len(analysisResults))
+
+	for _, result := range analysisResults {
+		config := configFunc(result)
+
+		suggestion := entities.NewTaskSuggestion(
+			config.SuggestionType,
+			config.Title,
+			entities.SuggestionSource{
+				Type:       "ai",
+				Name:       config.SourceName,
+				Algorithm:  config.Algorithm,
+				Confidence: config.Confidence,
+			},
+			workContext.Repository,
+		)
+
+		suggestion.Confidence = config.Confidence
+		suggestion.Relevance = config.Relevance
+		suggestion.Urgency = config.Urgency
+		suggestion.Reasoning = config.Reasoning
+
+		// Add actions
+		for i, action := range config.Actions {
+			suggestion.AddAction(config.ActionType, action, i+1)
+		}
+
+		suggestion.SetEstimatedTime(config.EstimatedTime, config.TimeReason)
+
+		suggestions = append(suggestions, suggestion)
+	}
+
+	return suggestions, nil
+}
+
+// createBasicTaskSuggestion creates a basic task suggestion with common fields set
+// This eliminates code duplication across various suggestion creation methods
+func (ai *aiSuggestionGeneratorImpl) createBasicTaskSuggestion(
+	suggestionType entities.SuggestionType,
+	title string,
+	sourceName string,
+	algorithm string,
+	confidence float64,
+	repository string,
+) *entities.TaskSuggestion {
+	suggestion := entities.NewTaskSuggestion(
+		suggestionType,
+		title,
+		entities.SuggestionSource{
+			Type:       "ai",
+			Name:       sourceName,
+			Algorithm:  algorithm,
+			Confidence: confidence,
+		},
+		repository,
+	)
+	
+	suggestion.Confidence = confidence
+	return suggestion
 }
 
 // Helper types for AI analysis
@@ -797,19 +834,14 @@ func (ai *aiSuggestionGeneratorImpl) generateAdaptiveSuggestions(workContext *en
 	if len(workContext.ActivePatterns) > 0 {
 		primaryPattern := workContext.GetPrimaryPatterns()[0]
 
-		suggestion := entities.NewTaskSuggestion(
+		suggestion := ai.createBasicTaskSuggestion(
 			entities.SuggestionTypePattern,
 			"Continue successful pattern: "+primaryPattern.Name,
-			entities.SuggestionSource{
-				Type:       "ai",
-				Name:       "adaptive_pattern_ai",
-				Algorithm:  "pattern_adaptation",
-				Confidence: primaryPattern.Confidence,
-			},
+			"adaptive_pattern_ai",
+			"pattern_adaptation",
+			primaryPattern.Confidence,
 			workContext.Repository,
 		)
-
-		suggestion.Confidence = primaryPattern.Confidence
 		suggestion.Relevance = 0.8
 		suggestion.Urgency = 0.5
 		suggestion.PatternID = primaryPattern.ID

@@ -1,3 +1,4 @@
+// Package learning provides AI learning and pattern recognition capabilities.
 package learning
 
 import (
@@ -302,6 +303,7 @@ func (pa *patternAggregatorImpl) ValidatePrivacyCompliance(
 	if settings.MinAnonymization > 1 {
 		// This would be checked against the aggregated pattern source count
 		// For now, we'll assume it passes individual validation
+		// TODO: Implement proper anonymization threshold checking
 	}
 
 	return nil
@@ -937,7 +939,7 @@ func (pa *patternAggregatorImpl) removeSensitivePatterns(content, level string) 
 
 func (pa *patternAggregatorImpl) isAlphanumeric(s string) bool {
 	for _, char := range s {
-		if !((char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9')) {
+		if (char < 'a' || char > 'z') && (char < 'A' || char > 'Z') && (char < '0' || char > '9') {
 			return false
 		}
 	}

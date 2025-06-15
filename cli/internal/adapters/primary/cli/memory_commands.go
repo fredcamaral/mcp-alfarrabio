@@ -641,7 +641,7 @@ func (c *CLI) runMemorySearch(cmd *cobra.Command, query, project string, limit i
 	return nil
 }
 
-func (c *CLI) runMemoryGet(cmd *cobra.Command, _ string, id, format string) error {
+func (c *CLI) runMemoryGet(cmd *cobra.Command, _, id, format string) error {
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {

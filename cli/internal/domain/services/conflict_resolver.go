@@ -358,9 +358,10 @@ func (r *ConflictResolver) tryQdrantResolution(ctx context.Context, local, serve
 	storageItem := api.FromTask(task)
 	storageChecksum := storageItem.GenerateChecksum()
 
-	if storageChecksum == serverChecksum {
+	switch storageChecksum {
+	case serverChecksum:
 		return api.StrategyQdrantTruth // Server matches authoritative source
-	} else if storageChecksum == localChecksum {
+	case localChecksum:
 		return api.StrategyLocalWins // Local matches authoritative source
 	}
 

@@ -678,9 +678,10 @@ func (ts *templateServiceImpl) calculateTemplateMatch(
 	score := 0.0
 
 	// Project type match (40%)
-	if template.ProjectType == projectType {
+	switch template.ProjectType {
+	case projectType:
 		score += 0.4 * confidence
-	} else if template.ProjectType == entities.ProjectTypeUnknown {
+	case entities.ProjectTypeUnknown:
 		score += 0.2 // Generic templates have lower score
 	}
 

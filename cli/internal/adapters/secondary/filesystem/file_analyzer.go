@@ -1,3 +1,4 @@
+// Package filesystem provides file system analysis and management functionality.
 package filesystem
 
 import (

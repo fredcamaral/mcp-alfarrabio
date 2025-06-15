@@ -494,9 +494,9 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "🚀 Generating sample project: %s\n", name)
-	fmt.Fprintf(cmd.OutOrStdout(), "   Template: %s\n", template)
-	fmt.Fprintf(cmd.OutOrStdout(), "   Directory: %s\n\n", outputDir)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "🚀 Generating sample project: %s\n", name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Template: %s\n", template)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Directory: %s\n\n", outputDir)
 
 	// Generate PRD
 	prdPath := filepath.Join(outputDir, "docs", "pre-development", "prd.md")
@@ -509,21 +509,21 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 	if err := generateSampleTRD(template, name, trdPath); err != nil {
 		return fmt.Errorf("failed to generate TRD: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated sample TRD: %s\n", trdPath)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated sample TRD: %s\n", trdPath)
 
 	// Generate README
 	readmePath := filepath.Join(outputDir, "README.md")
 	if err := generateProjectReadme(template, name, readmePath); err != nil {
 		return fmt.Errorf("failed to generate README: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated README: %s\n", readmePath)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated README: %s\n", readmePath)
 
 	// Generate .gitignore
 	gitignorePath := filepath.Join(outputDir, ".gitignore")
 	if err := generateGitignore(template, gitignorePath); err != nil {
 		return fmt.Errorf("failed to generate .gitignore: %w", err)
 	}
-	fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated .gitignore: %s\n", gitignorePath)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated .gitignore: %s\n", gitignorePath)
 
 	// Store in memory if requested
 	if withMemory && c.getMCPClient() != nil {

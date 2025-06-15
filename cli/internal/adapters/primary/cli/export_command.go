@@ -541,16 +541,40 @@ func (c *CLI) exportMarkdown(tasks []*entities.Task, outputFile string, opts *Ex
 }
 
 func (c *CLI) exportArchive(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
-	if !strings.HasSuffix(outputFile, ".zip") {
-		outputFile += ".zip"
+	outputFile = c.ensureZipExtension(outputFile)
+	cleanPath, err := c.validateOutputPath(outputFile)
+	if err != nil {
+		return 0, err
 	}
 
-	// Clean and validate the output file path
+	zipFile, zipWriter, err := c.createZipFile(cleanPath)
+	if err != nil {
+		return 0, err
+	}
+	defer c.closeZipFile(zipFile, zipWriter)
+
+	if err := c.writeArchiveFormats(zipWriter, tasks, opts, fields); err != nil {
+		return 0, err
+	}
+
+	info, _ := zipFile.Stat()
+	fmt.Printf("✅ Exported archive: %s\n", outputFile)
+	return info.Size(), nil
+}
+
+func (c *CLI) ensureZipExtension(outputFile string) string {
+	if !strings.HasSuffix(outputFile, ".zip") {
+		return outputFile + ".zip"
+	}
+	return outputFile
+}
+
+func (c *CLI) validateOutputPath(outputFile string) (string, error) {
 	cleanPath := filepath.Clean(outputFile)
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return 0, errors.New("invalid output path: path traversal not allowed")
+		return "", errors.New("invalid output path: path traversal not allowed")
 	}
 
 	// If absolute path, ensure it's not accessing system directories
@@ -558,68 +582,81 @@ func (c *CLI) exportArchive(tasks []*entities.Task, outputFile string, opts *Exp
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return 0, errors.New("invalid output path: access to system directory not allowed")
+				return "", errors.New("invalid output path: access to system directory not allowed")
 			}
 		}
 	}
 
+	return cleanPath, nil
+}
+
+func (c *CLI) createZipFile(cleanPath string) (*os.File, *zip.Writer, error) {
 	zipFile, err := os.Create(cleanPath) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
-		return 0, err
+		return nil, nil, err
 	}
-	defer func() {
-		if err := zipFile.Close(); err != nil {
-			// Log error but don't return as we're in defer
-		}
-	}()
 
 	zipWriter := zip.NewWriter(zipFile)
-	defer func() {
-		if err := zipWriter.Close(); err != nil {
-			// Log error but don't return as we're in defer
-		}
-	}()
+	return zipFile, zipWriter, nil
+}
 
-	// Export in multiple formats
+func (c *CLI) closeZipFile(zipFile *os.File, zipWriter *zip.Writer) {
+	if err := zipWriter.Close(); err != nil {
+		// Log error but don't return as we're in defer
+		fmt.Fprintf(os.Stderr, "Warning: failed to close zip writer: %v\n", err)
+	}
+	if err := zipFile.Close(); err != nil {
+		// Log error but don't return as we're in defer
+		fmt.Fprintf(os.Stderr, "Warning: failed to close zip file: %v\n", err)
+	}
+}
+
+func (c *CLI) writeArchiveFormats(zipWriter *zip.Writer, tasks []*entities.Task, opts *ExportOptions, fields []string) error {
 	formats := []string{"json", "yaml", "csv", "markdown"}
 
 	for _, format := range formats {
-		var data []byte
-		var filename string
-
-		switch format {
-		case constants.OutputFormatJSON:
-			exportData := c.prepareExportData(tasks, opts, fields)
-			data, _ = json.MarshalIndent(exportData, "", "  ")
-			filename = "tasks.json"
-		case constants.FormatYAML:
-			exportData := c.prepareExportData(tasks, opts, fields)
-			data, _ = yaml.Marshal(exportData)
-			filename = "tasks.yaml"
-		case constants.FormatCSV:
-			filename = "tasks.csv"
-			// Generate CSV content
-			data = c.generateCSVBytes(tasks, fields)
-		case constants.FormatMarkdown:
-			content := c.generateMarkdown(tasks, opts, fields)
-			data = []byte(content)
-			filename = "tasks.md"
-		}
-
-		// Add file to ZIP
-		writer, err := zipWriter.Create(filename)
+		data, filename, err := c.generateFormatData(format, tasks, opts, fields)
 		if err != nil {
-			return 0, err
+			return err
 		}
 
-		if _, err := writer.Write(data); err != nil {
-			return 0, err
+		if err := c.writeZipEntry(zipWriter, filename, data); err != nil {
+			return err
 		}
 	}
 
-	info, _ := zipFile.Stat()
-	fmt.Printf("✅ Exported archive: %s\n", outputFile)
-	return info.Size(), nil
+	return nil
+}
+
+func (c *CLI) generateFormatData(format string, tasks []*entities.Task, opts *ExportOptions, fields []string) ([]byte, string, error) {
+	switch format {
+	case constants.OutputFormatJSON:
+		exportData := c.prepareExportData(tasks, opts, fields)
+		data, err := json.MarshalIndent(exportData, "", "  ")
+		return data, "tasks.json", err
+	case constants.FormatYAML:
+		exportData := c.prepareExportData(tasks, opts, fields)
+		data, err := yaml.Marshal(exportData)
+		return data, "tasks.yaml", err
+	case constants.FormatCSV:
+		data := c.generateCSVBytes(tasks, fields)
+		return data, "tasks.csv", nil
+	case constants.FormatMarkdown:
+		content := c.generateMarkdown(tasks, opts, fields)
+		return []byte(content), "tasks.md", nil
+	default:
+		return nil, "", fmt.Errorf("unsupported format: %s", format)
+	}
+}
+
+func (c *CLI) writeZipEntry(zipWriter *zip.Writer, filename string, data []byte) error {
+	writer, err := zipWriter.Create(filename)
+	if err != nil {
+		return err
+	}
+
+	_, err = writer.Write(data)
+	return err
 }
 
 // Helper functions

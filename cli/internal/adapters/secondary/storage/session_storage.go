@@ -77,21 +77,9 @@ func (s *FileSessionStorage) GetByRepository(ctx context.Context, repository str
 
 // GetByTimeRange retrieves sessions within a time range
 func (s *FileSessionStorage) GetByTimeRange(ctx context.Context, repository string, start, end time.Time) ([]*entities.Session, error) {
-	var allSessions []*entities.Session
-	var err error
-
-	if repository != "" {
-		// Get sessions for specific repository
-		allSessions, err = s.generic.GetByRepository(ctx, repository)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Get sessions from all repositories
-		allSessions, err = s.generic.GetAllFromAllRepositories(ctx)
-		if err != nil {
-			return nil, err
-		}
+	allSessions, err := s.getAllSessionsByRepository(ctx, repository)
+	if err != nil {
+		return nil, err
 	}
 
 	// Filter by time range
@@ -120,21 +108,9 @@ func (s *FileSessionStorage) GetByTimeRange(ctx context.Context, repository stri
 
 // GetActiveSessions retrieves active sessions (sessions without end time)
 func (s *FileSessionStorage) GetActiveSessions(ctx context.Context, repository string) ([]*entities.Session, error) {
-	var allSessions []*entities.Session
-	var err error
-
-	if repository != "" {
-		// Get sessions for specific repository
-		allSessions, err = s.generic.GetByRepository(ctx, repository)
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// Get sessions from all repositories
-		allSessions, err = s.generic.GetAllFromAllRepositories(ctx)
-		if err != nil {
-			return nil, err
-		}
+	allSessions, err := s.getAllSessionsByRepository(ctx, repository)
+	if err != nil {
+		return nil, err
 	}
 
 	// Filter for active sessions (no end time)
@@ -151,4 +127,15 @@ func (s *FileSessionStorage) GetActiveSessions(ctx context.Context, repository s
 	})
 
 	return filtered, nil
+}
+
+// getAllSessionsByRepository is a helper function to get sessions by repository or all repositories
+// This eliminates code duplication between GetByTimeRange and GetActiveSessions
+func (s *FileSessionStorage) getAllSessionsByRepository(ctx context.Context, repository string) ([]*entities.Session, error) {
+	if repository != "" {
+		// Get sessions for specific repository
+		return s.generic.GetByRepository(ctx, repository)
+	}
+	// Get sessions from all repositories
+	return s.generic.GetAllFromAllRepositories(ctx)
 }

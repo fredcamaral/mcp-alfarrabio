@@ -17,7 +17,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// AnalyticsCommand creates the analytics command
+// NewAnalyticsCommand creates the analytics command
 func NewAnalyticsCommand(deps *CommandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "analytics [repository]",
@@ -343,9 +343,10 @@ func runTrendAnalysis(
 	for _, t := range trends {
 		// Check if trend is significant (placeholder implementation)
 		if t.trend.Confidence > 0.7 {
-			if t.trend.Direction == entities.TrendDirectionUp {
+			switch t.trend.Direction {
+			case entities.TrendDirectionUp:
 				improvingCount++
-			} else if t.trend.Direction == entities.TrendDirectionDown {
+			case entities.TrendDirectionDown:
 				decliningCount++
 			}
 		}

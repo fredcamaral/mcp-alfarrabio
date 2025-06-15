@@ -68,9 +68,7 @@ func (s *FilePatternStorage) GetByRepository(ctx context.Context, repository str
 	}
 
 	// Sort by confidence (highest first)
-	sort.Slice(patterns, func(i, j int) bool {
-		return patterns[i].Confidence > patterns[j].Confidence
-	})
+	s.sortPatternsByConfidence(patterns)
 
 	return patterns, nil
 }
@@ -91,9 +89,7 @@ func (s *FilePatternStorage) GetByType(ctx context.Context, patternType entities
 	}
 
 	// Sort by confidence
-	sort.Slice(filtered, func(i, j int) bool {
-		return filtered[i].Confidence > filtered[j].Confidence
-	})
+	s.sortPatternsByConfidence(filtered)
 
 	return filtered, nil
 }
@@ -155,9 +151,15 @@ func (s *FilePatternStorage) GetByProjectType(ctx context.Context, projectType e
 	}
 
 	// Sort by confidence
-	sort.Slice(results, func(i, j int) bool {
-		return results[i].Confidence > results[j].Confidence
-	})
+	s.sortPatternsByConfidence(results)
 
 	return results, nil
+}
+
+// sortPatternsByConfidence is a helper function to sort patterns by confidence (highest first)
+// This eliminates code duplication across GetByType, GetByRepository, and GetByProjectType
+func (s *FilePatternStorage) sortPatternsByConfidence(patterns []*entities.TaskPattern) {
+	sort.Slice(patterns, func(i, j int) bool {
+		return patterns[i].Confidence > patterns[j].Confidence
+	})
 }
