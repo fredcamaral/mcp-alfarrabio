@@ -694,9 +694,9 @@ func (c *CLI) handleTaskEnhancement(originalTask *entities.Task, result *ai.AICo
 
 // taskWasEnhanced checks if the task was actually enhanced by AI
 func (c *CLI) taskWasEnhanced(original, enhanced *entities.Task) bool {
-	return enhanced.Content != original.Content || 
-		   enhanced.Priority != original.Priority || 
-		   len(enhanced.Tags) != len(original.Tags)
+	return enhanced.Content != original.Content ||
+		enhanced.Priority != original.Priority ||
+		len(enhanced.Tags) != len(original.Tags)
 }
 
 // printTroubleshootingTips prints troubleshooting tips

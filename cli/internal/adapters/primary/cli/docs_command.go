@@ -712,11 +712,11 @@ type SecurityRequirement map[string][]string
 // generateSchemas creates schema definitions for OpenAPI components
 func (g *DocsGenerator) generateSchemas() map[string]*Schema {
 	return map[string]*Schema{
-		"Task":     g.createTaskSchema(),
-		"TaskList": g.createTaskListSchema(),
-		"Config":   g.createConfigSchema(),
+		"Task":      g.createTaskSchema(),
+		"TaskList":  g.createTaskListSchema(),
+		"Config":    g.createConfigSchema(),
 		"Analytics": g.createAnalyticsSchema(),
-		"Error":    g.createErrorSchema(),
+		"Error":     g.createErrorSchema(),
 	}
 }
 
