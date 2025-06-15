@@ -585,7 +585,7 @@ func (g *DocsGenerator) getSchemaTypeFromFlag(flag *pflag.Flag) string {
 	}
 }
 
-func (g *DocsGenerator) generateHTMLDocs(spec *OpenAPISpec) error {
+func (g *DocsGenerator) generateHTMLDocs(_ *OpenAPISpec) error {
 	htmlPath := filepath.Join(g.outputDir, "index.html")
 	html := g.generateSwaggerUI()
 	return os.WriteFile(htmlPath, []byte(html), 0600)

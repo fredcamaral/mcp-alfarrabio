@@ -572,7 +572,7 @@ Advanced options:
 			}
 
 			// Build advanced filters
-			filters, err := c.buildAdvancedFilters(cmd, repository, status, priority, tags, excludeTags,
+			filters, err := c.buildAdvancedFilters(repository, status, priority, tags, excludeTags,
 				createdAfter, createdBefore, updatedAfter, updatedBefore,
 				dueAfter, dueBefore, completedAfter, completedBefore,
 				overdue, dueSoon, hasDueDate, sessionID, parentID, estimatedMin, estimatedMax)

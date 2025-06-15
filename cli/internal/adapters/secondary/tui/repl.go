@@ -1071,11 +1071,11 @@ func (m REPLModel) renderChart(chartType string, width, height int) string {
 		data = m.analyticsData.ProductivityChart
 	}
 
-	chart := m.renderASCIIChart(data, width-4, height-4)
+	chart := m.renderASCIIChart(data, height-4)
 	return style.Render(fmt.Sprintf("📈 %s Trend\n\n%s", strings.Title(chartType), chart))
 }
 
-func (m REPLModel) renderASCIIChart(data []ChartPoint, width, height int) string {
+func (m REPLModel) renderASCIIChart(data []ChartPoint, _ int) string {
 	if len(data) == 0 {
 		return lipgloss.NewStyle().Foreground(mutedColor).Render("No data available")
 	}
@@ -1241,7 +1241,7 @@ func (m REPLModel) renderHeader(title string) string {
 	return titleSection + "\n" + modeSection
 }
 
-func (m REPLModel) renderFooter(text string) string {
+func (m REPLModel) renderFooter(_ string) string {
 	width := m.width
 	if width < 80 {
 		width = 80

@@ -174,10 +174,7 @@ func (c *HTTPRestClient) GetTasks(ctx context.Context, repository string) ([]*en
 	}
 
 	// Convert server tasks to CLI task entities
-	tasks, err := c.convertServerTasksToCliTasks(serverResponse)
-	if err != nil {
-		return nil, fmt.Errorf("failed to convert server tasks: %w", err)
-	}
+	tasks := c.convertServerTasksToCliTasks(serverResponse)
 
 	c.setOnline()
 	c.logger.Debug("Tasks retrieved successfully",
@@ -436,7 +433,7 @@ func (c *HTTPRestClient) convertTaskToServerFormat(task *entities.Task) CreateTa
 }
 
 // convertServerTasksToCliTasks converts server response to CLI task entities
-func (c *HTTPRestClient) convertServerTasksToCliTasks(serverResponse map[string]interface{}) ([]*entities.Task, error) {
+func (c *HTTPRestClient) convertServerTasksToCliTasks(serverResponse map[string]interface{}) []*entities.Task {
 	// Try to extract tasks array from response
 	var taskData []interface{}
 
@@ -453,7 +450,7 @@ func (c *HTTPRestClient) convertServerTasksToCliTasks(serverResponse map[string]
 		taskData = taskArray
 	} else {
 		// Return empty array if no tasks found
-		return []*entities.Task{}, nil
+		return []*entities.Task{}
 	}
 
 	// Convert each server task to CLI task
@@ -470,7 +467,7 @@ func (c *HTTPRestClient) convertServerTasksToCliTasks(serverResponse map[string]
 		}
 	}
 
-	return tasks, nil
+	return tasks
 }
 
 // convertServerTaskToCliTask converts a single server task to CLI task entity

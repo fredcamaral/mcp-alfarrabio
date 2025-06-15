@@ -732,21 +732,6 @@ func (pa *patternAggregatorImpl) isSensitiveMetadataKey(key string) bool {
 	return false
 }
 
-func (pa *patternAggregatorImpl) mergeTimeMetrics(existing *entities.CycleTimeMetrics, new *entities.CycleTimeMetrics, weight float64) {
-	// Weighted average of time metrics
-	avgExisting := float64(existing.AverageCycleTime)
-	avgNew := float64(new.AverageCycleTime)
-	existing.AverageCycleTime = time.Duration(avgExisting*(1-weight) + avgNew*weight)
-
-	medExisting := float64(existing.MedianCycleTime)
-	medNew := float64(new.MedianCycleTime)
-	existing.MedianCycleTime = time.Duration(medExisting*(1-weight) + medNew*weight)
-
-	// Update P90 cycle time (using P90 as fastest/slowest equivalent)
-	if new.P90CycleTime > existing.P90CycleTime {
-		existing.P90CycleTime = new.P90CycleTime
-	}
-}
 
 func (pa *patternAggregatorImpl) mergeKeywords(existing []string, new []string) []string {
 	keywordSet := make(map[string]bool)

@@ -786,22 +786,6 @@ func (v *simpleVisualizer) getSeasonalIntensity(multiplier float64) string {
 	}
 }
 
-func (v *simpleVisualizer) getCorrelationStrength(correlation float64) string {
-	abs := correlation
-	if abs < 0 {
-		abs = -abs
-	}
-
-	if abs >= 0.8 {
-		return "strong"
-	} else if abs >= 0.6 {
-		return "moderate"
-	} else if abs >= 0.3 {
-		return "weak"
-	} else {
-		return "very weak"
-	}
-}
 
 func (v *simpleVisualizer) GenerateVisualization(metrics *entities.WorkflowMetrics, format entities.VisFormat) ([]byte, error) {
 	output := fmt.Sprintf(`📊 WORKFLOW ANALYTICS DASHBOARD

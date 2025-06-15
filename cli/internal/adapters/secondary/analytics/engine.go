@@ -876,7 +876,7 @@ func (ae *analyticsEngineImpl) detectDurationOutliers(
 	return outliers
 }
 
-func (ae *analyticsEngineImpl) inferOutlierReason(task *entities.Task, duration, avgDuration time.Duration) string {
+func (ae *analyticsEngineImpl) inferOutlierReason(_ *entities.Task, duration, avgDuration time.Duration) string {
 	ratio := float64(duration) / float64(avgDuration)
 
 	if ratio > 5 {
@@ -1012,111 +1012,12 @@ func (ae *analyticsEngineImpl) CalculateProductivityMetrics(
 		return &entities.ProductivityMetrics{}, nil
 	}
 
-	// Calculate tasks per day
-	tasksPerDay := 0.0
-	if len(tasks) > 0 {
-		days := 1.0 // Default to 1 day if all tasks are on the same day
-		if len(tasks) > 1 {
-			oldest := tasks[0].CreatedAt
-			newest := tasks[0].CreatedAt
-			for _, task := range tasks {
-				if task.CreatedAt.Before(oldest) {
-					oldest = task.CreatedAt
-				}
-				if task.CreatedAt.After(newest) {
-					newest = task.CreatedAt
-				}
-			}
-			if daysDiff := newest.Sub(oldest).Hours() / 24; daysDiff > 0 {
-				days = daysDiff
-			}
-		}
-		tasksPerDay = float64(len(tasks)) / days
-	}
-
-	// Calculate completion rates by priority and type
-	byPriority := make(map[string]float64)
-	byType := make(map[string]float64)
-
-	priorityCounts := make(map[string]int)
-	priorityCompleted := make(map[string]int)
-	typeCounts := make(map[string]int)
-	typeCompleted := make(map[string]int)
-
-	for _, task := range tasks {
-		priority := string(task.Priority)
-		taskType := task.Type
-
-		priorityCounts[priority]++
-		typeCounts[taskType]++
-
-		if task.Status == entities.StatusCompleted {
-			priorityCompleted[priority]++
-			typeCompleted[taskType]++
-		}
-	}
-
-	for priority, total := range priorityCounts {
-		completed := priorityCompleted[priority]
-		byPriority[priority] = float64(completed) / float64(total)
-	}
-
-	for taskType, total := range typeCounts {
-		completed := typeCompleted[taskType]
-		byType[taskType] = float64(completed) / float64(total)
-	}
-
-	// Calculate focus time and other session-based metrics
-	focusTime := time.Duration(0)
-	contextSwitches := 0
-	deepWorkRatio := 0.0
-
-	if len(sessions) > 0 {
-		totalSessionTime := time.Duration(0)
-		totalFocusTime := time.Duration(0)
-
-		for _, session := range sessions {
-			totalSessionTime += session.Duration
-			// Estimate focus time as 70% of session time minus interruptions
-			sessionFocusTime := time.Duration(float64(session.Duration) * 0.7)
-			if len(session.Interruptions) > 0 {
-				// Reduce focus time by 5 minutes per interruption
-				interruptionPenalty := time.Duration(len(session.Interruptions)) * 5 * time.Minute
-				if sessionFocusTime > interruptionPenalty {
-					sessionFocusTime -= interruptionPenalty
-				} else {
-					sessionFocusTime = 0
-				}
-			}
-			totalFocusTime += sessionFocusTime
-			contextSwitches += len(session.Interruptions)
-		}
-
-		focusTime = totalFocusTime
-		if totalSessionTime > 0 {
-			deepWorkRatio = float64(totalFocusTime) / float64(totalSessionTime)
-		}
-	}
-
-	// Calculate peak hours (simplified - would need more data for accurate calculation)
-	peakHours := []int{9, 10, 11, 14, 15, 16} // Default productive hours
-
-	// Calculate overall productivity score
-	completionRate := 0.0
-	if len(tasks) > 0 {
-		completed := 0
-		for _, task := range tasks {
-			if task.Status == entities.StatusCompleted {
-				completed++
-			}
-		}
-		completionRate = float64(completed) / float64(len(tasks))
-	}
-
-	score := (completionRate * 40) + (deepWorkRatio * 30) + (float64(tasksPerDay) * 20) + 10 // Base 10 points
-	if score > 100 {
-		score = 100
-	}
+	tasksPerDay := ae.calculateTasksPerDay(tasks)
+	byPriority, byType := ae.calculateCompletionRates(tasks)
+	focusTime, contextSwitches, deepWorkRatio := ae.calculateSessionMetrics(sessions)
+	peakHours := ae.calculatePeakHours()
+	completionRate := ae.calculateOverallCompletionRate(tasks)
+	score := ae.calculateProductivityScore(completionRate, deepWorkRatio, tasksPerDay)
 
 	return &entities.ProductivityMetrics{
 		Score:           score,
@@ -1128,6 +1029,171 @@ func (ae *analyticsEngineImpl) CalculateProductivityMetrics(
 		ContextSwitches: contextSwitches,
 		DeepWorkRatio:   deepWorkRatio,
 	}, nil
+}
+
+// calculateTasksPerDay calculates the average number of tasks per day
+func (ae *analyticsEngineImpl) calculateTasksPerDay(tasks []*entities.Task) float64 {
+	if len(tasks) == 0 {
+		return 0.0
+	}
+
+	days := 1.0 // Default to 1 day if all tasks are on the same day
+	if len(tasks) > 1 {
+		oldest, newest := ae.findTaskDateRange(tasks)
+		if daysDiff := newest.Sub(oldest).Hours() / 24; daysDiff > 0 {
+			days = daysDiff
+		}
+	}
+
+	return float64(len(tasks)) / days
+}
+
+// findTaskDateRange finds the oldest and newest task creation times
+func (ae *analyticsEngineImpl) findTaskDateRange(tasks []*entities.Task) (time.Time, time.Time) {
+	oldest := tasks[0].CreatedAt
+	newest := tasks[0].CreatedAt
+
+	for _, task := range tasks {
+		if task.CreatedAt.Before(oldest) {
+			oldest = task.CreatedAt
+		}
+		if task.CreatedAt.After(newest) {
+			newest = task.CreatedAt
+		}
+	}
+
+	return oldest, newest
+}
+
+// calculateCompletionRates calculates completion rates by priority and type
+func (ae *analyticsEngineImpl) calculateCompletionRates(tasks []*entities.Task) (map[string]float64, map[string]float64) {
+	byPriority := make(map[string]float64)
+	byType := make(map[string]float64)
+
+	priorityCounts, priorityCompleted := ae.countTasksByPriority(tasks)
+	typeCounts, typeCompleted := ae.countTasksByType(tasks)
+
+	for priority, total := range priorityCounts {
+		completed := priorityCompleted[priority]
+		byPriority[priority] = float64(completed) / float64(total)
+	}
+
+	for taskType, total := range typeCounts {
+		completed := typeCompleted[taskType]
+		byType[taskType] = float64(completed) / float64(total)
+	}
+
+	return byPriority, byType
+}
+
+// countTasksByPriority counts tasks and completed tasks by priority
+func (ae *analyticsEngineImpl) countTasksByPriority(tasks []*entities.Task) (map[string]int, map[string]int) {
+	priorityCounts := make(map[string]int)
+	priorityCompleted := make(map[string]int)
+
+	for _, task := range tasks {
+		priority := string(task.Priority)
+		priorityCounts[priority]++
+
+		if task.Status == entities.StatusCompleted {
+			priorityCompleted[priority]++
+		}
+	}
+
+	return priorityCounts, priorityCompleted
+}
+
+// countTasksByType counts tasks and completed tasks by type
+func (ae *analyticsEngineImpl) countTasksByType(tasks []*entities.Task) (map[string]int, map[string]int) {
+	typeCounts := make(map[string]int)
+	typeCompleted := make(map[string]int)
+
+	for _, task := range tasks {
+		taskType := task.Type
+		typeCounts[taskType]++
+
+		if task.Status == entities.StatusCompleted {
+			typeCompleted[taskType]++
+		}
+	}
+
+	return typeCounts, typeCompleted
+}
+
+// calculateSessionMetrics calculates focus time and session-based metrics
+func (ae *analyticsEngineImpl) calculateSessionMetrics(sessions []*entities.Session) (time.Duration, int, float64) {
+	if len(sessions) == 0 {
+		return 0, 0, 0.0
+	}
+
+	totalSessionTime := time.Duration(0)
+	totalFocusTime := time.Duration(0)
+	totalContextSwitches := 0
+
+	for _, session := range sessions {
+		sessionTime, focusTime, switches := ae.calculateSingleSessionMetrics(session)
+		totalSessionTime += sessionTime
+		totalFocusTime += focusTime
+		totalContextSwitches += switches
+	}
+
+	deepWorkRatio := 0.0
+	if totalSessionTime > 0 {
+		deepWorkRatio = float64(totalFocusTime) / float64(totalSessionTime)
+	}
+
+	return totalFocusTime, totalContextSwitches, deepWorkRatio
+}
+
+// calculateSingleSessionMetrics calculates metrics for a single session
+func (ae *analyticsEngineImpl) calculateSingleSessionMetrics(session *entities.Session) (time.Duration, time.Duration, int) {
+	sessionTime := session.Duration
+	contextSwitches := len(session.Interruptions)
+
+	// Estimate focus time as 70% of session time minus interruptions
+	focusTime := time.Duration(float64(sessionTime) * 0.7)
+	if contextSwitches > 0 {
+		// Reduce focus time by 5 minutes per interruption
+		interruptionPenalty := time.Duration(contextSwitches) * 5 * time.Minute
+		if focusTime > interruptionPenalty {
+			focusTime -= interruptionPenalty
+		} else {
+			focusTime = 0
+		}
+	}
+
+	return sessionTime, focusTime, contextSwitches
+}
+
+// calculatePeakHours returns the default peak productive hours
+func (ae *analyticsEngineImpl) calculatePeakHours() []int {
+	// Simplified - would need more data for accurate calculation
+	return []int{9, 10, 11, 14, 15, 16}
+}
+
+// calculateOverallCompletionRate calculates the overall task completion rate
+func (ae *analyticsEngineImpl) calculateOverallCompletionRate(tasks []*entities.Task) float64 {
+	if len(tasks) == 0 {
+		return 0.0
+	}
+
+	completed := 0
+	for _, task := range tasks {
+		if task.Status == entities.StatusCompleted {
+			completed++
+		}
+	}
+
+	return float64(completed) / float64(len(tasks))
+}
+
+// calculateProductivityScore calculates the overall productivity score
+func (ae *analyticsEngineImpl) calculateProductivityScore(completionRate, deepWorkRatio, tasksPerDay float64) float64 {
+	score := (completionRate * 40) + (deepWorkRatio * 30) + (tasksPerDay * 20) + 10 // Base 10 points
+	if score > 100 {
+		score = 100
+	}
+	return score
 }
 
 // CalculateVelocityMetrics calculates velocity metrics for tasks

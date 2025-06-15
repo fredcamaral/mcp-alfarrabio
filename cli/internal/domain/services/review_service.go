@@ -409,31 +409,6 @@ func (s *ReviewService) parseFileList(fileStr string) []string {
 	return files
 }
 
-// parseSections parses content into sections
-func (s *ReviewService) parseSections(content string) map[string]string {
-	sections := make(map[string]string)
-
-	// Split by headers
-	headerRe := regexp.MustCompile(`(?m)^#+\s+(.+)$`)
-	matches := headerRe.FindAllStringSubmatchIndex(content, -1)
-
-	for i, match := range matches {
-		if len(match) >= 4 {
-			header := content[match[2]:match[3]]
-
-			// Get content until next header or end
-			start := match[1]
-			end := len(content)
-			if i < len(matches)-1 {
-				end = matches[i+1][0]
-			}
-
-			sections[header] = content[start:end]
-		}
-	}
-
-	return sections
-}
 
 // buildPromptContext builds context for a prompt execution
 func (s *ReviewService) buildPromptContext(session *entities.ReviewSession, prompt *entities.ReviewPrompt) string {

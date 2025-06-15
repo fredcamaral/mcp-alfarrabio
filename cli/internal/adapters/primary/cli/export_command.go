@@ -42,7 +42,7 @@ type ExportStats struct {
 }
 
 // validateAndWriteFile safely writes data to a file after path validation
-func validateAndWriteFile(outputFile string, data []byte, perm os.FileMode) error {
+func validateAndWriteFile(outputFile string, data []byte) error {
 	// Clean and validate the output file path
 	cleanPath := filepath.Clean(outputFile)
 
@@ -61,7 +61,7 @@ func validateAndWriteFile(outputFile string, data []byte, perm os.FileMode) erro
 		}
 	}
 
-	return os.WriteFile(cleanPath, data, perm) // #nosec G304 -- Path is cleaned and validated above
+	return os.WriteFile(cleanPath, data, 0600) // #nosec G304 -- Path is cleaned and validated above
 }
 
 // createExportCommand creates the 'export' command with multi-format support
@@ -341,7 +341,7 @@ func (c *CLI) exportJSON(tasks []*entities.Task, outputFile string, opts *Export
 		return 0, err
 	}
 
-	if err := validateAndWriteFile(outputFile, jsonData, 0600); err != nil {
+	if err := validateAndWriteFile(outputFile, jsonData); err != nil {
 		return 0, err
 	}
 
@@ -357,7 +357,7 @@ func (c *CLI) exportYAML(tasks []*entities.Task, outputFile string, opts *Export
 		return 0, err
 	}
 
-	if err := validateAndWriteFile(outputFile, yamlData, 0600); err != nil {
+	if err := validateAndWriteFile(outputFile, yamlData); err != nil {
 		return 0, err
 	}
 
@@ -365,7 +365,7 @@ func (c *CLI) exportYAML(tasks []*entities.Task, outputFile string, opts *Export
 	return int64(len(yamlData)), nil
 }
 
-func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
+func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, _ *ExportOptions, fields []string) (int64, error) {
 	// Clean and validate the output file path
 	cleanPath := filepath.Clean(outputFile)
 
@@ -416,7 +416,7 @@ func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, opts *ExportO
 	return info.Size(), nil
 }
 
-func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
+func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, _ *ExportOptions, fields []string) (int64, error) {
 	// Clean and validate the output file path
 	cleanPath := filepath.Clean(outputFile)
 
@@ -470,7 +470,7 @@ func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, opts *ExportO
 func (c *CLI) exportXML(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
 	xml := c.generateXML(tasks, opts, fields)
 
-	if err := validateAndWriteFile(outputFile, []byte(xml), 0600); err != nil {
+	if err := validateAndWriteFile(outputFile, []byte(xml)); err != nil {
 		return 0, err
 	}
 
@@ -483,7 +483,7 @@ func (c *CLI) exportPDF(tasks []*entities.Task, outputFile string, opts *ExportO
 	html := c.generateHTML(tasks, opts, fields, "report")
 
 	htmlFile := strings.TrimSuffix(outputFile, ".pdf") + ".html"
-	if err := validateAndWriteFile(htmlFile, []byte(html), 0600); err != nil {
+	if err := validateAndWriteFile(htmlFile, []byte(html)); err != nil {
 		return 0, err
 	}
 
@@ -496,7 +496,7 @@ func (c *CLI) exportPDF(tasks []*entities.Task, outputFile string, opts *ExportO
 func (c *CLI) exportHTML(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
 	html := c.generateHTML(tasks, opts, fields, opts.Template)
 
-	if err := validateAndWriteFile(outputFile, []byte(html), 0600); err != nil {
+	if err := validateAndWriteFile(outputFile, []byte(html)); err != nil {
 		return 0, err
 	}
 
@@ -507,7 +507,7 @@ func (c *CLI) exportHTML(tasks []*entities.Task, outputFile string, opts *Export
 func (c *CLI) exportMarkdown(tasks []*entities.Task, outputFile string, opts *ExportOptions, fields []string) (int64, error) {
 	markdown := c.generateMarkdown(tasks, opts, fields)
 
-	if err := validateAndWriteFile(outputFile, []byte(markdown), 0600); err != nil {
+	if err := validateAndWriteFile(outputFile, []byte(markdown)); err != nil {
 		return 0, err
 	}
 
@@ -734,7 +734,7 @@ func (c *CLI) generateCSVBytes(tasks []*entities.Task, fields []string) []byte {
 	return []byte(content.String())
 }
 
-func (c *CLI) generateMarkdown(tasks []*entities.Task, opts *ExportOptions, fields []string) string {
+func (c *CLI) generateMarkdown(tasks []*entities.Task, _ *ExportOptions, _ []string) string {
 	var md strings.Builder
 
 	md.WriteString("# Tasks Export\n\n")
@@ -768,7 +768,7 @@ func (c *CLI) generateMarkdown(tasks []*entities.Task, opts *ExportOptions, fiel
 	return md.String()
 }
 
-func (c *CLI) generateHTML(tasks []*entities.Task, opts *ExportOptions, fields []string, template string) string {
+func (c *CLI) generateHTML(tasks []*entities.Task, _ *ExportOptions, _ []string, _ string) string {
 	var html strings.Builder
 
 	html.WriteString(`<!DOCTYPE html>
@@ -815,7 +815,7 @@ func (c *CLI) generateHTML(tasks []*entities.Task, opts *ExportOptions, fields [
 	return html.String()
 }
 
-func (c *CLI) generateXML(tasks []*entities.Task, opts *ExportOptions, fields []string) string {
+func (c *CLI) generateXML(tasks []*entities.Task, _ *ExportOptions, _ []string) string {
 	var xml strings.Builder
 
 	xml.WriteString(`<?xml version="1.0" encoding="UTF-8"?>`)
@@ -955,7 +955,7 @@ func (c *CLI) previewExport(opts *ExportOptions, fields []string) error {
 	return nil
 }
 
-func (c *CLI) exportWithSplitting(tasks []*entities.Task, opts *ExportOptions, fields []string, splitBy string, batchSize int, startTime time.Time) (*ExportStats, error) {
+func (c *CLI) exportWithSplitting(tasks []*entities.Task, opts *ExportOptions, fields []string, splitBy string, _ int, startTime time.Time) (*ExportStats, error) {
 	fmt.Printf("📂 Splitting export by: %s\n", splitBy)
 
 	// Group tasks by split criteria

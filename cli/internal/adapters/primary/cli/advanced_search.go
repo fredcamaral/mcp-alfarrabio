@@ -67,7 +67,7 @@ func (c *CLI) hasSearchFilters(cmd *cobra.Command) bool {
 }
 
 // buildAdvancedFilters constructs TaskFilters from command flags
-func (c *CLI) buildAdvancedFilters(cmd *cobra.Command, repository, status, priority string, tags, excludeTags []string,
+func (c *CLI) buildAdvancedFilters(repository, status, priority string, tags, excludeTags []string,
 	createdAfter, createdBefore, updatedAfter, updatedBefore,
 	dueAfter, dueBefore, completedAfter, completedBefore string,
 	overdue, dueSoon, hasDueDate bool, sessionID, parentID string,

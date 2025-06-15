@@ -202,7 +202,7 @@ func (c *CLI) createMemorySearchCommand() *cobra.Command {
   lmmc memory search "bug fixes" --limit 5`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.runMemorySearch(cmd, args[0], project, limit, format)
+			return c.runMemorySearch(cmd, args[0], project, limit)
 		},
 	}
 
@@ -622,7 +622,7 @@ func (c *CLI) runMemoryStoreDecision(cmd *cobra.Command, decision, rationale, pr
 	return nil
 }
 
-func (c *CLI) runMemorySearch(cmd *cobra.Command, query, project string, limit int, format string) error {
+func (c *CLI) runMemorySearch(cmd *cobra.Command, query, project string, limit int) error {
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
@@ -674,7 +674,7 @@ func (c *CLI) runMemorySearch(cmd *cobra.Command, query, project string, limit i
 	return nil
 }
 
-func (c *CLI) runMemoryGet(cmd *cobra.Command, memoryType, id, format string) error {
+func (c *CLI) runMemoryGet(cmd *cobra.Command, _ string, id, format string) error {
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
@@ -711,7 +711,7 @@ func (c *CLI) runMemoryGet(cmd *cobra.Command, memoryType, id, format string) er
 	return nil
 }
 
-func (c *CLI) runMemoryList(cmd *cobra.Command, memoryType, project string, limit int, format string) error {
+func (c *CLI) runMemoryList(cmd *cobra.Command, memoryType, project string, limit int, _ string) error {
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
@@ -822,7 +822,7 @@ func (c *CLI) runMemoryLearnFromProject(cmd *cobra.Command, project string) erro
 	return nil
 }
 
-func (c *CLI) runMemoryPatterns(cmd *cobra.Command, project, patternType, format string) error {
+func (c *CLI) runMemoryPatterns(cmd *cobra.Command, project, patternType, _ string) error {
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
@@ -861,7 +861,7 @@ func (c *CLI) runMemoryPatterns(cmd *cobra.Command, project, patternType, format
 	return nil
 }
 
-func (c *CLI) runMemorySuggest(cmd *cobra.Command, feature, project, format string) error {
+func (c *CLI) runMemorySuggest(cmd *cobra.Command, feature, project, _ string) error {
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
@@ -908,7 +908,7 @@ func (c *CLI) runMemorySuggest(cmd *cobra.Command, feature, project, format stri
 	return nil
 }
 
-func (c *CLI) runMemoryInsights(cmd *cobra.Command, topic, project string, crossProject bool, format string) error {
+func (c *CLI) runMemoryInsights(cmd *cobra.Command, topic, project string, crossProject bool, _ string) error {
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
@@ -969,7 +969,7 @@ func (c *CLI) runMemoryInsights(cmd *cobra.Command, topic, project string, cross
 	return nil
 }
 
-func (c *CLI) runMemoryCompare(cmd *cobra.Command, projects []string, aspect, format string) error {
+func (c *CLI) runMemoryCompare(cmd *cobra.Command, projects []string, aspect, _ string) error {
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {

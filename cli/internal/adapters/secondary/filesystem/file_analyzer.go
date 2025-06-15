@@ -213,7 +213,7 @@ func (fa *fileAnalyzerImpl) walkDirectory(ctx context.Context, basePath, relativ
 	return nil
 }
 
-func (fa *fileAnalyzerImpl) analyzeFile(fullPath, relativePath string, entry fs.DirEntry, analysis *services.DirectoryAnalysis) {
+func (fa *fileAnalyzerImpl) analyzeFile(_, relativePath string, entry fs.DirEntry, analysis *services.DirectoryAnalysis) {
 	analysis.TotalFiles++
 
 	// Get file extension

@@ -128,7 +128,7 @@ func (tp *TaskProcessor) ProcessTask(ctx context.Context, task *entities.Task) (
 }
 
 // enhanceTaskWithAI uses AI to improve task description, priority, tags, and estimation
-func (tp *TaskProcessor) enhanceTaskWithAI(ctx context.Context, result *TaskProcessingResult) error {
+func (tp *TaskProcessor) enhanceTaskWithAI(_ context.Context, result *TaskProcessingResult) error {
 	// For now, use heuristic-based enhancement since AnalyzeWithAI is not available
 	tp.logger.Debug("applying heuristic-based task enhancement")
 
@@ -188,7 +188,7 @@ func (tp *TaskProcessor) findRelatedTasks(ctx context.Context, result *TaskProce
 }
 
 // generateContextualSuggestions generates AI-powered suggestions based on current context
-func (tp *TaskProcessor) generateContextualSuggestions(ctx context.Context, result *TaskProcessingResult) error {
+func (tp *TaskProcessor) generateContextualSuggestions(_ context.Context, result *TaskProcessingResult) error {
 	// Generate heuristic-based suggestions since AnalyzeWithAI is not available
 	tp.logger.Debug("generating heuristic-based contextual suggestions")
 
@@ -235,93 +235,6 @@ func (tp *TaskProcessor) storeTaskInsights(ctx context.Context, result *TaskProc
 
 // Helper methods
 
-func (tp *TaskProcessor) buildTaskEnhancementPrompt(task *entities.Task) string {
-	return fmt.Sprintf(`Analyze and enhance this task:
-
-Task: "%s"
-Current Priority: %s
-Current Tags: %v
-Current Status: %s
-Repository: %s
-
-Provide enhancements in JSON format:
-{
-	"enhanced_description": "improved task description with clarity and actionable details",
-	"suggested_priority": "low|medium|high based on task complexity and urgency",
-	"suggested_tags": ["relevant", "smart", "tags"],
-	"estimated_minutes": estimated_time_in_minutes,
-	"enhancement_reasoning": "explanation of why these enhancements were suggested",
-	"actionability_score": 0.0-1.0,
-	"clarity_improvements": ["specific improvements made"],
-	"missing_information": ["what additional info would help"],
-	"success_criteria": ["how to know when this task is complete"]
-}
-
-Focus on:
-1. Making the task more actionable and specific
-2. Appropriate priority based on content analysis
-3. Smart tagging based on content and context
-4. Realistic time estimation
-5. Clear success criteria`, task.Content, task.Priority, task.Tags, task.Status, tp.repository)
-}
-
-func (tp *TaskProcessor) buildSuggestionPrompt(result *TaskProcessingResult) string {
-	relatedCount := len(result.RelatedTasks)
-	duplicateRisk := len(result.Duplicates) > 0
-
-	context := fmt.Sprintf(`Generate intelligent task suggestions based on this context:
-
-Primary Task: "%s"
-Priority: %s
-Tags: %v
-Repository: %s
-Related Tasks Found: %d
-Duplicate Risk: %t
-
-`, result.OriginalTask.Content, result.OriginalTask.Priority, result.OriginalTask.Tags, tp.repository, relatedCount, duplicateRisk)
-
-	if len(result.RelatedTasks) > 0 {
-		context += "Related Tasks:\n"
-		for i, related := range result.RelatedTasks {
-			if i < 3 { // Show top 3 related tasks
-				context += fmt.Sprintf("- %s (%s)\n", related.Content, related.Status)
-			}
-		}
-	}
-
-	context += fmt.Sprintf(`
-Generate %d intelligent task suggestions as JSON:
-{
-	"suggestions": [
-		{
-			"title": "specific actionable task title",
-			"description": "detailed description with next steps",
-			"priority": "low|medium|high",
-			"tags": ["relevant", "tags"],
-			"estimated_mins": estimated_time,
-			"confidence": 0.0-1.0,
-			"reasoning": "why this suggestion makes sense",
-			"type": "follow_up|prerequisite|parallel|optimization|learning",
-			"category": "implementation|testing|documentation|planning|research",
-			"dependencies": ["if any dependencies on other tasks"],
-			"prerequisites": ["what needs to be done first"]
-		}
-	],
-	"context_insights": ["key insights about the work context"],
-	"ai_recommendations": ["strategic recommendations for this task"]
-}
-
-Suggestion Types:
-- follow_up: Natural next steps after completing the primary task
-- prerequisite: What should be done before the primary task
-- parallel: Tasks that can be done alongside the primary task
-- optimization: Ways to improve or optimize the approach
-- learning: Knowledge gaps or learning opportunities
-
-Focus on practical, actionable suggestions that add real value.`, tp.config.MaxSuggestions)
-
-	return context
-}
 
 func (tp *TaskProcessor) applyTaskEnhancements(task *entities.Task, result *TaskProcessingResult) error {
 	var enhancement struct {

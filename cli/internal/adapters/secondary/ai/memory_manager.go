@@ -314,7 +314,7 @@ func (mm *MemoryManager) shouldIncludeFile(path string, info os.FileInfo) bool {
 	return includedExts[ext]
 }
 
-func (mm *MemoryManager) getFileMappings(ctx context.Context) (map[string]*FileMemoryMapping, error) {
+func (mm *MemoryManager) getFileMappings(_ context.Context) (map[string]*FileMemoryMapping, error) {
 	mappings := make(map[string]*FileMemoryMapping)
 
 	// For now, file mappings are stored in memory only
@@ -324,7 +324,7 @@ func (mm *MemoryManager) getFileMappings(ctx context.Context) (map[string]*FileM
 	return mappings, nil
 }
 
-func (mm *MemoryManager) determineSyncStrategy(ctx context.Context, files []string, mappings map[string]*FileMemoryMapping) (map[string]string, error) {
+func (mm *MemoryManager) determineSyncStrategy(_ context.Context, files []string, mappings map[string]*FileMemoryMapping) (map[string]string, error) {
 	// Use intelligent heuristics to determine sync strategy
 	strategy := make(map[string]string)
 
@@ -519,31 +519,8 @@ func (mm *MemoryManager) updateFileMappings(ctx context.Context, mappings map[st
 	return nil
 }
 
-func (mm *MemoryManager) buildSyncStrategyPrompt(files []string, mappings map[string]*FileMemoryMapping) string {
-	return fmt.Sprintf(`Analyze file sync strategy for %d local files and %d existing mappings.
 
-Files to process: %d
-Existing mappings: %d
-Repository: %s
-
-Determine optimal sync strategy considering:
-1. File types and importance
-2. Change frequency patterns  
-3. Conflict resolution preferences
-4. Bandwidth and storage efficiency
-5. User workflow optimization
-
-Return strategy as JSON:
-{
-	"strategy": "incremental|full|selective",
-	"priority_files": ["high priority files to sync first"],
-	"batch_size": recommended_batch_size,
-	"conflict_resolution": "merge|local|remote",
-	"reasoning": "explanation of strategy choice"
-}`, len(files), len(mappings), len(files), len(mappings), mm.repository)
-}
-
-func (mm *MemoryManager) generatePredictions(ctx context.Context, workContext *entities.WorkContext) ([]string, error) {
+func (mm *MemoryManager) generatePredictions(_ context.Context, workContext *entities.WorkContext) ([]string, error) {
 	// Generate intelligent predictions based on context patterns
 	var predictions []string
 
@@ -582,7 +559,7 @@ func (mm *MemoryManager) generatePredictions(ctx context.Context, workContext *e
 	return predictions, nil
 }
 
-func (mm *MemoryManager) preloadMemory(ctx context.Context, prediction string) error {
+func (mm *MemoryManager) preloadMemory(_ context.Context, prediction string) error {
 	// Implementation would preload predicted memories into local cache
 	mm.logger.Debug("preloading memory prediction", slog.String("prediction", prediction))
 	return nil
@@ -620,7 +597,7 @@ func (mm *MemoryManager) applyConflictResolution(ctx context.Context, conflict, 
 	return nil
 }
 
-func (mm *MemoryManager) generateSyncInsights(ctx context.Context, result *MemoryOperationResult) {
+func (mm *MemoryManager) generateSyncInsights(_ context.Context, result *MemoryOperationResult) {
 	// Generate insights about the sync operation
 	if result.FilesProcessed > 0 {
 		result.Insights = append(result.Insights, &MemoryInsight{
@@ -634,7 +611,7 @@ func (mm *MemoryManager) generateSyncInsights(ctx context.Context, result *Memor
 	}
 }
 
-func (mm *MemoryManager) generateMemoryInsights(ctx context.Context, analytics map[string]interface{}) ([]*MemoryInsight, error) {
+func (mm *MemoryManager) generateMemoryInsights(_ context.Context, analytics map[string]interface{}) ([]*MemoryInsight, error) {
 	// Generate AI insights from memory analytics
 	var insights []*MemoryInsight
 

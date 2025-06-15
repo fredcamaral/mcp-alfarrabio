@@ -100,7 +100,7 @@ func (h *RealtimeHandler) HandleIncomingEvent(ctx context.Context, eventData []b
 }
 
 // handleChunkCreated processes chunk creation events
-func (h *RealtimeHandler) handleChunkCreated(ctx context.Context, event *MemoryChangeEvent) error {
+func (h *RealtimeHandler) handleChunkCreated(_ context.Context, event *MemoryChangeEvent) error {
 	h.logger.Info("Processing chunk created event",
 		"chunk_id", event.ChunkID,
 		"repository", event.Repository,
@@ -133,7 +133,7 @@ func (h *RealtimeHandler) handleChunkCreated(ctx context.Context, event *MemoryC
 }
 
 // handleChunkUpdated processes chunk update events
-func (h *RealtimeHandler) handleChunkUpdated(ctx context.Context, event *MemoryChangeEvent) error {
+func (h *RealtimeHandler) handleChunkUpdated(_ context.Context, event *MemoryChangeEvent) error {
 	h.logger.Info("Processing chunk updated event",
 		"chunk_id", event.ChunkID,
 		"repository", event.Repository,
@@ -158,7 +158,7 @@ func (h *RealtimeHandler) handleChunkUpdated(ctx context.Context, event *MemoryC
 }
 
 // handleChunkDeleted processes chunk deletion events
-func (h *RealtimeHandler) handleChunkDeleted(ctx context.Context, event *MemoryChangeEvent) error {
+func (h *RealtimeHandler) handleChunkDeleted(_ context.Context, event *MemoryChangeEvent) error {
 	h.logger.Info("Processing chunk deleted event",
 		"chunk_id", event.ChunkID,
 		"repository", event.Repository,

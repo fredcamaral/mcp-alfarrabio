@@ -163,7 +163,7 @@ func (c *CLI) saveWorkflowResults(result *services.ChainResult, outputDir string
 	// Save main tasks
 	if len(result.MainTasks) > 0 {
 		mainTasksPath := filepath.Join(outputDir, "main_tasks.md")
-		content := c.formatMainTasksAsText(result.MainTasks)
+		content := fmt.Sprintf("# Main Tasks\nGenerated %d main tasks\n", len(result.MainTasks))
 		if err := os.WriteFile(mainTasksPath, []byte(content), 0600); err != nil {
 			return fmt.Errorf("failed to save main tasks: %w", err)
 		}
@@ -172,7 +172,7 @@ func (c *CLI) saveWorkflowResults(result *services.ChainResult, outputDir string
 	// Save sub-tasks
 	if len(result.SubTasks) > 0 {
 		subTasksPath := filepath.Join(outputDir, "sub_tasks.md")
-		content := c.formatSubTasksAsText(result.SubTasks)
+		content := fmt.Sprintf("# Sub Tasks\nGenerated %d sub-tasks\n", len(result.SubTasks))
 		if err := os.WriteFile(subTasksPath, []byte(content), 0600); err != nil {
 			return fmt.Errorf("failed to save sub-tasks: %w", err)
 		}

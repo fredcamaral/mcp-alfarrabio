@@ -216,39 +216,89 @@ func (c *HTTPMCPClient) CallMCPTool(ctx context.Context, tool string, params map
 		return nil, err
 	}
 
-	// Extract content from MCP response format
-	if result, ok := response.Result.(map[string]interface{}); ok {
-		// Check if it's an error response
-		if isError, ok := result["isError"].(bool); ok && isError {
-			if content, ok := result["content"].([]interface{}); ok && len(content) > 0 {
-				if textContent, ok := content[0].(map[string]interface{}); ok {
-					if text, ok := textContent["text"].(string); ok {
-						return nil, fmt.Errorf("MCP tool error: %s", text)
-					}
-				}
-			}
-			return nil, errors.New("MCP tool returned error without details")
-		}
+	return c.extractMCPResponse(response)
+}
 
-		// Extract content for successful responses
-		if content, ok := result["content"].([]interface{}); ok && len(content) > 0 {
-			if textContent, ok := content[0].(map[string]interface{}); ok {
-				if text, ok := textContent["text"].(string); ok {
-					// Try to parse as JSON
-					var parsedResult map[string]interface{}
-					if err := json.Unmarshal([]byte(text), &parsedResult); err == nil {
-						return parsedResult, nil
-					}
-					// Return as text if not JSON
-					return map[string]interface{}{"result": text}, nil
-				}
-			}
-		}
-
-		return result, nil
+// extractMCPResponse extracts content from MCP response format
+func (c *HTTPMCPClient) extractMCPResponse(response MCPResponse) (map[string]interface{}, error) {
+	result, ok := response.Result.(map[string]interface{})
+	if !ok {
+		return map[string]interface{}{"result": response.Result}, nil
 	}
 
-	return map[string]interface{}{"result": response.Result}, nil
+	// Check if it's an error response
+	if err := c.checkMCPError(result); err != nil {
+		return nil, err
+	}
+
+	// Extract content for successful responses
+	if extractedResult := c.extractSuccessfulContent(result); extractedResult != nil {
+		return extractedResult, nil
+	}
+
+	return result, nil
+}
+
+// checkMCPError checks if the MCP response contains an error
+func (c *HTTPMCPClient) checkMCPError(result map[string]interface{}) error {
+	isError, ok := result["isError"].(bool)
+	if !ok || !isError {
+		return nil
+	}
+
+	errorText := c.extractErrorText(result)
+	if errorText != "" {
+		return fmt.Errorf("MCP tool error: %s", errorText)
+	}
+
+	return errors.New("MCP tool returned error without details")
+}
+
+// extractErrorText extracts error text from MCP error response
+func (c *HTTPMCPClient) extractErrorText(result map[string]interface{}) string {
+	content, ok := result["content"].([]interface{})
+	if !ok || len(content) == 0 {
+		return ""
+	}
+
+	textContent, ok := content[0].(map[string]interface{})
+	if !ok {
+		return ""
+	}
+
+	text, ok := textContent["text"].(string)
+	if !ok {
+		return ""
+	}
+
+	return text
+}
+
+// extractSuccessfulContent extracts content from successful MCP response
+func (c *HTTPMCPClient) extractSuccessfulContent(result map[string]interface{}) map[string]interface{} {
+	content, ok := result["content"].([]interface{})
+	if !ok || len(content) == 0 {
+		return nil
+	}
+
+	textContent, ok := content[0].(map[string]interface{})
+	if !ok {
+		return nil
+	}
+
+	text, ok := textContent["text"].(string)
+	if !ok {
+		return nil
+	}
+
+	// Try to parse as JSON
+	var parsedResult map[string]interface{}
+	if err := json.Unmarshal([]byte(text), &parsedResult); err == nil {
+		return parsedResult
+	}
+
+	// Return as text if not JSON
+	return map[string]interface{}{"result": text}
 }
 
 // QueryIntelligence queries the server's intelligence capabilities using the new memory_analyze tool

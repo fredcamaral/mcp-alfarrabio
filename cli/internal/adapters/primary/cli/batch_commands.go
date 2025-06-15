@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
 
 	"github.com/spf13/cobra"
 
@@ -283,93 +282,3 @@ func (c *CLI) createTagCommand() *cobra.Command {
 	return cmd
 }
 
-// createBatchReviewCommand creates batch review command
-func (c *CLI) createBatchReviewCommand() *cobra.Command {
-	cmd := &cobra.Command{
-		Use:   "review start [paths...] --parallel",
-		Short: "Start reviews for multiple paths in parallel",
-		Long:  `Start code reviews for multiple paths simultaneously.`,
-		Example: `  # Review multiple directories in parallel
-  lmmc review start /path1 /path2 /path3 --parallel
-  
-  # Review with specific phase
-  lmmc review start /api /web /docs --parallel --phase security`,
-	}
-
-	var (
-		parallel bool
-		phase    string
-		quick    bool
-	)
-
-	cmd.Flags().BoolVar(&parallel, "parallel", false, "Run reviews in parallel")
-	cmd.Flags().StringVar(&phase, "phase", "all", "Review phase to run")
-	cmd.Flags().BoolVar(&quick, "quick", false, "Quick review mode")
-
-	cmd.RunE = func(cmd *cobra.Command, args []string) error {
-		if len(args) == 0 {
-			return errors.New("at least one path is required")
-		}
-
-		if !parallel {
-			// Sequential execution
-			for i, path := range args {
-				fmt.Fprintf(cmd.OutOrStdout(), "\n🔍 Reviewing path %d/%d: %s\n", i+1, len(args), path)
-				fmt.Fprintf(cmd.OutOrStdout(), "=====================================\n")
-
-				// Start review
-				if c.reviewService != nil {
-					// For now, just show a placeholder
-					fmt.Fprintf(cmd.OutOrStdout(), "🔍 Starting review for: %s (phase: %s, quick: %v)\n", path, phase, quick)
-					fmt.Fprintf(cmd.OutOrStdout(), "⚠️  Review functionality is being implemented\n")
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "⚠️  Review service not available\n")
-				}
-			}
-		} else {
-			// Parallel execution
-			fmt.Fprintf(cmd.OutOrStdout(), "🚀 Starting %d reviews in parallel...\n", len(args))
-
-			type reviewResult struct {
-				path    string
-				session string
-				err     error
-			}
-
-			results := make(chan reviewResult, len(args))
-
-			// Start reviews in goroutines
-			for _, path := range args {
-				go func(p string) {
-					if c.reviewService != nil {
-						// For now, just simulate review
-						results <- reviewResult{path: p, session: fmt.Sprintf("review-%d", time.Now().Unix())}
-					} else {
-						results <- reviewResult{path: p, err: errors.New("review service not available")}
-					}
-				}(path)
-			}
-
-			// Collect results
-			successCount := 0
-			failCount := 0
-
-			for i := 0; i < len(args); i++ {
-				result := <-results
-				if result.err != nil {
-					fmt.Fprintf(cmd.OutOrStdout(), "❌ %s: %v\n", result.path, result.err)
-					failCount++
-				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "✅ %s: Session %s\n", result.path, result.session)
-					successCount++
-				}
-			}
-
-			fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d successful, %d failed\n", successCount, failCount)
-		}
-
-		return nil
-	}
-
-	return cmd
-}

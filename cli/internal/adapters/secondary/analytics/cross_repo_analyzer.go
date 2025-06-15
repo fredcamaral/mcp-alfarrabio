@@ -1044,7 +1044,7 @@ func (cra *crossRepoAnalyzer) determinePrimaryProjectType(patterns []*entities.T
 }
 
 // generateSimilarityRecommendation creates recommendations based on similar repositories
-func (cra *crossRepoAnalyzer) generateSimilarityRecommendation(repository string, similarRepos []*entities.RepositorySimilarity) *entities.CrossRepoInsight {
+func (cra *crossRepoAnalyzer) generateSimilarityRecommendation(_ string, similarRepos []*entities.RepositorySimilarity) *entities.CrossRepoInsight {
 	if len(similarRepos) == 0 {
 		return nil
 	}
@@ -1089,7 +1089,7 @@ func (cra *crossRepoAnalyzer) generateSimilarityRecommendation(repository string
 }
 
 // generateImprovementRecommendation identifies improvement opportunities
-func (cra *crossRepoAnalyzer) generateImprovementRecommendation(repository string, patterns []*entities.TaskPattern) *entities.CrossRepoInsight {
+func (cra *crossRepoAnalyzer) generateImprovementRecommendation(_ string, patterns []*entities.TaskPattern) *entities.CrossRepoInsight {
 	if len(patterns) < 3 {
 		return nil
 	}
@@ -1154,7 +1154,7 @@ func (cra *crossRepoAnalyzer) generateImprovementRecommendation(repository strin
 }
 
 // generateGapAnalysisRecommendation identifies missing best practices
-func (cra *crossRepoAnalyzer) generateGapAnalysisRecommendation(repository string, repoPatterns []*entities.TaskPattern, sharedInsights []*entities.CrossRepoInsight) *entities.CrossRepoInsight {
+func (cra *crossRepoAnalyzer) generateGapAnalysisRecommendation(_ string, repoPatterns []*entities.TaskPattern, sharedInsights []*entities.CrossRepoInsight) *entities.CrossRepoInsight {
 	if len(sharedInsights) == 0 {
 		return nil
 	}
@@ -1884,43 +1884,6 @@ func (cra *crossRepoAnalyzer) getRepositoriesForTaskType(tasks []*entities.Task)
 	return repos
 }
 
-func (cra *crossRepoAnalyzer) extractCharacteristics(tasks []*entities.Task) []string {
-	// Extract common characteristics from tasks
-	characteristics := []string{}
-
-	// Check if tasks tend to have high estimates
-	estimatedTasks := 0
-	totalEstimate := 0
-	for _, task := range tasks {
-		if task.EstimatedMins > 0 {
-			estimatedTasks++
-			totalEstimate += task.EstimatedMins
-		}
-	}
-
-	if estimatedTasks > 0 {
-		avgEstimate := totalEstimate / estimatedTasks
-		if avgEstimate > 480 { // More than 8 hours
-			characteristics = append(characteristics, "Long-duration tasks")
-		} else if avgEstimate < 60 { // Less than 1 hour
-			characteristics = append(characteristics, "Quick tasks")
-		}
-	}
-
-	// Check priority distribution
-	highPriorityCount := 0
-	for _, task := range tasks {
-		if task.Priority == entities.PriorityHigh {
-			highPriorityCount++
-		}
-	}
-
-	if float64(highPriorityCount)/float64(len(tasks)) > 0.5 {
-		characteristics = append(characteristics, "High-priority focused")
-	}
-
-	return characteristics
-}
 
 func (cra *crossRepoAnalyzer) findTopPerformer(repoMetrics map[string]*entities.WorkflowMetrics, metric string) string {
 	if len(repoMetrics) == 0 {
@@ -2085,7 +2048,7 @@ func formatDuration(d time.Duration) string {
 }
 
 // identifyPossibleCauses identifies possible causes for outliers
-func (cra *crossRepoAnalyzer) identifyPossibleCauses(outlierType, metric string) []string {
+func (cra *crossRepoAnalyzer) identifyPossibleCauses(outlierType, _ string) []string {
 	if outlierType == "positive" {
 		return []string{
 			"Highly efficient development practices",
@@ -2103,7 +2066,7 @@ func (cra *crossRepoAnalyzer) identifyPossibleCauses(outlierType, metric string)
 }
 
 // generateOutlierRecommendations generates recommendations for outliers
-func (cra *crossRepoAnalyzer) generateOutlierRecommendations(outlierType, metric string) []string {
+func (cra *crossRepoAnalyzer) generateOutlierRecommendations(outlierType, _ string) []string {
 	if outlierType == "positive" {
 		return []string{
 			"Document and share successful practices",

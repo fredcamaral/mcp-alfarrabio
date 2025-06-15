@@ -1098,7 +1098,7 @@ func (c *CLI) saveAIFallbackChain(chain AIFallbackChain) error {
 	return os.WriteFile(filepath.Join(configDir, "fallback.yaml"), data, 0600)
 }
 
-func (c *CLI) loadAIUsageStats(period, provider string) ([]AIUsageStats, error) {
+func (c *CLI) loadAIUsageStats(_, _ string) ([]AIUsageStats, error) {
 	// For now, return mock data - in production, this would read from a database
 	// This is a placeholder for the actual implementation
 	return []AIUsageStats{
@@ -1123,7 +1123,7 @@ func (c *CLI) loadAIUsageStats(period, provider string) ([]AIUsageStats, error) 
 	}, nil
 }
 
-func (c *CLI) testAIProvider(config *AIProviderConfig) error {
+func (c *CLI) testAIProvider(_ *AIProviderConfig) error {
 	// This would test the actual connection to the provider
 	// For now, just simulate
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -1289,86 +1289,113 @@ func (c *CLI) analyzeTaskRequirements(task string) []ModelRecommendation {
 
 // estimateTaskCost estimates the cost of running a task
 func (c *CLI) estimateTaskCost(task, provider, model string) []CostEstimation {
-	estimations := []CostEstimation{}
+	inputTokens, outputTokens := c.estimateTokenUsage(task)
+	providers, _ := c.loadAIProviders()
+	
+	estimations := c.calculateCostEstimations(providers, inputTokens, outputTokens, provider, model)
+	
+	return c.limitEstimationResults(estimations, provider, model)
+}
 
-	// Estimate token counts based on task type
-	var inputTokens, outputTokens int
+// estimateTokenUsage estimates input and output tokens based on task type
+func (c *CLI) estimateTokenUsage(task string) (int, int) {
 	taskLower := strings.ToLower(task)
 
 	switch {
 	case strings.Contains(taskLower, "prd creation"):
-		inputTokens = 5000
-		outputTokens = 15000
+		return 5000, 15000
 	case strings.Contains(taskLower, "code review"):
-		// Extract line count if provided
-		if strings.Contains(taskLower, "10k lines") {
-			inputTokens = 50000
-			outputTokens = 10000
-		} else if strings.Contains(taskLower, "1k lines") {
-			inputTokens = 5000
-			outputTokens = 2000
-		} else {
-			inputTokens = 20000
-			outputTokens = 5000
-		}
+		return c.estimateCodeReviewTokens(taskLower)
 	case strings.Contains(taskLower, "trd generation"):
-		inputTokens = 10000
-		outputTokens = 8000
+		return 10000, 8000
 	case strings.Contains(taskLower, "task generation"):
-		inputTokens = 8000
-		outputTokens = 5000
+		return 8000, 5000
 	default:
-		inputTokens = 5000
-		outputTokens = 2000
+		return 5000, 2000
 	}
+}
 
-	// Load providers to get pricing
-	providers, _ := c.loadAIProviders()
+// estimateCodeReviewTokens estimates tokens for code review based on size hints
+func (c *CLI) estimateCodeReviewTokens(taskLower string) (int, int) {
+	if strings.Contains(taskLower, "10k lines") {
+		return 50000, 10000
+	}
+	if strings.Contains(taskLower, "1k lines") {
+		return 5000, 2000
+	}
+	return 20000, 5000
+}
 
-	// Filter by specific provider/model if requested
+// calculateCostEstimations calculates cost estimations for all relevant provider/model combinations
+func (c *CLI) calculateCostEstimations(providers []AIProviderConfig, inputTokens, outputTokens int, provider, model string) []CostEstimation {
+	var estimations []CostEstimation
+
 	for _, p := range providers {
-		if provider != "" && p.Name != provider && p.Type != provider {
+		if !c.shouldIncludeProvider(p, provider) {
 			continue
 		}
 
 		for _, m := range p.Models {
-			if model != "" && m.ID != model {
+			if !c.shouldIncludeModel(m, model) {
 				continue
 			}
 
-			// Calculate costs
-			inputCost := (float64(inputTokens) / 1000000) * m.InputCost
-			outputCost := (float64(outputTokens) / 1000000) * m.OutputCost
-			totalCost := inputCost + outputCost
-
-			// Add 20% variance for min/max
-			minCost := totalCost * 0.8
-			maxCost := totalCost * 1.2
-
-			// Estimate time based on model speed
-			timeEstimate := "1-2 minutes"
-			if strings.Contains(m.ID, "haiku") || strings.Contains(m.ID, "3.5") {
-				timeEstimate = "30-60 seconds"
-			} else if strings.Contains(m.ID, "ultra") || inputTokens > 50000 {
-				timeEstimate = "3-5 minutes"
-			}
-
-			estimations = append(estimations, CostEstimation{
-				Provider:     p.Type,
-				Model:        m.ID,
-				InputTokens:  inputTokens,
-				OutputTokens: outputTokens,
-				MinCost:      minCost,
-				MaxCost:      maxCost,
-				TimeEstimate: timeEstimate,
-			})
+			estimation := c.calculateSingleEstimation(p, m, inputTokens, outputTokens)
+			estimations = append(estimations, estimation)
 		}
 	}
 
-	// If no specific provider/model, show top 3 options
-	if provider == "" && model == "" && len(estimations) > 3 {
-		estimations = estimations[:3]
-	}
+	return estimations
+}
 
+// shouldIncludeProvider checks if a provider should be included in estimations
+func (c *CLI) shouldIncludeProvider(p AIProviderConfig, provider string) bool {
+	return provider == "" || p.Name == provider || p.Type == provider
+}
+
+// shouldIncludeModel checks if a model should be included in estimations
+func (c *CLI) shouldIncludeModel(m AIModelConfig, model string) bool {
+	return model == "" || m.ID == model
+}
+
+// calculateSingleEstimation calculates cost estimation for a single provider/model combination
+func (c *CLI) calculateSingleEstimation(p AIProviderConfig, m AIModelConfig, inputTokens, outputTokens int) CostEstimation {
+	inputCost := (float64(inputTokens) / 1000000) * m.InputCost
+	outputCost := (float64(outputTokens) / 1000000) * m.OutputCost
+	totalCost := inputCost + outputCost
+
+	// Add 20% variance for min/max
+	minCost := totalCost * 0.8
+	maxCost := totalCost * 1.2
+
+	timeEstimate := c.estimateProcessingTime(m.ID, inputTokens)
+
+	return CostEstimation{
+		Provider:     p.Type,
+		Model:        m.ID,
+		InputTokens:  inputTokens,
+		OutputTokens: outputTokens,
+		MinCost:      minCost,
+		MaxCost:      maxCost,
+		TimeEstimate: timeEstimate,
+	}
+}
+
+// estimateProcessingTime estimates processing time based on model characteristics
+func (c *CLI) estimateProcessingTime(modelID string, inputTokens int) string {
+	if strings.Contains(modelID, "haiku") || strings.Contains(modelID, "3.5") {
+		return "30-60 seconds"
+	}
+	if strings.Contains(modelID, "ultra") || inputTokens > 50000 {
+		return "3-5 minutes"
+	}
+	return "1-2 minutes"
+}
+
+// limitEstimationResults limits the number of results when no specific provider/model is requested
+func (c *CLI) limitEstimationResults(estimations []CostEstimation, provider, model string) []CostEstimation {
+	if provider == "" && model == "" && len(estimations) > 3 {
+		return estimations[:3]
+	}
 	return estimations
 }

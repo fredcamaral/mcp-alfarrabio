@@ -382,7 +382,7 @@ func (eas *EnhancedAIService) extractMemoryInsights(result *MemoryOperationResul
 	return insights
 }
 
-func (eas *EnhancedAIService) generateWorkflowOptimizations(ctx context.Context, memoryInsights []*MemoryInsight) ([]string, error) {
+func (eas *EnhancedAIService) generateWorkflowOptimizations(_ context.Context, memoryInsights []*MemoryInsight) ([]string, error) {
 	// Generate AI-powered optimization suggestions based on memory insights
 	suggestions := []string{
 		"Optimize file organization based on access patterns",
@@ -415,7 +415,7 @@ func (eas *EnhancedAIService) processPerformanceAnalytics(ctx context.Context, a
 	return insights, nil
 }
 
-func (eas *EnhancedAIService) extractPerformanceMetrics(response map[string]interface{}) map[string]interface{} {
+func (eas *EnhancedAIService) extractPerformanceMetrics(_ map[string]interface{}) map[string]interface{} {
 	// Extract performance metrics from MCP response
 	return map[string]interface{}{
 		"memory_efficiency":    0.85,

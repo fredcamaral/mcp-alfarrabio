@@ -243,9 +243,7 @@ func (m *SyncManager) SyncWithServer(ctx context.Context) error {
 	}
 
 	// Process offline queue
-	if err := m.processOfflineQueue(ctx); err != nil {
-		m.logger.Error("failed to process offline queue", slog.Any("error", err))
-	}
+	m.processOfflineQueue(ctx)
 
 	// Sync tasks from server
 	if err := m.syncTasksFromServer(ctx); err != nil {
@@ -258,7 +256,7 @@ func (m *SyncManager) SyncWithServer(ctx context.Context) error {
 }
 
 // processOfflineQueue attempts to sync queued operations
-func (m *SyncManager) processOfflineQueue(ctx context.Context) error {
+func (m *SyncManager) processOfflineQueue(ctx context.Context) {
 	m.mu.Lock()
 	queue := make([]*QueuedOperation, len(m.offlineQueue))
 	copy(queue, m.offlineQueue)
@@ -266,7 +264,7 @@ func (m *SyncManager) processOfflineQueue(ctx context.Context) error {
 	m.mu.Unlock()
 
 	if len(queue) == 0 {
-		return nil
+		return
 	}
 
 	m.logger.Info("processing offline queue", slog.Int("operations", len(queue)))
@@ -295,8 +293,6 @@ func (m *SyncManager) processOfflineQueue(ctx context.Context) error {
 	m.mu.Lock()
 	m.offlineQueue = append(m.offlineQueue, failedOps...)
 	m.mu.Unlock()
-
-	return nil
 }
 
 // processQueuedOperation executes a single queued operation
