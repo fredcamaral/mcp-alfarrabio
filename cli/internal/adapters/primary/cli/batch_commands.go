@@ -48,55 +48,7 @@ func (c *CLI) updateDoneCommandForBatch() {
 				}
 
 				actualTime, _ := cmd.Flags().GetInt("actual")
-
-				// Process each task
-				successCount := 0
-				failCount := 0
-
-				for _, taskID := range args {
-					// Resolve task ID from short form
-					fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
-					if err != nil {
-						fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
-						failCount++
-						continue
-					}
-
-					// Update status
-					err = c.taskService.UpdateTaskStatus(c.getContext(), fullTaskID, entities.StatusCompleted)
-					if err != nil {
-						fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to complete task %s: %v\n", taskID, err)
-						failCount++
-						continue
-					}
-
-					// Update actual time if provided
-					if actualTime > 0 {
-						updates := services.TaskUpdates{
-							ActualMins: &actualTime,
-						}
-						if err := c.taskService.UpdateTask(c.getContext(), fullTaskID, &updates); err != nil {
-							c.logger.Warn("failed to update actual time",
-								"task_id", fullTaskID,
-								"error", err)
-						}
-					}
-
-					displayID := fullTaskID
-					if len(displayID) > 8 {
-						displayID = displayID[:8]
-					}
-					fmt.Fprintf(cmd.OutOrStdout(), "✅ Task %s marked as completed\n", displayID)
-					successCount++
-				}
-
-				// Summary
-				fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d completed, %d failed\n", successCount, failCount)
-
-				if failCount > 0 {
-					return fmt.Errorf("%d tasks failed", failCount)
-				}
-				return nil
+				return c.processDoneTasks(cmd, args, actualTime)
 			}
 
 			break
@@ -224,60 +176,155 @@ func (c *CLI) createTagCommand() *cobra.Command {
 		// Remaining arguments are task IDs
 		taskIDs := args[1:]
 
-		// Process each task
-		successCount := 0
-		failCount := 0
-
-		for _, taskID := range taskIDs {
-			// Resolve task ID from short form
-			fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
-			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
-				failCount++
-				continue
-			}
-
-			// Build updates
-			updates := services.TaskUpdates{}
-			if removeTags {
-				updates.RemoveTags = tags
-			} else {
-				updates.AddTags = tags
-			}
-
-			// Apply updates
-			err = c.taskService.UpdateTask(c.getContext(), fullTaskID, &updates)
-			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to update task %s: %v\n", taskID, err)
-				failCount++
-				continue
-			}
-
-			displayID := fullTaskID
-			if len(displayID) > 8 {
-				displayID = displayID[:8]
-			}
-
-			if removeTags {
-				fmt.Fprintf(cmd.OutOrStdout(), "✅ Removed tags from task %s\n", displayID)
-			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "✅ Added tags to task %s\n", displayID)
-			}
-			successCount++
-		}
-
-		// Summary
-		action := "tagged"
-		if removeTags {
-			action = "untagged"
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d tasks %s, %d failed\n", successCount, action, failCount)
-
-		if failCount > 0 {
-			return fmt.Errorf("%d tasks failed", failCount)
-		}
-		return nil
+		return c.processTagTasks(cmd, taskIDs, tags, removeTags)
 	}
 
 	return cmd
+}
+
+// processDoneTasks handles the batch completion of tasks with reduced nesting
+func (c *CLI) processDoneTasks(cmd *cobra.Command, taskIDs []string, actualTime int) error {
+	successCount := 0
+	failCount := 0
+
+	for _, taskID := range taskIDs {
+		success := c.processSingleDoneTask(cmd, taskID, actualTime)
+		if success {
+			successCount++
+		} else {
+			failCount++
+		}
+	}
+
+	// Summary
+	fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d completed, %d failed\n", successCount, failCount)
+
+	if failCount > 0 {
+		return fmt.Errorf("%d tasks failed", failCount)
+	}
+	return nil
+}
+
+// processSingleDoneTask handles completion of a single task, returns true if successful
+func (c *CLI) processSingleDoneTask(cmd *cobra.Command, taskID string, actualTime int) bool {
+	// Resolve task ID from short form
+	fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
+		return false
+	}
+
+	// Update status
+	err = c.taskService.UpdateTaskStatus(c.getContext(), fullTaskID, entities.StatusCompleted)
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to complete task %s: %v\n", taskID, err)
+		return false
+	}
+
+	// Update actual time if provided
+	c.updateActualTimeIfProvided(fullTaskID, actualTime)
+
+	// Display success message
+	displayID := c.formatDisplayID(fullTaskID)
+	fmt.Fprintf(cmd.OutOrStdout(), "✅ Task %s marked as completed\n", displayID)
+	return true
+}
+
+// updateActualTimeIfProvided updates the actual time for a task if actualTime > 0
+func (c *CLI) updateActualTimeIfProvided(fullTaskID string, actualTime int) {
+	if actualTime <= 0 {
+		return
+	}
+
+	updates := services.TaskUpdates{
+		ActualMins: &actualTime,
+	}
+	if err := c.taskService.UpdateTask(c.getContext(), fullTaskID, &updates); err != nil {
+		c.logger.Warn("failed to update actual time",
+			"task_id", fullTaskID,
+			"error", err)
+	}
+}
+
+// formatDisplayID formats a task ID for display (truncates if too long)
+func (c *CLI) formatDisplayID(fullTaskID string) string {
+	if len(fullTaskID) > 8 {
+		return fullTaskID[:8]
+	}
+	return fullTaskID
+}
+
+// processTagTasks handles batch tagging/untagging of tasks with reduced nesting
+func (c *CLI) processTagTasks(cmd *cobra.Command, taskIDs []string, tags []string, removeTags bool) error {
+	successCount := 0
+	failCount := 0
+
+	for _, taskID := range taskIDs {
+		success := c.processSingleTagTask(cmd, taskID, tags, removeTags)
+		if success {
+			successCount++
+		} else {
+			failCount++
+		}
+	}
+
+	// Summary
+	action := c.getTagAction(removeTags)
+	fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d tasks %s, %d failed\n", successCount, action, failCount)
+
+	if failCount > 0 {
+		return fmt.Errorf("%d tasks failed", failCount)
+	}
+	return nil
+}
+
+// processSingleTagTask handles tagging/untagging of a single task, returns true if successful
+func (c *CLI) processSingleTagTask(cmd *cobra.Command, taskID string, tags []string, removeTags bool) bool {
+	// Resolve task ID from short form
+	fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
+		return false
+	}
+
+	// Build and apply updates
+	updates := c.buildTagUpdates(tags, removeTags)
+	err = c.taskService.UpdateTask(c.getContext(), fullTaskID, &updates)
+	if err != nil {
+		fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to update task %s: %v\n", taskID, err)
+		return false
+	}
+
+	// Display success message
+	displayID := c.formatDisplayID(fullTaskID)
+	c.displayTagSuccessMessage(cmd, displayID, removeTags)
+	return true
+}
+
+// buildTagUpdates creates TaskUpdates for tag operations
+func (c *CLI) buildTagUpdates(tags []string, removeTags bool) services.TaskUpdates {
+	updates := services.TaskUpdates{}
+	if removeTags {
+		updates.RemoveTags = tags
+	} else {
+		updates.AddTags = tags
+	}
+	return updates
+}
+
+// getTagAction returns the appropriate action string for tag operations
+func (c *CLI) getTagAction(removeTags bool) string {
+	if removeTags {
+		return "untagged"
+	}
+	return "tagged"
+}
+
+// displayTagSuccessMessage displays the appropriate success message for tag operations
+func (c *CLI) displayTagSuccessMessage(cmd *cobra.Command, displayID string, removeTags bool) {
+	if removeTags {
+		fmt.Fprintf(cmd.OutOrStdout(), "✅ Removed tags from task %s\n", displayID)
+	} else {
+		fmt.Fprintf(cmd.OutOrStdout(), "✅ Added tags to task %s\n", displayID)
+	}
 }
