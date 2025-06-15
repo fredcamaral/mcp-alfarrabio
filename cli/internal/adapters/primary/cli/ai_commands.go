@@ -136,16 +136,7 @@ func (c *CLI) createAIProcessCommand() *cobra.Command {
 			}
 
 			// Update the task if it was enhanced
-			if result.TaskResult != nil && result.TaskResult.EnhancedTask != nil {
-				enhanced := result.TaskResult.EnhancedTask
-				if enhanced.Content != task.Content || enhanced.Priority != task.Priority || len(enhanced.Tags) != len(task.Tags) {
-					if err := c.storage.UpdateTask(c.getContext(), enhanced); err != nil {
-						c.logger.Warn("failed to save enhanced task", "error", err)
-					} else {
-						fmt.Printf("✨ Task enhanced with AI improvements\n\n")
-					}
-				}
-			}
+			c.handleTaskEnhancement(task, result)
 
 			// Display results
 			return c.displayAIProcessResult(result)
@@ -681,6 +672,31 @@ func (c *CLI) printMCPServerStatus(out io.Writer) {
 	} else {
 		_, _ = fmt.Fprintf(out, "  ✓ MCP Server: online\n")
 	}
+}
+
+// handleTaskEnhancement handles task updates after AI enhancement
+func (c *CLI) handleTaskEnhancement(originalTask *entities.Task, result *ai.AICommandResult) {
+	if result.TaskResult == nil || result.TaskResult.EnhancedTask == nil {
+		return
+	}
+
+	enhanced := result.TaskResult.EnhancedTask
+	if !c.taskWasEnhanced(originalTask, enhanced) {
+		return
+	}
+
+	if err := c.storage.UpdateTask(c.getContext(), enhanced); err != nil {
+		c.logger.Warn("failed to save enhanced task", "error", err)
+	} else {
+		fmt.Printf("✨ Task enhanced with AI improvements\n\n")
+	}
+}
+
+// taskWasEnhanced checks if the task was actually enhanced by AI
+func (c *CLI) taskWasEnhanced(original, enhanced *entities.Task) bool {
+	return enhanced.Content != original.Content || 
+		   enhanced.Priority != original.Priority || 
+		   len(enhanced.Tags) != len(original.Tags)
 }
 
 // printTroubleshootingTips prints troubleshooting tips

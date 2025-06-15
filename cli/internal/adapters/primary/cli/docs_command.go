@@ -320,52 +320,9 @@ func (g *DocsGenerator) generateOpenAPIFromCLI() (*OpenAPISpec, error) {
 func (g *DocsGenerator) generateComponents() *Components {
 	return &Components{
 		Schemas:         g.generateSchemas(),
-		SecuritySchemes: map[string]*SecurityScheme{
-			"bearerAuth": {
-				Type:         "http",
-				Scheme:       "bearer",
-				BearerFormat: "JWT",
-				Description:  "Bearer token authentication",
-			},
-		},
-		Parameters: map[string]*Parameter{
-			"limit": {
-				Name:        "limit",
-				In:          "query",
-				Description: "Number of items to return",
-				Schema:      &Schema{Type: "integer", Minimum: floatPtr(1), Maximum: floatPtr(100), Default: 10},
-			},
-			"page": {
-				Name:        "page",
-				In:          "query",
-				Description: "Page number",
-				Schema:      &Schema{Type: "integer", Minimum: floatPtr(1), Default: 1},
-			},
-			"format": {
-				Name:        "format",
-				In:          "query",
-				Description: "Output format",
-				Schema:      &Schema{Type: "string", Enum: []interface{}{"table", "json", "plain"}},
-			},
-		},
-		Responses: map[string]*Response{
-			"NotFound": {
-				Description: "Resource not found",
-				Content: map[string]*MediaType{
-					"application/json": {
-						Schema: &Schema{Ref: "#/components/schemas/Error"},
-					},
-				},
-			},
-			"BadRequest": {
-				Description: "Invalid request parameters",
-				Content: map[string]*MediaType{
-					"application/json": {
-						Schema: &Schema{Ref: "#/components/schemas/Error"},
-					},
-				},
-			},
-		},
+		SecuritySchemes: g.generateSecuritySchemes(),
+		Parameters:      g.generateParameters(),
+		Responses:       g.generateResponses(),
 	}
 }
 
@@ -751,6 +708,180 @@ type Tag struct {
 }
 
 type SecurityRequirement map[string][]string
+
+// generateSchemas creates schema definitions for OpenAPI components
+func (g *DocsGenerator) generateSchemas() map[string]*Schema {
+	return map[string]*Schema{
+		"Task":     g.createTaskSchema(),
+		"TaskList": g.createTaskListSchema(),
+		"Config":   g.createConfigSchema(),
+		"Analytics": g.createAnalyticsSchema(),
+		"Error":    g.createErrorSchema(),
+	}
+}
+
+// createTaskSchema returns the Task schema definition
+func (g *DocsGenerator) createTaskSchema() *Schema {
+	return &Schema{
+		Type:        "object",
+		Description: "Task entity with metadata and status tracking",
+		Required:    []string{"id", "title", "status", "priority"},
+		Properties: map[string]*Schema{
+			"id":          {Type: "string", Description: "Unique task identifier"},
+			"title":       {Type: "string", Description: "Task title/summary"},
+			"description": {Type: "string", Description: "Detailed task description"},
+			"status":      {Type: "string", Enum: []interface{}{"pending", "in_progress", "completed", "cancelled"}},
+			"priority":    {Type: "string", Enum: []interface{}{"low", "medium", "high"}},
+			"created_at":  {Type: "string", Format: "date-time"},
+			"updated_at":  {Type: "string", Format: "date-time"},
+			"metadata":    {Type: "object", AdditionalProperties: true},
+		},
+	}
+}
+
+// createTaskListSchema returns the TaskList schema definition
+func (g *DocsGenerator) createTaskListSchema() *Schema {
+	return &Schema{
+		Type:        "object",
+		Description: "List of tasks with pagination",
+		Properties: map[string]*Schema{
+			"tasks": {
+				Type:  "array",
+				Items: &Schema{Ref: "#/components/schemas/Task"},
+			},
+			"total": {Type: "integer", Description: "Total number of tasks"},
+			"page":  {Type: "integer", Description: "Current page number"},
+			"limit": {Type: "integer", Description: "Items per page"},
+		},
+	}
+}
+
+// createConfigSchema returns the Config schema definition
+func (g *DocsGenerator) createConfigSchema() *Schema {
+	return &Schema{
+		Type:        "object",
+		Description: "CLI configuration settings",
+		Properties: map[string]*Schema{
+			"output_format": {Type: "string", Enum: []interface{}{"table", "json", "plain"}},
+			"verbose":       {Type: "boolean"},
+			"ai_enabled":    {Type: "boolean"},
+		},
+	}
+}
+
+// createAnalyticsSchema returns the Analytics schema definition
+func (g *DocsGenerator) createAnalyticsSchema() *Schema {
+	return &Schema{
+		Type:        "object",
+		Description: "Analytics and insights data",
+		Properties: map[string]*Schema{
+			"task_completion_rate":    {Type: "number", Format: "float"},
+			"average_completion_time": {Type: "string"},
+			"most_active_projects": {
+				Type:  "array",
+				Items: &Schema{Type: "string"},
+			},
+			"productivity_trends": {Type: "object", AdditionalProperties: true},
+		},
+	}
+}
+
+// createErrorSchema returns the Error schema definition
+func (g *DocsGenerator) createErrorSchema() *Schema {
+	return &Schema{
+		Type:        "object",
+		Description: "Error response",
+		Required:    []string{"error", "message"},
+		Properties: map[string]*Schema{
+			"error":   {Type: "string", Description: "Error type"},
+			"message": {Type: "string", Description: "Error message"},
+			"details": {Type: "object", AdditionalProperties: true},
+		},
+	}
+}
+
+// generateSecuritySchemes creates security scheme definitions
+func (g *DocsGenerator) generateSecuritySchemes() map[string]*SecurityScheme {
+	return map[string]*SecurityScheme{
+		"bearerAuth": {
+			Type:         "http",
+			Scheme:       "bearer",
+			BearerFormat: "JWT",
+			Description:  "Bearer token authentication",
+		},
+	}
+}
+
+// generateParameters creates parameter definitions
+func (g *DocsGenerator) generateParameters() map[string]*Parameter {
+	return map[string]*Parameter{
+		"limit":  g.createLimitParameter(),
+		"page":   g.createPageParameter(),
+		"format": g.createFormatParameter(),
+	}
+}
+
+// createLimitParameter returns the limit parameter definition
+func (g *DocsGenerator) createLimitParameter() *Parameter {
+	return &Parameter{
+		Name:        "limit",
+		In:          "query",
+		Description: "Number of items to return",
+		Schema:      &Schema{Type: "integer", Minimum: floatPtr(1), Maximum: floatPtr(100), Default: 10},
+	}
+}
+
+// createPageParameter returns the page parameter definition
+func (g *DocsGenerator) createPageParameter() *Parameter {
+	return &Parameter{
+		Name:        "page",
+		In:          "query",
+		Description: "Page number",
+		Schema:      &Schema{Type: "integer", Minimum: floatPtr(1), Default: 1},
+	}
+}
+
+// createFormatParameter returns the format parameter definition
+func (g *DocsGenerator) createFormatParameter() *Parameter {
+	return &Parameter{
+		Name:        "format",
+		In:          "query",
+		Description: "Output format",
+		Schema:      &Schema{Type: "string", Enum: []interface{}{"table", "json", "plain"}},
+	}
+}
+
+// generateResponses creates response definitions
+func (g *DocsGenerator) generateResponses() map[string]*Response {
+	return map[string]*Response{
+		"NotFound":   g.createNotFoundResponse(),
+		"BadRequest": g.createBadRequestResponse(),
+	}
+}
+
+// createNotFoundResponse returns the NotFound response definition
+func (g *DocsGenerator) createNotFoundResponse() *Response {
+	return &Response{
+		Description: "Resource not found",
+		Content: map[string]*MediaType{
+			"application/json": {
+				Schema: &Schema{Ref: "#/components/schemas/Error"},
+			},
+		},
+	}
+}
+
+// createBadRequestResponse returns the BadRequest response definition
+func (g *DocsGenerator) createBadRequestResponse() *Response {
+	return &Response{
+		Description: "Invalid request parameters",
+		Content: map[string]*MediaType{
+			"application/json": {
+				Schema: &Schema{Ref: "#/components/schemas/Error"},
+			},
+		},
+	}
+}
 
 func floatPtr(f float64) *float64 {
 	return &f
