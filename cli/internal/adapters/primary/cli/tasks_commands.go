@@ -150,10 +150,7 @@ func (c *CLI) runTasksGenerate(fromPRD, fromTRD, output string, useSession bool)
 	}
 
 	// Load the documents
-	prd, trd, err := c.loadDocuments(fromPRD, fromTRD)
-	if err != nil {
-		return err
-	}
+	prd, trd := c.loadDocuments(fromPRD, fromTRD)
 
 	// Generate tasks from available documents
 	mainTasks, err := c.generateMainTasks(ctx, prd, trd)
@@ -198,7 +195,7 @@ func (c *CLI) validateDocumentInputs(fromPRD, fromTRD string) error {
 }
 
 // loadDocuments loads PRD and TRD files
-func (c *CLI) loadDocuments(fromPRD, fromTRD string) (*services.PRDEntity, *services.TRDEntity, error) {
+func (c *CLI) loadDocuments(fromPRD, fromTRD string) (*services.PRDEntity, *services.TRDEntity) {
 	var prd *services.PRDEntity
 	var trd *services.TRDEntity
 
@@ -207,14 +204,10 @@ func (c *CLI) loadDocuments(fromPRD, fromTRD string) (*services.PRDEntity, *serv
 	}
 
 	if fromTRD != "" {
-		loadedTRD, err := c.loadTRDFromFile(fromTRD)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to load TRD: %w", err)
-		}
-		trd = loadedTRD
+		trd = c.loadTRDFromFile(fromTRD)
 	}
 
-	return prd, trd, nil
+	return prd, trd
 }
 
 // generateMainTasks generates tasks from available documents
@@ -385,7 +378,7 @@ func (c *CLI) getDefaultTasksOutputPath() string {
 	return filepath.Join(preDev, fmt.Sprintf("tasks-%s.md", timestamp))
 }
 
-func (c *CLI) generateTasksFromPRDOnly(_ context.Context, prd *services.PRDEntity) ([]*services.MainTask, error) {
+func (c *CLI) generateTasksFromPRDOnly(_ context.Context, _ *services.PRDEntity) ([]*services.MainTask, error) {
 	// TODO: Implement PRD-only task generation
 	// For now, return mock tasks
 	return []*services.MainTask{

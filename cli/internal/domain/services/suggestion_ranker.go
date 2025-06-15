@@ -514,8 +514,10 @@ func (sr *suggestionRankerImpl) AdaptRankingWeights(
 	for _, fb := range feedback {
 		if fb.Accepted && fb.Helpful {
 			// Increment successful patterns
+			sr.logger.Debug("positive feedback received for suggestion")
 		} else if !fb.Accepted {
 			// Increment rejected patterns
+			sr.logger.Debug("negative feedback received for suggestion")
 		}
 	}
 
@@ -563,7 +565,7 @@ func (sr *suggestionRankerImpl) UpdatePersonalizationModel(
 
 func (sr *suggestionRankerImpl) calculateScoringComponents(
 	suggestion *entities.TaskSuggestion,
-	criteria *RankingCriteria,
+	_ *RankingCriteria,
 	workContext *entities.WorkContext,
 ) map[string]float64 {
 	return map[string]float64{

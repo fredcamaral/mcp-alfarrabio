@@ -1013,7 +1013,7 @@ func (c *CLI) displaySingleInsight(cmd *cobra.Command, insight interface{}) {
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "\n• %s\n", insightMap["insight"])
-	
+
 	c.displayInsightDetail(cmd, insightMap, "evidence", "Evidence")
 	c.displayInsightDetail(cmd, insightMap, "recommendation", "Recommendation")
 }

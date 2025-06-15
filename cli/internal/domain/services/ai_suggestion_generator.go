@@ -393,7 +393,7 @@ func (ai *aiSuggestionGeneratorImpl) AnalyzeTaskComplexity(task *entities.Task) 
 }
 
 // calculateBaseComplexity determines initial complexity based on content length
-func (ai *aiSuggestionGeneratorImpl) calculateBaseComplexity(content string, contentLength int, analysis *TaskComplexityAnalysis) float64 {
+func (ai *aiSuggestionGeneratorImpl) calculateBaseComplexity(_ string, contentLength int, analysis *TaskComplexityAnalysis) float64 {
 	complexityScore := 0.5 // Start with neutral
 
 	if contentLength > 200 {
@@ -461,14 +461,14 @@ func (ai *aiSuggestionGeneratorImpl) analyzeSkillRequirements(content string, an
 // analyzeDependencies checks for external dependencies
 func (ai *aiSuggestionGeneratorImpl) analyzeDependencies(content string, analysis *TaskComplexityAnalysis) float64 {
 	dependencyKeywords := []string{"depends", "requires", "needs", "after", "before", "prerequisite"}
-	
+
 	for _, keyword := range dependencyKeywords {
 		if strings.Contains(content, keyword) {
 			analysis.Dependencies = append(analysis.Dependencies, "external_dependency")
 			return 0.1
 		}
 	}
-	
+
 	return 0.0
 }
 
@@ -538,7 +538,7 @@ func (ai *aiSuggestionGeneratorImpl) generateRecommendations(analysis *TaskCompl
 // calculateConfidence determines analysis confidence level
 func (ai *aiSuggestionGeneratorImpl) calculateConfidence(analysis *TaskComplexityAnalysis, contentLength int) float64 {
 	confidence := 0.6 // Base confidence
-	
+
 	if len(analysis.FactorsIdentified) > 2 {
 		confidence += 0.2
 	}
@@ -966,7 +966,7 @@ func (ai *aiSuggestionGeneratorImpl) analyzeGoalAlignment(workContext *entities.
 	return alignments
 }
 
-func (ai *aiSuggestionGeneratorImpl) generateBreakdownSteps(task *entities.Task, complexity *TaskComplexityAnalysis) []breakdownStep {
+func (ai *aiSuggestionGeneratorImpl) generateBreakdownSteps(_ *entities.Task, complexity *TaskComplexityAnalysis) []breakdownStep {
 	var steps []breakdownStep
 
 	// Generate breakdown based on complexity factors
@@ -1062,7 +1062,7 @@ func (ai *aiSuggestionGeneratorImpl) calculateTaskSimilarity(task1, task2 *entit
 	return similarity
 }
 
-func (ai *aiSuggestionGeneratorImpl) analyzeTaskOptimizations(task *entities.Task, similar []*entities.Task) []taskOptimization {
+func (ai *aiSuggestionGeneratorImpl) analyzeTaskOptimizations(_ *entities.Task, similar []*entities.Task) []taskOptimization {
 	var optimizations []taskOptimization
 
 	// Analyze common patterns in similar tasks

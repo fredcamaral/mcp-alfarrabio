@@ -114,7 +114,7 @@ type UserPreferences struct {
 	AvoidPatterns       []string `json:"avoid_patterns,omitempty"`
 }
 
-// Document entities for generation chain
+// PRDEntity represents a product requirements document for generation chain
 type PRDEntity struct {
 	ID          string                 `json:"id"`
 	Title       string                 `json:"title"`
@@ -680,7 +680,7 @@ func (s *DefaultDocumentChainService) extractTaskName(step string) string {
 	return step
 }
 
-func (s *DefaultDocumentChainService) determinePhase(step string, index, total int) string {
+func (s *DefaultDocumentChainService) determinePhase(_ string, index, total int) string {
 	ratio := float64(index) / float64(total)
 	switch {
 	case ratio < 0.3:
@@ -709,7 +709,7 @@ func (s *DefaultDocumentChainService) validateAtomicTask(step string) bool {
 	return len(splitWords(step)) < 20
 }
 
-func (s *DefaultDocumentChainService) extractDependencies(step string, index int, existingTasks []*MainTask) []string {
+func (s *DefaultDocumentChainService) extractDependencies(_ string, index int, existingTasks []*MainTask) []string {
 	var deps []string
 	if index > 0 && len(existingTasks) > 0 {
 		// Simple dependency: each task depends on the previous one
@@ -793,7 +793,7 @@ func (s *DefaultDocumentChainService) generateAcceptanceCriteria(step string) []
 	}
 }
 
-func (s *DefaultDocumentChainService) extractSubTaskDependencies(step string, index int, existingSubTasks []*SubTask) []string {
+func (s *DefaultDocumentChainService) extractSubTaskDependencies(_ string, index int, existingSubTasks []*SubTask) []string {
 	var deps []string
 	if index > 0 && len(existingSubTasks) > 0 {
 		deps = append(deps, existingSubTasks[index-1].ID)

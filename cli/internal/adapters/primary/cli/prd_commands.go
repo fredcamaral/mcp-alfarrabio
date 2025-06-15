@@ -299,7 +299,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 }
 
 // createPRDNonInteractive creates a PRD without interaction
-func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, output, _, model string) error {
+func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, output, _, _ string) error {
 	// Create basic context
 	context := &services.GenerationContext{
 		Repository:  c.detectRepository(ctx),

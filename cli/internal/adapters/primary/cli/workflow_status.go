@@ -73,7 +73,7 @@ func (c *CLI) displaySessionInfo(session *SessionData) {
 // displayCompletedSteps shows completed workflow steps
 func (c *CLI) displayCompletedSteps(session *SessionData) int {
 	fmt.Printf("✅ Completed Steps:\n")
-	
+
 	steps := []struct {
 		key   string
 		label string
@@ -83,7 +83,7 @@ func (c *CLI) displayCompletedSteps(session *SessionData) int {
 		{"tasks_file", "Tasks generated"},
 		{"subtasks_file", "Sub-tasks generated"},
 	}
-	
+
 	completedSteps := 0
 	for i, step := range steps {
 		if file := session.Values[step.key]; file != "" && fileExists(file) {
@@ -91,11 +91,11 @@ func (c *CLI) displayCompletedSteps(session *SessionData) int {
 			completedSteps++
 		}
 	}
-	
+
 	if completedSteps == 0 {
 		fmt.Printf("   (No steps completed yet)\n")
 	}
-	
+
 	fmt.Printf("\n")
 	return completedSteps
 }
@@ -127,7 +127,7 @@ func (c *CLI) displayNextSteps(status string) {
 // displayWorkflowFiles shows current workflow files
 func (c *CLI) displayWorkflowFiles(session *SessionData) {
 	fmt.Printf("\n📁 Workflow Files:\n")
-	
+
 	files := []struct {
 		key   string
 		label string
@@ -137,7 +137,7 @@ func (c *CLI) displayWorkflowFiles(session *SessionData) {
 		{"tasks_file", "Tasks"},
 		{"subtasks_file", "Sub-tasks"},
 	}
-	
+
 	for _, file := range files {
 		if value := session.Values[file.key]; value != "" {
 			fmt.Printf("   %s: %s\n", file.label, value)

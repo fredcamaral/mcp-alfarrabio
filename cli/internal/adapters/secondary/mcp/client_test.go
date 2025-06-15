@@ -73,11 +73,11 @@ func (m *mockMCPServer) isHealthCheckRequest(request *MCPRequest) bool {
 	if request.Method == constants.MCPMethodMemorySystem {
 		return m.hasHealthOperation(request.Params)
 	}
-	
+
 	if request.Method == "tools/call" {
 		return m.isToolsCallHealthCheck(request.Params)
 	}
-	
+
 	return false
 }
 
@@ -87,7 +87,7 @@ func (m *mockMCPServer) hasHealthOperation(params interface{}) bool {
 	if !ok {
 		return false
 	}
-	
+
 	operation, ok := paramsMap["operation"].(string)
 	return ok && operation == constants.MCPOperationHealth
 }
@@ -98,17 +98,17 @@ func (m *mockMCPServer) isToolsCallHealthCheck(params interface{}) bool {
 	if !ok {
 		return false
 	}
-	
+
 	toolName, ok := paramsMap["name"].(string)
 	if !ok || toolName != constants.MCPMethodMemorySystem {
 		return false
 	}
-	
+
 	args, ok := paramsMap["arguments"].(map[string]interface{})
 	if !ok {
 		return false
 	}
-	
+
 	return m.hasHealthOperation(args)
 }
 
@@ -131,7 +131,7 @@ func (m *mockMCPServer) shouldSimulateFailure(w http.ResponseWriter, ctx context
 		http.Error(w, "Simulated failure", http.StatusInternalServerError)
 		return true
 	}
-	
+
 	return false
 }
 
@@ -402,7 +402,7 @@ func (m *mockMCPServer) handleMemoryUpdate(params interface{}, response *MCPResp
 	response.Result = map[string]string{"status": "success"}
 }
 
-func (m *mockMCPServer) handleMemoryAnalyze(params interface{}, response *MCPResponse) {
+func (m *mockMCPServer) handleMemoryAnalyze(_ interface{}, response *MCPResponse) {
 	// Basic implementation for analyze operations
 	response.Result = map[string]interface{}{
 		"status":   "success",

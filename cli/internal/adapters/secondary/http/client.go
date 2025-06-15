@@ -478,16 +478,16 @@ func (c *HTTPRestClient) convertServerTaskToCliTask(serverTask map[string]interf
 
 	// Extract basic fields
 	c.extractBasicFields(serverTask, task)
-	
+
 	// Extract repository information
 	c.extractRepository(serverTask, task)
-	
+
 	// Extract arrays and complex fields
 	c.extractArrayFields(serverTask, task)
-	
+
 	// Extract timestamps
 	c.extractTimestamps(serverTask, task)
-	
+
 	// Validate and set defaults
 	return c.validateAndSetDefaults(task)
 }
@@ -543,7 +543,7 @@ func (c *HTTPRestClient) extractRepository(serverTask map[string]interface{}, ta
 		task.Repository = repository
 		return
 	}
-	
+
 	// Check in metadata.extended_data.repository
 	if metadata, ok := serverTask["metadata"].(map[string]interface{}); ok {
 		if extendedData, ok := metadata["extended_data"].(map[string]interface{}); ok {
@@ -587,9 +587,9 @@ func (c *HTTPRestClient) extractTimestamps(serverTask map[string]interface{}, ta
 		// Fall back to direct timestamp fields
 		c.parseTimestamp(serverTask["created_at"], &task.CreatedAt)
 	}
-	
+
 	c.parseTimestamp(serverTask["updated_at"], &task.UpdatedAt)
-	
+
 	// Handle completed_at separately as it's a pointer
 	if completedAtStr, ok := serverTask["completed_at"].(string); ok && completedAtStr != "" {
 		if completedAt, err := time.Parse(time.RFC3339, completedAtStr); err == nil {
@@ -613,7 +613,7 @@ func (c *HTTPRestClient) validateAndSetDefaults(task *entities.Task) *entities.T
 	if task.ID == "" || task.Content == "" {
 		return nil
 	}
-	
+
 	// Set defaults for empty fields
 	if task.Priority == "" {
 		task.Priority = entities.PriorityMedium
@@ -624,7 +624,7 @@ func (c *HTTPRestClient) validateAndSetDefaults(task *entities.Task) *entities.T
 	if task.Repository == "" {
 		task.Repository = "default"
 	}
-	
+
 	// Set default timestamps if missing
 	now := time.Now()
 	if task.CreatedAt.IsZero() {
@@ -633,7 +633,7 @@ func (c *HTTPRestClient) validateAndSetDefaults(task *entities.Task) *entities.T
 	if task.UpdatedAt.IsZero() {
 		task.UpdatedAt = now
 	}
-	
+
 	return task
 }
 

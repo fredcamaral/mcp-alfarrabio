@@ -116,7 +116,7 @@ func (h *HybridSuggestionService) queryServerPatterns(
 	ctx context.Context,
 	contextContent string,
 	repository string,
-	maxResults int,
+	_ int,
 ) ([]*entities.TaskSuggestion, error) {
 	// Use memory_intelligence operation for pattern suggestions
 	options := map[string]interface{}{

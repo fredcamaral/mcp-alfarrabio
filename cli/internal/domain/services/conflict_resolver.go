@@ -96,20 +96,7 @@ func (r *ConflictResolver) DetectConflict(ctx context.Context, local, server *ap
 	analysis := r.analyzeConflict(ctx, local, server, conflictTypes)
 
 	// Generate resolution
-	resolution, err := r.generateResolution(ctx, local, server, analysis)
-	if err != nil {
-		r.logger.Error("failed to generate conflict resolution",
-			slog.String("task_id", local.ID),
-			slog.Any("error", err))
-
-		// Fallback to server wins
-		resolution = &api.ConflictResolution{
-			Strategy:     api.StrategyServerWins,
-			ResolvedTask: server,
-			Confidence:   0.5,
-			AutoApply:    false,
-		}
-	}
+	resolution := r.generateResolution(ctx, local, server, analysis)
 
 	conflict.Resolution = *resolution
 	conflict.Reason = analysis.Reasoning
@@ -412,7 +399,7 @@ func (r *ConflictResolver) calculateConfidence(strategy api.ResolutionStrategy, 
 }
 
 // generateResolution creates the final conflict resolution
-func (r *ConflictResolver) generateResolution(ctx context.Context, local, server *api.TaskSyncItem, analysis *ConflictAnalysis) (*api.ConflictResolution, error) {
+func (r *ConflictResolver) generateResolution(_ context.Context, local, server *api.TaskSyncItem, analysis *ConflictAnalysis) *api.ConflictResolution {
 	resolution := &api.ConflictResolution{
 		Strategy:   analysis.RecommendedStrategy,
 		Confidence: analysis.Confidence,
@@ -428,10 +415,7 @@ func (r *ConflictResolver) generateResolution(ctx context.Context, local, server
 		resolution.ResolvedTask = local
 
 	case api.StrategyMerge:
-		merged, err := r.mergeTask(local, server)
-		if err != nil {
-			return nil, fmt.Errorf("failed to merge tasks: %w", err)
-		}
+		merged := r.mergeTask(local, server)
 		resolution.ResolvedTask = merged
 
 	case api.StrategyManual:
@@ -443,11 +427,11 @@ func (r *ConflictResolver) generateResolution(ctx context.Context, local, server
 		resolution.ResolvedTask = server
 	}
 
-	return resolution, nil
+	return resolution
 }
 
 // mergeTask attempts to intelligently merge two conflicting tasks
-func (r *ConflictResolver) mergeTask(local, server *api.TaskSyncItem) (*api.TaskSyncItem, error) {
+func (r *ConflictResolver) mergeTask(local, server *api.TaskSyncItem) *api.TaskSyncItem {
 	merged := *server // Start with server as base
 
 	// Status: prefer progression
@@ -494,7 +478,7 @@ func (r *ConflictResolver) mergeTask(local, server *api.TaskSyncItem) (*api.Task
 	merged.UpdatedAt = time.Now()
 	merged.UpdateChecksum()
 
-	return &merged, nil
+	return &merged
 }
 
 // isStatusProgression checks if the transition from old to new status is a progression
@@ -533,14 +517,7 @@ func (r *ConflictResolver) isPriorityHigher(priority1, priority2 entities.Priori
 
 func (r *ConflictResolver) resolveContentConflict(ctx context.Context, local, server *api.TaskSyncItem) (*api.ConflictResolution, error) {
 	// Try intelligent content merge
-	merged, err := r.mergeTask(local, server)
-	if err != nil {
-		return &api.ConflictResolution{
-			Strategy:     api.StrategyServerWins,
-			ResolvedTask: server,
-			Confidence:   0.6,
-		}, nil
-	}
+	merged := r.mergeTask(local, server)
 
 	return &api.ConflictResolution{
 		Strategy:     api.StrategyMerge,
@@ -598,14 +575,7 @@ func (r *ConflictResolver) resolveTimestampConflict(ctx context.Context, local, 
 }
 
 func (r *ConflictResolver) resolveMetadataConflict(ctx context.Context, local, server *api.TaskSyncItem) (*api.ConflictResolution, error) {
-	merged, err := r.mergeTask(local, server)
-	if err != nil {
-		return &api.ConflictResolution{
-			Strategy:     api.StrategyServerWins,
-			ResolvedTask: server,
-			Confidence:   0.6,
-		}, nil
-	}
+	merged := r.mergeTask(local, server)
 
 	return &api.ConflictResolution{
 		Strategy:     api.StrategyMerge,

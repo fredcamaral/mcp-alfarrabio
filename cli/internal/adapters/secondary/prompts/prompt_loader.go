@@ -2,6 +2,7 @@
 package prompts
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -78,7 +79,7 @@ func (l *PromptLoader) loadPrompt(path string) (*entities.ReviewPrompt, error) {
 	// Validate path is within prompts directory
 	cleanPath := filepath.Clean(path)
 	if !strings.HasPrefix(cleanPath, l.promptsDir) {
-		return nil, fmt.Errorf("invalid path: outside of prompts directory")
+		return nil, errors.New("invalid path: outside of prompts directory")
 	}
 
 	// Read file content
@@ -271,7 +272,7 @@ func (l *PromptLoader) GetPromptsByPhase(phase entities.ReviewPhase) []*entities
 
 // GetAllPrompts returns all loaded prompts sorted by order
 func (l *PromptLoader) GetAllPrompts() []*entities.ReviewPrompt {
-	var prompts []*entities.ReviewPrompt
+	prompts := make([]*entities.ReviewPrompt, 0, len(l.prompts))
 
 	for _, prompt := range l.prompts {
 		prompts = append(prompts, prompt)

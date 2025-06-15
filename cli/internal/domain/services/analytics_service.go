@@ -753,7 +753,7 @@ func (a *analyticsServiceImpl) analyzeTrends(
 	ctx context.Context,
 	repository string,
 	period entities.TimePeriod,
-	metrics *entities.WorkflowMetrics,
+	_ *entities.WorkflowMetrics,
 ) entities.TrendAnalysis {
 	trends := entities.TrendAnalysis{
 		Predictions: []entities.Prediction{},
@@ -944,7 +944,7 @@ func (a *analyticsServiceImpl) filterTasksByStatus(tasks []*entities.Task, statu
 	return filtered
 }
 
-// Storage interfaces (to be implemented by storage layer)
+// TaskStorage interface to be implemented by storage layer
 type TaskStorage interface {
 	GetByPeriod(ctx context.Context, repository string, period entities.TimePeriod) ([]*entities.Task, error)
 }

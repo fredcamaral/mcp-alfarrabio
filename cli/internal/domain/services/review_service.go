@@ -129,10 +129,7 @@ func (s *ReviewService) executeReview(ctx context.Context, session *entities.Rev
 
 	// Store in memory if requested
 	if config.StoreInMemory {
-		err := s.storeInMemory(ctx, session)
-		if err != nil {
-			fmt.Printf("Error storing in memory: %v\n", err)
-		}
+		s.storeInMemory(ctx, session)
 	}
 
 	// Mark as completed
@@ -665,7 +662,7 @@ func (s *ReviewService) writePromptOutput(prompt *entities.ReviewPrompt, content
 	return os.WriteFile(filepath, []byte(content), 0600)
 }
 
-func (s *ReviewService) generateTodoList(ctx context.Context, session *entities.ReviewSession, outputDir string) error {
+func (s *ReviewService) generateTodoList(_ context.Context, session *entities.ReviewSession, outputDir string) error {
 	// Group findings by severity
 	findingsBySeverity := make(map[entities.ReviewSeverity][]entities.ReviewFinding)
 
@@ -730,7 +727,7 @@ func (s *ReviewService) generateTodoList(ctx context.Context, session *entities.
 	return os.WriteFile(filename, []byte(content.String()), 0600)
 }
 
-func (s *ReviewService) storeInMemory(ctx context.Context, session *entities.ReviewSession) error {
+func (s *ReviewService) storeInMemory(_ context.Context, session *entities.ReviewSession) {
 	// TODO: Implement memory storage when MCP client supports it
 	// For now, we'll just log that we would store it
 
@@ -759,8 +756,6 @@ func (s *ReviewService) storeInMemory(ctx context.Context, session *entities.Rev
 	if criticalCount > 0 {
 		fmt.Printf("Would store %d critical/high findings in memory\n", criticalCount)
 	}
-
-	return nil
 }
 
 // GetSession retrieves a review session by ID

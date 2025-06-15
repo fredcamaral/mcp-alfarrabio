@@ -349,8 +349,8 @@ func (c *projectClassifierImpl) scoreGame(chars *entities.ProjectCharacteristics
 
 // findBestMatch finds the project type with highest score
 func (c *projectClassifierImpl) findBestMatch(scores map[entities.ProjectType]float64) (entities.ProjectType, float64) {
-	var bestType entities.ProjectType = entities.ProjectTypeUnknown
-	var bestScore float64 = 0
+	var bestType = entities.ProjectTypeUnknown
+	var bestScore float64
 
 	for pType, score := range scores {
 		if score > bestScore {
@@ -471,7 +471,7 @@ func (c *projectClassifierImpl) extractPackageJSONDeps(configFiles map[string]in
 
 	// Extract regular dependencies
 	c.extractJSONDepsSection(packageData, "dependencies", dependencies, depSet)
-	
+
 	// Extract dev dependencies
 	c.extractJSONDepsSection(packageData, "devDependencies", dependencies, depSet)
 }
@@ -548,7 +548,7 @@ func (c *projectClassifierImpl) extractPythonDeps(configFiles map[string]interfa
 		dep := strings.FieldsFunc(line, func(r rune) bool {
 			return r == '=' || r == '>' || r == '<' || r == '!' || r == '~'
 		})[0]
-		
+
 		dep = strings.TrimSpace(dep)
 		c.addDependency(dep, dependencies, depSet)
 	}

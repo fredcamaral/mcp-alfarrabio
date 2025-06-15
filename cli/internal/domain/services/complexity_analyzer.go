@@ -375,7 +375,7 @@ func (a *DefaultComplexityAnalyzer) analyzeTechnicalComplexity(content string, w
 	return score
 }
 
-func (a *DefaultComplexityAnalyzer) analyzeBusinessComplexity(content string, words []string) float64 {
+func (a *DefaultComplexityAnalyzer) analyzeBusinessComplexity(content string, _ []string) float64 {
 	score := 0.0
 
 	// Business complexity patterns
@@ -411,7 +411,7 @@ func (a *DefaultComplexityAnalyzer) analyzeBusinessComplexity(content string, wo
 	return score
 }
 
-func (a *DefaultComplexityAnalyzer) analyzeIntegrationComplexity(content string, words []string) float64 {
+func (a *DefaultComplexityAnalyzer) analyzeIntegrationComplexity(content string, _ []string) float64 {
 	score := 0.0
 
 	// Integration patterns
@@ -450,7 +450,7 @@ func (a *DefaultComplexityAnalyzer) analyzeIntegrationComplexity(content string,
 	return score
 }
 
-func (a *DefaultComplexityAnalyzer) analyzeTestingComplexity(content string, words []string) float64 {
+func (a *DefaultComplexityAnalyzer) analyzeTestingComplexity(content string, _ []string) float64 {
 	score := 2.0 // Base testing complexity
 
 	// Testing patterns
@@ -525,7 +525,7 @@ func (a *DefaultComplexityAnalyzer) analyzeDocumentationComplexity(content strin
 	return score
 }
 
-func (a *DefaultComplexityAnalyzer) analyzeDataComplexity(content string, words []string) float64 {
+func (a *DefaultComplexityAnalyzer) analyzeDataComplexity(content string, _ []string) float64 {
 	score := 0.0
 
 	// Data complexity patterns
@@ -561,7 +561,7 @@ func (a *DefaultComplexityAnalyzer) analyzeDataComplexity(content string, words 
 	return score
 }
 
-func (a *DefaultComplexityAnalyzer) analyzeUIComplexity(content string, words []string) float64 {
+func (a *DefaultComplexityAnalyzer) analyzeUIComplexity(content string, _ []string) float64 {
 	score := 0.0
 
 	// UI complexity patterns
@@ -610,7 +610,7 @@ func (a *DefaultComplexityAnalyzer) calculateOverallScore(breakdown ComplexityBr
 			a.weights.Testing + a.weights.Documentation + a.weights.Data + a.weights.UI)
 }
 
-func (a *DefaultComplexityAnalyzer) extractComplexityFactors(breakdown ComplexityBreakdown, content string) []ComplexityFactor {
+func (a *DefaultComplexityAnalyzer) extractComplexityFactors(breakdown ComplexityBreakdown, _ string) []ComplexityFactor {
 	var factors []ComplexityFactor
 
 	if breakdown.Technical >= 7.0 {
@@ -730,7 +730,7 @@ func (a *DefaultComplexityAnalyzer) calculateConfidence(factors []ComplexityFact
 	return confidence
 }
 
-func (a *DefaultComplexityAnalyzer) generateRecommendations(breakdown ComplexityBreakdown, factors []ComplexityFactor, level string) []string {
+func (a *DefaultComplexityAnalyzer) generateRecommendations(breakdown ComplexityBreakdown, _ []ComplexityFactor, level string) []string {
 	var recommendations []string
 
 	switch level {

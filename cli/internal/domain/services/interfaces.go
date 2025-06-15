@@ -7,7 +7,7 @@ import (
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
-// Repository interfaces for services
+// PatternRepository interface for managing task patterns
 type PatternRepository interface {
 	Create(ctx context.Context, pattern *entities.TaskPattern) error
 	Update(ctx context.Context, pattern *entities.TaskPattern) error

@@ -387,7 +387,7 @@ func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, _ *ExportOpti
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
@@ -439,7 +439,7 @@ func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, _ *ExportOpti
 	if err != nil {
 		return 0, err
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	writer := csv.NewWriter(file)
 	writer.Comma = '\t' // Use tab as delimiter

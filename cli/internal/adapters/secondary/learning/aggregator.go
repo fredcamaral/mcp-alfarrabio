@@ -308,7 +308,7 @@ func (pa *patternAggregatorImpl) ValidatePrivacyCompliance(
 // GeneratePatternSignature creates a unique signature for a pattern
 func (pa *patternAggregatorImpl) GeneratePatternSignature(pattern *entities.TaskPattern) string {
 	// Create a signature based on pattern characteristics
-	var sigData []string
+	sigData := make([]string, 0, 8) // Pre-allocate for typical signature components
 
 	sigData = append(sigData, string(pattern.Type))
 	sigData = append(sigData, fmt.Sprintf("%.2f", pattern.SuccessRate))
@@ -401,7 +401,7 @@ func (pa *patternAggregatorImpl) generateGroupingKey(pattern *entities.TaskPatte
 }
 
 func (pa *patternAggregatorImpl) createAggregatedPattern(
-	ctx context.Context,
+	_ context.Context,
 	patterns []*entities.TaskPattern,
 ) (*entities.AggregatedPattern, error) {
 	if len(patterns) == 0 {

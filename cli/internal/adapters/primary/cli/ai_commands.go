@@ -572,18 +572,18 @@ func (c *CLI) printAIServiceDebugInfo(cmd *cobra.Command) {
 
 // printDebugHeader prints the debug information header
 func (c *CLI) printDebugHeader(out io.Writer) {
-	fmt.Fprintf(out, "🔍 AI Service Debug Information\n")
-	fmt.Fprintf(out, "================================\n\n")
+	_, _ = fmt.Fprintf(out, "🔍 AI Service Debug Information\n")
+	_, _ = fmt.Fprintf(out, "================================\n\n")
 }
 
 // printEnvironmentVariables prints AI_PROVIDER info and returns its value
 func (c *CLI) printEnvironmentVariables(out io.Writer) string {
-	fmt.Fprintf(out, "Environment Variables:\n")
+	_, _ = fmt.Fprintf(out, "Environment Variables:\n")
 	aiProvider := os.Getenv("AI_PROVIDER")
 	if aiProvider != "" {
-		fmt.Fprintf(out, "  ✓ AI_PROVIDER: %s\n", aiProvider)
+		_, _ = fmt.Fprintf(out, "  ✓ AI_PROVIDER: %s\n", aiProvider)
 	} else {
-		fmt.Fprintf(out, "  ✗ AI_PROVIDER: not set (auto-detection enabled)\n")
+		_, _ = fmt.Fprintf(out, "  ✗ AI_PROVIDER: not set (auto-detection enabled)\n")
 	}
 	return aiProvider
 }
@@ -600,7 +600,7 @@ func (c *CLI) printAIProviderKeys(out io.Writer) bool {
 	for envVar, provider := range providers {
 		if key := os.Getenv(envVar); key != "" {
 			masked := c.maskAPIKey(key)
-			fmt.Fprintf(out, "  ✓ %s: %s (key: %s)\n", envVar, provider, masked)
+			_, _ = fmt.Fprintf(out, "  ✓ %s: %s (key: %s)\n", envVar, provider, masked)
 			foundKey = true
 		} else {
 			fmt.Fprintf(out, "  ✗ %s: not set\n", envVar)
@@ -624,7 +624,7 @@ func (c *CLI) maskAPIKey(key string) string {
 // printAIServiceStatus prints AI service status information
 func (c *CLI) printAIServiceStatus(out io.Writer) {
 	fmt.Fprintf(out, "\nAI Service Status:\n")
-	
+
 	if c.aiService == nil {
 		fmt.Fprintf(out, "  ✗ AI Service: not initialized\n")
 		return
@@ -663,7 +663,7 @@ func (c *CLI) testAIServiceConnection(out io.Writer) {
 // printMCPServerStatus prints MCP server connectivity information
 func (c *CLI) printMCPServerStatus(out io.Writer) {
 	fmt.Fprintf(out, "\nMCP Server Status:\n")
-	
+
 	if c.taskService == nil || c.taskService.GetMCPClient() == nil {
 		fmt.Fprintf(out, "  ✗ MCP Server: not configured\n")
 		return
@@ -683,17 +683,17 @@ func (c *CLI) printMCPServerStatus(out io.Writer) {
 // printTroubleshootingTips prints troubleshooting tips
 func (c *CLI) printTroubleshootingTips(out io.Writer, foundKey bool, aiProvider string) {
 	fmt.Fprintf(out, "\n💡 Troubleshooting Tips:\n")
-	
+
 	if !foundKey {
 		fmt.Fprintf(out, "  • Set OPENAI_API_KEY environment variable for OpenAI\n")
 		fmt.Fprintf(out, "  • Set ANTHROPIC_API_KEY for Claude\n")
 		fmt.Fprintf(out, "  • Set PERPLEXITY_API_KEY for Perplexity\n")
 	}
-	
+
 	if aiProvider == "" {
 		fmt.Fprintf(out, "  • Set AI_PROVIDER to force a specific provider\n")
 	}
-	
+
 	fmt.Fprintf(out, "  • Run 'lmmc config list' to check server configuration\n")
 	fmt.Fprintf(out, "  • Use --verbose flag for more detailed logs\n")
 	fmt.Fprintf(out, "\n")

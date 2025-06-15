@@ -183,11 +183,7 @@ func (s *BatchSyncService) PerformSync(ctx context.Context, repository string) (
 	}
 
 	// Process sync response
-	syncResult, err := s.processSyncResponse(ctx, response)
-	if err != nil {
-		result.Errors = append(result.Errors, fmt.Sprintf("failed to process sync response: %v", err))
-		return result, fmt.Errorf("failed to process sync response: %w", err)
-	}
+	syncResult := s.processSyncResponse(ctx, response)
 
 	// Update sync state
 	s.updateSyncState(repository, response)
@@ -329,7 +325,7 @@ func (s *BatchSyncService) performServerSync(ctx context.Context, request *api.B
 }
 
 // processSyncResponse applies the sync response to local storage
-func (s *BatchSyncService) processSyncResponse(ctx context.Context, response *api.BatchSyncResponse) (*SyncResult, error) {
+func (s *BatchSyncService) processSyncResponse(ctx context.Context, response *api.BatchSyncResponse) *SyncResult {
 	result := &SyncResult{
 		Timestamp: time.Now(),
 		Errors:    make([]string, 0),
@@ -414,7 +410,7 @@ func (s *BatchSyncService) processSyncResponse(ctx context.Context, response *ap
 	result.ConflictsResolved = conflictsResolved
 	result.Success = len(result.Errors) == 0
 
-	return result, nil
+	return result
 }
 
 // updateSyncState updates the sync state after successful sync

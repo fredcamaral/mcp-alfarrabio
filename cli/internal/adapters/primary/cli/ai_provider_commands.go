@@ -824,7 +824,7 @@ func (c *CLI) createAIListFallbackCommand() *cobra.Command {
 
 			// Validate path is within config directory
 			if !strings.HasPrefix(cleanPath, c.getAIConfigDir()) {
-				return fmt.Errorf("invalid config file path")
+				return errors.New("invalid config file path")
 			}
 
 			data, err := os.ReadFile(cleanPath)
@@ -980,7 +980,7 @@ func (c *CLI) loadAIProviders() ([]AIProviderConfig, error) {
 
 	// Validate path is within config directory
 	if !strings.HasPrefix(cleanPath, c.getAIConfigDir()) {
-		return nil, fmt.Errorf("invalid config file path")
+		return nil, errors.New("invalid config file path")
 	}
 
 	data, err := os.ReadFile(cleanPath)
@@ -1019,7 +1019,7 @@ func (c *CLI) loadAIDefaults() (map[string]AIDefaultConfig, error) {
 
 	// Validate path is within config directory
 	if !strings.HasPrefix(cleanPath, c.getAIConfigDir()) {
-		return nil, fmt.Errorf("invalid config file path")
+		return nil, errors.New("invalid config file path")
 	}
 
 	data, err := os.ReadFile(cleanPath)
@@ -1058,7 +1058,7 @@ func (c *CLI) loadAIBudget() (*AICostBudget, error) {
 
 	// Validate path is within config directory
 	if !strings.HasPrefix(cleanPath, c.getAIConfigDir()) {
-		return nil, fmt.Errorf("invalid config file path")
+		return nil, errors.New("invalid config file path")
 	}
 
 	data, err := os.ReadFile(cleanPath)

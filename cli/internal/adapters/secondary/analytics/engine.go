@@ -689,7 +689,7 @@ func (ae *analyticsEngineImpl) calculateWeeklyScores(dailyScores []DailyProducti
 
 	var weeklyScores []WeeklyProductivity
 	currentWeek := &WeeklyProductivity{}
-	var weekScores []float64
+	weekScores := make([]float64, 0, 7) // Pre-allocate for up to 7 days per week
 	var weekTasks int
 	var weekHours float64
 

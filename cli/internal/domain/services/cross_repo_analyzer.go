@@ -632,13 +632,13 @@ func (a *crossRepoAnalyzerImpl) parseDimensions(dimensions interface{}) entities
 	return entities.SimilarityDimensions{}
 }
 
-func (a *crossRepoAnalyzerImpl) rankInsights(insights []*entities.CrossRepoInsight, repoChars *entities.RepositoryCharacteristics) []*entities.CrossRepoInsight {
+func (a *crossRepoAnalyzerImpl) rankInsights(insights []*entities.CrossRepoInsight, _ *entities.RepositoryCharacteristics) []*entities.CrossRepoInsight {
 	// Sort by quality score
 	entities.SortInsightsByQuality(insights)
 	return insights
 }
 
-func (a *crossRepoAnalyzerImpl) anonymizePattern(pattern *entities.TaskPattern, settings *entities.PrivacySettings) *entities.TaskPattern {
+func (a *crossRepoAnalyzerImpl) anonymizePattern(pattern *entities.TaskPattern, _ *entities.PrivacySettings) *entities.TaskPattern {
 	// Create anonymized copy
 	anonymized := *pattern
 	anonymized.Repository = "anonymous"

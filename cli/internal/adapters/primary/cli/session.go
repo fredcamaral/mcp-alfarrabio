@@ -2,7 +2,7 @@ package cli
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,7 +37,7 @@ func (c *CLI) loadSession() (*SessionData, error) {
 	// Validate session file path
 	cleanPath := filepath.Clean(sessionFile)
 	if !strings.HasSuffix(cleanPath, filepath.Join(".lmmc", "session.json")) {
-		return nil, fmt.Errorf("invalid session file path")
+		return nil, errors.New("invalid session file path")
 	}
 
 	data, err := os.ReadFile(cleanPath)
@@ -242,7 +242,7 @@ func (c *CLI) loadPRDFromFile(path string) *services.PRDEntity {
 }
 
 // loadTRDFromFile loads a TRD from a file (placeholder)
-func (c *CLI) loadTRDFromFile(_ string) (*services.TRDEntity, error) {
+func (c *CLI) loadTRDFromFile(_ string) *services.TRDEntity {
 	// TODO: Implement actual TRD loading from markdown
 	// For now, return a mock
 	return &services.TRDEntity{
@@ -250,5 +250,5 @@ func (c *CLI) loadTRDFromFile(_ string) (*services.TRDEntity, error) {
 		PRDID:     "prd-001",
 		Title:     "Loaded TRD",
 		CreatedAt: time.Now(),
-	}, nil
+	}
 }

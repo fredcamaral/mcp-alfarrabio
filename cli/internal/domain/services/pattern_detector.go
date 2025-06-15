@@ -544,7 +544,7 @@ func (pd *patternDetectorImpl) updatePatternStats(pattern *entities.TaskPattern,
 	pattern.UpdatedAt = time.Now()
 
 	// Update duration statistics for each step
-	for i, _ := range sequence {
+	for i := range sequence {
 		if i < len(pattern.Sequence) && pattern.Sequence[i].Duration != nil {
 			// In a real implementation, you'd track actual task durations
 			// For now, we'll use a placeholder duration

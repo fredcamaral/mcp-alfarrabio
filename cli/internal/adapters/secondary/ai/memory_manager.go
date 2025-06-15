@@ -123,14 +123,10 @@ func (mm *MemoryManager) SyncLocalFiles(ctx context.Context, localPath string) (
 	syncStrategy := mm.determineSyncStrategy(ctx, files, mappings)
 
 	// Step 4: Execute intelligent sync
-	if err := mm.executeSyncStrategy(ctx, files, mappings, syncStrategy, result); err != nil {
-		return result, fmt.Errorf("sync execution failed: %w", err)
-	}
+	mm.executeSyncStrategy(ctx, files, mappings, syncStrategy, result)
 
 	// Step 5: Update file mappings
-	if err := mm.updateFileMappings(ctx, mappings); err != nil {
-		mm.logger.Warn("failed to update file mappings", slog.String("error", err.Error()))
-	}
+	mm.updateFileMappings(ctx, mappings)
 
 	// Step 6: Generate insights and recommendations
 	mm.generateSyncInsights(ctx, result)
@@ -159,18 +155,11 @@ func (mm *MemoryManager) PredictiveLoad(ctx context.Context, currentContext *ent
 	}
 
 	// Use AI to predict what memories/tasks user will likely need
-	predictions, err := mm.generatePredictions(ctx, currentContext)
-	if err != nil {
-		return result, fmt.Errorf("prediction generation failed: %w", err)
-	}
+	predictions := mm.generatePredictions(ctx, currentContext)
 
 	// Preload predicted memories
 	for _, prediction := range predictions {
-		if err := mm.preloadMemory(ctx, prediction); err != nil {
-			mm.logger.Warn("failed to preload memory",
-				slog.String("prediction", prediction),
-				slog.String("error", err.Error()))
-		}
+		mm.preloadMemory(ctx, prediction)
 	}
 
 	result.Success = true
@@ -185,16 +174,10 @@ func (mm *MemoryManager) OptimizeStorage(ctx context.Context) (*MemoryOperationR
 	}
 
 	// Analyze current storage usage
-	storageAnalysis, err := mm.analyzeStorageUsage(ctx)
-	if err != nil {
-		return result, fmt.Errorf("storage analysis failed: %w", err)
-	}
+	storageAnalysis := mm.analyzeStorageUsage(ctx)
 
 	// Generate AI-powered optimization recommendations
-	optimizations, err := mm.generateOptimizations(ctx, storageAnalysis)
-	if err != nil {
-		return result, fmt.Errorf("optimization generation failed: %w", err)
-	}
+	optimizations := mm.generateOptimizations(ctx, storageAnalysis)
 
 	// Apply optimizations
 	if err := mm.applyOptimizations(ctx, optimizations, result); err != nil {
@@ -344,16 +327,7 @@ func (mm *MemoryManager) determineSyncStrategy(_ context.Context, files []string
 	return strategy
 }
 
-func (mm *MemoryManager) getDefaultSyncStrategy() map[string]string {
-	return map[string]string{
-		"new_files":      "upload",
-		"modified_files": "update",
-		"deleted_files":  "remove",
-		"conflict_files": mm.config.ConflictResolution,
-	}
-}
-
-func (mm *MemoryManager) executeSyncStrategy(ctx context.Context, files []string, mappings map[string]*FileMemoryMapping, _ map[string]string, result *MemoryOperationResult) error {
+func (mm *MemoryManager) executeSyncStrategy(ctx context.Context, files []string, mappings map[string]*FileMemoryMapping, _ map[string]string, result *MemoryOperationResult) {
 	for _, file := range files {
 		mapping, exists := mappings[file]
 
@@ -377,8 +351,6 @@ func (mm *MemoryManager) executeSyncStrategy(ctx context.Context, files []string
 			result.MemoriesUpdated++
 		}
 	}
-
-	return nil
 }
 
 func (mm *MemoryManager) uploadNewFile(ctx context.Context, filePath string, mappings map[string]*FileMemoryMapping) error {
@@ -500,16 +472,14 @@ func (mm *MemoryManager) extractChunkID(response map[string]interface{}) string 
 	return fmt.Sprintf("chunk_%d", time.Now().UnixNano())
 }
 
-func (mm *MemoryManager) updateFileMappings(_ context.Context, mappings map[string]*FileMemoryMapping) error {
+func (mm *MemoryManager) updateFileMappings(_ context.Context, mappings map[string]*FileMemoryMapping) {
 	// For now, file mappings are stored in memory only
 	// In a real implementation, these would be persisted to a dedicated storage
 	mm.logger.Debug("updating file mappings in memory (no persistence yet)",
 		slog.Int("mappings_count", len(mappings)))
-
-	return nil
 }
 
-func (mm *MemoryManager) generatePredictions(_ context.Context, workContext *entities.WorkContext) ([]string, error) {
+func (mm *MemoryManager) generatePredictions(_ context.Context, workContext *entities.WorkContext) []string {
 	// Generate intelligent predictions based on context patterns
 	var predictions []string
 
@@ -545,30 +515,29 @@ func (mm *MemoryManager) generatePredictions(_ context.Context, workContext *ent
 	// Repository-specific predictions
 	predictions = append(predictions, workContext.Repository+"_specific_memories")
 
-	return predictions, nil
+	return predictions
 }
 
-func (mm *MemoryManager) preloadMemory(_ context.Context, prediction string) error {
+func (mm *MemoryManager) preloadMemory(_ context.Context, prediction string) {
 	// Implementation would preload predicted memories into local cache
 	mm.logger.Debug("preloading memory prediction", slog.String("prediction", prediction))
-	return nil
 }
 
-func (mm *MemoryManager) analyzeStorageUsage(ctx context.Context) (map[string]interface{}, error) {
+func (mm *MemoryManager) analyzeStorageUsage(_ context.Context) map[string]interface{} {
 	// Analyze current storage usage patterns
 	return map[string]interface{}{
 		"total_size":  0,
 		"file_count":  0,
 		"cache_usage": 0,
 		"patterns":    []string{},
-	}, nil
+	}
 }
 
-func (mm *MemoryManager) generateOptimizations(ctx context.Context, analysis map[string]interface{}) (map[string]interface{}, error) {
+func (mm *MemoryManager) generateOptimizations(_ context.Context, _ map[string]interface{}) map[string]interface{} {
 	// Generate AI-powered optimization recommendations
 	return map[string]interface{}{
 		"actions": []string{},
-	}, nil
+	}
 }
 
 func (mm *MemoryManager) applyOptimizations(ctx context.Context, optimizations map[string]interface{}, result *MemoryOperationResult) error {
@@ -600,7 +569,7 @@ func (mm *MemoryManager) generateSyncInsights(_ context.Context, result *MemoryO
 	}
 }
 
-func (mm *MemoryManager) generateMemoryInsights(_ context.Context, analytics map[string]interface{}) ([]*MemoryInsight, error) {
+func (mm *MemoryManager) generateMemoryInsights(_ context.Context, _ map[string]interface{}) ([]*MemoryInsight, error) {
 	// Generate AI insights from memory analytics
 	var insights []*MemoryInsight
 

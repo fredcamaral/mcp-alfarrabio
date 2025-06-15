@@ -551,7 +551,7 @@ func (c *CLI) runReviewStatus(sessionID string) error {
 	return nil
 }
 
-func (c *CLI) runReviewOrchestrate(_ string, quick bool, focus, output string) error {
+func (c *CLI) runReviewOrchestrate(_ string, quick bool, focus, _ string) error {
 	fmt.Printf("🎯 Orchestrating Code Review\n")
 	fmt.Printf("============================\n\n")
 

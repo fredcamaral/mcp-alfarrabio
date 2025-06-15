@@ -436,7 +436,7 @@ func (g *DefaultTaskGeneratorService) ValidateTaskHierarchy(mainTasks []*MainTas
 
 // Private helper methods
 
-func (g *DefaultTaskGeneratorService) createTaskFromFeature(feature string, analysis *AIAnalysis, context GenerationContext, index int) (*entities.Task, error) {
+func (g *DefaultTaskGeneratorService) createTaskFromFeature(feature string, _ *AIAnalysis, context GenerationContext, index int) (*entities.Task, error) {
 	// Find best matching template
 	template := g.templateMatcher.FindBestMatch(feature, context.ProjectType)
 
@@ -472,7 +472,7 @@ func (g *DefaultTaskGeneratorService) createTaskFromFeature(feature string, anal
 	return task, nil
 }
 
-func (g *DefaultTaskGeneratorService) createTaskFromTechnicalReq(techReq string, analysis *AIAnalysis, context GenerationContext, index int) (*entities.Task, error) {
+func (g *DefaultTaskGeneratorService) createTaskFromTechnicalReq(techReq string, _ *AIAnalysis, context GenerationContext, index int) (*entities.Task, error) {
 	// Find template for technical requirement
 	template := g.templateMatcher.FindBestMatch(techReq, "backend") // Default to backend for tech reqs
 
@@ -503,7 +503,7 @@ func (g *DefaultTaskGeneratorService) createTaskFromTechnicalReq(techReq string,
 	return task, nil
 }
 
-func (g *DefaultTaskGeneratorService) generateSubTasksFromTask(parentTask *entities.Task, context GenerationContext) ([]*entities.Task, error) {
+func (g *DefaultTaskGeneratorService) generateSubTasksFromTask(parentTask *entities.Task, _ GenerationContext) ([]*entities.Task, error) {
 	// Break down complex task into smaller sub-tasks
 	subTaskDescriptions := g.breakDownComplexTask(parentTask.Content)
 
@@ -565,7 +565,7 @@ func (g *DefaultTaskGeneratorService) generateTestingTasks(analysis *AIAnalysis,
 	return testTasks
 }
 
-func (g *DefaultTaskGeneratorService) generateDocumentationTasks(analysis *AIAnalysis, context GenerationContext) []*entities.Task {
+func (g *DefaultTaskGeneratorService) generateDocumentationTasks(_ *AIAnalysis, context GenerationContext) []*entities.Task {
 	var docTasks []*entities.Task
 
 	// Generate API documentation task
@@ -603,7 +603,7 @@ func (g *DefaultTaskGeneratorService) generateDocumentationTasks(analysis *AIAna
 
 // AI service interaction methods (simulated for now)
 
-func (g *DefaultTaskGeneratorService) buildMainTaskPrompt(trd *TRDEntity, rule *GenerationRule) string {
+func (g *DefaultTaskGeneratorService) buildMainTaskPrompt(trd *TRDEntity, _ *GenerationRule) string {
 	prompt := fmt.Sprintf(`
 Generate main tasks for the following Technical Requirements Document:
 
@@ -625,7 +625,7 @@ Return as JSON array with fields: name, description, phase, duration, dependenci
 	return prompt
 }
 
-func (g *DefaultTaskGeneratorService) buildSubTaskPrompt(mainTask *MainTask, rule *GenerationRule) string {
+func (g *DefaultTaskGeneratorService) buildSubTaskPrompt(mainTask *MainTask, _ *GenerationRule) string {
 	prompt := fmt.Sprintf(`
 Break down the following main task into 3-5 sub-tasks:
 
@@ -742,7 +742,7 @@ func (g *DefaultTaskGeneratorService) callAIForSubTasks(ctx context.Context, pro
 	return response, nil
 }
 
-func (g *DefaultTaskGeneratorService) parseMainTasksFromAI(aiResponse string, trd *TRDEntity) ([]*MainTask, error) {
+func (g *DefaultTaskGeneratorService) parseMainTasksFromAI(aiResponse string, _ *TRDEntity) ([]*MainTask, error) {
 	var rawTasks []map[string]interface{}
 	if err := json.Unmarshal([]byte(aiResponse), &rawTasks); err != nil {
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
@@ -773,7 +773,7 @@ func (g *DefaultTaskGeneratorService) parseMainTasksFromAI(aiResponse string, tr
 	return mainTasks, nil
 }
 
-func (g *DefaultTaskGeneratorService) parseSubTasksFromAI(aiResponse string, mainTask *MainTask) ([]*SubTask, error) {
+func (g *DefaultTaskGeneratorService) parseSubTasksFromAI(aiResponse string, _ *MainTask) ([]*SubTask, error) {
 	var rawTasks []map[string]interface{}
 	if err := json.Unmarshal([]byte(aiResponse), &rawTasks); err != nil {
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
@@ -929,7 +929,7 @@ func (g *DefaultTaskGeneratorService) generateTaskContent(feature string, templa
 	return baseContent
 }
 
-func (g *DefaultTaskGeneratorService) determinePriority(complexity *ComplexityAnalysis, template *TaskTemplate) entities.Priority {
+func (g *DefaultTaskGeneratorService) determinePriority(complexity *ComplexityAnalysis, _ *TaskTemplate) entities.Priority {
 	// Determine priority based on complexity and template
 	if complexity.Score >= 8.0 {
 		return entities.PriorityHigh

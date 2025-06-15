@@ -8,6 +8,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -809,7 +812,8 @@ func (m REPLModel) renderAnalyticsView() string {
 	var view strings.Builder
 
 	// Header
-	header := m.renderHeader(fmt.Sprintf("Analytics - %s Chart (%s)", strings.Title(m.chartType), strings.Title(m.timeRange)))
+	titleCaser := cases.Title(language.English)
+	header := m.renderHeader(fmt.Sprintf("Analytics - %s Chart (%s)", titleCaser.String(m.chartType), titleCaser.String(m.timeRange)))
 	view.WriteString(header + "\n\n")
 
 	// Calculate layout dimensions
@@ -1151,7 +1155,8 @@ func (m REPLModel) renderChart(chartType string, width, height int) string {
 	}
 
 	chart := m.renderASCIIChart(data, height-4)
-	return style.Render(fmt.Sprintf("📈 %s Trend\n\n%s", strings.Title(chartType), chart))
+	titleCaser := cases.Title(language.English)
+	return style.Render(fmt.Sprintf("📈 %s Trend\n\n%s", titleCaser.String(chartType), chart))
 }
 
 func (m REPLModel) renderASCIIChart(data []ChartPoint, _ int) string {
@@ -1335,12 +1340,12 @@ func (m REPLModel) renderFooter(_ string) string {
 		Bold(true)
 
 	if m.httpPort > 0 {
-		status = append(status, statusStyle.Copy().
+		status = append(status, statusStyle.
 			Foreground(bgColor).
 			Background(successColor).
 			Render("● HTTP:"+strconv.Itoa(m.httpPort)))
 	} else {
-		status = append(status, statusStyle.Copy().
+		status = append(status, statusStyle.
 			Foreground(mutedColor).
 			Render("○ Offline"))
 	}

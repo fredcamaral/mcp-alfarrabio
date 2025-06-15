@@ -1,3 +1,4 @@
+// Package repositories defines the repository interfaces for domain entities.
 package repositories
 
 import (
