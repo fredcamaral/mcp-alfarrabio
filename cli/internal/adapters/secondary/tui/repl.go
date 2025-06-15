@@ -1,3 +1,6 @@
+// Package tui provides a terminal user interface (TUI) for the Lerian MCP Memory CLI.
+// It implements an interactive REPL (Read-Eval-Print Loop) with support for different view modes
+// including command mode, dashboard, analytics, and workflow visualization.
 package tui
 
 import (
@@ -190,7 +193,8 @@ func (m REPLModel) Init() tea.Cmd {
 	if m.httpPort > 0 {
 		go func() {
 			if err := m.startHTTPServer(); err != nil {
-				// Log error but can't return in goroutine
+				// HTTP server failed to start - this is expected in some scenarios
+				_ = err // Explicitly acknowledge we're discarding the error
 			}
 		}()
 	}
@@ -236,13 +240,13 @@ func (m REPLModel) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Handle help keys
-	if m.handleHelpKeys(key) {
-		return m, nil
+	if newModel, handled := m.handleHelpKeys(key); handled {
+		return newModel, nil
 	}
 
 	// Handle tab navigation
-	if m.handleTabNavigation(key) {
-		return m, nil
+	if newModel, handled := m.handleTabNavigation(key); handled {
+		return newModel, nil
 	}
 
 	// Handle input based on current view mode
@@ -289,21 +293,21 @@ func (m REPLModel) handleViewModeKeys(key string) REPLModel {
 }
 
 // handleHelpKeys handles help key presses
-func (m REPLModel) handleHelpKeys(key string) bool {
+func (m REPLModel) handleHelpKeys(key string) (REPLModel, bool) {
 	if (key == "ctrl+h" || key == "?") && m.viewMode == ViewModeCommand {
 		m.output = append(m.output, m.getHelpText()...)
-		return true
+		return m, true
 	}
-	return false
+	return m, false
 }
 
 // handleTabNavigation handles tab navigation in dashboard/analytics modes
-func (m REPLModel) handleTabNavigation(key string) bool {
+func (m REPLModel) handleTabNavigation(key string) (REPLModel, bool) {
 	if key == "tab" && (m.viewMode == ViewModeDashboard || m.viewMode == ViewModeAnalytics) {
 		m.activePane = (m.activePane + 1) % 4
-		return true
+		return m, true
 	}
-	return false
+	return m, false
 }
 
 // handleModeSpecificInput handles input based on current view mode

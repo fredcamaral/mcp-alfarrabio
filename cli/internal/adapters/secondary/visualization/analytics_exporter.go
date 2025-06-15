@@ -1,3 +1,5 @@
+// Package visualization provides analytics and data visualization capabilities for the CLI.
+// It includes exporters for PDF, CSV, and HTML reports, as well as chart generation functionality.
 package visualization
 
 import (

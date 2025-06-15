@@ -1,3 +1,5 @@
+// Package visualization provides analytics and data visualization capabilities for the CLI.
+// This file contains chart generation and visualization utilities.
 package visualization
 
 import (
