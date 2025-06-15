@@ -271,7 +271,8 @@ func (e *AnalyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filenam
 	if len(metrics.Bottlenecks) > 0 {
 		_ = writer.Write([]string{"# Bottlenecks"})
 		_ = writer.Write([]string{"Severity", "Description", "Impact (hours)", "Frequency"})
-		for _, bottleneck := range metrics.Bottlenecks {
+		for i := range metrics.Bottlenecks {
+			bottleneck := &metrics.Bottlenecks[i]
 			_ = writer.Write([]string{
 				string(bottleneck.Severity),
 				bottleneck.Description,
@@ -750,7 +751,8 @@ func (e *AnalyticsExporter) convertDistribution(distribution []entities.CycleTim
 // convertBottlenecks converts bottlenecks to JSON-friendly format
 func (e *AnalyticsExporter) convertBottlenecks(bottlenecks []entities.Bottleneck) []map[string]interface{} {
 	result := make([]map[string]interface{}, len(bottlenecks))
-	for i, bottleneck := range bottlenecks {
+	for i := range bottlenecks {
+		bottleneck := &bottlenecks[i]
 		result[i] = map[string]interface{}{
 			"type":           bottleneck.Type,
 			"description":    bottleneck.Description,

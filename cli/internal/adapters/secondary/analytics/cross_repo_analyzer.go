@@ -1687,38 +1687,39 @@ func (cra *crossRepoAnalyzer) generateCrossRepoInsights(repoMetrics map[string]*
 	if len(patterns) > 0 {
 		// Find the most common high-cycle-time pattern
 		for _, pattern := range patterns {
-			if pattern.EstimatedDuration > 3*24*time.Hour && pattern.Frequency > 10 {
-				insight := &entities.CrossRepoInsight{
-					ID:          generateInsightID("bottleneck"),
-					Type:        entities.InsightTypeBottleneck,
-					Title:       fmt.Sprintf("Common Bottleneck in %s Tasks", pattern.Name),
-					Description: fmt.Sprintf("Tasks of type '%s' consistently take longer than expected across repositories", pattern.Name),
-					SourceCount: pattern.RepositoryCount,
-					Confidence:  0.9,
-					Relevance:   0.95,
-					Impact: entities.ImpactMetrics{
-						ProductivityGain:   0.4,
-						TimeReduction:      pattern.EstimatedDuration.Hours() * 0.3,
-						QualityImprovement: 0.1,
-						AdoptionRate:       0.7,
-					},
-					Recommendations: []string{
-						fmt.Sprintf("Review %s task complexity and requirements", pattern.Name),
-						"Standardize approach for this task type",
-						"Consider breaking down into smaller subtasks",
-					},
-					Tags:         []string{"bottleneck", "workflow", "cross-repo"},
-					Metadata:     make(map[string]interface{}),
-					GeneratedAt:  time.Now(),
-					ValidUntil:   time.Now().Add(30 * 24 * time.Hour),
-					IsActionable: true,
-				}
-				// Store pattern details in metadata
-				insight.Metadata["affected_repositories"] = pattern.Repositories
-				insight.Metadata["evidence"] = fmt.Sprintf("Average cycle time: %s across %.0f tasks in %d repositories", formatDuration(pattern.EstimatedDuration), pattern.Frequency, len(pattern.Repositories))
-				insights = append(insights, insight)
-				break // Only add the top bottleneck
+			if pattern.EstimatedDuration <= 3*24*time.Hour || pattern.Frequency <= 10 {
+				continue
 			}
+			insight := &entities.CrossRepoInsight{
+				ID:          generateInsightID("bottleneck"),
+				Type:        entities.InsightTypeBottleneck,
+				Title:       fmt.Sprintf("Common Bottleneck in %s Tasks", pattern.Name),
+				Description: fmt.Sprintf("Tasks of type '%s' consistently take longer than expected across repositories", pattern.Name),
+				SourceCount: pattern.RepositoryCount,
+				Confidence:  0.9,
+				Relevance:   0.95,
+				Impact: entities.ImpactMetrics{
+					ProductivityGain:   0.4,
+					TimeReduction:      pattern.EstimatedDuration.Hours() * 0.3,
+					QualityImprovement: 0.1,
+					AdoptionRate:       0.7,
+				},
+				Recommendations: []string{
+					fmt.Sprintf("Review %s task complexity and requirements", pattern.Name),
+					"Standardize approach for this task type",
+					"Consider breaking down into smaller subtasks",
+				},
+				Tags:         []string{"bottleneck", "workflow", "cross-repo"},
+				Metadata:     make(map[string]interface{}),
+				GeneratedAt:  time.Now(),
+				ValidUntil:   time.Now().Add(30 * 24 * time.Hour),
+				IsActionable: true,
+			}
+			// Store pattern details in metadata
+			insight.Metadata["affected_repositories"] = pattern.Repositories
+			insight.Metadata["evidence"] = fmt.Sprintf("Average cycle time: %s across %.0f tasks in %d repositories", formatDuration(pattern.EstimatedDuration), pattern.Frequency, len(pattern.Repositories))
+			insights = append(insights, insight)
+			break // Only add the top bottleneck
 		}
 	}
 

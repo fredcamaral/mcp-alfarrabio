@@ -185,7 +185,7 @@ func NewREPLModel(mode REPLMode, httpPort int) *REPLModel {
 	}
 }
 
-func (m REPLModel) Init() tea.Cmd {
+func (m *REPLModel) Init() tea.Cmd {
 	// Start HTTP server if port is specified
 	if m.httpPort > 0 {
 		go func() {
@@ -201,10 +201,11 @@ func (m REPLModel) Init() tea.Cmd {
 	)
 }
 
-func (m REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m *REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		return m.handleWindowResize(msg), nil
+		m.handleWindowResize(msg)
+		return m, nil
 	case tea.KeyMsg:
 		return m.handleKeyInput(msg)
 	case tickMsg:
@@ -215,10 +216,9 @@ func (m REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleWindowResize handles window resize messages
-func (m REPLModel) handleWindowResize(msg tea.WindowSizeMsg) REPLModel {
+func (m *REPLModel) handleWindowResize(msg tea.WindowSizeMsg) {
 	m.width = msg.Width
 	m.height = msg.Height
-	return m
 }
 
 // handleKeyInput handles keyboard input
@@ -692,14 +692,11 @@ func (m REPLModel) handleViewCommand(cmd string) REPLModel {
 func (m REPLModel) handleFeatureCommand(cmd string) REPLModel {
 	switch {
 	case strings.HasPrefix(cmd, "prd create"):
-		m.output = append(m.output, "Starting interactive PRD creation...")
-		m.output = append(m.output, "Feature not yet implemented - coming soon!")
+		m.output = append(m.output, "Starting interactive PRD creation...", "Feature not yet implemented - coming soon!")
 	case strings.HasPrefix(cmd, "trd create"):
-		m.output = append(m.output, "Starting TRD generation from PRD...")
-		m.output = append(m.output, "Feature not yet implemented - coming soon!")
+		m.output = append(m.output, "Starting TRD generation from PRD...", "Feature not yet implemented - coming soon!")
 	case strings.HasPrefix(cmd, "workflow run"):
-		m.output = append(m.output, "Running complete workflow automation...")
-		m.output = append(m.output, "Feature not yet implemented - coming soon!")
+		m.output = append(m.output, "Running complete workflow automation...", "Feature not yet implemented - coming soon!")
 	}
 	return m
 }

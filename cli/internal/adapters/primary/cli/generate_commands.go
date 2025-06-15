@@ -527,7 +527,7 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 
 	// Store in memory if requested
 	if withMemory && c.getMCPClient() != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "\n📝 Storing project documents in memory...\n")
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n📝 Storing project documents in memory...\n")
 
 		// Store PRD
 		prdContent, _ := os.ReadFile(filepath.Clean(prdPath))
@@ -545,7 +545,7 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 				},
 			},
 		}); err == nil {
-			fmt.Fprintf(cmd.OutOrStdout(), "   ✓ Stored PRD in memory\n")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   ✓ Stored PRD in memory\n")
 		}
 
 		// Store TRD
@@ -564,7 +564,7 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 				},
 			},
 		}); err == nil {
-			fmt.Fprintf(cmd.OutOrStdout(), "   ✓ Stored TRD in memory\n")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   ✓ Stored TRD in memory\n")
 		}
 	}
 

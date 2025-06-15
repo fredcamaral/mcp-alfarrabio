@@ -595,12 +595,12 @@ func (tv *terminalVisualizer) renderHeader(metrics *entities.WorkflowMetrics) st
 	return builder.String()
 }
 
-func (tv *terminalVisualizer) renderProgressBar(value, max float64, width int) string {
-	if max == 0 {
+func (tv *terminalVisualizer) renderProgressBar(value, maxVal float64, width int) string {
+	if maxVal == 0 {
 		return strings.Repeat("░", width)
 	}
 
-	percentage := value / max
+	percentage := value / maxVal
 	if percentage > 1.0 {
 		percentage = 1.0
 	}
@@ -677,12 +677,12 @@ func (tv *terminalVisualizer) renderTrend(trend entities.Trend) string {
 	return tv.colorize(trendText, color)
 }
 
-func (tv *terminalVisualizer) calculateBarLength(value, max float64, width int) int {
-	if max == 0 {
+func (tv *terminalVisualizer) calculateBarLength(value, maxVal float64, width int) int {
+	if maxVal == 0 {
 		return 0
 	}
 
-	percentage := value / max
+	percentage := value / maxVal
 	if percentage > 1.0 {
 		percentage = 1.0
 	}
