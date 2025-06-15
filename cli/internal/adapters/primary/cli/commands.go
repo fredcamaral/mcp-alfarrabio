@@ -377,74 +377,7 @@ func (c *CLI) createDeleteCommand() *cobra.Command {
 		Args:    cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskIDOrIndex := args[0]
-
-			// Get repository
-			if repository == "" {
-				repoInfo, err := c.repositoryDetector.DetectCurrent(c.getContext())
-				if err == nil {
-					repository = repoInfo.Name
-				} else {
-					repository = "local"
-				}
-			}
-
-			// Check if it's a numeric index
-			var actualTaskID string
-			if index, err := strconv.Atoi(taskIDOrIndex); err == nil {
-				// It's a numeric index - find the actual task ID
-				filters := &ports.TaskFilters{Repository: repository}
-				tasks, err := c.taskService.ListTasks(c.getContext(), filters)
-				if err != nil {
-					return c.handleError(cmd, fmt.Errorf("failed to list tasks: %w", err))
-				}
-
-				if index < 1 || index > len(tasks) {
-					return c.handleError(cmd, fmt.Errorf("task index %d is out of range (1-%d)", index, len(tasks)))
-				}
-
-				actualTaskID = tasks[index-1].ID
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Found task %d: %s\n", index, tasks[index-1].Content)
-			} else {
-				// It might be a short or full task ID
-				fullTaskID, err := c.resolveTaskID(c.getContext(), taskIDOrIndex, repository)
-				if err != nil {
-					return c.handleError(cmd, err)
-				}
-				actualTaskID = fullTaskID
-			}
-
-			// Confirm deletion if not forced
-			if !force {
-				displayID := actualTaskID
-				if len(displayID) > 8 {
-					displayID = displayID[:8]
-				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Delete task %s? [y/N]: ", displayID)
-
-				var response string
-				if _, err := fmt.Scanln(&response); err != nil {
-					// If we can't read input, treat as cancelled
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Cancelled")
-					return nil
-				}
-
-				if !strings.EqualFold(response, "y") {
-					_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Cancelled")
-					return nil
-				}
-			}
-
-			err := c.taskService.DeleteTask(c.getContext(), actualTaskID)
-			if err != nil {
-				return c.handleError(cmd, err)
-			}
-
-			displayID := actualTaskID
-			if len(displayID) > 8 {
-				displayID = displayID[:8]
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Task %s deleted\n", displayID)
-			return nil
+			return c.executeDeleteTask(cmd, taskIDOrIndex, repository, force)
 		},
 	}
 
@@ -880,4 +813,94 @@ func getTimeOfDay() string {
 	default:
 		return "night"
 	}
+}
+
+// executeDeleteTask handles the task deletion with reduced nesting
+func (c *CLI) executeDeleteTask(cmd *cobra.Command, taskIDOrIndex string, repository string, force bool) error {
+	// Get repository if not specified
+	repository = c.getOrDetectRepository(repository)
+
+	// Resolve task ID
+	actualTaskID, err := c.resolveTaskIDFromInput(taskIDOrIndex, repository)
+	if err != nil {
+		return c.handleError(cmd, err)
+	}
+
+	// Confirm deletion if not forced
+	if !force {
+		if cancelled := c.confirmDeletion(cmd, actualTaskID); cancelled {
+			return nil
+		}
+	}
+
+	// Delete the task
+	err = c.taskService.DeleteTask(c.getContext(), actualTaskID)
+	if err != nil {
+		return c.handleError(cmd, err)
+	}
+
+	// Display success message
+	displayID := c.formatDisplayID(actualTaskID)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Task %s deleted\n", displayID)
+	return nil
+}
+
+// getOrDetectRepository returns the provided repository or detects current one
+func (c *CLI) getOrDetectRepository(repository string) string {
+	if repository != "" {
+		return repository
+	}
+
+	if repoInfo, err := c.repositoryDetector.DetectCurrent(c.getContext()); err == nil {
+		return repoInfo.Name
+	}
+	return "local"
+}
+
+// resolveTaskIDFromInput resolves task ID from either numeric index or string ID
+func (c *CLI) resolveTaskIDFromInput(taskIDOrIndex string, repository string) (string, error) {
+	// Check if it's a numeric index
+	if index, err := strconv.Atoi(taskIDOrIndex); err == nil {
+		return c.resolveTaskByIndex(index, repository)
+	}
+
+	// It's a string ID, resolve it directly
+	return c.resolveTaskID(c.getContext(), taskIDOrIndex, repository)
+}
+
+// resolveTaskByIndex finds task ID by numeric index
+func (c *CLI) resolveTaskByIndex(index int, repository string) (string, error) {
+	filters := &ports.TaskFilters{Repository: repository}
+	tasks, err := c.taskService.ListTasks(c.getContext(), filters)
+	if err != nil {
+		return "", fmt.Errorf("failed to list tasks: %w", err)
+	}
+
+	if index < 1 || index > len(tasks) {
+		return "", fmt.Errorf("task index %d is out of range (1-%d)", index, len(tasks))
+	}
+
+	selectedTask := tasks[index-1]
+	fmt.Printf("Found task %d: %s\n", index, selectedTask.Content)
+	return selectedTask.ID, nil
+}
+
+// confirmDeletion prompts user for deletion confirmation, returns true if cancelled
+func (c *CLI) confirmDeletion(cmd *cobra.Command, taskID string) bool {
+	displayID := c.formatDisplayID(taskID)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Delete task %s? [y/N]: ", displayID)
+
+	var response string
+	if _, err := fmt.Scanln(&response); err != nil {
+		// If we can't read input, treat as cancelled
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Cancelled")
+		return true
+	}
+
+	if !strings.EqualFold(response, "y") {
+		_, _ = fmt.Fprintln(cmd.OutOrStdout(), "Cancelled")
+		return true
+	}
+
+	return false
 }

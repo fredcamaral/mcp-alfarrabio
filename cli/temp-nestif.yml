@@ -1,9 +1,0 @@
-version: "2"
-
-linters:
-  enable-only:
-    - nestif
-
-linters-settings:
-  nestif:
-    min-complexity: 1

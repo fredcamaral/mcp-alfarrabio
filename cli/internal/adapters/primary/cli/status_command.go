@@ -43,11 +43,11 @@ func (c *CLI) printSystemStatus(cmd *cobra.Command, detailed bool) {
 	repo := c.printRepositoryStatus(out)
 	c.printConfigurationStatus(out)
 	c.printStorageStatus(out)
-	c.printAIServiceStatus(out)
-	c.printMCPServerStatus(out, detailed)
+	c.printStatusAIServiceInfo(out)
+	c.printStatusMCPServerInfo(out, detailed)
 	c.printIntelligenceFeatures(out)
 	c.printFeatureAvailability(out)
-	c.printTroubleshootingTips(out, repo)
+	c.printStatusTroubleshootingTips(out, repo)
 
 	fmt.Fprintf(out, "\n")
 }
@@ -114,7 +114,7 @@ func (c *CLI) printTaskCount(out interface{ Write([]byte) (int, error) }, ctx co
 }
 
 // printAIServiceStatus displays AI service status and provider information
-func (c *CLI) printAIServiceStatus(out interface{ Write([]byte) (int, error) }) {
+func (c *CLI) printStatusAIServiceInfo(out interface{ Write([]byte) (int, error) }) {
 	fmt.Fprintf(out, "\nAI Service:\n")
 	if c.aiService == nil {
 		fmt.Fprintf(out, "  Status: ❌ Not initialized\n")
@@ -164,7 +164,7 @@ func (c *CLI) detectAndPrintAIProvider(out interface{ Write([]byte) (int, error)
 }
 
 // printMCPServerStatus displays MCP server connection status
-func (c *CLI) printMCPServerStatus(out interface{ Write([]byte) (int, error) }, detailed bool) {
+func (c *CLI) printStatusMCPServerInfo(out interface{ Write([]byte) (int, error) }, detailed bool) {
 	fmt.Fprintf(out, "\nMCP Server:\n")
 	if c.taskService == nil || c.taskService.GetMCPClient() == nil {
 		fmt.Fprintf(out, "  Status: ❌ Not configured\n")
@@ -255,7 +255,7 @@ func (c *CLI) printAnalyticsFeatureAvailability(out interface{ Write([]byte) (in
 }
 
 // printTroubleshootingTips displays relevant troubleshooting suggestions
-func (c *CLI) printTroubleshootingTips(out interface{ Write([]byte) (int, error) }, repo string) {
+func (c *CLI) printStatusTroubleshootingTips(out interface{ Write([]byte) (int, error) }, repo string) {
 	fmt.Fprintf(out, "\n💡 Troubleshooting Tips:\n")
 
 	hasIssues := false
