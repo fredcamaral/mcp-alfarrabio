@@ -11,33 +11,37 @@ Lerian MCP Memory Server is a high-performance Go-based Model Context Protocol (
 ## Core Architecture
 
 ### Technology Stack
-- **Language**: Go 1.23+ with gomcp-sdk v1.0.3
+- **Language**: Go 1.23+ with gomcp-sdk v1.0.3 (using LerianStudio fork)
 - **Vector Database**: Qdrant for embeddings and similarity search  
-- **Metadata Storage**: SQLite for structured data
+- **Metadata Storage**: PostgreSQL for structured data (SQLite support deprecated)
 - **AI Service**: OpenAI for text embeddings
 - **Transport**: Multiple protocols (stdio, WebSocket, SSE, HTTP)
 
 ### Key Components
 - `internal/mcp/` - MCP protocol handlers and memory server implementation
-- `internal/storage/` - Qdrant vector database and SQLite adapters
+- `internal/storage/` - Qdrant vector database and PostgreSQL adapters
 - `internal/intelligence/` - Pattern recognition, learning engines, conflict detection
 - `internal/embeddings/` - OpenAI integration with circuit breakers and retries
 - `internal/chunking/` - Smart content chunking with context awareness
+- `internal/tasks/` - Task management service and CRUD operations
+- `internal/api/` - HTTP REST API handlers and router
 - `pkg/types/` - Core data structures and type definitions
+- `cli/` - Command-line interface (separate Go module)
 
 ### Entry Points
 - `cmd/server/main.go` - Main server with stdio/HTTP mode support
 - `cmd/migrate/main.go` - Database migration utility
 - `cmd/openapi/main.go` - OpenAPI specification generator
+- `cli/cmd/lerian-mcp-memory-cli/main.go` - CLI application
 
 ## Common Development Commands
 
 ### Environment Setup
 ```bash
 # Initial setup with environment file
-make setup-env
+make setup
 
-# Production mode - uses pre-built image from GHCR
+# Production mode - uses Docker Compose
 make docker-up
 
 # Development mode with hot reload
@@ -52,8 +56,17 @@ make dev-http
 
 ### Building and Testing
 ```bash
-# Build binary
+# Build both server and CLI
 make build
+
+# Build server only
+make build-server
+
+# Build CLI only  
+make build-cli
+
+# Install CLI to PATH
+make install
 
 # Run all tests
 make test
@@ -91,55 +104,56 @@ make ci
 
 ### Docker Operations
 ```bash
-# Start with docker-compose
-make docker-compose-up
+# Start production services
+make docker-up
 
-# Stop services
-make docker-compose-down
+# Stop all services
+make docker-down
 
 # Development mode with hot reload
-make dev-up
-make dev-logs
-make dev-restart
+make docker-dev
+
+# View service logs
+make docker-logs
+
+# Clean Docker images
+make clean
 ```
 
-### CLI Tool (lmmc)
+### Database Operations
 ```bash
-# Build the CLI tool
-make cli-build
+# Build migration tool
+go build -o bin/migrate cmd/migrate/main.go
+
+# Plan migrations (dry run)
+./bin/migrate -command plan
+
+# Execute migrations
+./bin/migrate -command migrate -force
+
+# Check migration status
+./bin/migrate -command status
+```
+
+### CLI Operations
+```bash
+# Build CLI
+make build-cli
 
 # Install CLI to PATH
-make cli-install
-
-# Test CLI functionality
-make cli-test
+make install
 
 # Run CLI interactively
-make cli-run
+make dev-cli
 
-# Clean CLI build artifacts
-make cli-clean
+# CLI usage examples
+lmmc create "Task title" -t implementation -p high
+lmmc list
+lmmc complete <task-id>
+lmmc sync
 ```
 
-### Database Migrations
-```bash
-# Check migration status
-make migrate-status
-
-# Plan migration changes
-make migrate-plan
-
-# Apply migrations
-make migrate-up
-
-# Rollback migrations
-make migrate-down
-
-# Build migration tool
-make migrate-build
-```
-
-### Testing Individual Components
+## Testing Individual Components
 ```bash
 # Test specific package
 go test -v ./internal/mcp/
@@ -159,18 +173,6 @@ go test -race -v ./internal/websocket/
 # Run benchmarks for performance-critical components
 go test -bench=. -v ./internal/embeddings/
 go test -bench=. -v ./internal/storage/
-```
-
-### Environment Validation
-```bash
-# Validate environment configuration
-./scripts/validate-env.sh
-
-# Check which variables are actually used vs declared
-grep -r "os.Getenv" --include="*.go" . | head -10
-
-# Test configuration loading
-go test -v ./internal/config/
 ```
 
 ## Environment Configuration
@@ -203,20 +205,6 @@ Copy `.env.example` to `.env` and configure. The new .env.example contains only 
 - `MCP_MEMORY_LOG_LEVEL` - Logging level (debug, info, warn, error)
 - `MCP_MEMORY_LOG_FORMAT` - Log format (json, text)
 - `MCP_MEMORY_LOG_FILE` - Log file path
-
-### Variable Categories
-The .env.example is organized into clearly labeled sections:
-1. **Required** - API keys and essential configuration
-2. **AI Provider** - OpenAI, Claude, Perplexity configuration  
-3. **Server** - Host, ports, timeouts, logging
-4. **Database** - PostgreSQL and Qdrant configuration
-5. **Storage & Backup** - Data persistence and backup settings
-6. **Content Processing** - Chunking and processing configuration
-7. **WebSocket** - Real-time communication settings
-8. **Circuit Breaker** - Reliability and fault tolerance
-9. **CLI** - Command-line interface configuration
-10. **Testing** - Test database and execution flags
-11. **Docker Compose** - Container orchestration overrides
 
 ## Code Conventions
 
@@ -269,20 +257,28 @@ internal/
 ├── intelligence/  # Learning engines and pattern detection  
 ├── embeddings/    # OpenAI integration with reliability
 ├── chunking/      # Content processing and chunking
+├── api/           # HTTP REST API handlers
+├── tasks/         # Task management service
 └── config/        # Configuration management
+
+cli/
+├── internal/      # CLI-specific internal packages
+├── cmd/           # CLI entry point
+└── pkg/           # Shared CLI packages
 ```
 
 ### Database Schema
-- SQLite for metadata (chunks, relationships, sessions)
+- PostgreSQL for metadata (tasks, prds, sessions)
 - Qdrant for vector embeddings and similarity search
 - Automatic backup and persistence management
+- Migration system with rollback capabilities
 
 ## Architecture Deep Dive
 
 ### MCP Memory Architecture Flow
 1. **Input Processing**: Content arrives via MCP tools → `internal/mcp/server.go` → consolidated tools handlers
 2. **Content Analysis**: Smart chunking (`internal/chunking/`) → embedding generation (`internal/embeddings/`)
-3. **Storage Layer**: Vector data (Qdrant) + metadata (SQLite) via `internal/storage/` adapters
+3. **Storage Layer**: Vector data (Qdrant) + metadata (PostgreSQL) via `internal/storage/` adapters
 4. **Intelligence Layer**: Pattern detection, conflict resolution, learning engines in `internal/intelligence/`
 5. **Retrieval**: Context-aware search with confidence scoring and relevance ranking
 
@@ -333,24 +329,46 @@ When running via docker-compose:
 - `ws://localhost:9080/ws` - WebSocket endpoint
 - `http://localhost:9080/sse` - Server-sent events endpoint
 - `http://localhost:6333` - Qdrant vector database UI
+- `http://localhost:9080/api/v1/tasks` - REST API for tasks
 
 ## Troubleshooting
 
 ### Common Issues
-- **Connection refused**: Run `make docker-compose-restart`
+- **Connection refused**: Run `make docker-restart`
 - **OpenAI API errors**: Check API key and account credits in `.env`
 - **Vector search failures**: Verify Qdrant is running (`docker logs mcp-qdrant`)
 - **Memory not persisting**: Check volume mounts and permissions
+- **Migration failures**: Ensure database is accessible and migrations are idempotent
 
 ### Debugging
 ```bash
 # View logs
 docker logs mcp-memory-server
-make dev-logs
+make docker-logs
 
 # Health check
 curl http://localhost:9080/health
 
 # Test MCP protocol
 echo '{"jsonrpc":"2.0","method":"tools/list","id":1}' | docker exec -i mcp-memory-server node /app/mcp-proxy.js
+
+# Test REST API
+curl -X GET http://localhost:9080/api/v1/tasks?repository=test
 ```
+
+## Recent Project Changes
+
+### Simplified Migration System
+- Reduced from 15+ migrations to 3 essential ones
+- All migrations are now idempotent and handle existing objects gracefully
+- Core migrations: 000 (migration tracking), 001 (core tables), 002 (sessions)
+
+### CLI HTTP Integration
+- CLI now properly syncs with server via HTTP REST API
+- Fixed type mismatches between CLI and server entities
+- Improved error handling and offline mode support
+
+### Database Changes
+- Switched from SQLite to PostgreSQL as primary metadata store
+- Simplified table structures for easier maintenance
+- Added proper indexes for common query patterns

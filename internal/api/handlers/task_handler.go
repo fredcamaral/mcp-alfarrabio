@@ -75,13 +75,13 @@ func (h *TaskHandler) SuggestTasks(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req types.TaskSuggestionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if err := h.validateSuggestionRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid request", err.Error())
 		return
 	}
 
@@ -92,7 +92,7 @@ func (h *TaskHandler) SuggestTasks(w http.ResponseWriter, r *http.Request) {
 	if req.PRDID != "" && req.PRDContent == "" {
 		prdDoc, err := h.prdStorage.Get(ctx, req.PRDID)
 		if err != nil {
-			response.WriteError(w, http.StatusNotFound, "PRD not found", err.Error())
+			response.WriteError(w, http.StatusNotFound, response.ErrorCodeNotFound, "PRD not found", err.Error())
 			return
 		}
 		req.PRDContent = prdDoc.Content.Raw
@@ -101,7 +101,7 @@ func (h *TaskHandler) SuggestTasks(w http.ResponseWriter, r *http.Request) {
 	// Generate tasks using AI
 	taskResponse, err := h.generator.GenerateTasks(ctx, &req)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to generate tasks", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to generate tasks", err.Error())
 		return
 	}
 
@@ -139,20 +139,20 @@ func (h *TaskHandler) GenerateFromPRD(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req PRDTaskGenerationRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if req.PRDID == "" {
-		response.WriteError(w, http.StatusBadRequest, "Missing PRD ID", "PRD ID is required")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Missing PRD ID", "PRD ID is required")
 		return
 	}
 
 	// Get PRD document
 	prdDoc, err := h.prdStorage.Get(ctx, req.PRDID)
 	if err != nil {
-		response.WriteError(w, http.StatusNotFound, "PRD not found", err.Error())
+		response.WriteError(w, http.StatusNotFound, response.ErrorCodeNotFound, "PRD not found", err.Error())
 		return
 	}
 
@@ -167,7 +167,7 @@ func (h *TaskHandler) GenerateFromPRD(w http.ResponseWriter, r *http.Request) {
 	// Generate tasks
 	taskResponse, err := h.generator.GenerateTasks(ctx, taskReq)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to generate tasks", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to generate tasks", err.Error())
 		return
 	}
 
@@ -197,20 +197,20 @@ func (h *TaskHandler) GetTaskSuggestions(w http.ResponseWriter, r *http.Request)
 	// Parse request
 	var req ContextualSuggestionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if req.ProjectState.Phase == "" {
-		response.WriteError(w, http.StatusBadRequest, "Missing project phase", "Project phase is required")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Missing project phase", "Project phase is required")
 		return
 	}
 
 	// Generate suggestions
 	suggestions, err := h.suggester.SuggestTasks(ctx, &req.ProjectState, req.ExistingTasks, &req.Context)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to generate suggestions", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to generate suggestions", err.Error())
 		return
 	}
 
@@ -237,7 +237,7 @@ func (h *TaskHandler) ValidateTask(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var task types.Task
 	if err := json.NewDecoder(r.Body).Decode(&task); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
@@ -261,7 +261,7 @@ func (h *TaskHandler) ScoreTask(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req TaskScoringRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 

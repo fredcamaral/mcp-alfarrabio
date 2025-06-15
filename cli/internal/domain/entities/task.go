@@ -14,7 +14,8 @@ import (
 type Status string
 
 const (
-	StatusPending    Status = "pending"
+	StatusPending    Status = "pending" // CLI uses "pending" for backward compatibility
+	StatusTodo       Status = "todo"    // Server-compatible status
 	StatusInProgress Status = "in_progress"
 	StatusCompleted  Status = "completed"
 	StatusCancelled  Status = "cancelled"
@@ -32,9 +33,11 @@ const (
 // Task represents a single task with all metadata and validation
 type Task struct {
 	ID            string                 `json:"id" validate:"required,uuid"`
-	Content       string                 `json:"content" validate:"required,min=1,max=1000"`
+	Content       string                 `json:"content" validate:"required,min=1,max=1000"` // Deprecated: Use Title and Description
+	Title         string                 `json:"title,omitempty" validate:"max=255"`         // Server-compatible field
+	Description   string                 `json:"description,omitempty" validate:"max=5000"`  // Server-compatible field
 	Type          string                 `json:"type,omitempty"`
-	Status        Status                 `json:"status" validate:"required,oneof=pending in_progress completed cancelled"`
+	Status        Status                 `json:"status" validate:"required,oneof=pending todo in_progress completed cancelled"`
 	Priority      Priority               `json:"priority" validate:"required,oneof=low medium high"`
 	Repository    string                 `json:"repository" validate:"required"`
 	SessionID     string                 `json:"session_id,omitempty"`
@@ -48,13 +51,28 @@ type Task struct {
 	ParentTaskID  string                 `json:"parent_task_id,omitempty" validate:"omitempty,uuid"`
 	AISuggested   bool                   `json:"ai_suggested"`
 	Metadata      map[string]interface{} `json:"metadata,omitempty"`
+	// Server-compatible fields
+	Assignee           string   `json:"assignee,omitempty"`
+	AcceptanceCriteria []string `json:"acceptance_criteria,omitempty"`
+	Dependencies       []string `json:"dependencies,omitempty"` // Task IDs this depends on
+	SourcePRDID        string   `json:"source_prd_id,omitempty"`
+	Branch             string   `json:"branch,omitempty"`
+	BlockedBy          []string `json:"blocked_by,omitempty"`
+	Blocking           []string `json:"blocking,omitempty"`
+	TimeTracked        int      `json:"time_tracked,omitempty"`
+	Confidence         float64  `json:"confidence,omitempty"`
+	Complexity         string   `json:"complexity,omitempty"` // simple, medium, complex
+	RiskLevel          string   `json:"risk_level,omitempty"` // low, medium, high
 }
 
 // NewTask creates a new task with required fields and default values
 func NewTask(content, repository string) (*Task, error) {
+	trimmedContent := strings.TrimSpace(content)
 	task := &Task{
 		ID:          uuid.New().String(),
-		Content:     strings.TrimSpace(content),
+		Content:     trimmedContent,
+		Title:       trimmedContent, // For server compatibility
+		Description: "",             // Empty description by default
 		Status:      StatusPending,
 		Priority:    PriorityMedium,
 		Repository:  repository,
@@ -73,9 +91,12 @@ func NewTask(content, repository string) (*Task, error) {
 
 // NewTaskWithOptions creates a new task with optional parameters
 func NewTaskWithOptions(content, repository string, options *TaskOptions) (*Task, error) {
+	trimmedContent := strings.TrimSpace(content)
 	task := &Task{
 		ID:          uuid.New().String(),
-		Content:     strings.TrimSpace(content),
+		Content:     trimmedContent,
+		Title:       trimmedContent, // For server compatibility
+		Description: "",             // Empty description by default
 		Status:      StatusPending,
 		Priority:    PriorityMedium,
 		Repository:  repository,
@@ -177,14 +198,21 @@ func (t *Task) Reset() error {
 // UpdateContent modifies task description with validation
 func (t *Task) UpdateContent(content string) error {
 	originalContent := t.Content
+	originalTitle := t.Title
+	originalDescription := t.Description
 	originalUpdatedAt := t.UpdatedAt
 
-	t.Content = strings.TrimSpace(content)
+	trimmedContent := strings.TrimSpace(content)
+	t.Content = trimmedContent
+	t.Title = trimmedContent // Update title for server compatibility
+	// Keep existing description or clear it if content is being updated
 	t.UpdatedAt = time.Now()
 
 	if err := t.Validate(); err != nil {
 		// Restore original values on validation failure
 		t.Content = originalContent
+		t.Title = originalTitle
+		t.Description = originalDescription
 		t.UpdatedAt = originalUpdatedAt
 		return err
 	}
@@ -285,7 +313,7 @@ func (t *Task) SetActualTime(minutes int) error {
 // IsValidStatus checks if a status value is valid
 func IsValidStatus(status string) bool {
 	switch Status(status) {
-	case StatusPending, StatusInProgress, StatusCompleted, StatusCancelled:
+	case StatusPending, StatusTodo, StatusInProgress, StatusCompleted, StatusCancelled:
 		return true
 	default:
 		return false
@@ -421,6 +449,39 @@ func (t *Task) GetMetadataBool(key string) (bool, bool) {
 		}
 	}
 	return false, false
+}
+
+// GetDisplayContent returns the content to display (uses Content if available, otherwise Title)
+func (t *Task) GetDisplayContent() string {
+	if t.Content != "" {
+		return t.Content
+	}
+	return t.Title
+}
+
+// SetTitleAndDescription sets both title and description, updating Content for backward compatibility
+func (t *Task) SetTitleAndDescription(title, description string) error {
+	originalContent := t.Content
+	originalTitle := t.Title
+	originalDescription := t.Description
+	originalUpdatedAt := t.UpdatedAt
+
+	t.Title = strings.TrimSpace(title)
+	t.Description = strings.TrimSpace(description)
+	// For backward compatibility, set Content to Title
+	t.Content = t.Title
+	t.UpdatedAt = time.Now()
+
+	if err := t.Validate(); err != nil {
+		// Restore original values on validation failure
+		t.Content = originalContent
+		t.Title = originalTitle
+		t.Description = originalDescription
+		t.UpdatedAt = originalUpdatedAt
+		return err
+	}
+
+	return nil
 }
 
 // RemoveMetadata removes a metadata key

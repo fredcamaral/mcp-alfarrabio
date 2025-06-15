@@ -49,6 +49,11 @@ func (s *TaskService) SetMCPClient(client ports.MCPClient) {
 	s.mcpClient = client
 }
 
+// GetMCPClient returns the MCP client
+func (s *TaskService) GetMCPClient() ports.MCPClient {
+	return s.mcpClient
+}
+
 // CreateTask creates a new task with validation and repository detection
 func (s *TaskService) CreateTask(ctx context.Context, content string, options ...TaskOption) (*entities.Task, error) {
 	// Detect repository context
@@ -71,6 +76,11 @@ func (s *TaskService) CreateTask(ctx context.Context, content string, options ..
 	// Apply functional options
 	for _, option := range options {
 		option(task)
+	}
+
+	// Infer task type from tags if not explicitly set
+	if task.Type == "" && len(task.Tags) > 0 {
+		task.Type = s.inferTypeFromTags(task.Tags)
 	}
 
 	// Validate final task
@@ -717,4 +727,47 @@ func (s *TaskService) statusWeight(status entities.Status) int {
 	default:
 		return 0
 	}
+}
+
+// inferTypeFromTags infers task type from tags
+func (s *TaskService) inferTypeFromTags(tags []string) string {
+	// Map of tags to task types
+	typeMap := map[string]string{
+		"bug":            "bugfix",
+		"bugfix":         "bugfix",
+		"fix":            "bugfix",
+		"feature":        "implementation",
+		"implementation": "implementation",
+		"design":         "design",
+		"ui":             "design",
+		"ux":             "design",
+		"test":           "testing",
+		"testing":        "testing",
+		"qa":             "testing",
+		"docs":           "documentation",
+		"documentation":  "documentation",
+		"readme":         "documentation",
+		"research":       "research",
+		"analysis":       "analysis",
+		"review":         "review",
+		"pr":             "review",
+		"deploy":         "deployment",
+		"deployment":     "deployment",
+		"release":        "deployment",
+		"architecture":   "architecture",
+		"arch":           "architecture",
+		"refactor":       "refactoring",
+		"refactoring":    "refactoring",
+		"integration":    "integration",
+		"api":            "integration",
+	}
+
+	for _, tag := range tags {
+		if taskType, ok := typeMap[strings.ToLower(tag)]; ok {
+			return taskType
+		}
+	}
+
+	// Default to implementation if no matching tag found
+	return "implementation"
 }

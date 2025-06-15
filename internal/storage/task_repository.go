@@ -26,10 +26,10 @@ func (tr *TaskRepository) scanTaskFromRows(rows *sql.Rows) (*types.Task, error) 
 	var task types.Task
 	var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
 	var repository, sessionID sql.NullString
-	var content, complexityStr, typeStr, priorityStr, statusStr string
+	var complexityStr, typeStr, priorityStr, statusStr string
 
 	err := rows.Scan(
-		&task.ID, &task.Title, &task.Description, &content, &typeStr, &priorityStr, &statusStr, &task.Assignee,
+		&task.ID, &task.Title, &task.Description, &typeStr, &priorityStr, &statusStr, &task.Assignee,
 		&repository, &sessionID, &task.Timestamps.Created, &task.Timestamps.Updated,
 		&task.Timestamps.Started, &task.Timestamps.Completed,
 		&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
@@ -108,17 +108,17 @@ func (tr *TaskRepository) Create(ctx context.Context, task *types.Task) error {
 
 	query := `
 		INSERT INTO tasks (
-			id, title, description, content, type, priority, status, assignee, 
+			id, title, description, type, priority, status, assignee, 
 			repository, session_id, created_at, updated_at, 
 			acceptance_criteria, dependencies, tags, estimated_hours,
 			complexity, complexity_score, quality_score,
 			metadata
 		) VALUES (
-			$1, $2, $3, $4, $5::task_type, $6::task_priority, $7::task_status, $8,
-			$9, $10, $11, $12,
-			$13, $14, $15, $16,
-			$17::task_complexity, $18, $19,
-			$20
+			$1, $2, $3, $4::task_type, $5::task_priority, $6::task_status, $7,
+			$8, $9, $10, $11,
+			$12, $13, $14, $15,
+			$16, $17, $18,
+			$19
 		)`
 
 	// Serialize JSONB fields
@@ -147,14 +147,8 @@ func (tr *TaskRepository) Create(ctx context.Context, task *types.Task) error {
 		}
 	}
 
-	// Set content to description as that's what the database expects
-	content := task.Description
-	if content == "" {
-		content = task.Title
-	}
-
 	_, err = tr.db.ExecContext(ctx, query,
-		taskID, task.Title, task.Description, content,
+		taskID, task.Title, task.Description,
 		string(task.Type), string(task.Priority), string(task.Status), task.Assignee,
 		repository, nil, // session_id can be null
 		task.Timestamps.Created, task.Timestamps.Updated,
@@ -175,7 +169,7 @@ func (tr *TaskRepository) Create(ctx context.Context, task *types.Task) error {
 // GetByID retrieves a task by ID
 func (tr *TaskRepository) GetByID(ctx context.Context, id string) (*types.Task, error) {
 	query := `
-		SELECT id, title, description, content, type, priority, status, assignee,
+		SELECT id, title, description, type, priority, status, assignee,
 			   repository, session_id, created_at, updated_at, started_at, completed_at,
 			   acceptance_criteria, dependencies, tags, estimated_hours,
 			   complexity, complexity_score, quality_score,
@@ -186,10 +180,10 @@ func (tr *TaskRepository) GetByID(ctx context.Context, id string) (*types.Task, 
 	var task types.Task
 	var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
 	var repository, sessionID sql.NullString
-	var content, complexityStr, typeStr, priorityStr, statusStr string
+	var complexityStr, typeStr, priorityStr, statusStr string
 
 	err := tr.db.QueryRowContext(ctx, query, id).Scan(
-		&task.ID, &task.Title, &task.Description, &content, &typeStr, &priorityStr, &statusStr, &task.Assignee,
+		&task.ID, &task.Title, &task.Description, &typeStr, &priorityStr, &statusStr, &task.Assignee,
 		&repository, &sessionID, &task.Timestamps.Created, &task.Timestamps.Updated,
 		&task.Timestamps.Started, &task.Timestamps.Completed,
 		&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
@@ -252,11 +246,11 @@ func (tr *TaskRepository) GetByID(ctx context.Context, id string) (*types.Task, 
 func (tr *TaskRepository) Update(ctx context.Context, task *types.Task) error {
 	query := `
 		UPDATE tasks SET 
-			title = $2, description = $3, content = $4, type = $5::task_type, priority = $6::task_priority, 
-			status = $7::task_status, assignee = $8, due_date = $9, updated_at = $10, 
-			started_at = $11, completed_at = $12, acceptance_criteria = $13, dependencies = $14, 
-			tags = $15, estimated_hours = $16, complexity = $17::task_complexity, 
-			complexity_score = $18, quality_score = $19, metadata = $20
+			title = $2, description = $3, type = $4::task_type, priority = $5::task_priority, 
+			status = $6::task_status, assignee = $7, due_date = $8, updated_at = $9, 
+			started_at = $10, completed_at = $11, acceptance_criteria = $12, dependencies = $13, 
+			tags = $14, estimated_hours = $15, complexity = $16, 
+			complexity_score = $17, quality_score = $18, metadata = $19
 		WHERE id = $1 AND deleted_at IS NULL`
 
 	// Serialize JSONB fields
@@ -277,14 +271,8 @@ func (tr *TaskRepository) Update(ctx context.Context, task *types.Task) error {
 		return fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
-	// Set content to description as that's what the database expects
-	content := task.Description
-	if content == "" {
-		content = task.Title
-	}
-
 	result, err := tr.db.ExecContext(ctx, query,
-		task.ID, task.Title, task.Description, content,
+		task.ID, task.Title, task.Description,
 		string(task.Type), string(task.Priority), string(task.Status),
 		task.Assignee, task.DueDate, task.Timestamps.Updated, task.Timestamps.Started, task.Timestamps.Completed,
 		acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, task.EstimatedEffort.Hours,
@@ -333,7 +321,7 @@ func (tr *TaskRepository) Delete(ctx context.Context, id string) error {
 func (tr *TaskRepository) List(ctx context.Context, filters *tasks.TaskFilters) ([]types.Task, error) {
 	// Simple query without complex filtering for now - can be enhanced later
 	query := `
-		SELECT id, title, description, content, type, priority, status, assignee,
+		SELECT id, title, description, type, priority, status, assignee,
 			   repository, session_id, created_at, updated_at, started_at, completed_at,
 			   acceptance_criteria, dependencies, tags, estimated_hours,
 			   complexity, complexity_score, quality_score,
@@ -365,10 +353,10 @@ func (tr *TaskRepository) List(ctx context.Context, filters *tasks.TaskFilters) 
 		var task types.Task
 		var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
 		var repository, sessionID sql.NullString
-		var content, complexityStr, typeStr, priorityStr, statusStr string
+		var complexityStr, typeStr, priorityStr, statusStr string
 
 		err := rows.Scan(
-			&task.ID, &task.Title, &task.Description, &content, &typeStr, &priorityStr, &statusStr, &task.Assignee,
+			&task.ID, &task.Title, &task.Description, &typeStr, &priorityStr, &statusStr, &task.Assignee,
 			&repository, &sessionID, &task.Timestamps.Created, &task.Timestamps.Updated,
 			&task.Timestamps.Started, &task.Timestamps.Completed,
 			&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
@@ -425,7 +413,7 @@ func (tr *TaskRepository) Search(ctx context.Context, query *tasks.SearchQuery) 
 
 	// Build search query with full-text search capabilities
 	searchQuery := `
-		SELECT id, title, description, content, type, priority, status, assignee,
+		SELECT id, title, description, type, priority, status, assignee,
 			   repository, session_id, created_at, updated_at, started_at, completed_at,
 			   acceptance_criteria, dependencies, tags, estimated_hours,
 			   complexity, complexity_score, quality_score,
@@ -465,11 +453,11 @@ func (tr *TaskRepository) Search(ctx context.Context, query *tasks.SearchQuery) 
 		var task types.Task
 		var acceptanceCriteriaJSON, dependenciesJSON, tagsJSON, metadataJSON []byte
 		var repository, sessionID sql.NullString
-		var content, complexityStr, typeStr, priorityStr, statusStr string
+		var complexityStr, typeStr, priorityStr, statusStr string
 		var rank float64
 
 		err := rows.Scan(
-			&task.ID, &task.Title, &task.Description, &content, &typeStr, &priorityStr, &statusStr, &task.Assignee,
+			&task.ID, &task.Title, &task.Description, &typeStr, &priorityStr, &statusStr, &task.Assignee,
 			&repository, &sessionID, &task.Timestamps.Created, &task.Timestamps.Updated,
 			&task.Timestamps.Started, &task.Timestamps.Completed,
 			&acceptanceCriteriaJSON, &dependenciesJSON, &tagsJSON, &task.EstimatedEffort.Hours,
@@ -609,7 +597,7 @@ func (tr *TaskRepository) GetByIDs(ctx context.Context, ids []string) ([]types.T
 
 	// #nosec G201 - This is safe as it uses parameterized placeholders ($1, $2, etc.)
 	query := fmt.Sprintf(`
-		SELECT id, title, description, content, type, priority, status, assignee,
+		SELECT id, title, description, type, priority, status, assignee,
 			   repository, session_id, created_at, updated_at, started_at, completed_at,
 			   acceptance_criteria, dependencies, tags, estimated_hours,
 			   complexity, complexity_score, quality_score,

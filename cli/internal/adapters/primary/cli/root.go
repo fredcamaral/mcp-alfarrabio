@@ -39,6 +39,7 @@ type CLI struct {
 	aiService          ports.AIService
 	repositoryDetector ports.RepositoryDetector
 	batchSyncService   *services.BatchSyncService
+	reviewService      *services.ReviewService
 
 	// Auto sync management
 	autoSyncCancel context.CancelFunc
@@ -84,6 +85,33 @@ func NewCLIWithIntelligence(
 	batchSyncService *services.BatchSyncService,
 	intelligence IntelligenceDependencies,
 ) *CLI {
+	return NewCLIWithIntelligenceAndReview(
+		taskService,
+		configMgr,
+		logger,
+		storage,
+		documentChain,
+		aiService,
+		repositoryDetector,
+		batchSyncService,
+		nil, // No review service
+		intelligence,
+	)
+}
+
+// NewCLIWithIntelligenceAndReview creates a new CLI instance with intelligence and review services
+func NewCLIWithIntelligenceAndReview(
+	taskService *services.TaskService,
+	configMgr ports.ConfigManager,
+	logger *slog.Logger,
+	storage ports.Storage,
+	documentChain services.DocumentChainService,
+	aiService ports.AIService,
+	repositoryDetector ports.RepositoryDetector,
+	batchSyncService *services.BatchSyncService,
+	reviewService *services.ReviewService,
+	intelligence IntelligenceDependencies,
+) *CLI {
 	cli := &CLI{
 		taskService:        taskService,
 		configMgr:          configMgr,
@@ -93,6 +121,7 @@ func NewCLIWithIntelligence(
 		aiService:          aiService,
 		repositoryDetector: repositoryDetector,
 		batchSyncService:   batchSyncService,
+		reviewService:      reviewService,
 		intelligence:       &intelligence,
 	}
 
@@ -160,7 +189,8 @@ func (c *CLI) setupCommands() {
 		c.createSearchCommand(),
 		c.createPRDCommand(),
 		c.createTRDCommand(),
-		c.createTaskGenCommand(),
+		c.createTasksCommand(),    // Replaces taskgen
+		c.createSubtasksCommand(), // New subtasks command
 		c.createWorkflowCommand(),
 		c.createREPLCommand(), // TUI with comprehensive dashboards
 		c.createSyncCommand(),
@@ -170,6 +200,9 @@ func (c *CLI) setupCommands() {
 		c.createUpdateCommand(),     // Self-update mechanism
 		c.createDocsCommand(),       // OpenAPI documentation generation
 		c.createExportCommand(),     // Multi-format export capabilities
+		c.createStatusCommand(),     // Service status overview
+		c.createReviewCommand(),     // Code review functionality
+		c.createMemoryCommand(),     // Memory MCP integration
 	}
 
 	// Add intelligence-based commands if available
@@ -249,6 +282,14 @@ func parsePriority(p string) (entities.Priority, error) {
 // getContext returns a context for command execution
 func (c *CLI) getContext() context.Context {
 	return context.Background()
+}
+
+// getMCPClient returns the MCP client if available
+func (c *CLI) getMCPClient() ports.MCPClient {
+	if c.batchSyncService != nil {
+		return c.batchSyncService.GetMCPClient()
+	}
+	return nil
 }
 
 // createAnalyticsCommand creates the analytics command when intelligence services are available

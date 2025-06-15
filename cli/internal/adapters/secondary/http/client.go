@@ -11,6 +11,7 @@ import (
 	"io"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync/atomic"
 	"time"
 
@@ -48,6 +49,11 @@ type ErrorResponse struct {
 		Details string `json:"details"`
 	} `json:"error"`
 	Timestamp string `json:"timestamp"`
+}
+
+// CallMCPTool is not implemented for HTTP REST client - use MCP client instead
+func (c *HTTPRestClient) CallMCPTool(ctx context.Context, tool string, params map[string]interface{}) (map[string]interface{}, error) {
+	return nil, errors.New("MCP tools not available via HTTP REST API - use MCP protocol instead")
 }
 
 var (
@@ -106,7 +112,16 @@ func (c *HTTPRestClient) SyncTask(ctx context.Context, task *entities.Task) erro
 
 	// Handle response
 	if resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusOK {
-		c.handleErrorResponse(resp)
+		// Read response body for debugging
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			c.logger.Error("Failed to read error response", slog.Any("error", err))
+		} else {
+			c.logger.Error("Task creation failed",
+				slog.Int("status", resp.StatusCode),
+				slog.String("request_body", string(taskJSON)),
+				slog.String("response_body", string(body)))
+		}
 		return fmt.Errorf("server returned status %d", resp.StatusCode)
 	}
 
@@ -178,9 +193,15 @@ func (c *HTTPRestClient) UpdateTaskStatus(ctx context.Context, taskID string, st
 		return ErrServerOffline
 	}
 
+	// Map CLI "pending" status to server "todo"
+	serverStatus := string(status)
+	if status == entities.StatusPending {
+		serverStatus = "todo"
+	}
+
 	// Create update payload
 	updateData := map[string]interface{}{
-		"status":     string(status),
+		"status":     serverStatus,
 		"updated_at": time.Now().Format(time.RFC3339),
 	}
 
@@ -354,40 +375,61 @@ func (c *HTTPRestClient) setOffline() {
 	}
 }
 
-// ServerTaskRequest represents the format expected by the server's POST /api/v1/tasks
-type ServerTaskRequest struct {
-	Title       string   `json:"title"`              // CLI: content → Server: title
-	Description string   `json:"description"`        // CLI: metadata → Server: description
-	Type        string   `json:"type"`               // CLI: type → Server: type
-	Priority    string   `json:"priority"`           // CLI: priority → Server: priority
-	Repository  string   `json:"repository"`         // CLI: repository → Server: repository
-	Tags        []string `json:"tags,omitempty"`     // CLI: tags → Server: tags
-	Assignee    string   `json:"assignee,omitempty"` // CLI: metadata → Server: assignee
+// CreateTaskRequest matches the server's expected format exactly
+type CreateTaskRequest struct {
+	Title              string     `json:"title"`
+	Description        string     `json:"description"`
+	Type               string     `json:"type"`
+	Priority           string     `json:"priority"`
+	AcceptanceCriteria []string   `json:"acceptance_criteria,omitempty"`
+	Dependencies       []string   `json:"dependencies,omitempty"`
+	Tags               []string   `json:"tags,omitempty"`
+	Assignee           string     `json:"assignee,omitempty"`
+	DueDate            *time.Time `json:"due_date,omitempty"`
+	SourcePRDID        string     `json:"source_prd_id,omitempty"`
+	Repository         string     `json:"repository,omitempty"`
+	Branch             string     `json:"branch,omitempty"`
 }
 
 // convertTaskToServerFormat converts CLI task entity to server API format
-func (c *HTTPRestClient) convertTaskToServerFormat(task *entities.Task) ServerTaskRequest {
-	serverTask := ServerTaskRequest{
-		Title:      task.Content,          // Map content → title
-		Type:       task.Type,             // Keep type as-is
-		Priority:   string(task.Priority), // Convert Priority enum to string
-		Repository: task.Repository,       // Keep repository as-is
-		Tags:       task.Tags,             // Keep tags as-is
+func (c *HTTPRestClient) convertTaskToServerFormat(task *entities.Task) CreateTaskRequest {
+	serverTask := CreateTaskRequest{
+		Title:       task.Title,            // Use new Title field
+		Description: task.Description,      // Use new Description field
+		Type:        task.Type,             // Keep type as-is
+		Priority:    string(task.Priority), // Convert Priority enum to string
+		Repository:  task.Repository,       // Keep repository as-is
+		Tags:        task.Tags,             // Keep tags as-is
 	}
 
-	// Set description from metadata if available
-	if desc, ok := task.GetMetadataString("description"); ok {
-		serverTask.Description = desc
+	// Fallback to Content if Title is empty (backward compatibility)
+	if serverTask.Title == "" && task.Content != "" {
+		serverTask.Title = task.Content
 	}
 
-	// Set assignee from metadata if available
-	if assignee, ok := task.GetMetadataString("assignee"); ok {
-		serverTask.Assignee = assignee
+	// Map server-compatible fields
+	if task.Assignee != "" {
+		serverTask.Assignee = task.Assignee
+	}
+	if len(task.AcceptanceCriteria) > 0 {
+		serverTask.AcceptanceCriteria = task.AcceptanceCriteria
+	}
+	if len(task.Dependencies) > 0 {
+		serverTask.Dependencies = task.Dependencies
+	}
+	if task.SourcePRDID != "" {
+		serverTask.SourcePRDID = task.SourcePRDID
+	}
+	if task.Branch != "" {
+		serverTask.Branch = task.Branch
+	}
+	if task.DueDate != nil {
+		serverTask.DueDate = task.DueDate
 	}
 
-	// Default type if empty
+	// Default type if empty - infer from tags or use default
 	if serverTask.Type == "" {
-		serverTask.Type = "general"
+		serverTask.Type = c.inferTypeFromTags(task.Tags)
 	}
 
 	return serverTask
@@ -443,11 +485,12 @@ func (c *HTTPRestClient) convertServerTaskToCliTask(serverTask map[string]interf
 	}
 
 	if title, ok := serverTask["title"].(string); ok {
-		task.Content = title // Map title → content
+		task.Title = title
+		task.Content = title // Keep Content for backward compatibility
 	}
 
 	if description, ok := serverTask["description"].(string); ok {
-		task.SetMetadata("description", description)
+		task.Description = description
 	}
 
 	if taskType, ok := serverTask["type"].(string); ok {
@@ -462,12 +505,87 @@ func (c *HTTPRestClient) convertServerTaskToCliTask(serverTask map[string]interf
 		task.Status = entities.Status(status)
 	}
 
+	// Check for repository at top level first
 	if repository, ok := serverTask["repository"].(string); ok {
 		task.Repository = repository
+	} else {
+		// Check in metadata.extended_data.repository
+		if metadata, ok := serverTask["metadata"].(map[string]interface{}); ok {
+			if extendedData, ok := metadata["extended_data"].(map[string]interface{}); ok {
+				if repo, ok := extendedData["repository"].(string); ok {
+					task.Repository = repo
+				}
+			}
+		}
 	}
 
+	// Map server fields to CLI fields
 	if assignee, ok := serverTask["assignee"].(string); ok {
-		task.SetMetadata("assignee", assignee)
+		task.Assignee = assignee
+	}
+
+	if acceptanceCriteria, ok := serverTask["acceptance_criteria"].([]interface{}); ok {
+		criteria := make([]string, 0, len(acceptanceCriteria))
+		for _, c := range acceptanceCriteria {
+			if str, ok := c.(string); ok {
+				criteria = append(criteria, str)
+			}
+		}
+		task.AcceptanceCriteria = criteria
+	}
+
+	if dependencies, ok := serverTask["dependencies"].([]interface{}); ok {
+		deps := make([]string, 0, len(dependencies))
+		for _, d := range dependencies {
+			if str, ok := d.(string); ok {
+				deps = append(deps, str)
+			}
+		}
+		task.Dependencies = deps
+	}
+
+	if sourcePRDID, ok := serverTask["source_prd_id"].(string); ok {
+		task.SourcePRDID = sourcePRDID
+	}
+
+	if branch, ok := serverTask["branch"].(string); ok {
+		task.Branch = branch
+	}
+
+	if blockedBy, ok := serverTask["blocked_by"].([]interface{}); ok {
+		blocked := make([]string, 0, len(blockedBy))
+		for _, b := range blockedBy {
+			if str, ok := b.(string); ok {
+				blocked = append(blocked, str)
+			}
+		}
+		task.BlockedBy = blocked
+	}
+
+	if blocking, ok := serverTask["blocking"].([]interface{}); ok {
+		blocks := make([]string, 0, len(blocking))
+		for _, b := range blocking {
+			if str, ok := b.(string); ok {
+				blocks = append(blocks, str)
+			}
+		}
+		task.Blocking = blocks
+	}
+
+	if timeTracked, ok := serverTask["time_tracked"].(float64); ok {
+		task.TimeTracked = int(timeTracked)
+	}
+
+	if confidence, ok := serverTask["confidence"].(float64); ok {
+		task.Confidence = confidence
+	}
+
+	if complexity, ok := serverTask["complexity"].(string); ok {
+		task.Complexity = complexity
+	}
+
+	if riskLevel, ok := serverTask["risk_level"].(string); ok {
+		task.RiskLevel = riskLevel
 	}
 
 	// Handle tags array
@@ -483,10 +601,24 @@ func (c *HTTPRestClient) convertServerTaskToCliTask(serverTask map[string]interf
 		}
 	}
 
-	// Handle timestamps
-	if createdAtStr, ok := serverTask["created_at"].(string); ok {
-		if createdAt, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
-			task.CreatedAt = createdAt
+	// Handle timestamps - check both direct fields and nested timestamps object
+	if timestamps, ok := serverTask["timestamps"].(map[string]interface{}); ok {
+		if createdStr, ok := timestamps["created"].(string); ok {
+			if created, err := time.Parse(time.RFC3339, createdStr); err == nil {
+				task.CreatedAt = created
+			}
+		}
+		if updatedStr, ok := timestamps["updated"].(string); ok {
+			if updated, err := time.Parse(time.RFC3339, updatedStr); err == nil {
+				task.UpdatedAt = updated
+			}
+		}
+	} else {
+		// Fall back to direct timestamp fields
+		if createdAtStr, ok := serverTask["created_at"].(string); ok {
+			if createdAt, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
+				task.CreatedAt = createdAt
+			}
 		}
 	}
 
@@ -519,6 +651,11 @@ func (c *HTTPRestClient) convertServerTaskToCliTask(serverTask map[string]interf
 		task.Status = entities.StatusPending
 	}
 
+	// Set default repository if missing
+	if task.Repository == "" {
+		task.Repository = "default"
+	}
+
 	// Set creation time if missing
 	if task.CreatedAt.IsZero() {
 		task.CreatedAt = time.Now()
@@ -529,4 +666,47 @@ func (c *HTTPRestClient) convertServerTaskToCliTask(serverTask map[string]interf
 	}
 
 	return task
+}
+
+// inferTypeFromTags infers task type from tags
+func (c *HTTPRestClient) inferTypeFromTags(tags []string) string {
+	// Map of tags to task types
+	typeMap := map[string]string{
+		"bug":            "bugfix",
+		"bugfix":         "bugfix",
+		"fix":            "bugfix",
+		"feature":        "implementation",
+		"implementation": "implementation",
+		"design":         "design",
+		"ui":             "design",
+		"ux":             "design",
+		"test":           "testing",
+		"testing":        "testing",
+		"qa":             "testing",
+		"docs":           "documentation",
+		"documentation":  "documentation",
+		"readme":         "documentation",
+		"research":       "research",
+		"analysis":       "analysis",
+		"review":         "review",
+		"pr":             "review",
+		"deploy":         "deployment",
+		"deployment":     "deployment",
+		"release":        "deployment",
+		"architecture":   "architecture",
+		"arch":           "architecture",
+		"refactor":       "refactoring",
+		"refactoring":    "refactoring",
+		"integration":    "integration",
+		"api":            "integration",
+	}
+
+	for _, tag := range tags {
+		if taskType, ok := typeMap[strings.ToLower(tag)]; ok {
+			return taskType
+		}
+	}
+
+	// Default to implementation if no matching tag found
+	return "implementation"
 }

@@ -52,13 +52,13 @@ func (h *TaskBatchHandler) BatchUpdate(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req BatchUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if err := h.validateBatchUpdateRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid batch request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid batch request", err.Error())
 		return
 	}
 
@@ -71,7 +71,7 @@ func (h *TaskBatchHandler) BatchUpdate(w http.ResponseWriter, r *http.Request) {
 	// Execute batch update
 	result, err := h.service.BatchUpdateTasks(r.Context(), updates, userID)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Batch update failed", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Batch update failed", err.Error())
 		return
 	}
 
@@ -92,13 +92,13 @@ func (h *TaskBatchHandler) BatchCreate(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req BatchCreateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if err := h.validateBatchCreateRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid batch create request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid batch create request", err.Error())
 		return
 	}
 
@@ -125,13 +125,13 @@ func (h *TaskBatchHandler) BatchDelete(w http.ResponseWriter, r *http.Request) {
 	// Parse request
 	var req BatchDeleteRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if err := h.validateBatchDeleteRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid batch delete request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid batch delete request", err.Error())
 		return
 	}
 
@@ -158,13 +158,13 @@ func (h *TaskBatchHandler) BatchStatusTransition(w http.ResponseWriter, r *http.
 	// Parse request
 	var req BatchStatusTransitionRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if err := h.validateBatchStatusTransitionRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid batch status transition request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid batch status transition request", err.Error())
 		return
 	}
 
@@ -190,7 +190,7 @@ func (h *TaskBatchHandler) BatchStatusTransition(w http.ResponseWriter, r *http.
 func (h *TaskBatchHandler) GetBatchOperationStatus(w http.ResponseWriter, r *http.Request) {
 	requestID := r.URL.Query().Get("request_id")
 	if requestID == "" {
-		response.WriteError(w, http.StatusBadRequest, "Request ID is required", "")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Request ID is required", "")
 		return
 	}
 

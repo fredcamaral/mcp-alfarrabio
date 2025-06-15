@@ -223,7 +223,7 @@ func (m *CircuitBreakerManager) Middleware(service string) func(http.Handler) ht
 
 			if result.Rejected {
 				// Circuit breaker is open, return error
-				response.WriteError(w, http.StatusServiceUnavailable,
+				response.WriteError(w, http.StatusServiceUnavailable, response.ErrorCodeServiceUnavailable,
 					"Service temporarily unavailable",
 					fmt.Sprintf("Circuit breaker is open for service %s. Please try again later.", service))
 				return
@@ -231,7 +231,7 @@ func (m *CircuitBreakerManager) Middleware(service string) func(http.Handler) ht
 
 			if !result.Success && result.Error != nil {
 				// Request failed
-				response.WriteError(w, http.StatusInternalServerError,
+				response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError,
 					"Service error", result.Error.Error())
 				return
 			}

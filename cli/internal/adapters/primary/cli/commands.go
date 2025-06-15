@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"strconv"
 	"strings"
@@ -24,8 +25,21 @@ func (c *CLI) createAddCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "add [task description]",
 		Short: "Create a new task",
-		Long:  `Create a new task with the specified description in the current repository.`,
-		Args:  cobra.MinimumNArgs(1),
+		Long: `Create a new task with the specified description in the current repository.
+
+Examples:
+  # Add a simple task
+  lmmc add "Fix the login bug"
+
+  # Add a high priority task with tags
+  lmmc add "Implement user authentication" -p high -t security -t backend
+
+  # Add a task with time estimate (in minutes)
+  lmmc add "Write unit tests for API" -e 120
+
+  # Add a task with multiple tags
+  lmmc add "Update documentation" -t docs -t readme`,
+		Args: cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			content := strings.Join(args, " ")
 
@@ -83,7 +97,29 @@ func (c *CLI) createListCommand() *cobra.Command {
 		Use:     "list",
 		Aliases: []string{"ls"},
 		Short:   "List tasks with filtering options",
-		Long:    `List tasks with optional filtering by status, priority, tags, or repository.`,
+		Long: `List tasks with optional filtering by status, priority, tags, or repository.
+
+Examples:
+  # List all pending tasks
+  lmmc list
+
+  # List high priority tasks
+  lmmc list -p high
+
+  # List tasks by status
+  lmmc list -s in_progress
+
+  # List tasks with specific tag
+  lmmc list -t bug
+
+  # Search tasks by content
+  lmmc list --search "login"
+
+  # List all tasks including completed
+  lmmc list --all
+
+  # Combine filters
+  lmmc list -p high -s pending -t urgent`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Build filters
 			filters := ports.TaskFilters{
@@ -166,8 +202,14 @@ func (c *CLI) createDoneCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID := args[0]
 
+			// Resolve task ID from short form
+			fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
+			if err != nil {
+				return c.handleError(cmd, err)
+			}
+
 			// Update status
-			err := c.taskService.UpdateTaskStatus(c.getContext(), taskID, entities.StatusCompleted)
+			err = c.taskService.UpdateTaskStatus(c.getContext(), fullTaskID, entities.StatusCompleted)
 			if err != nil {
 				return c.handleError(cmd, err)
 			}
@@ -177,14 +219,18 @@ func (c *CLI) createDoneCommand() *cobra.Command {
 				updates := services.TaskUpdates{
 					ActualMins: &actualTime,
 				}
-				if err := c.taskService.UpdateTask(c.getContext(), taskID, &updates); err != nil {
+				if err := c.taskService.UpdateTask(c.getContext(), fullTaskID, &updates); err != nil {
 					c.logger.Warn("failed to update actual time",
-						"task_id", taskID,
+						"task_id", fullTaskID,
 						"error", err)
 				}
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Task %s marked as completed\n", taskID[:8])
+			displayID := fullTaskID
+			if len(displayID) > 8 {
+				displayID = displayID[:8]
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Task %s marked as completed\n", displayID)
 			return nil
 		},
 	}
@@ -204,12 +250,22 @@ func (c *CLI) createCancelCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID := args[0]
 
-			err := c.taskService.UpdateTaskStatus(c.getContext(), taskID, entities.StatusCancelled)
+			// Resolve task ID from short form
+			fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
 			if err != nil {
 				return c.handleError(cmd, err)
 			}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Task %s cancelled\n", taskID[:8])
+			err = c.taskService.UpdateTaskStatus(c.getContext(), fullTaskID, entities.StatusCancelled)
+			if err != nil {
+				return c.handleError(cmd, err)
+			}
+
+			displayID := fullTaskID
+			if len(displayID) > 8 {
+				displayID = displayID[:8]
+			}
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Task %s cancelled\n", displayID)
 			return nil
 		},
 	}
@@ -232,6 +288,12 @@ func (c *CLI) createEditCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			taskID := args[0]
 
+			// Resolve task ID from short form
+			fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
+			if err != nil {
+				return c.handleError(cmd, err)
+			}
+
 			// Build updates
 			updates := services.TaskUpdates{
 				AddTags:    addTags,
@@ -247,13 +309,13 @@ func (c *CLI) createEditCommand() *cobra.Command {
 			}
 
 			// Apply updates
-			err := c.taskService.UpdateTask(c.getContext(), taskID, &updates)
+			err = c.taskService.UpdateTask(c.getContext(), fullTaskID, &updates)
 			if err != nil {
 				return c.handleError(cmd, err)
 			}
 
 			// Get and display updated task
-			task, err := c.taskService.GetTask(c.getContext(), taskID)
+			task, err := c.taskService.GetTask(c.getContext(), fullTaskID)
 			if err != nil {
 				return c.handleError(cmd, err)
 			}
@@ -342,8 +404,12 @@ func (c *CLI) createDeleteCommand() *cobra.Command {
 				actualTaskID = tasks[index-1].ID
 				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Found task %d: %s\n", index, tasks[index-1].Content)
 			} else {
-				// It's a full task ID
-				actualTaskID = taskIDOrIndex
+				// It might be a short or full task ID
+				fullTaskID, err := c.resolveTaskID(c.getContext(), taskIDOrIndex, repository)
+				if err != nil {
+					return c.handleError(cmd, err)
+				}
+				actualTaskID = fullTaskID
 			}
 
 			// Confirm deletion if not forced
@@ -609,7 +675,25 @@ func (c *CLI) createSuggestCommand() *cobra.Command {
 		Short: "Get AI-powered task suggestions",
 		Long: `Get intelligent task suggestions based on current work context, repository patterns,
 and project history. The AI analyzes your current tasks, repository structure, and
-workflow patterns to provide relevant task suggestions.`,
+workflow patterns to provide relevant task suggestions.
+
+Examples:
+  # Get general task suggestions
+  lmmc suggest
+
+  # Get suggestions for specific context
+  lmmc suggest "working on authentication"
+
+  # Get more suggestions
+  lmmc suggest -m 10
+
+  # Get suggestions with detailed descriptions
+  lmmc suggest -d "improving performance"
+
+  # Get suggestions for specific repository
+  lmmc suggest -r my-project "bug fixes"
+
+Note: Suggestions improve with more task history and patterns in your repository.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check if intelligence services are available
 			if c.intelligence == nil || c.intelligence.SuggestionService == nil {
@@ -692,6 +776,39 @@ workflow patterns to provide relevant task suggestions.`,
 	cmd.Flags().BoolVarP(&includeDesc, "describe", "d", false, "Include detailed descriptions in suggestions")
 
 	return cmd
+}
+
+// resolveTaskID resolves a task ID from either a short ID prefix or full UUID
+func (c *CLI) resolveTaskID(ctx context.Context, idOrShort string, repository string) (string, error) {
+	// If it's already a full UUID, return it
+	if len(idOrShort) == 36 {
+		return idOrShort, nil
+	}
+
+	// Get all tasks to find matching ID
+	filters := &ports.TaskFilters{Repository: repository}
+	tasks, err := c.taskService.ListTasks(ctx, filters)
+	if err != nil {
+		return "", fmt.Errorf("failed to list tasks: %w", err)
+	}
+
+	// Find tasks that start with the short ID
+	var matches []*entities.Task
+	for _, task := range tasks {
+		if strings.HasPrefix(task.ID, idOrShort) {
+			matches = append(matches, task)
+		}
+	}
+
+	if len(matches) == 0 {
+		return "", fmt.Errorf("no task found with ID starting with %s", idOrShort)
+	}
+
+	if len(matches) > 1 {
+		return "", fmt.Errorf("multiple tasks found with ID starting with %s, please be more specific", idOrShort)
+	}
+
+	return matches[0].ID, nil
 }
 
 // formatSuggestions formats and displays task suggestions

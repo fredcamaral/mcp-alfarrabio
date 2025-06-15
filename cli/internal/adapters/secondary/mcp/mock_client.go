@@ -4,7 +4,10 @@ package mcp
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
@@ -151,6 +154,43 @@ func (m *MockMCPClient) Reset() {
 	defer m.mu.Unlock()
 	m.tasks = make(map[string]*entities.Task)
 	m.online = true
+}
+
+// CallMCPTool calls a generic MCP tool with the given parameters
+func (m *MockMCPClient) CallMCPTool(ctx context.Context, tool string, params map[string]interface{}) (map[string]interface{}, error) {
+	if !m.online {
+		return nil, errors.New("mock MCP client is offline")
+	}
+
+	// Mock response for memory tools
+	switch tool {
+	case "memory_create":
+		return map[string]interface{}{
+			"id":     fmt.Sprintf("chunk-%d", time.Now().Unix()),
+			"status": "created",
+		}, nil
+	case "memory_read":
+		return map[string]interface{}{
+			"chunks": []interface{}{
+				map[string]interface{}{
+					"id":      "chunk-123",
+					"content": "Mock memory content",
+					"score":   0.95,
+				},
+			},
+		}, nil
+	case "memory_analyze", "memory_intelligence":
+		return map[string]interface{}{
+			"patterns": []interface{}{
+				map[string]interface{}{
+					"pattern":   "Mock pattern",
+					"frequency": 5,
+				},
+			},
+		}, nil
+	default:
+		return map[string]interface{}{"result": "mock result"}, nil
+	}
 }
 
 // Ensure MockMCPClient implements MCPClient

@@ -98,35 +98,35 @@ func (h *PRDHandler) ImportPRD(w http.ResponseWriter, r *http.Request) {
 	switch {
 	case strings.Contains(contentType, "multipart/form-data"):
 		if err := h.parseMultipartRequest(r, &req); err != nil {
-			response.WriteError(w, http.StatusBadRequest, "Invalid multipart request", err.Error())
+			response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid multipart request", err.Error())
 			return
 		}
 	case strings.Contains(contentType, "application/json"):
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+			response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 			return
 		}
 	default:
-		response.WriteError(w, http.StatusBadRequest, "Unsupported content type", "Use multipart/form-data or application/json")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Unsupported content type", "Use multipart/form-data or application/json")
 		return
 	}
 
 	// Validate request
 	if err := h.validateImportRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid request", err.Error())
 		return
 	}
 
 	// Process the PRD
 	doc, err := h.processPRD(ctx, &req)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to process PRD", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to process PRD", err.Error())
 		return
 	}
 
 	// Store the document
 	if err := h.storage.Store(ctx, doc); err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to store PRD", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to store PRD", err.Error())
 		return
 	}
 
@@ -149,14 +149,14 @@ func (h *PRDHandler) GetPRD(w http.ResponseWriter, r *http.Request) {
 	// Extract document ID from URL path
 	id := h.extractIDFromPath(r.URL.Path)
 	if id == "" {
-		response.WriteError(w, http.StatusBadRequest, "Missing document ID", "Document ID is required")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Missing document ID", "Document ID is required")
 		return
 	}
 
 	// Retrieve document
 	doc, err := h.storage.Get(ctx, id)
 	if err != nil {
-		response.WriteError(w, http.StatusNotFound, "Document not found", err.Error())
+		response.WriteError(w, http.StatusNotFound, response.ErrorCodeNotFound, "Document not found", err.Error())
 		return
 	}
 
@@ -173,7 +173,7 @@ func (h *PRDHandler) ListPRDs(w http.ResponseWriter, r *http.Request) {
 	// Retrieve documents
 	docs, err := h.storage.List(ctx, filters)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to list PRDs", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to list PRDs", err.Error())
 		return
 	}
 
@@ -194,21 +194,21 @@ func (h *PRDHandler) UpdatePRD(w http.ResponseWriter, r *http.Request) {
 	// Extract document ID
 	id := h.extractIDFromPath(r.URL.Path)
 	if id == "" {
-		response.WriteError(w, http.StatusBadRequest, "Missing document ID", "Document ID is required")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Missing document ID", "Document ID is required")
 		return
 	}
 
 	// Parse update request
 	var updateReq map[string]interface{}
 	if err := json.NewDecoder(r.Body).Decode(&updateReq); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Get existing document
 	doc, err := h.storage.Get(ctx, id)
 	if err != nil {
-		response.WriteError(w, http.StatusNotFound, "Document not found", err.Error())
+		response.WriteError(w, http.StatusNotFound, response.ErrorCodeNotFound, "Document not found", err.Error())
 		return
 	}
 
@@ -217,7 +217,7 @@ func (h *PRDHandler) UpdatePRD(w http.ResponseWriter, r *http.Request) {
 
 	// Update document
 	if err := h.storage.Update(ctx, doc); err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to update PRD", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to update PRD", err.Error())
 		return
 	}
 
@@ -231,13 +231,13 @@ func (h *PRDHandler) DeletePRD(w http.ResponseWriter, r *http.Request) {
 	// Extract document ID
 	id := h.extractIDFromPath(r.URL.Path)
 	if id == "" {
-		response.WriteError(w, http.StatusBadRequest, "Missing document ID", "Document ID is required")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Missing document ID", "Document ID is required")
 		return
 	}
 
 	// Delete document
 	if err := h.storage.Delete(ctx, id); err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to delete PRD", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to delete PRD", err.Error())
 		return
 	}
 

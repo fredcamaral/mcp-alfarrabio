@@ -52,6 +52,11 @@ type SyncResult struct {
 	Timestamp         time.Time          `json:"timestamp"`
 }
 
+// GetMCPClient returns the MCP client used by the batch sync service
+func (b *BatchSyncService) GetMCPClient() ports.MCPClient {
+	return b.mcpClient
+}
+
 // NewBatchSyncService creates a new batch sync service
 func NewBatchSyncService(
 	mcpClient ports.MCPClient,

@@ -63,20 +63,20 @@ func (h *TaskSearchHandler) SearchTasks(w http.ResponseWriter, r *http.Request) 
 	// Parse search query
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	if query == "" {
-		response.WriteError(w, http.StatusBadRequest, "Search query is required", "Parameter 'q' cannot be empty")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Search query is required", "Parameter 'q' cannot be empty")
 		return
 	}
 
 	// Validate query
 	if err := h.validateSearchQuery(query); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid search query", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid search query", err.Error())
 		return
 	}
 
 	// Parse search options
 	options, err := h.parseSearchOptions(r)
 	if err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid search options", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid search options", err.Error())
 		return
 	}
 
@@ -96,7 +96,7 @@ func (h *TaskSearchHandler) SearchTasks(w http.ResponseWriter, r *http.Request) 
 	// Perform search
 	results, err := h.service.SearchTasks(r.Context(), &searchQuery, userID)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Search failed", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Search failed", err.Error())
 		return
 	}
 
@@ -117,13 +117,13 @@ func (h *TaskSearchHandler) AdvancedSearch(w http.ResponseWriter, r *http.Reques
 	// Parse request body
 	var req AdvancedSearchRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if err := h.validateAdvancedSearchRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid search request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid search request", err.Error())
 		return
 	}
 
@@ -136,7 +136,7 @@ func (h *TaskSearchHandler) AdvancedSearch(w http.ResponseWriter, r *http.Reques
 	// Perform search
 	results, err := h.service.SearchTasks(r.Context(), &searchQuery, userID)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Search failed", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Search failed", err.Error())
 		return
 	}
 
@@ -158,7 +158,7 @@ func (h *TaskSearchHandler) GetSearchSuggestions(w http.ResponseWriter, r *http.
 	// Parse partial query
 	query := strings.TrimSpace(r.URL.Query().Get("q"))
 	if len(query) < h.config.MinQueryLength {
-		response.WriteError(w, http.StatusBadRequest, "Query too short",
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Query too short",
 			fmt.Sprintf("Minimum query length is %d characters", h.config.MinQueryLength))
 		return
 	}

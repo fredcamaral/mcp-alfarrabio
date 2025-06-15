@@ -85,7 +85,8 @@ func run() int {
 	}
 
 	if err != nil {
-		logger.Fatal("Command execution failed", "error", err)
+		logger.Error("Command execution failed", "error", err.Error())
+		logger.Fatal("Migration failed")
 		return 1
 	}
 

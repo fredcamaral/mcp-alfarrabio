@@ -16,7 +16,25 @@ func (c *CLI) createSyncCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "sync",
 		Short: "Synchronize tasks with server",
-		Long:  `Perform batch synchronization operations with the Lerian MCP Memory Server.`,
+		Long: `Perform batch synchronization operations with the Lerian MCP Memory Server.
+
+Examples:
+  # Run synchronization
+  lmmc sync
+  
+  # Check sync status
+  lmmc sync status
+  
+  # Enable auto-sync
+  lmmc sync auto
+  
+  # Force full sync
+  lmmc sync force
+  
+  # View sync conflicts
+  lmmc sync conflicts
+
+Note: Requires MCP server to be running and configured.`,
 	}
 
 	// Add subcommands
@@ -222,21 +240,97 @@ func (c *CLI) runSyncStatus() error {
 
 	fmt.Printf("📊 Synchronization Status\n")
 	fmt.Printf("========================\n\n")
-	fmt.Printf("Repository: %s\n", status.Repository)
-	fmt.Printf("Client ID: %s\n", status.ClientID)
-	fmt.Printf("Last sync: %s\n", formatTimeAgo(status.LastSyncTime))
-	fmt.Printf("Sync token: %s\n", truncateString(status.SyncToken, 16))
-	fmt.Printf("Total syncs: %d\n", status.TotalSyncs)
-	fmt.Printf("Last conflicts: %d\n", status.LastConflictCount)
-	fmt.Printf("Sync version: %d\n", status.SyncVersion)
+
+	// Server connection info
+	fmt.Printf("Server Configuration:\n")
+	if c.taskService != nil && c.taskService.GetMCPClient() != nil {
+		client := c.taskService.GetMCPClient()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		config, _ := c.configMgr.Load()
+		fmt.Printf("  URL: %s\n", config.Server.URL)
+
+		if err := client.TestConnection(ctx); err != nil {
+			fmt.Printf("  Status: ❌ Offline (%v)\n", err)
+			fmt.Printf("  💡 Tip: Check if the server is running at %s\n", config.Server.URL)
+		} else {
+			fmt.Printf("  Status: ✅ Online\n")
+		}
+	} else {
+		fmt.Printf("  Status: ❌ Not configured\n")
+		fmt.Printf("  💡 Tip: Set server URL with 'lmmc config set server.url <url>'\n")
+	}
+
+	fmt.Printf("\nSync Details:\n")
+	if status.Repository == "" {
+		fmt.Printf("  Repository: %s\n", "(not set - using current directory)")
+		// Try to detect current repository
+		if repoInfo := c.detectRepository(); repoInfo != "" {
+			fmt.Printf("  Detected: %s\n", repoInfo)
+		}
+	} else {
+		fmt.Printf("  Repository: %s\n", status.Repository)
+	}
+
+	fmt.Printf("  Client ID: %s\n", status.ClientID)
+
+	// Better last sync display
+	if status.LastSyncTime.IsZero() {
+		fmt.Printf("  Last sync: Never\n")
+		fmt.Printf("  💡 Tip: Run 'lmmc sync' to synchronize tasks\n")
+	} else {
+		fmt.Printf("  Last sync: %s\n", formatTimeAgo(status.LastSyncTime))
+		if time.Since(status.LastSyncTime) > 24*time.Hour {
+			fmt.Printf("  ⚠️  Warning: Last sync was more than 24 hours ago\n")
+		}
+	}
+
+	if status.SyncToken != "" {
+		fmt.Printf("  Sync token: %s\n", truncateString(status.SyncToken, 16))
+	} else {
+		fmt.Printf("  Sync token: (none)\n")
+	}
+
+	fmt.Printf("  Total syncs: %d\n", status.TotalSyncs)
+
+	if status.LastConflictCount > 0 {
+		fmt.Printf("  Last conflicts: %d ⚠️\n", status.LastConflictCount)
+		fmt.Printf("  💡 Tip: Use 'lmmc sync --resolve' to handle conflicts\n")
+	} else {
+		fmt.Printf("  Last conflicts: %d ✅\n", status.LastConflictCount)
+	}
+
+	fmt.Printf("  Sync version: %d\n", status.SyncVersion)
 
 	// Check pending changes if repository is available
-	if status.Repository != "" {
+	repo := status.Repository
+	if repo == "" {
+		repo = c.detectRepository()
+	}
+
+	if repo != "" {
 		ctx := context.Background()
-		pendingChanges, err := c.batchSyncService.GetPendingChanges(ctx, status.Repository)
+		pendingChanges, err := c.batchSyncService.GetPendingChanges(ctx, repo)
 		if err == nil {
-			fmt.Printf("Pending changes: %d\n", pendingChanges)
+			if pendingChanges > 0 {
+				fmt.Printf("  Pending changes: %d 📝\n", pendingChanges)
+				fmt.Printf("  💡 Tip: Run 'lmmc sync' to upload changes\n")
+			} else {
+				fmt.Printf("  Pending changes: %d ✅\n", pendingChanges)
+			}
+		} else {
+			fmt.Printf("  Pending changes: (unable to check)\n")
 		}
+	}
+
+	// Auto-sync status
+	fmt.Printf("\nAuto-sync: ")
+	if c.autoSyncActive {
+		fmt.Printf("✅ Enabled\n")
+	} else {
+		fmt.Printf("❌ Disabled\n")
+		fmt.Printf("  💡 Tip: Run 'lmmc sync auto' to enable automatic synchronization\n")
 	}
 
 	return nil

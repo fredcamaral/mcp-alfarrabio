@@ -182,7 +182,7 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 				retryAfter := int(result.RetryAfter.Seconds())
 				w.Header().Set("Retry-After", strconv.Itoa(retryAfter))
 
-				response.WriteError(w, http.StatusTooManyRequests, "Rate limit exceeded",
+				response.WriteError(w, http.StatusTooManyRequests, response.ErrorCodeRateLimited, "Rate limit exceeded",
 					fmt.Sprintf("Rate limit of %d requests per %v exceeded. Try again in %v.",
 						result.Limit, result.Rule.Window, result.RetryAfter))
 				return

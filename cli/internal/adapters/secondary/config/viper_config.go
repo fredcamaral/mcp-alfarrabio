@@ -71,10 +71,10 @@ func (c *ViperConfigManager) Load() (*entities.Config, error) {
 			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
 		// Config file not found is OK, we'll use defaults
-		c.logger.Info("config file not found, using defaults",
+		c.logger.Debug("config file not found, using defaults",
 			slog.String("expected_path", filepath.Join(c.configDir, "config.yaml")))
 	} else {
-		c.logger.Info("loaded config file",
+		c.logger.Debug("loaded config file",
 			slog.String("path", c.viper.ConfigFileUsed()))
 	}
 
@@ -121,7 +121,7 @@ func (c *ViperConfigManager) Save(config *entities.Config) error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	c.logger.Info("config saved",
+	c.logger.Debug("config saved",
 		slog.String("path", configPath))
 	return nil
 }

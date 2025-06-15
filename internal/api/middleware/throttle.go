@@ -192,7 +192,7 @@ func (t *Throttler) Middleware() func(http.Handler) http.Handler {
 			// Try to enqueue request
 			if !t.enqueue(throttledReq) {
 				// Queue is full, handle based on drop policy
-				response.WriteError(w, http.StatusServiceUnavailable,
+				response.WriteError(w, http.StatusServiceUnavailable, response.ErrorCodeServiceUnavailable,
 					"Service temporarily unavailable",
 					"Request queue is full. Please try again later.")
 				return
@@ -202,16 +202,16 @@ func (t *Throttler) Middleware() func(http.Handler) http.Handler {
 			select {
 			case result := <-throttledReq.ResultChan:
 				if !result.Success && result.Error != nil {
-					response.WriteError(w, http.StatusRequestTimeout,
+					response.WriteError(w, http.StatusRequestTimeout, response.ErrorCodeTimeout,
 						"Request timeout", result.Error.Error())
 				}
 			case <-r.Context().Done():
 				// Request was cancelled
-				response.WriteError(w, http.StatusRequestTimeout,
+				response.WriteError(w, http.StatusRequestTimeout, response.ErrorCodeTimeout,
 					"Request cancelled", "Request was cancelled by client")
 			case <-time.After(t.config.QueueTimeout):
 				// Queue timeout
-				response.WriteError(w, http.StatusServiceUnavailable,
+				response.WriteError(w, http.StatusServiceUnavailable, response.ErrorCodeServiceUnavailable,
 					"Queue timeout", "Request timed out in queue")
 			}
 		})

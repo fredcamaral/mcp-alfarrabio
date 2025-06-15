@@ -21,6 +21,9 @@ type MCPClient interface {
 	// QueryIntelligence queries the server's intelligence capabilities (patterns, suggestions, etc.)
 	QueryIntelligence(ctx context.Context, operation string, options map[string]interface{}) (map[string]interface{}, error)
 
+	// CallMCPTool calls a generic MCP tool with the given parameters
+	CallMCPTool(ctx context.Context, tool string, params map[string]interface{}) (map[string]interface{}, error)
+
 	// TestConnection tests the connection to the MCP server
 	TestConnection(ctx context.Context) error
 

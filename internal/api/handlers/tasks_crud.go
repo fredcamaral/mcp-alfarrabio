@@ -60,13 +60,13 @@ func (h *TaskCRUDHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	// Parse request body
 	var req CreateTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if err := h.validateCreateRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Validation failed", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeValidationFailed, "Validation failed", err.Error())
 		return
 	}
 
@@ -78,7 +78,7 @@ func (h *TaskCRUDHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Create task
 	if err := h.service.CreateTask(r.Context(), &task, userID); err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to create task", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to create task", err.Error())
 		return
 	}
 
@@ -94,7 +94,7 @@ func (h *TaskCRUDHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 func (h *TaskCRUDHandler) GetTask(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "id")
 	if taskID == "" {
-		response.WriteError(w, http.StatusBadRequest, "Task ID is required", "")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Task ID is required", "")
 		return
 	}
 
@@ -105,9 +105,9 @@ func (h *TaskCRUDHandler) GetTask(w http.ResponseWriter, r *http.Request) {
 	task, err := h.service.GetTask(r.Context(), taskID, userID)
 	if err != nil {
 		if isNotFoundError(err) {
-			response.WriteError(w, http.StatusNotFound, "Task not found", err.Error())
+			response.WriteError(w, http.StatusNotFound, response.ErrorCodeNotFound, "Task not found", err.Error())
 		} else {
-			response.WriteError(w, http.StatusInternalServerError, "Failed to get task", err.Error())
+			response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to get task", err.Error())
 		}
 		return
 	}
@@ -123,20 +123,20 @@ func (h *TaskCRUDHandler) GetTask(w http.ResponseWriter, r *http.Request) {
 func (h *TaskCRUDHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "id")
 	if taskID == "" {
-		response.WriteError(w, http.StatusBadRequest, "Task ID is required", "")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Task ID is required", "")
 		return
 	}
 
 	// Parse request body
 	var req UpdateTaskRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Invalid JSON request", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Invalid JSON request", err.Error())
 		return
 	}
 
 	// Validate request
 	if err := h.validateUpdateRequest(&req); err != nil {
-		response.WriteError(w, http.StatusBadRequest, "Validation failed", err.Error())
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeValidationFailed, "Validation failed", err.Error())
 		return
 	}
 
@@ -147,9 +147,9 @@ func (h *TaskCRUDHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 	existingTask, err := h.service.GetTask(r.Context(), taskID, userID)
 	if err != nil {
 		if isNotFoundError(err) {
-			response.WriteError(w, http.StatusNotFound, "Task not found", err.Error())
+			response.WriteError(w, http.StatusNotFound, response.ErrorCodeNotFound, "Task not found", err.Error())
 		} else {
-			response.WriteError(w, http.StatusInternalServerError, "Failed to get task", err.Error())
+			response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to get task", err.Error())
 		}
 		return
 	}
@@ -160,7 +160,7 @@ func (h *TaskCRUDHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 
 	// Update task
 	if err := h.service.UpdateTask(r.Context(), &updatedTask, userID); err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to update task", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to update task", err.Error())
 		return
 	}
 
@@ -175,7 +175,7 @@ func (h *TaskCRUDHandler) UpdateTask(w http.ResponseWriter, r *http.Request) {
 func (h *TaskCRUDHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "id")
 	if taskID == "" {
-		response.WriteError(w, http.StatusBadRequest, "Task ID is required", "")
+		response.WriteError(w, http.StatusBadRequest, response.ErrorCodeBadRequest, "Task ID is required", "")
 		return
 	}
 
@@ -185,9 +185,9 @@ func (h *TaskCRUDHandler) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	// Delete task
 	if err := h.service.DeleteTask(r.Context(), taskID, userID); err != nil {
 		if isNotFoundError(err) {
-			response.WriteError(w, http.StatusNotFound, "Task not found", err.Error())
+			response.WriteError(w, http.StatusNotFound, response.ErrorCodeNotFound, "Task not found", err.Error())
 		} else {
-			response.WriteError(w, http.StatusInternalServerError, "Failed to delete task", err.Error())
+			response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to delete task", err.Error())
 		}
 		return
 	}
@@ -210,7 +210,7 @@ func (h *TaskCRUDHandler) ListTasks(w http.ResponseWriter, r *http.Request) {
 	// List tasks
 	taskList, err := h.service.ListTasks(r.Context(), &filters, userID)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to list tasks", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to list tasks", err.Error())
 		return
 	}
 
@@ -233,7 +233,7 @@ func (h *TaskCRUDHandler) GetTaskMetrics(w http.ResponseWriter, r *http.Request)
 	filters := tasks.TaskFilters{Limit: 1000} // Large limit for metrics
 	taskList, err := h.service.ListTasks(r.Context(), &filters, userID)
 	if err != nil {
-		response.WriteError(w, http.StatusInternalServerError, "Failed to get tasks for metrics", err.Error())
+		response.WriteError(w, http.StatusInternalServerError, response.ErrorCodeInternalError, "Failed to get tasks for metrics", err.Error())
 		return
 	}
 

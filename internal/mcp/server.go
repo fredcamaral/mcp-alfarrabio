@@ -1336,6 +1336,13 @@ func (ms *MemoryServer) handleGetPatterns(ctx context.Context, params map[string
 }
 
 func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface{}) (interface{}, error) {
+	// Add recovery to prevent crashes during health checks
+	defer func() {
+		if r := recover(); r != nil {
+			logging.Error("Panic in handleHealth", "error", r)
+		}
+	}()
+
 	logging.Info("MCP TOOL: memory_health called")
 
 	health := map[string]interface{}{
@@ -1344,9 +1351,16 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 		"services":  map[string]interface{}{},
 	}
 
-	// Check vector store
+	// Check vector store with nil check
 	logging.Info("Checking vector store health")
-	if err := ms.container.GetVectorStore().HealthCheck(ctx); err != nil {
+	if ms.container == nil || ms.container.GetVectorStore() == nil {
+		logging.Error("Vector store is nil")
+		health["services"].(map[string]interface{})["vector_store"] = map[string]interface{}{
+			"status": "unhealthy",
+			"error":  "vector store not initialized",
+		}
+		health["status"] = "degraded"
+	} else if err := ms.container.GetVectorStore().HealthCheck(ctx); err != nil {
 		logging.Error("Vector store health check failed", "error", err)
 		health["services"].(map[string]interface{})["vector_store"] = map[string]interface{}{
 			"status": "unhealthy",
@@ -1360,9 +1374,16 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 		}
 	}
 
-	// Check embedding service
+	// Check embedding service with nil check
 	logging.Info("Checking embedding service health")
-	if err := ms.container.GetEmbeddingService().HealthCheck(ctx); err != nil {
+	if ms.container == nil || ms.container.GetEmbeddingService() == nil {
+		logging.Error("Embedding service is nil")
+		health["services"].(map[string]interface{})["embedding_service"] = map[string]interface{}{
+			"status": "unhealthy",
+			"error":  "embedding service not initialized",
+		}
+		health["status"] = "degraded"
+	} else if err := ms.container.GetEmbeddingService().HealthCheck(ctx); err != nil {
 		logging.Error("Embedding service health check failed", "error", err)
 		health["services"].(map[string]interface{})["embedding_service"] = map[string]interface{}{
 			"status": "unhealthy",

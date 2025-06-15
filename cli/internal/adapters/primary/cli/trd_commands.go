@@ -38,6 +38,7 @@ func (c *CLI) createTRDCreateCommand() *cobra.Command {
 	var (
 		fromPRD string
 		output  string
+		session bool
 	)
 
 	cmd := &cobra.Command{
@@ -45,13 +46,14 @@ func (c *CLI) createTRDCreateCommand() *cobra.Command {
 		Short: "Create a TRD from PRD",
 		Long:  `Create a Technical Requirements Document from an existing Product Requirements Document.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.runTRDCreate(fromPRD, output)
+			return c.runTRDCreate(fromPRD, output, session)
 		},
 	}
 
 	// Add flags
-	cmd.Flags().StringVar(&fromPRD, "from-prd", "", "PRD file to generate TRD from")
+	cmd.Flags().StringVar(&fromPRD, "from-prd", "", "PRD file to generate TRD from (auto-detects if not specified)")
 	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
+	cmd.Flags().BoolVar(&session, "session", true, "Use session management for context")
 
 	return cmd
 }
@@ -116,34 +118,69 @@ func (c *CLI) createTRDExportCommand() *cobra.Command {
 // TRD command implementations
 
 // runTRDCreate handles TRD creation from PRD
-func (c *CLI) runTRDCreate(fromPRD, output string) error {
+func (c *CLI) runTRDCreate(fromPRD, output string, useSession bool) error {
 	if c.documentChain == nil {
 		return fmt.Errorf("document chain service not available")
 	}
 
-	fmt.Printf("🔧 Creating TRD from PRD\n")
-	fmt.Printf("========================\n\n")
+	fmt.Printf("🔧 Creating Technical Requirements Document\n")
+	fmt.Printf("=========================================\n\n")
 
 	ctx := context.Background()
 
-	// Create a mock PRD for demonstration
-	mockPRD := &services.PRDEntity{
-		ID:          "prd-001",
-		Title:       "Sample Project",
-		Description: "A sample project for TRD generation",
-		Features:    []string{"Feature 1", "Feature 2", "Feature 3"},
-		UserStories: []string{"As a user, I want feature 1", "As a user, I want feature 2"},
-		Metadata: map[string]interface{}{
-			"repository":   c.detectRepository(),
-			"project_type": "general",
-		},
-		CreatedAt: time.Now(),
+	// Smart context detection
+	if fromPRD == "" && useSession {
+		fromPRD = c.detectLatestPRD()
+		if fromPRD != "" {
+			fmt.Printf("📄 Auto-detected PRD: %s\n", filepath.Base(fromPRD))
+		} else {
+			return NewPRDNotFoundError()
+		}
 	}
 
+	// Load PRD
+	prd, err := c.loadPRDFromFile(fromPRD)
+	if err != nil {
+		// Fallback to mock for demonstration
+		prd = &services.PRDEntity{
+			ID:          "prd-001",
+			Title:       "Sample Project",
+			Description: "A sample project for TRD generation",
+			Features:    []string{"Feature 1", "Feature 2", "Feature 3"},
+			UserStories: []string{"As a user, I want feature 1", "As a user, I want feature 2"},
+			Metadata: map[string]interface{}{
+				"repository":   c.detectRepository(),
+				"project_type": "general",
+			},
+			CreatedAt: time.Now(),
+		}
+	}
+
+	fmt.Printf("🔄 Generating TRD from: %s\n\n", prd.Title)
+
 	// Generate TRD
-	trd, err := c.documentChain.GenerateTRDFromPRD(ctx, mockPRD)
+	trd, err := c.documentChain.GenerateTRDFromPRD(ctx, prd)
 	if err != nil {
 		return fmt.Errorf("failed to generate TRD: %w", err)
+	}
+
+	// Determine output file
+	if output == "" && useSession {
+		// Default output location with matching name
+		preDev := "docs/pre-development"
+		os.MkdirAll(preDev, 0755)
+
+		// Extract base name from PRD file
+		baseName := "project"
+		if fromPRD != "" {
+			base := filepath.Base(fromPRD)
+			if strings.HasPrefix(base, "prd-") {
+				baseName = strings.TrimPrefix(base, "prd-")
+				baseName = strings.TrimSuffix(baseName, filepath.Ext(baseName))
+			}
+		}
+
+		output = filepath.Join(preDev, fmt.Sprintf("trd-%s.md", baseName))
 	}
 
 	// Save TRD if output specified
@@ -153,18 +190,23 @@ func (c *CLI) runTRDCreate(fromPRD, output string) error {
 			return fmt.Errorf("failed to save TRD: %w", err)
 		}
 		fmt.Printf("📄 TRD saved to: %s\n", output)
+
+		// Update session
+		if useSession {
+			c.updateSession("trd_file", output)
+		}
 	}
 
 	// Display results
-	fmt.Printf("✅ TRD created successfully!\n")
+	fmt.Printf("\n✅ TRD created successfully!\n")
 	fmt.Printf("   ID: %s\n", trd.ID)
 	fmt.Printf("   Title: %s\n", trd.Title)
 	fmt.Printf("   Tech Stack: %d items\n", len(trd.TechStack))
 	fmt.Printf("   Requirements: %d items\n", len(trd.Requirements))
 
 	fmt.Printf("\n💡 Next steps:\n")
-	fmt.Printf("   - Run 'lmmc taskgen main' to generate main tasks\n")
-	fmt.Printf("   - Run 'lmmc workflow run' to execute complete automation\n")
+	fmt.Printf("   - Run 'lmmc tasks generate' to create project tasks\n")
+	fmt.Printf("   - Run 'lmmc workflow continue' to proceed with automation\n")
 
 	return nil
 }

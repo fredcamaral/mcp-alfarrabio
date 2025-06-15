@@ -15,6 +15,7 @@ import (
 	"log"
 	"net/http"
 	"os/signal"
+	"runtime/debug"
 	"strings"
 	"syscall"
 	"time"
@@ -197,6 +198,28 @@ func setupLegacyHTTPRoutes(ctx context.Context, mcpServer *server.Server, wsHub 
 // setupMCPHandler configures the MCP-over-HTTP endpoint
 func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
 	mux.HandleFunc("/mcp", func(w http.ResponseWriter, r *http.Request) {
+		// Recover from panics to prevent server crashes
+		defer func() {
+			if err := recover(); err != nil {
+				log.Printf("Panic in MCP handler: %v", err)
+				log.Printf("Stack trace: %s", debug.Stack())
+
+				// Return error response
+				errorResp := protocol.JSONRPCResponse{
+					JSONRPC: "2.0",
+					Error: &protocol.JSONRPCError{
+						Code:    -32603,
+						Message: "Internal server error",
+						Data:    fmt.Sprintf("Server panic: %v", err),
+					},
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(errorResp)
+			}
+		}()
+
 		// Debug: Log authorization header
 		authHeader := r.Header.Get("Authorization")
 		if authHeader != "" {

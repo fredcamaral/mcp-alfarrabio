@@ -11,6 +11,20 @@ import (
 	"github.com/charmbracelet/lipgloss"
 )
 
+// Color palette - Modern and accessible
+var (
+	primaryColor   = lipgloss.Color("#00D9FF") // Cyan
+	secondaryColor = lipgloss.Color("#FF006E") // Magenta
+	successColor   = lipgloss.Color("#00F5FF") // Light cyan
+	warningColor   = lipgloss.Color("#FFB700") // Orange
+	errorColor     = lipgloss.Color("#FF006E") // Red
+	mutedColor     = lipgloss.Color("#626262") // Gray
+	bgColor        = lipgloss.Color("#1a1b26") // Dark background
+	bgAltColor     = lipgloss.Color("#24283b") // Alternative background
+	textColor      = lipgloss.Color("#c0caf5") // Light text
+	borderColor    = lipgloss.Color("#414868") // Border
+)
+
 type REPLMode string
 
 const (
@@ -196,26 +210,33 @@ func (m REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 			return m, tea.Quit
 
-		// View mode switching
-		case "F1":
+		// Enhanced F-key detection for better terminal compatibility
+		case "f1", "F1", "ctrl+1", "alt+1":
 			m.viewMode = ViewModeCommand
 			return m, nil
-		case "F2":
+		case "f2", "F2", "ctrl+2", "alt+2":
 			m.viewMode = ViewModeDashboard
 			m.loadDashboardData()
 			return m, nil
-		case "F3":
+		case "f3", "F3", "ctrl+3", "alt+3":
 			m.viewMode = ViewModeAnalytics
 			m.loadAnalyticsData()
 			return m, nil
-		case "F4":
+		case "f4", "F4", "ctrl+4", "alt+4":
 			m.viewMode = ViewModeTaskList
 			return m, nil
-		case "F5":
+		case "f5", "F5", "ctrl+5", "alt+5":
 			m.viewMode = ViewModePatterns
 			return m, nil
-		case "F6":
+		case "f6", "F6", "ctrl+6", "alt+6":
 			m.viewMode = ViewModeInsights
+			return m, nil
+
+		// Additional help key
+		case "ctrl+h", "?":
+			if m.viewMode == ViewModeCommand {
+				m.output = append(m.output, m.getHelpText()...)
+			}
 			return m, nil
 
 		// Navigation in dashboard/analytics modes
@@ -506,42 +527,55 @@ func (m REPLModel) executeCommand(cmd string) REPLModel {
 }
 
 func (m REPLModel) getHelpText() []string {
+	// Style helpers
+	headerStyle := lipgloss.NewStyle().Foreground(primaryColor).Bold(true)
+	keyStyle := lipgloss.NewStyle().Foreground(secondaryColor).Bold(true)
+	descStyle := lipgloss.NewStyle().Foreground(textColor)
+
 	return []string{
 		"",
-		"LMMC TUI - Interactive Multi-Repository Intelligence Platform",
+		headerStyle.Render("LMMC TUI - Interactive Multi-Repository Intelligence Platform"),
 		"",
-		"View Navigation:",
-		"  F1 / command      Switch to command mode",
-		"  F2 / dashboard    Switch to dashboard view",
-		"  F3 / analytics    Switch to analytics view",
-		"  F4 / tasks        Switch to task list view",
-		"  F5 / patterns     Switch to patterns view",
-		"  F6 / insights     Switch to insights view",
+		headerStyle.Render("View Navigation:"),
+		"  " + keyStyle.Render("F1/Ctrl+1/Alt+1") + " " + descStyle.Render("Switch to command mode"),
+		"  " + keyStyle.Render("F2/Ctrl+2/Alt+2") + " " + descStyle.Render("Switch to dashboard view"),
+		"  " + keyStyle.Render("F3/Ctrl+3/Alt+3") + " " + descStyle.Render("Switch to analytics view"),
+		"  " + keyStyle.Render("F4/Ctrl+4/Alt+4") + " " + descStyle.Render("Switch to task list view"),
+		"  " + keyStyle.Render("F5/Ctrl+5/Alt+5") + " " + descStyle.Render("Switch to patterns view"),
+		"  " + keyStyle.Render("F6/Ctrl+6/Alt+6") + " " + descStyle.Render("Switch to insights view"),
 		"",
-		"Dashboard Navigation:",
-		"  Tab               Switch between panes",
-		"  h/j/k/l          Vim-style navigation",
-		"  r                 Refresh data",
-		"  1-4              Quick chart switching (analytics)",
-		"  d/w/m            Day/Week/Month time range",
+		headerStyle.Render("Dashboard Navigation:"),
+		"  " + keyStyle.Render("Tab") + "             " + descStyle.Render("Switch between panes"),
+		"  " + keyStyle.Render("h/j/k/l") + "         " + descStyle.Render("Vim-style navigation"),
+		"  " + keyStyle.Render("r") + "               " + descStyle.Render("Refresh data"),
+		"  " + keyStyle.Render("1-4") + "             " + descStyle.Render("Quick chart switching (analytics)"),
+		"  " + keyStyle.Render("d/w/m") + "           " + descStyle.Render("Day/Week/Month time range"),
 		"",
-		"Basic Commands:",
-		"  help              Show this help message",
-		"  status            Show current status and configuration",
-		"  clear             Clear the output",
-		"  exit, quit        Exit the TUI",
+		headerStyle.Render("Basic Commands:"),
+		"  " + keyStyle.Render("help") + "            " + descStyle.Render("Show this help message"),
+		"  " + keyStyle.Render("status") + "          " + descStyle.Render("Show current status and configuration"),
+		"  " + keyStyle.Render("clear") + "           " + descStyle.Render("Clear the output"),
+		"  " + keyStyle.Render("exit, quit") + "      " + descStyle.Render("Exit the TUI"),
+		"  " + keyStyle.Render("Ctrl+H, ?") + "       " + descStyle.Render("Quick help"),
+		"  " + keyStyle.Render("Ctrl+C, Esc") + "     " + descStyle.Render("Exit the TUI"),
 		"",
-		"Document Generation:",
-		"  prd create        Start interactive PRD creation",
-		"  trd create        Generate TRD from existing PRD",
-		"  workflow run      Run complete automation workflow",
+		headerStyle.Render("Document Generation:"),
+		"  " + keyStyle.Render("prd create") + "      " + descStyle.Render("Start interactive PRD creation"),
+		"  " + keyStyle.Render("trd create") + "      " + descStyle.Render("Generate TRD from existing PRD"),
+		"  " + keyStyle.Render("workflow run") + "    " + descStyle.Render("Run complete automation workflow"),
 		"",
-		"Key Features:",
-		"  📊 Real-time multi-repo dashboard",
-		"  📈 Advanced analytics with ASCII charts",
+		headerStyle.Render("Key Features:"),
+		"  📊 Real-time multi-repo dashboard with live metrics",
+		"  📈 Advanced analytics with gradient ASCII charts",
 		"  🔄 Pattern detection and workflow analysis",
 		"  💡 Cross-repository insights and recommendations",
-		"  📋 Interactive task management",
+		"  📋 Interactive task management with status tracking",
+		"  🎨 Beautiful terminal UI with modern color scheme",
+		"",
+		headerStyle.Render("Tips:"),
+		"  • F-keys not working? Try Ctrl+1-6 or Alt+1-6 instead",
+		"  • Terminal colors look wrong? Try setting " + keyStyle.Render("COLORTERM=truecolor"),
+		"  • For best experience, use a terminal with 256-color support",
 		"",
 	}
 }
@@ -611,19 +645,29 @@ func (m REPLModel) renderCommandView() string {
 		view.WriteString("\n")
 	}
 
-	// Input line
+	// Input line with enhanced styling
 	promptStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("39")).
+		Foreground(primaryColor).
+		Bold(true)
+
+	inputStyle := lipgloss.NewStyle().
+		Foreground(textColor)
+
+	cursorStyle := lipgloss.NewStyle().
+		Foreground(primaryColor).
+		Background(primaryColor).
 		Bold(true)
 
 	prompt := promptStyle.Render("lmmc> ")
-	inputDisplay := m.input
 
-	// Add cursor
-	if m.cursor < len(inputDisplay) {
-		inputDisplay = inputDisplay[:m.cursor] + "█" + inputDisplay[m.cursor+1:]
+	// Build input with cursor
+	var inputDisplay string
+	if m.cursor < len(m.input) {
+		inputDisplay = inputStyle.Render(m.input[:m.cursor]) +
+			cursorStyle.Render(" ") +
+			inputStyle.Render(m.input[m.cursor:])
 	} else {
-		inputDisplay += "█"
+		inputDisplay = inputStyle.Render(m.input) + cursorStyle.Render(" ")
 	}
 
 	view.WriteString(prompt + inputDisplay)
@@ -809,37 +853,160 @@ func (m REPLModel) renderInsightsView() string {
 func (m REPLModel) renderTaskStatsPanel(width, height int) string {
 	style := m.getPanelStyle(width, height, m.activePane == 0)
 
-	content := fmt.Sprintf("📊 Task Statistics\n\n"+
-		"Total Tasks:     %d\n"+
-		"✅ Completed:    %d (%.1f%%)\n"+
-		"🔄 In Progress:  %d\n"+
-		"⛔ Blocked:      %d\n\n"+
-		"📅 Today:        %d tasks\n"+
-		"📈 This Week:    %d tasks",
-		m.dashboardData.TaskStats.Total,
-		m.dashboardData.TaskStats.Completed,
-		float64(m.dashboardData.TaskStats.Completed)/float64(m.dashboardData.TaskStats.Total)*100,
-		m.dashboardData.TaskStats.InProgress,
-		m.dashboardData.TaskStats.Blocked,
-		m.dashboardData.TaskStats.TodayCount,
-		m.dashboardData.TaskStats.WeekCount)
+	// Title
+	titleStyle := lipgloss.NewStyle().
+		Foreground(primaryColor).
+		Bold(true).
+		MarginBottom(1)
 
-	return style.Render(content)
+	// Number styles
+	numberStyle := lipgloss.NewStyle().
+		Foreground(primaryColor).
+		Bold(true)
+
+	labelStyle := lipgloss.NewStyle().
+		Foreground(textColor)
+
+	// Calculate completion rate
+	stats := m.dashboardData.TaskStats
+	completionRate := float64(stats.Completed) / float64(stats.Total)
+
+	// Progress bar
+	progressBar := m.renderProgressBar("Progress", completionRate, width-4)
+
+	// Build content with styled elements
+	var contentBuilder strings.Builder
+	contentBuilder.WriteString(titleStyle.Render("📊 Task Statistics") + "\n\n")
+	contentBuilder.WriteString(progressBar + "\n\n")
+
+	// Stats grid
+	contentBuilder.WriteString(labelStyle.Render("Total Tasks:    ") + numberStyle.Render(fmt.Sprint(stats.Total)) + "\n")
+	contentBuilder.WriteString(labelStyle.Render("✅ Completed:   ") + numberStyle.Render(fmt.Sprintf("%d (%.1f%%)", stats.Completed, completionRate*100)) + "\n")
+	contentBuilder.WriteString(labelStyle.Render("🔄 In Progress: ") + numberStyle.Render(fmt.Sprint(stats.InProgress)) + "\n")
+	contentBuilder.WriteString(labelStyle.Render("⛔ Blocked:     ") + numberStyle.Render(fmt.Sprint(stats.Blocked)) + "\n\n")
+	contentBuilder.WriteString(labelStyle.Render("📅 Today:       ") + numberStyle.Render(fmt.Sprintf("%d tasks", stats.TodayCount)) + "\n")
+	contentBuilder.WriteString(labelStyle.Render("📈 This Week:   ") + numberStyle.Render(fmt.Sprintf("%d tasks", stats.WeekCount)))
+
+	return style.Render(contentBuilder.String())
+}
+
+// Add the progress bar rendering function if not already present
+func (m REPLModel) renderProgressBar(label string, value float64, width int) string {
+	barWidth := width - len(label) - 10
+	if barWidth < 10 {
+		barWidth = 10
+	}
+
+	filledWidth := int(value * float64(barWidth))
+	emptyWidth := barWidth - filledWidth
+
+	// Choose color based on value
+	var barColor lipgloss.Color
+	if value < 0.3 {
+		barColor = errorColor
+	} else if value < 0.7 {
+		barColor = warningColor
+	} else {
+		barColor = successColor
+	}
+
+	filled := lipgloss.NewStyle().
+		Foreground(barColor).
+		Render(strings.Repeat("█", filledWidth))
+
+	empty := lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Render(strings.Repeat("░", emptyWidth))
+
+	percentage := lipgloss.NewStyle().
+		Foreground(textColor).
+		Bold(true).
+		Render(fmt.Sprintf(" %3.0f%%", value*100))
+
+	labelStyle := lipgloss.NewStyle().
+		Width(len(label)).
+		Foreground(textColor).
+		Render(label)
+
+	return fmt.Sprintf("%s %s%s%s", labelStyle, filled, empty, percentage)
 }
 
 func (m REPLModel) renderRepoMetricsPanel(width, height int) string {
 	style := m.getPanelStyle(width, height, m.activePane == 1)
 
-	content := "🏛️ Repository Metrics\n\n"
-	for _, repo := range m.repositories {
+	// Title
+	titleStyle := lipgloss.NewStyle().
+		Foreground(primaryColor).
+		Bold(true).
+		MarginBottom(1)
+
+	// Repository name style
+	repoStyle := lipgloss.NewStyle().
+		Foreground(secondaryColor).
+		Bold(true)
+
+	// Metric styles (removed unused variables)
+
+	var contentBuilder strings.Builder
+	contentBuilder.WriteString(titleStyle.Render("🏛️ Repository Metrics") + "\n\n")
+
+	// Render each repository with mini progress bars
+	for i, repo := range m.repositories {
+		if i >= 2 { // Limit to 2 repos for space
+			break
+		}
+
 		metrics := m.dashboardData.RepoMetrics[repo]
-		content += fmt.Sprintf("📁 %s\n", repo)
-		content += fmt.Sprintf("   Productivity: %.1f%%\n", metrics.Productivity)
-		content += fmt.Sprintf("   Velocity: %.1f tasks/week\n", metrics.Velocity)
-		content += fmt.Sprintf("   Completion: %.1f%%\n\n", metrics.CompletionRate*100)
+
+		// Repository name
+		contentBuilder.WriteString(repoStyle.Render("📁 "+repo) + "\n")
+
+		// Mini progress bars for each metric
+		prodBar := m.renderMiniBar("Prod", metrics.Productivity/100, width-8)
+		contentBuilder.WriteString("  " + prodBar + "\n")
+
+		velocityNorm := metrics.Velocity / 20.0 // Normalize to 0-1 (assuming 20 is high)
+		if velocityNorm > 1.0 {
+			velocityNorm = 1.0
+		}
+		velBar := m.renderMiniBar("Vel ", velocityNorm, width-8)
+		contentBuilder.WriteString("  " + velBar + "\n")
+
+		compBar := m.renderMiniBar("Comp", metrics.CompletionRate, width-8)
+		contentBuilder.WriteString("  " + compBar + "\n")
+
+		if i < len(m.repositories)-1 && i < 1 {
+			contentBuilder.WriteString("\n")
+		}
 	}
 
-	return style.Render(content)
+	return style.Render(contentBuilder.String())
+}
+
+// Mini progress bar for compact display
+func (m REPLModel) renderMiniBar(label string, value float64, width int) string {
+	barWidth := width - len(label) - 8
+	if barWidth < 5 {
+		barWidth = 5
+	}
+
+	filledWidth := int(value * float64(barWidth))
+	emptyWidth := barWidth - filledWidth
+
+	// Compact bar characters
+	filled := lipgloss.NewStyle().
+		Foreground(primaryColor).
+		Render(strings.Repeat("▰", filledWidth))
+
+	empty := lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Render(strings.Repeat("▱", emptyWidth))
+
+	percentage := lipgloss.NewStyle().
+		Foreground(textColor).
+		Render(fmt.Sprintf("%3.0f%%", value*100))
+
+	return fmt.Sprintf("%s %s%s %s", label, filled, empty, percentage)
 }
 
 func (m REPLModel) renderCrossRepoPanel(width, height int) string {
@@ -905,7 +1072,7 @@ func (m REPLModel) renderChart(chartType string, width, height int) string {
 
 func (m REPLModel) renderASCIIChart(data []ChartPoint, width, height int) string {
 	if len(data) == 0 {
-		return "No data available"
+		return lipgloss.NewStyle().Foreground(mutedColor).Render("No data available")
 	}
 
 	// Find min/max values
@@ -921,20 +1088,55 @@ func (m REPLModel) renderASCIIChart(data []ChartPoint, width, height int) string
 
 	var chart strings.Builder
 
-	// Simple bar chart
-	for _, point := range data {
-		if len(data) > 7 {
-			break // Limit to 7 bars for readability
+	// Enhanced bar chart with gradient colors
+	for i, point := range data {
+		if i >= 7 { // Limit to 7 bars
+			break
 		}
 
-		// Calculate bar height
-		barHeight := int((point.Value - minVal) / (maxVal - minVal) * 10)
-		bar := strings.Repeat("█", barHeight)
-		if len(bar) == 0 {
-			bar = "▁"
+		// Calculate bar height (0-10 scale)
+		normalized := (point.Value - minVal) / (maxVal - minVal)
+		barHeight := int(normalized * 10)
+
+		// Build gradient bar
+		var bar string
+		for j := 0; j < barHeight; j++ {
+			if j < 3 {
+				bar += lipgloss.NewStyle().Foreground(errorColor).Render("▂")
+			} else if j < 7 {
+				bar += lipgloss.NewStyle().Foreground(warningColor).Render("▄")
+			} else {
+				bar += lipgloss.NewStyle().Foreground(successColor).Render("█")
+			}
 		}
 
-		chart.WriteString(fmt.Sprintf("%-8s %s %.1f\n", point.Label, bar, point.Value))
+		if barHeight == 0 {
+			bar = lipgloss.NewStyle().Foreground(mutedColor).Render("▁")
+		}
+
+		// Format label and value
+		label := lipgloss.NewStyle().
+			Width(8).
+			Foreground(textColor).
+			Render(point.Label)
+
+		value := lipgloss.NewStyle().
+			Foreground(primaryColor).
+			Bold(true).
+			Render(fmt.Sprintf("%.1f", point.Value))
+
+		// Add percentage indicator
+		percentage := normalized * 100
+		var indicator string
+		if percentage >= 80 {
+			indicator = lipgloss.NewStyle().Foreground(successColor).Render("↑")
+		} else if percentage >= 50 {
+			indicator = lipgloss.NewStyle().Foreground(warningColor).Render("→")
+		} else {
+			indicator = lipgloss.NewStyle().Foreground(errorColor).Render("↓")
+		}
+
+		chart.WriteString(fmt.Sprintf("%s %s %s %s\n", label, bar, value, indicator))
 	}
 
 	return chart.String()
@@ -969,37 +1171,162 @@ func (m REPLModel) renderOutliersPanel(width, height int) string {
 
 // Helper methods
 func (m REPLModel) renderHeader(title string) string {
-	headerStyle := lipgloss.NewStyle().
-		Bold(true).
-		Foreground(lipgloss.Color("86")).
-		Background(lipgloss.Color("235")).
-		Padding(0, 1).
-		Width(m.width)
+	width := m.width
+	if width < 80 {
+		width = 80
+	}
 
-	return headerStyle.Render(fmt.Sprintf("LMMC TUI - %s", title))
+	// Title style with gradient effect
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(primaryColor).
+		Background(bgAltColor).
+		Padding(0, 2).
+		Width(width)
+
+	// Mode indicators
+	modes := []struct {
+		key      string
+		label    string
+		viewMode ViewMode
+		icon     string
+	}{
+		{"F1", "Command", ViewModeCommand, "💻"},
+		{"F2", "Dashboard", ViewModeDashboard, "📊"},
+		{"F3", "Analytics", ViewModeAnalytics, "📈"},
+		{"F4", "Tasks", ViewModeTaskList, "📋"},
+		{"F5", "Patterns", ViewModePatterns, "🔄"},
+		{"F6", "Insights", ViewModeInsights, "💡"},
+	}
+
+	// Build mode buttons
+	var modeButtons []string
+	for _, mode := range modes {
+		style := lipgloss.NewStyle().
+			Padding(0, 1).
+			MarginRight(1)
+
+		if m.viewMode == mode.viewMode {
+			style = style.
+				Foreground(bgColor).
+				Background(primaryColor).
+				Bold(true)
+		} else {
+			style = style.
+				Foreground(mutedColor).
+				Background(bgColor)
+		}
+
+		button := style.Render(fmt.Sprintf("%s %s:%s", mode.icon, mode.key, mode.label))
+		modeButtons = append(modeButtons, button)
+	}
+
+	// Title section
+	titleSection := titleStyle.Render(fmt.Sprintf("🚀 LMMC TUI - %s", title))
+
+	// Mode bar
+	modeBar := lipgloss.JoinHorizontal(lipgloss.Left, modeButtons...)
+	modeSection := lipgloss.NewStyle().
+		Width(width).
+		Align(lipgloss.Center).
+		Background(bgColor).
+		Padding(0, 1).
+		Render(modeBar)
+
+	return titleSection + "\n" + modeSection
 }
 
 func (m REPLModel) renderFooter(text string) string {
-	footerStyle := lipgloss.NewStyle().
-		Foreground(lipgloss.Color("240")).
-		Italic(true).
-		Width(m.width)
+	width := m.width
+	if width < 80 {
+		width = 80
+	}
 
-	return footerStyle.Render(text)
+	// Status indicators
+	var status []string
+
+	// Connection status
+	statusStyle := lipgloss.NewStyle().
+		Padding(0, 1).
+		Bold(true)
+
+	if m.httpPort > 0 {
+		status = append(status, statusStyle.Copy().
+			Foreground(bgColor).
+			Background(successColor).
+			Render("● HTTP:"+fmt.Sprint(m.httpPort)))
+	} else {
+		status = append(status, statusStyle.Copy().
+			Foreground(mutedColor).
+			Render("○ Offline"))
+	}
+
+	// Time
+	timeStr := time.Now().Format("15:04:05")
+	status = append(status, lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Render(timeStr))
+
+	// Help hints based on mode
+	var helpHints []string
+	switch m.viewMode {
+	case ViewModeCommand:
+		helpHints = []string{"Enter: Execute", "Ctrl+H: Help", "Ctrl+C: Exit"}
+	case ViewModeDashboard, ViewModeAnalytics:
+		helpHints = []string{"Tab: Switch Pane", "R: Refresh", "Ctrl+C: Exit"}
+	default:
+		helpHints = []string{"↑↓: Navigate", "Enter: Select", "Ctrl+C: Exit"}
+	}
+
+	helpText := lipgloss.NewStyle().
+		Foreground(mutedColor).
+		Render(strings.Join(helpHints, " | "))
+
+	// Combine elements
+	leftContent := lipgloss.JoinHorizontal(lipgloss.Left, status...)
+
+	// Calculate padding
+	leftWidth := lipgloss.Width(leftContent)
+	rightWidth := lipgloss.Width(helpText)
+	padding := width - leftWidth - rightWidth - 4
+	if padding < 0 {
+		padding = 0
+	}
+
+	footer := lipgloss.JoinHorizontal(
+		lipgloss.Left,
+		leftContent,
+		strings.Repeat(" ", padding),
+		helpText,
+	)
+
+	return lipgloss.NewStyle().
+		Foreground(textColor).
+		Background(bgColor).
+		Padding(0, 1).
+		Width(width).
+		Render(footer)
 }
 
 func (m REPLModel) getPanelStyle(width, height int, active bool) lipgloss.Style {
-	borderColor := lipgloss.Color("240")
-	if active {
-		borderColor = lipgloss.Color("39")
-	}
-
-	return lipgloss.NewStyle().
+	style := lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
-		BorderForeground(borderColor).
 		Padding(1).
 		Width(width).
-		Height(height)
+		Height(height).
+		Background(bgColor)
+
+	if active {
+		style = style.
+			BorderForeground(primaryColor).
+			BorderBackground(bgColor)
+	} else {
+		style = style.
+			BorderForeground(borderColor).
+			BorderBackground(bgColor)
+	}
+
+	return style
 }
 
 func (m REPLModel) startHTTPServer() error {

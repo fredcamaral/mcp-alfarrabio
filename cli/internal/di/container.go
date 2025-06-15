@@ -8,6 +8,8 @@ import (
 	"io"
 	"log/slog"
 	"os"
+	"path/filepath"
+	"strings"
 	"time"
 
 	"lerian-mcp-memory-cli/internal/adapters/primary/cli"
@@ -15,8 +17,8 @@ import (
 	"lerian-mcp-memory-cli/internal/adapters/secondary/analytics"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/config"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/filesystem"
-	"lerian-mcp-memory-cli/internal/adapters/secondary/http"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/mcp"
+	"lerian-mcp-memory-cli/internal/adapters/secondary/prompts"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/repository"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/storage"
 	"lerian-mcp-memory-cli/internal/adapters/secondary/visualization"
@@ -38,6 +40,7 @@ type Container struct {
 	AIService          ports.AIService
 	DocumentChain      services.DocumentChainService
 	BatchSyncService   *services.BatchSyncService
+	ReviewService      *services.ReviewService
 	CLI                *cli.CLI
 
 	// Intelligence Services
@@ -100,6 +103,9 @@ func NewContainer() (*Container, error) {
 	// Initialize batch sync service
 	container.initBatchSyncService()
 
+	// Initialize review service
+	container.initReviewService()
+
 	// Initialize intelligence services
 	container.initIntelligenceServices()
 
@@ -139,6 +145,8 @@ func NewTestContainer(cfg *entities.Config) (*Container, error) {
 	container.initTaskService()
 
 	container.initBatchSyncService()
+
+	container.initReviewService()
 
 	container.initIntelligenceServices()
 
@@ -258,8 +266,8 @@ func (c *Container) initMCPClient() {
 		return
 	}
 
-	// Use HTTP REST client instead of MCP JSON-RPC client
-	client := http.NewHTTPRestClient(c.Config, c.Logger)
+	// Use MCP JSON-RPC client for full MCP protocol support
+	client := mcp.NewHTTPMCPClient(c.Config, c.Logger)
 	c.MCPClient = client
 
 	// Test connection (non-blocking)
@@ -333,6 +341,43 @@ func (c *Container) initDocumentChainService() {
 func (c *Container) initBatchSyncService() {
 	c.BatchSyncService = services.NewBatchSyncService(c.MCPClient, c.Storage, c.Logger)
 	c.Logger.Info("batch sync service initialized")
+}
+
+// initReviewService initializes the code review service
+func (c *Container) initReviewService() {
+	// Get the prompts directory from the docs path
+	// Use the parent directory's docs folder
+	docsPath := "../docs"
+
+	// Check if we're in the CLI directory
+	if wd, err := os.Getwd(); err == nil {
+		if strings.HasSuffix(wd, "/cli") {
+			docsPath = "../docs"
+		} else {
+			docsPath = "docs"
+		}
+	}
+	promptsDir := filepath.Join(docsPath, "ai-prompts")
+
+	// Create prompt loader
+	promptLoader := prompts.NewPromptLoader(promptsDir)
+
+	// Load prompts
+	if err := promptLoader.LoadPrompts(); err != nil {
+		c.Logger.Error("failed to load review prompts", slog.Any("error", err))
+		// Continue without review service for now
+		return
+	}
+
+	// Create review service
+	c.ReviewService = services.NewReviewService(
+		c.AIService,
+		c.MCPClient,
+		promptLoader,
+		c.Storage,
+	)
+
+	c.Logger.Info("review service initialized", slog.String("prompts_dir", promptsDir))
 }
 
 // initIntelligenceServices initializes all intelligence-related services
@@ -509,7 +554,7 @@ func (c *Container) initCLI() {
 		CrossRepoAnalyzer: c.CrossRepoAnalyzer,
 	}
 
-	c.CLI = cli.NewCLIWithIntelligence(
+	c.CLI = cli.NewCLIWithIntelligenceAndReview(
 		c.TaskService,
 		c.ConfigManager,
 		c.Logger,
@@ -518,6 +563,7 @@ func (c *Container) initCLI() {
 		c.AIService,
 		c.RepositoryDetector,
 		c.BatchSyncService,
+		c.ReviewService,
 		intelligenceDeps,
 	)
 }

@@ -6,7 +6,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"sort"
@@ -464,21 +463,22 @@ func (msm *MigrationSafetyManager) getAppliedMigrations(ctx context.Context) ([]
 func (msm *MigrationSafetyManager) getMigrationFiles() ([]string, error) {
 	var files []string
 
-	err := filepath.WalkDir(msm.migrationsPath, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-
-		if d.IsDir() || !strings.HasSuffix(path, ".sql") {
-			return nil
-		}
-
-		files = append(files, path)
-		return nil
-	})
-
+	// Read only files in the root migrations directory, not subdirectories
+	entries, err := os.ReadDir(msm.migrationsPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to walk migrations directory: %w", err)
+		return nil, fmt.Errorf("failed to read migrations directory: %w", err)
+	}
+
+	for _, entry := range entries {
+		// Skip directories (like 'rollback')
+		if entry.IsDir() {
+			continue
+		}
+
+		// Only include .sql files
+		if strings.HasSuffix(entry.Name(), ".sql") {
+			files = append(files, filepath.Join(msm.migrationsPath, entry.Name()))
+		}
 	}
 
 	sort.Strings(files)
@@ -709,18 +709,71 @@ func (msm *MigrationSafetyManager) executeSingleMigration(ctx context.Context, m
 		return fmt.Errorf("failed to read migration file: %w", err)
 	}
 
-	// Execute migration in transaction
-	tx, err := msm.db.BeginTx(ctx, nil)
-	if err != nil {
-		return fmt.Errorf("failed to begin transaction: %w", err)
-	}
-	defer func() { _ = tx.Rollback() }()
+	// Check if migration contains CONCURRENTLY statements
+	sqlContent := string(content)
+	containsConcurrently := strings.Contains(strings.ToUpper(sqlContent), "CONCURRENTLY")
 
-	_, err = tx.ExecContext(ctx, string(content))
-	if err != nil {
-		// Record failed migration
-		_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
-		return fmt.Errorf("failed to execute migration SQL: %w", err)
+	if containsConcurrently {
+		// Execute migrations with CONCURRENTLY outside of transaction
+		msm.logger.Info("Migration contains CONCURRENTLY statements, executing without transaction")
+
+		// Split the SQL into statements
+		statements := msm.splitSQLStatements(sqlContent)
+
+		for i, stmt := range statements {
+			stmt = strings.TrimSpace(stmt)
+			if stmt == "" {
+				continue
+			}
+
+			// Check if this statement needs to run outside transaction
+			if strings.Contains(strings.ToUpper(stmt), "CONCURRENTLY") {
+				msm.logger.Debug("Executing CONCURRENTLY statement", "statement_index", i)
+				_, err = msm.db.ExecContext(ctx, stmt)
+				if err != nil {
+					_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
+					return fmt.Errorf("failed to execute CONCURRENTLY statement: %w", err)
+				}
+			} else {
+				// Execute non-concurrent statements in transaction
+				tx, err := msm.db.BeginTx(ctx, nil)
+				if err != nil {
+					return fmt.Errorf("failed to begin transaction: %w", err)
+				}
+
+				_, err = tx.ExecContext(ctx, stmt)
+				if err != nil {
+					_ = tx.Rollback()
+					_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
+					return fmt.Errorf("failed to execute statement: %w", err)
+				}
+
+				err = tx.Commit()
+				if err != nil {
+					_ = tx.Rollback()
+					return fmt.Errorf("failed to commit transaction: %w", err)
+				}
+			}
+		}
+	} else {
+		// Execute migration in transaction (original behavior)
+		tx, err := msm.db.BeginTx(ctx, nil)
+		if err != nil {
+			return fmt.Errorf("failed to begin transaction: %w", err)
+		}
+		defer func() { _ = tx.Rollback() }()
+
+		_, err = tx.ExecContext(ctx, sqlContent)
+		if err != nil {
+			// Record failed migration
+			_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
+			return fmt.Errorf("failed to execute migration SQL: %w", err)
+		}
+
+		err = tx.Commit()
+		if err != nil {
+			return fmt.Errorf("failed to commit migration transaction: %w", err)
+		}
 	}
 
 	// Record successful migration
@@ -729,17 +782,87 @@ func (msm *MigrationSafetyManager) executeSingleMigration(ctx context.Context, m
 		return fmt.Errorf("failed to record migration: %w", err)
 	}
 
-	err = tx.Commit()
-	if err != nil {
-		return fmt.Errorf("failed to commit migration transaction: %w", err)
-	}
-
 	duration := time.Since(startTime)
 	msm.logger.Info("Migration executed successfully",
 		"version", migration.Version,
 		"duration", duration.String())
 
 	return nil
+}
+
+// splitSQLStatements splits SQL content into individual statements
+// It's a simple implementation that splits on semicolons not inside quotes
+func (msm *MigrationSafetyManager) splitSQLStatements(sql string) []string {
+	var statements []string
+	var currentStatement strings.Builder
+	inSingleQuote := false
+	inDoubleQuote := false
+	inDollarQuote := false
+	var dollarTag string
+
+	runes := []rune(sql)
+	for i := 0; i < len(runes); i++ {
+		char := runes[i]
+
+		// Handle dollar quotes (PostgreSQL specific)
+		if char == '$' && !inSingleQuote && !inDoubleQuote {
+			// Look for dollar quote tag
+			tagStart := i
+			tagEnd := i + 1
+			for tagEnd < len(runes) && runes[tagEnd] != '$' {
+				tagEnd++
+			}
+			if tagEnd < len(runes) {
+				tag := string(runes[tagStart : tagEnd+1])
+				if inDollarQuote && tag == dollarTag {
+					inDollarQuote = false
+					dollarTag = ""
+				} else if !inDollarQuote {
+					inDollarQuote = true
+					dollarTag = tag
+				}
+				currentStatement.WriteString(tag)
+				i = tagEnd
+				continue
+			}
+		}
+
+		// Handle quotes
+		if !inDollarQuote {
+			if char == '\'' && !inDoubleQuote {
+				// Check for escaped single quote
+				if i+1 < len(runes) && runes[i+1] == '\'' {
+					currentStatement.WriteRune(char)
+					currentStatement.WriteRune(runes[i+1])
+					i++
+					continue
+				}
+				inSingleQuote = !inSingleQuote
+			} else if char == '"' && !inSingleQuote {
+				inDoubleQuote = !inDoubleQuote
+			}
+		}
+
+		// Handle statement separator
+		if char == ';' && !inSingleQuote && !inDoubleQuote && !inDollarQuote {
+			stmt := strings.TrimSpace(currentStatement.String())
+			if stmt != "" {
+				statements = append(statements, stmt)
+			}
+			currentStatement.Reset()
+			continue
+		}
+
+		currentStatement.WriteRune(char)
+	}
+
+	// Add any remaining statement
+	stmt := strings.TrimSpace(currentStatement.String())
+	if stmt != "" {
+		statements = append(statements, stmt)
+	}
+
+	return statements
 }
 
 func (msm *MigrationSafetyManager) recordMigration(ctx context.Context, migration *PlannedMigration, startTime time.Time, backupPath string, success bool, errorMsg string) error {

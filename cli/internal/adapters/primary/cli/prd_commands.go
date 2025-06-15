@@ -39,26 +39,55 @@ func (c *CLI) createPRDCommand() *cobra.Command {
 // createPRDCreateCommand creates the 'prd create' command
 func (c *CLI) createPRDCreateCommand() *cobra.Command {
 	var (
-		interactive bool
-		title       string
-		projectType string
-		output      string
+		noInteractive bool
+		title         string
+		projectType   string
+		output        string
+		aiProvider    string
+		model         string
 	)
 
 	cmd := &cobra.Command{
-		Use:   "create",
+		Use:   "create [description]",
 		Short: "Create a new PRD with AI assistance",
-		Long:  `Create a new Product Requirements Document interactively with AI-powered assistance.`,
+		Long: `Create a new Product Requirements Document with AI-powered assistance.
+
+By default, runs in interactive mode to gather comprehensive requirements.
+Use --no-interactive for quick PRD generation from a description.
+
+Examples:
+  lmmc prd create                                    # Interactive mode
+  lmmc prd create "user auth system"                 # Interactive with initial context
+  lmmc prd create "payment API" --no-interactive     # Quick generation
+  lmmc prd create --ai-provider anthropic --model claude-opus-4`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return c.runPRDCreate(interactive, title, projectType, output)
+			// Get description from args if provided
+			description := ""
+			if len(args) > 0 {
+				description = strings.Join(args, " ")
+			}
+
+			// If we have a description but no title, use it as title
+			if description != "" && title == "" {
+				title = description
+			}
+
+			// Interactive by default unless explicitly disabled
+			interactive := !noInteractive
+
+			return c.runPRDCreate(interactive, title, projectType, output, aiProvider, model)
 		},
 	}
 
 	// Add flags
-	cmd.Flags().BoolVarP(&interactive, "interactive", "i", false, "Start interactive PRD creation")
-	cmd.Flags().StringVarP(&title, "title", "t", "", "PRD title (for non-interactive mode)")
+	cmd.Flags().BoolVar(&noInteractive, "no-interactive", false, "Skip interactive questions")
+	cmd.Flags().StringVarP(&title, "title", "t", "", "PRD title")
 	cmd.Flags().StringVar(&projectType, "type", "", "Project type (web-app, api, cli, etc.)")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (auto-generates if not specified)")
+
+	// AI provider flags (for Priority 0.4)
+	cmd.Flags().StringVar(&aiProvider, "ai-provider", "", "AI provider to use (anthropic, openai, google, local)")
+	cmd.Flags().StringVar(&model, "model", "", "Specific model to use (e.g., claude-opus-4, gpt-4o)")
 
 	return cmd
 }
@@ -141,7 +170,7 @@ func (c *CLI) createPRDExportCommand() *cobra.Command {
 // PRD command implementations
 
 // runPRDCreate handles interactive PRD creation
-func (c *CLI) runPRDCreate(interactive bool, title, projectType, output string) error {
+func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvider, model string) error {
 	if c.aiService == nil {
 		return fmt.Errorf("AI service not available - please check configuration")
 	}
@@ -156,7 +185,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output string) 
 		if title == "" {
 			return fmt.Errorf("title is required for non-interactive mode")
 		}
-		return c.createPRDNonInteractive(ctx, title, projectType, output)
+		return c.createPRDNonInteractive(ctx, title, projectType, output, aiProvider, model)
 	}
 
 	// Start interactive session
@@ -228,13 +257,29 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output string) 
 		return fmt.Errorf("failed to generate PRD: %w", err)
 	}
 
-	// Save PRD if output file specified
-	if output != "" {
-		if err := c.savePRDToFile(prd, output); err != nil {
-			return fmt.Errorf("failed to save PRD to file: %w", err)
-		}
-		fmt.Printf("📄 PRD saved to: %s\n", output)
+	// Determine output file
+	if output == "" {
+		// Default output location
+		preDev := "docs/pre-development"
+		os.MkdirAll(preDev, 0755)
+
+		// Create filename from title
+		baseName := strings.ToLower(prd.Title)
+		baseName = strings.ReplaceAll(baseName, " ", "-")
+		baseName = strings.ReplaceAll(baseName, "/", "-")
+		timestamp := time.Now().Format("2006-01-02")
+
+		output = filepath.Join(preDev, fmt.Sprintf("prd-%s-%s.md", baseName, timestamp))
 	}
+
+	// Save PRD
+	if err := c.savePRDToFile(prd, output); err != nil {
+		return fmt.Errorf("failed to save PRD to file: %w", err)
+	}
+	fmt.Printf("📄 PRD saved to: %s\n", output)
+
+	// Update session for next commands
+	c.updateSession("prd_file", output)
 
 	// Display results
 	fmt.Printf("\n✅ PRD created successfully!\n")
@@ -251,7 +296,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output string) 
 }
 
 // createPRDNonInteractive creates a PRD without interaction
-func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, output string) error {
+func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, output, aiProvider, model string) error {
 	// Create basic context
 	context := &services.GenerationContext{
 		Repository:  c.detectRepository(),
@@ -275,14 +320,32 @@ func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, o
 		return fmt.Errorf("failed to generate PRD: %w", err)
 	}
 
-	// Save to file if specified
-	if output != "" {
-		if err := c.savePRDToFile(prd, output); err != nil {
-			return fmt.Errorf("failed to save PRD: %w", err)
-		}
+	// Determine output file
+	if output == "" {
+		// Default output location
+		preDev := "docs/pre-development"
+		os.MkdirAll(preDev, 0755)
+
+		// Create filename from title
+		baseName := strings.ToLower(title)
+		baseName = strings.ReplaceAll(baseName, " ", "-")
+		baseName = strings.ReplaceAll(baseName, "/", "-")
+		timestamp := time.Now().Format("2006-01-02")
+
+		output = filepath.Join(preDev, fmt.Sprintf("prd-%s-%s.md", baseName, timestamp))
 	}
 
+	// Save PRD
+	if err := c.savePRDToFile(prd, output); err != nil {
+		return fmt.Errorf("failed to save PRD: %w", err)
+	}
+
+	// Update session for next commands
+	c.updateSession("prd_file", output)
+
 	fmt.Printf("✅ PRD '%s' created successfully\n", title)
+	fmt.Printf("📄 Saved to: %s\n", output)
+	fmt.Printf("\n💡 Next step: Run 'lmmc trd create' to generate technical requirements\n")
 	return nil
 }
 

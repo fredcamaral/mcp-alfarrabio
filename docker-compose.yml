@@ -61,7 +61,15 @@ services:
 
   # Lerian MCP Memory Server - Production version
   lerian-mcp-memory:
-    image: ghcr.io/lerianstudio/lerian-mcp-memory:latest
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: dev
+      args:
+        - VERSION=${VERSION:-dev}
+        - BUILD_TIME=${BUILD_TIME:-dev}
+        - COMMIT_HASH=${COMMIT_HASH:-dev}
+    image: lerian-mcp-memory:dev
     container_name: lerian-mcp-memory-server
     restart: unless-stopped
     depends_on:
@@ -207,6 +215,9 @@ services:
       start_period: 40s
     networks:
       - lerian_network
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     profiles: ["dev"]
 
 # Networks

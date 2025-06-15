@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -13,12 +15,38 @@ import (
 
 // createAICommand creates the 'ai' command with subcommands for AI-powered operations
 func (c *CLI) createAICommand() *cobra.Command {
+	var debugAI bool
+
 	cmd := &cobra.Command{
 		Use:   "ai",
 		Short: "AI-powered task processing and memory management",
 		Long: `AI-powered operations that enhance task processing and memory management.
-Use AI to automatically enhance tasks, sync files intelligently, and get performance insights.`,
+Use AI to automatically enhance tasks, sync files intelligently, and get performance insights.
+
+Examples:
+  # Process a task with AI enhancements
+  lmmc ai process <task-id>
+
+  # Analyze performance patterns
+  lmmc ai analyze
+
+  # Get AI insights about your workflow
+  lmmc ai insights
+
+  # Debug AI service connectivity
+  lmmc ai --debug-ai process <task-id>
+
+Note: Requires AI provider API key (OPENAI_API_KEY, ANTHROPIC_API_KEY, or PERPLEXITY_API_KEY)`,
+		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
+			if debugAI {
+				c.printAIServiceDebugInfo(cmd)
+			}
+			return nil
+		},
 	}
+
+	// Add persistent flag for AI debugging
+	cmd.PersistentFlags().BoolVar(&debugAI, "debug-ai", false, "Show AI service initialization details")
 
 	// Add subcommands
 	cmd.AddCommand(c.createAIProcessCommand())
@@ -26,6 +54,12 @@ Use AI to automatically enhance tasks, sync files intelligently, and get perform
 	cmd.AddCommand(c.createAIOptimizeCommand())
 	cmd.AddCommand(c.createAIAnalyzeCommand())
 	cmd.AddCommand(c.createAIInsightsCommand())
+
+	// Add provider management commands
+	cmd.AddCommand(c.createAIProviderCommands())
+	cmd.AddCommand(c.createAIModelCommands())
+	cmd.AddCommand(c.createAICostCommands())
+	cmd.AddCommand(c.createAIFallbackCommands())
 
 	return cmd
 }
@@ -55,8 +89,14 @@ func (c *CLI) createAIProcessCommand() *cobra.Command {
 				return c.handleError(cmd, fmt.Errorf("task ID is required"))
 			}
 
+			// Resolve task ID from short form
+			fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
+			if err != nil {
+				return c.handleError(cmd, err)
+			}
+
 			// Get the task
-			task, err := c.taskService.GetTask(c.getContext(), taskID)
+			task, err := c.taskService.GetTask(c.getContext(), fullTaskID)
 			if err != nil {
 				return c.handleError(cmd, fmt.Errorf("failed to get task: %w", err))
 			}
@@ -515,3 +555,100 @@ func (c *CLI) displayMemoryInsights(insights []*ai.MemoryInsight) error {
 
 // Helper functions
 // Note: formatBytes function is defined in sync_commands.go
+
+// printAIServiceDebugInfo prints detailed information about AI service initialization
+func (c *CLI) printAIServiceDebugInfo(cmd *cobra.Command) {
+	out := cmd.OutOrStdout()
+
+	fmt.Fprintf(out, "🔍 AI Service Debug Information\n")
+	fmt.Fprintf(out, "================================\n\n")
+
+	// Check environment variables
+	fmt.Fprintf(out, "Environment Variables:\n")
+	aiProvider := os.Getenv("AI_PROVIDER")
+	if aiProvider != "" {
+		fmt.Fprintf(out, "  ✓ AI_PROVIDER: %s\n", aiProvider)
+	} else {
+		fmt.Fprintf(out, "  ✗ AI_PROVIDER: not set (auto-detection enabled)\n")
+	}
+
+	// Check for various AI provider keys
+	providers := map[string]string{
+		"OPENAI_API_KEY":     "OpenAI",
+		"ANTHROPIC_API_KEY":  "Anthropic Claude",
+		"PERPLEXITY_API_KEY": "Perplexity",
+	}
+
+	foundKey := false
+	for envVar, provider := range providers {
+		if key := os.Getenv(envVar); key != "" {
+			// Show first 8 chars of key for verification
+			masked := "***"
+			if len(key) > 8 {
+				masked = key[:8] + "..."
+			}
+			fmt.Fprintf(out, "  ✓ %s: %s (key: %s)\n", envVar, provider, masked)
+			foundKey = true
+		} else {
+			fmt.Fprintf(out, "  ✗ %s: not set\n", envVar)
+		}
+	}
+
+	if !foundKey {
+		fmt.Fprintf(out, "\n⚠️  No AI provider API keys found!\n")
+	}
+
+	// Check AI service type
+	fmt.Fprintf(out, "\nAI Service Status:\n")
+	if c.aiService == nil {
+		fmt.Fprintf(out, "  ✗ AI Service: not initialized\n")
+	} else {
+		// Check if it's enhanced service
+		if _, ok := c.aiService.(*ai.EnhancedAIService); ok {
+			fmt.Fprintf(out, "  ✓ AI Service Type: Enhanced (with task processing)\n")
+
+			// Test connection to detect if using mock
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+
+			if err := c.aiService.TestConnection(ctx); err != nil {
+				fmt.Fprintf(out, "  ✗ AI Service Test: failed (%v)\n", err)
+			} else if c.aiService.IsOnline() {
+				fmt.Fprintf(out, "  ✓ AI Service Mode: REAL (connected to AI provider)\n")
+			} else {
+				fmt.Fprintf(out, "  ⚠️  AI Service Mode: MOCK or OFFLINE\n")
+			}
+		} else {
+			fmt.Fprintf(out, "  ✓ AI Service Type: Basic\n")
+		}
+	}
+
+	// Check MCP server connectivity
+	fmt.Fprintf(out, "\nMCP Server Status:\n")
+	if c.taskService != nil && c.taskService.GetMCPClient() != nil {
+		client := c.taskService.GetMCPClient()
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+
+		if err := client.TestConnection(ctx); err != nil {
+			fmt.Fprintf(out, "  ✗ MCP Server: offline (%v)\n", err)
+		} else {
+			fmt.Fprintf(out, "  ✓ MCP Server: online\n")
+		}
+	} else {
+		fmt.Fprintf(out, "  ✗ MCP Server: not configured\n")
+	}
+
+	fmt.Fprintf(out, "\n💡 Troubleshooting Tips:\n")
+	if !foundKey {
+		fmt.Fprintf(out, "  • Set OPENAI_API_KEY environment variable for OpenAI\n")
+		fmt.Fprintf(out, "  • Set ANTHROPIC_API_KEY for Claude\n")
+		fmt.Fprintf(out, "  • Set PERPLEXITY_API_KEY for Perplexity\n")
+	}
+	if aiProvider == "" {
+		fmt.Fprintf(out, "  • Set AI_PROVIDER to force a specific provider\n")
+	}
+	fmt.Fprintf(out, "  • Run 'lmmc config list' to check server configuration\n")
+	fmt.Fprintf(out, "  • Use --verbose flag for more detailed logs\n")
+	fmt.Fprintf(out, "\n")
+}

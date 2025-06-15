@@ -957,7 +957,20 @@ func (qs *QdrantStore) getStringSliceFromPayload(payload map[string]*qdrant.Valu
 
 // updateMetrics updates operation metrics
 func (qs *QdrantStore) updateMetrics(operation string, start time.Time) {
+	// Add nil checks to prevent panics
+	if qs == nil || qs.metrics == nil {
+		return
+	}
+
 	duration := time.Since(start)
+
+	// Initialize maps if nil
+	if qs.metrics.OperationCounts == nil {
+		qs.metrics.OperationCounts = make(map[string]int64)
+	}
+	if qs.metrics.AverageLatency == nil {
+		qs.metrics.AverageLatency = make(map[string]float64)
+	}
 
 	qs.metrics.OperationCounts[operation]++
 

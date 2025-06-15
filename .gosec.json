@@ -1,9 +1,0 @@
-{
-  "tests": false,
-  "exclude-dir": [
-    "internal/storage/chroma-go",
-    "pkg/mcp/examples",
-    "pkg/mcp/testutil"
-  ],
-  "exclude-rules": []
-}
