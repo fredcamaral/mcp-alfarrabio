@@ -185,7 +185,7 @@ func NewREPLModel(mode REPLMode, httpPort int) *REPLModel {
 	}
 }
 
-func (m *REPLModel) Init() tea.Cmd {
+func (m REPLModel) Init() tea.Cmd {
 	// Start HTTP server if port is specified
 	if m.httpPort > 0 {
 		go func() {
@@ -201,11 +201,10 @@ func (m *REPLModel) Init() tea.Cmd {
 	)
 }
 
-func (m *REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.handleWindowResize(msg)
-		return m, nil
+		return m.handleWindowResize(msg), nil
 	case tea.KeyMsg:
 		return m.handleKeyInput(msg)
 	case tickMsg:
@@ -216,9 +215,10 @@ func (m *REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 // handleWindowResize handles window resize messages
-func (m *REPLModel) handleWindowResize(msg tea.WindowSizeMsg) {
+func (m REPLModel) handleWindowResize(msg tea.WindowSizeMsg) REPLModel {
 	m.width = msg.Width
 	m.height = msg.Height
+	return m
 }
 
 // handleKeyInput handles keyboard input

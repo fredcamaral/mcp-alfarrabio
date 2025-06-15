@@ -197,22 +197,23 @@ func (ae *workflowAnalyticsEngine) CalculateVelocityMetrics(ctx context.Context,
 	completedTasks := 0
 
 	for _, task := range tasks {
-		if task.Status == entities.StatusCompleted {
-			completedTasks++
-			year, week := task.UpdatedAt.ISOWeek()
-			weekKey := year*100 + week
-
-			if _, exists := weeklyData[weekKey]; !exists {
-				weeklyData[weekKey] = &entities.WeeklyVelocity{
-					Number:   week,
-					Year:     year,
-					Velocity: 0,
-					Tasks:    0,
-				}
-			}
-			weeklyData[weekKey].Tasks++
-			weeklyData[weekKey].Velocity++
+		if task.Status != entities.StatusCompleted {
+			continue
 		}
+		completedTasks++
+		year, week := task.UpdatedAt.ISOWeek()
+		weekKey := year*100 + week
+
+		if _, exists := weeklyData[weekKey]; !exists {
+			weeklyData[weekKey] = &entities.WeeklyVelocity{
+				Number:   week,
+				Year:     year,
+				Velocity: 0,
+				Tasks:    0,
+			}
+		}
+		weeklyData[weekKey].Tasks++
+		weeklyData[weekKey].Velocity++
 	}
 
 	// Convert to slice and sort

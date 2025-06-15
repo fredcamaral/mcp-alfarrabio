@@ -1046,9 +1046,9 @@ func (ae *analyticsEngineImpl) calculateTasksPerDay(tasks []*entities.Task) floa
 }
 
 // findTaskDateRange finds the oldest and newest task creation times
-func (ae *analyticsEngineImpl) findTaskDateRange(tasks []*entities.Task) (time.Time, time.Time) {
-	oldest := tasks[0].CreatedAt
-	newest := tasks[0].CreatedAt
+func (ae *analyticsEngineImpl) findTaskDateRange(tasks []*entities.Task) (oldest time.Time, newest time.Time) {
+	oldest = tasks[0].CreatedAt
+	newest = tasks[0].CreatedAt
 
 	for _, task := range tasks {
 		if task.CreatedAt.Before(oldest) {
@@ -1063,9 +1063,9 @@ func (ae *analyticsEngineImpl) findTaskDateRange(tasks []*entities.Task) (time.T
 }
 
 // calculateCompletionRates calculates completion rates by priority and type
-func (ae *analyticsEngineImpl) calculateCompletionRates(tasks []*entities.Task) (map[string]float64, map[string]float64) {
-	byPriority := make(map[string]float64)
-	byType := make(map[string]float64)
+func (ae *analyticsEngineImpl) calculateCompletionRates(tasks []*entities.Task) (byPriority map[string]float64, byType map[string]float64) {
+	byPriority = make(map[string]float64)
+	byType = make(map[string]float64)
 
 	priorityCounts, priorityCompleted := ae.countTasksByPriority(tasks)
 	typeCounts, typeCompleted := ae.countTasksByType(tasks)

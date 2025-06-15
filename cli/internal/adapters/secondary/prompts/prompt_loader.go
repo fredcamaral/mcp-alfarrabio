@@ -116,24 +116,28 @@ func (l *PromptLoader) loadPrompt(path string) (*entities.ReviewPrompt, error) {
 }
 
 // parseFilename extracts ID, order, and name from filename
-func (l *PromptLoader) parseFilename(filename string) (string, int, string) {
+func (l *PromptLoader) parseFilename(filename string) (id string, order int, name string) {
 	// Remove extension
-	name := strings.TrimSuffix(filename, filepath.Ext(filename))
+	name = strings.TrimSuffix(filename, filepath.Ext(filename))
 
 	// Extract order number (e.g., "01-codebase-overview" -> 1)
 	re := regexp.MustCompile(`^(\d+)-(.+)$`)
 	matches := re.FindStringSubmatch(name)
 
 	if len(matches) == 3 {
-		order, _ := strconv.Atoi(matches[1])
+		order, _ = strconv.Atoi(matches[1])
 		cleanName := strings.ReplaceAll(matches[2], "-", " ")
 		caser := cases.Title(language.English)
 		cleanName = caser.String(cleanName)
-		return fmt.Sprintf("prompt-%02d", order), order, cleanName
+		id = fmt.Sprintf("prompt-%02d", order)
+		name = cleanName
+		return
 	}
 
 	// Fallback
-	return name, 99, name
+	id = name
+	order = 99
+	return
 }
 
 // determinePhase determines the review phase based on prompt order
