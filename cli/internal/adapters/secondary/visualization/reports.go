@@ -134,6 +134,7 @@ func (ae *analyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, fileP
 	defer func() {
 		if err := file.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 
@@ -161,6 +162,7 @@ func (ae *analyticsExporter) exportReportJSON(report *entities.ProductivityRepor
 	defer func() {
 		if err := file.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 
@@ -190,6 +192,7 @@ func (ae *analyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filePa
 	defer func() {
 		if err := file.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 
@@ -323,6 +326,7 @@ func (ae *analyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, fileP
 	defer func() {
 		if err := file.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 
@@ -348,6 +352,7 @@ func (ae *analyticsExporter) exportReportHTML(report *entities.ProductivityRepor
 	defer func() {
 		if err := file.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 

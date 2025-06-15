@@ -54,8 +54,8 @@ type SyncResult struct {
 }
 
 // GetMCPClient returns the MCP client used by the batch sync service
-func (b *BatchSyncService) GetMCPClient() ports.MCPClient {
-	return b.mcpClient
+func (s *BatchSyncService) GetMCPClient() ports.MCPClient {
+	return s.mcpClient
 }
 
 // NewBatchSyncService creates a new batch sync service

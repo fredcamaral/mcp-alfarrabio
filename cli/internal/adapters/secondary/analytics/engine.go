@@ -14,6 +14,11 @@ import (
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
 
+// Trend direction constants
+const (
+	TrendStable = "stable"
+)
+
 // AnalyticsEngine interface defines analytics capabilities
 type AnalyticsEngine interface {
 	// Productivity analytics
@@ -748,7 +753,7 @@ func (ae *analyticsEngineImpl) generateProductivityInsights(
 	} else if trend < -0.1 {
 		insights = append(insights, "Productivity trend is declining - consider reviewing work patterns")
 	} else {
-		insights = append(insights, "Productivity trend is stable")
+		insights = append(insights, "Productivity trend is "+TrendStable)
 	}
 
 	// Find patterns in the data
@@ -804,7 +809,7 @@ func (ae *analyticsEngineImpl) calculateCompletionTrend(completions []DailyCompl
 	} else if diff < -0.1 {
 		return "declining"
 	}
-	return "stable"
+	return TrendStable
 }
 
 func (ae *analyticsEngineImpl) generateCompletionPredictions(
@@ -1223,7 +1228,7 @@ func (ae *analyticsEngineImpl) CalculateVelocityMetrics(
 func (ae *analyticsEngineImpl) createEmptyVelocityMetrics() *entities.VelocityMetrics {
 	return &entities.VelocityMetrics{
 		CurrentVelocity: 0,
-		TrendDirection:  "stable",
+		TrendDirection:  TrendStable,
 		TrendPercentage: 0,
 		ByWeek:          []entities.WeeklyVelocity{},
 		Consistency:     0,
@@ -1298,18 +1303,18 @@ func (ae *analyticsEngineImpl) getCurrentVelocity(weeklyVelocities []entities.We
 
 func (ae *analyticsEngineImpl) calculateVelocityTrend(weeklyVelocities []entities.WeeklyVelocity) (string, float64) {
 	if len(weeklyVelocities) < 2 {
-		return "stable", 0.0
+		return TrendStable, 0.0
 	}
 
 	recent := weeklyVelocities[len(weeklyVelocities)-1].Velocity
 	previous := weeklyVelocities[len(weeklyVelocities)-2].Velocity
 
 	if previous == 0 {
-		return "stable", 0.0
+		return TrendStable, 0.0
 	}
 
 	trendPercentage := ((recent - previous) / previous) * 100
-	trendDirection := "stable"
+	trendDirection := TrendStable
 
 	if trendPercentage > 5 {
 		trendDirection = "up"

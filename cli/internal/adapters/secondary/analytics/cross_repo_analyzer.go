@@ -1,3 +1,5 @@
+// Package analytics provides cross-repository analysis capabilities.
+// This file contains the cross-repository analyzer for detecting patterns across projects.
 package analytics
 
 import (

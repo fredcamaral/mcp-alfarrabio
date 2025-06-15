@@ -559,12 +559,12 @@ func (e *AnalyticsExporter) writePDFHeader(report *strings.Builder, metrics *ent
 	report.WriteString("                    ANALYTICS REPORT (PDF)\n")
 	report.WriteString("====================================================================\n\n")
 
-	report.WriteString(fmt.Sprintf("Repository: %s\n", metrics.Repository))
-	report.WriteString(fmt.Sprintf("Period: %s to %s\n",
+	fmt.Fprintf(report, "Repository: %s\n", metrics.Repository)
+	fmt.Fprintf(report, "Period: %s to %s\n",
 		metrics.Period.Start.Format("Jan 2, 2006"),
-		metrics.Period.End.Format("Jan 2, 2006")))
-	report.WriteString(fmt.Sprintf("Overall Score: %.0f/100\n", metrics.GetOverallScore()*100))
-	report.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().Format("January 2, 2006 at 3:04 PM")))
+		metrics.Period.End.Format("Jan 2, 2006"))
+	fmt.Fprintf(report, "Overall Score: %.0f/100\n", metrics.GetOverallScore()*100)
+	fmt.Fprintf(report, "Generated: %s\n\n", time.Now().Format("January 2, 2006 at 3:04 PM"))
 }
 
 // writePDFProductivitySection writes the productivity metrics section
@@ -572,11 +572,11 @@ func (e *AnalyticsExporter) writePDFProductivitySection(report *strings.Builder,
 	report.WriteString("--------------------------------------------------------------------\n")
 	report.WriteString("📈 PRODUCTIVITY METRICS\n")
 	report.WriteString("--------------------------------------------------------------------\n")
-	report.WriteString(fmt.Sprintf("Score:              %.1f/100\n", metrics.Productivity.Score))
-	report.WriteString(fmt.Sprintf("Tasks per Day:      %.1f\n", metrics.Productivity.TasksPerDay))
-	report.WriteString(fmt.Sprintf("Focus Time:         %.1f hours\n", metrics.Productivity.FocusTime.Hours()))
-	report.WriteString(fmt.Sprintf("Deep Work Ratio:    %.0f%%\n", metrics.Productivity.DeepWorkRatio*100))
-	report.WriteString(fmt.Sprintf("Context Switches:   %d\n", metrics.Productivity.ContextSwitches))
+	fmt.Fprintf(report, "Score:              %.1f/100\n", metrics.Productivity.Score)
+	fmt.Fprintf(report, "Tasks per Day:      %.1f\n", metrics.Productivity.TasksPerDay)
+	fmt.Fprintf(report, "Focus Time:         %.1f hours\n", metrics.Productivity.FocusTime.Hours())
+	fmt.Fprintf(report, "Deep Work Ratio:    %.0f%%\n", metrics.Productivity.DeepWorkRatio*100)
+	fmt.Fprintf(report, "Context Switches:   %d\n", metrics.Productivity.ContextSwitches)
 
 	if len(metrics.Productivity.PeakHours) > 0 {
 		report.WriteString("Peak Hours:         ")
@@ -584,7 +584,7 @@ func (e *AnalyticsExporter) writePDFProductivitySection(report *strings.Builder,
 			if i > 0 {
 				report.WriteString(", ")
 			}
-			report.WriteString(fmt.Sprintf("%02d:00", hour))
+			fmt.Fprintf(report, "%02d:00", hour)
 		}
 		report.WriteString("\n")
 	}

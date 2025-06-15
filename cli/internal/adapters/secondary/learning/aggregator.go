@@ -304,6 +304,7 @@ func (pa *patternAggregatorImpl) ValidatePrivacyCompliance(
 		// This would be checked against the aggregated pattern source count
 		// For now, we'll assume it passes individual validation
 		// TODO: Implement proper anonymization threshold checking
+		_ = settings.MinAnonymization // Acknowledge that we're not using this yet
 	}
 
 	return nil

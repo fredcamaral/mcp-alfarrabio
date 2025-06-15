@@ -181,6 +181,7 @@ func (c *CLI) configureMCPServer(out io.Writer, reader *bufio.Reader, config *en
 
 // configureAIProviders handles Step 3: AI Provider Configuration
 func (c *CLI) configureAIProviders(out io.Writer, config *entities.Config) []string {
+	_ = config // Currently unused, but kept for future extension
 	fmt.Fprintf(out, "\n🤖 Step 3: AI Provider Configuration\n")
 	fmt.Fprintf(out, "------------------------------------\n")
 

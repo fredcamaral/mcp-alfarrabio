@@ -1,3 +1,5 @@
+// Package commands provides primary command interfaces and structures for the CLI.
+// This file contains common types and interfaces used across command handlers.
 package commands
 
 import (

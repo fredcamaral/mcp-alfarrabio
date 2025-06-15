@@ -639,7 +639,7 @@ func (c *CLI) generateProjectTasks(cmd *cobra.Command, config *ProjectConfig) {
 		}
 	}()
 
-	fmt.Fprintf(cmd.OutOrStdout(), "\n🔧 Generating tasks from PRD/TRD...\n")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n🔧 Generating tasks from PRD/TRD...\n")
 
 	n, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(10))
 	taskCount := 15 + int(n.Int64()) // 15-25 tasks
@@ -650,12 +650,12 @@ func (c *CLI) generateProjectTasks(cmd *cobra.Command, config *ProjectConfig) {
 }
 
 func (c *CLI) printProjectSummary(cmd *cobra.Command, config *ProjectConfig) {
-	fmt.Fprintf(cmd.OutOrStdout(), "\n✨ Sample project generated successfully!\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "   Name: %s\n", config.Name)
-	fmt.Fprintf(cmd.OutOrStdout(), "   Location: %s\n", config.OutputDir)
-	fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "   cd %s\n", config.OutputDir)
-	fmt.Fprintf(cmd.OutOrStdout(), "   lmmc list\n")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n✨ Sample project generated successfully!\n")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Name: %s\n", config.Name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Location: %s\n", config.OutputDir)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   cd %s\n", config.OutputDir)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   lmmc list\n")
 }
 
 // Helper functions

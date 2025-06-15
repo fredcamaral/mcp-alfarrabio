@@ -256,7 +256,7 @@ func (c *HTTPRestClient) QueryIntelligence(ctx context.Context, operation string
 // TestConnection tests the connection using GET /api/v1/health
 func (c *HTTPRestClient) TestConnection(ctx context.Context) error {
 	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/api/v1/health", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", c.baseURL+"/api/v1/health", http.NoBody)
 	if err != nil {
 		return fmt.Errorf("failed to create request: %w", err)
 	}

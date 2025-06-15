@@ -713,8 +713,7 @@ func (m REPLModel) handleStatusCommand() REPLModel {
 
 // handleUnknownCommand handles unrecognized commands
 func (m REPLModel) handleUnknownCommand(cmd string) REPLModel {
-	m.output = append(m.output, "Unknown command: "+cmd)
-	m.output = append(m.output, "Type 'help' for available commands")
+	m.output = append(m.output, "Unknown command: "+cmd, "Type 'help' for available commands")
 	return m
 }
 
@@ -785,8 +784,7 @@ func (m REPLModel) getStatusInfo() []string {
 		status = append(status, "  HTTP Server: Disabled")
 	}
 
-	status = append(status, fmt.Sprintf("  Commands in history: %d", len(m.history)))
-	status = append(status, "")
+	status = append(status, fmt.Sprintf("  Commands in history: %d", len(m.history)), "")
 
 	return status
 }

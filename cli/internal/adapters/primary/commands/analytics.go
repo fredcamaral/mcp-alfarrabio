@@ -1,3 +1,5 @@
+// Package commands provides primary command interfaces and structures for the CLI.
+// This file contains analytics-related command definitions and handlers.
 package commands
 
 import (
