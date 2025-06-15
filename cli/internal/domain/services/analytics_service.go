@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
@@ -685,7 +686,7 @@ func (a *analyticsServiceImpl) detectCycleTimeBottlenecks(tasks []*entities.Task
 		if task.Status == entities.StatusCompleted {
 			duration := a.calculator.GetTaskDuration(task)
 			if duration > 0 {
-				taskType := TaskTypeDefault
+				taskType := constants.TaskTypeDefault
 				if len(task.Tags) > 0 {
 					taskType = task.Tags[0]
 				}

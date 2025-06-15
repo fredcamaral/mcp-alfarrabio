@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
@@ -341,11 +342,11 @@ func (mm *MemoryManager) determineSyncStrategy(ctx context.Context, files []stri
 
 	// Add intelligent decisions based on context
 	if len(mappings) == 0 {
-		strategy["new_repo"] = BoolStringTrue
-		strategy["full_sync"] = BoolStringTrue
+		strategy["new_repo"] = constants.BoolStringTrue
+		strategy["full_sync"] = constants.BoolStringTrue
 	} else {
-		strategy["existing_repo"] = BoolStringTrue
-		strategy["incremental_sync"] = BoolStringTrue
+		strategy["existing_repo"] = constants.BoolStringTrue
+		strategy["incremental_sync"] = constants.BoolStringTrue
 	}
 
 	return strategy, nil

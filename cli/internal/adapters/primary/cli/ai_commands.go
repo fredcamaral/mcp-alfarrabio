@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"lerian-mcp-memory-cli/internal/adapters/secondary/ai"
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -110,7 +111,7 @@ func (c *CLI) createAIProcessCommand() *cobra.Command {
 
 			// Set current context
 			repoInfo, _ := c.repositoryDetector.DetectCurrent(c.getContext())
-			repository := RepositoryLocal
+			repository := constants.RepositoryLocal
 			if repoInfo != nil {
 				repository = repoInfo.Name
 			}
@@ -184,7 +185,7 @@ func (c *CLI) createAISyncCommand() *cobra.Command {
 
 			// Set current context
 			repoInfo, _ := c.repositoryDetector.DetectCurrent(c.getContext())
-			repository := RepositoryLocal
+			repository := constants.RepositoryLocal
 			if repoInfo != nil {
 				repository = repoInfo.Name
 			}
@@ -560,11 +561,17 @@ func (c *CLI) displayMemoryInsights(insights []*ai.MemoryInsight) error {
 func (c *CLI) printAIServiceDebugInfo(cmd *cobra.Command) {
 	out := cmd.OutOrStdout()
 
-	fmt.Fprintf(out, "🔍 AI Service Debug Information\n")
-	fmt.Fprintf(out, "================================\n\n")
+	if _, err := fmt.Fprintf(out, "🔍 AI Service Debug Information\n"); err != nil {
+		return
+	}
+	if _, err := fmt.Fprintf(out, "================================\n\n"); err != nil {
+		return
+	}
 
 	// Check environment variables
-	fmt.Fprintf(out, "Environment Variables:\n")
+	if _, err := fmt.Fprintf(out, "Environment Variables:\n"); err != nil {
+		return
+	}
 	aiProvider := os.Getenv("AI_PROVIDER")
 	if aiProvider != "" {
 		fmt.Fprintf(out, "  ✓ AI_PROVIDER: %s\n", aiProvider)

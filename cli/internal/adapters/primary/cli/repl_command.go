@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"lerian-mcp-memory-cli/internal/adapters/secondary/tui"
+	"lerian-mcp-memory-cli/internal/domain/constants"
 )
 
 // createREPLCommand creates the 'repl' command
@@ -40,7 +41,7 @@ Navigation:
 				replMode = tui.Interactive
 			case "dashboard":
 				replMode = tui.Dashboard
-			case FieldAnalytics:
+			case constants.FieldAnalytics:
 				replMode = tui.Analytics
 			case "workflow":
 				replMode = tui.Workflow
@@ -49,7 +50,7 @@ Navigation:
 			case "":
 				replMode = tui.Interactive
 			default:
-				return fmt.Errorf("invalid mode: %s (valid: interactive, dashboard, "+FieldAnalytics+", workflow, debug)", mode)
+				return fmt.Errorf("invalid mode: %s (valid: interactive, dashboard, "+constants.FieldAnalytics+", workflow, debug)", mode)
 			}
 
 			// Start the TUI
@@ -59,7 +60,7 @@ Navigation:
 
 	// Add flags
 	cmd.Flags().IntVarP(&httpPort, "port", "p", 0, "HTTP port for push notifications (0 to disable)")
-	cmd.Flags().StringVarP(&mode, "mode", "m", "interactive", "TUI mode (interactive, dashboard, "+FieldAnalytics+", workflow, debug)")
+	cmd.Flags().StringVarP(&mode, "mode", "m", "interactive", "TUI mode (interactive, dashboard, "+constants.FieldAnalytics+", workflow, debug)")
 
 	return cmd
 }

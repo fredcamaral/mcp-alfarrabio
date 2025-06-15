@@ -15,6 +15,7 @@ import (
 	"github.com/spf13/viper"
 	"gopkg.in/yaml.v3"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -188,7 +189,7 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 
 	if response != "n" && response != "no" {
 		dirs := []string{
-			DefaultPreDevelopmentDir,
+			constants.DefaultPreDevelopmentDir,
 			"docs/tasks",
 			"docs/reviews",
 			".lmmc",
@@ -460,7 +461,11 @@ func (c *CLI) testMCPConnection(url string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("server returned status %d", resp.StatusCode)

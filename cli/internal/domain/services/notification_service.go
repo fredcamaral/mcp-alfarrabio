@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"lerian-mcp-memory-cli/internal/adapters/secondary/api"
+	"lerian-mcp-memory-cli/internal/domain/constants"
 )
 
 // NotificationService handles displaying real-time notifications from the server
@@ -204,7 +205,7 @@ func (n *NotificationService) handleTaskEvent(event *api.TaskEvent) {
 		} else {
 			message = fmt.Sprintf("📝 New task created (ID: %s)", event.TaskID)
 		}
-		severity = SeverityInfo
+		severity = constants.SeverityInfo
 
 	case api.EventTypeTaskUpdated:
 		if event.Task != nil {
@@ -213,15 +214,15 @@ func (n *NotificationService) handleTaskEvent(event *api.TaskEvent) {
 		} else {
 			message = fmt.Sprintf("✏️  Task updated (ID: %s)", event.TaskID)
 		}
-		severity = SeverityInfo
+		severity = constants.SeverityInfo
 
 	case api.EventTypeTaskDeleted:
 		message = fmt.Sprintf("🗑️  Task deleted (ID: %s)", event.TaskID)
-		severity = "warning"
+		severity = constants.SeverityWarning
 
 	default:
 		message = fmt.Sprintf("📋 Task event: %s (ID: %s)", event.Type, event.TaskID)
-		severity = SeverityInfo
+		severity = constants.SeverityInfo
 	}
 
 	n.displayNotification(message, severity)
@@ -253,7 +254,7 @@ func (n *NotificationService) handleConnectionStatus(connected bool) {
 		severity = "success"
 	} else {
 		message = "⚠️  Disconnected from server (working offline)"
-		severity = "warning"
+		severity = constants.SeverityWarning
 	}
 
 	n.displayNotification(message, severity)
@@ -276,9 +277,9 @@ func (n *NotificationService) handleSystemEvent(event *api.SystemEvent) {
 
 	var icon string
 	switch event.Severity {
-	case "error":
+	case constants.SeverityError:
 		icon = "❌"
-	case "warning":
+	case constants.SeverityWarning:
 		icon = "⚠️ "
 	case "success":
 		icon = "✅"
@@ -316,9 +317,9 @@ func (n *NotificationService) displayNotification(message, severity string) {
 
 	// Log the notification
 	switch severity {
-	case "error":
+	case constants.SeverityError:
 		n.logger.Error("notification displayed", slog.String("message", message))
-	case "warning":
+	case constants.SeverityWarning:
 		n.logger.Warn("notification displayed", slog.String("message", message))
 	default:
 		n.logger.Info("notification displayed", slog.String("message", message))

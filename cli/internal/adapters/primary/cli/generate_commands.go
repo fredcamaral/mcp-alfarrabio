@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
@@ -100,8 +101,8 @@ func (c *CLI) createGenerateSamplePRDCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&projectType, "type", "t", ProjectTypeWebApp, "Project type (e-commerce, "+ProjectTypeAPI+", "+ProjectTypeWebApp+", mobile, cli, microservice)")
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: "+DefaultPreDevelopmentDir+"/sample-prd-<type>.md)")
+	cmd.Flags().StringVarP(&projectType, "type", "t", constants.ProjectTypeWebApp, "Project type (e-commerce, "+constants.ProjectTypeAPI+", "+constants.ProjectTypeWebApp+", mobile, cli, microservice)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default: "+constants.DefaultPreDevelopmentDir+"/sample-prd-<type>.md)")
 	cmd.Flags().IntVar(&features, "features", 5, "Number of features to include")
 
 	return cmd
@@ -134,7 +135,7 @@ func (c *CLI) createGenerateSampleProjectCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVarP(&template, "template", "t", ProjectTypeAPI, "Project template ("+ProjectTypeAPI+", microservice, "+ProjectTypeWebApp+", cli, library)")
+	cmd.Flags().StringVarP(&template, "template", "t", constants.ProjectTypeAPI, "Project template ("+constants.ProjectTypeAPI+", microservice, "+constants.ProjectTypeWebApp+", cli, library)")
 	cmd.Flags().StringVarP(&name, "name", "n", "", "Project name (auto-generated if not specified)")
 	cmd.Flags().StringVarP(&outputDir, "output", "o", "", "Output directory (default: ./<project-name>)")
 	cmd.Flags().BoolVar(&withTasks, "with-tasks", true, "Generate tasks from PRD/TRD")
@@ -380,10 +381,10 @@ func (c *CLI) runGenerateSamplePRD(cmd *cobra.Command, projectType, output strin
 
 	// Determine output path
 	if output == "" {
-		if err := os.MkdirAll(DefaultPreDevelopmentDir, 0750); err != nil {
+		if err := os.MkdirAll(constants.DefaultPreDevelopmentDir, 0750); err != nil {
 			return fmt.Errorf("failed to create docs directory: %w", err)
 		}
-		output = fmt.Sprintf("%s/sample-prd-%s.md", DefaultPreDevelopmentDir, projectType)
+		output = fmt.Sprintf("%s/sample-prd-%s.md", constants.DefaultPreDevelopmentDir, projectType)
 	}
 
 	// Generate PRD content
@@ -617,14 +618,14 @@ func generateSampleTRD(projectType, projectName, path string) error {
 	content.WriteString("## Architecture Overview\n\n")
 
 	switch projectType {
-	case ProjectTypeAPI, "microservice":
+	case constants.ProjectTypeAPI, "microservice":
 		content.WriteString("### System Architecture\n")
 		content.WriteString("- **Pattern**: RESTful API / Microservices\n")
 		content.WriteString("- **Communication**: HTTP/JSON, gRPC for internal services\n")
 		content.WriteString("- **Database**: PostgreSQL with Redis caching\n")
 		content.WriteString("- **Deployment**: Docker containers on Kubernetes\n\n")
 
-	case ProjectTypeWebApp, "e-commerce":
+	case constants.ProjectTypeWebApp, "e-commerce":
 		content.WriteString("### System Architecture\n")
 		content.WriteString("- **Frontend**: React with TypeScript\n")
 		content.WriteString("- **Backend**: Node.js with Express\n")
@@ -731,7 +732,7 @@ func generateGitignore(projectType, path string) error {
 
 	// Language-specific
 	switch projectType {
-	case ProjectTypeAPI, "microservice", "cli":
+	case constants.ProjectTypeAPI, "microservice", "cli":
 		content.WriteString("# Go\n")
 		content.WriteString("*.exe\n")
 		content.WriteString("*.dll\n")
@@ -740,7 +741,7 @@ func generateGitignore(projectType, path string) error {
 		content.WriteString("bin/\n")
 		content.WriteString("vendor/\n\n")
 
-	case ProjectTypeWebApp, "e-commerce":
+	case constants.ProjectTypeWebApp, "e-commerce":
 		content.WriteString("# Node\n")
 		content.WriteString("node_modules/\n")
 		content.WriteString("dist/\n")

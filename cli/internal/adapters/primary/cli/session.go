@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
 
@@ -172,7 +173,7 @@ func (c *CLI) detectLatestPRD() string {
 	}
 
 	// Look in standard location
-	preDev := DefaultPreDevelopmentDir
+	preDev := constants.DefaultPreDevelopmentDir
 	if _, err := os.Stat(preDev); err == nil {
 		files, _ := filepath.Glob(filepath.Join(preDev, "prd-*.md"))
 		if len(files) > 0 {
@@ -194,7 +195,7 @@ func (c *CLI) detectLatestTRD() string {
 	}
 
 	// Look in standard location
-	preDev := DefaultPreDevelopmentDir
+	preDev := constants.DefaultPreDevelopmentDir
 	if _, err := os.Stat(preDev); err == nil {
 		files, _ := filepath.Glob(filepath.Join(preDev, "trd-*.md"))
 		if len(files) > 0 {
@@ -216,7 +217,7 @@ func (c *CLI) detectLatestTasksFile() string {
 	}
 
 	// Look in standard location
-	preDev := DefaultPreDevelopmentDir
+	preDev := constants.DefaultPreDevelopmentDir
 	if _, err := os.Stat(preDev); err == nil {
 		files, _ := filepath.Glob(filepath.Join(preDev, "tasks-*.md"))
 		if len(files) > 0 {

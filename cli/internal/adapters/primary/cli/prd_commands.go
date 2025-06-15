@@ -12,6 +12,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
@@ -260,7 +261,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 	// Determine output file
 	if output == "" {
 		// Default output location
-		preDev := DefaultPreDevelopmentDir
+		preDev := constants.DefaultPreDevelopmentDir
 		if err := os.MkdirAll(preDev, 0750); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
 		}
@@ -325,7 +326,7 @@ func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, o
 	// Determine output file
 	if output == "" {
 		// Default output location
-		preDev := DefaultPreDevelopmentDir
+		preDev := constants.DefaultPreDevelopmentDir
 		if err := os.MkdirAll(preDev, 0750); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
 		}

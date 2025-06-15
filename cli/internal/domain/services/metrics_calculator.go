@@ -30,7 +30,7 @@ func NewMetricsCalculator() *MetricsCalculator {
 
 // GetTaskDuration calculates the duration of a task from creation to completion
 func (mc *MetricsCalculator) GetTaskDuration(task *entities.Task) time.Duration {
-	if task.Status != "completed" {
+	if task.Status != entities.StatusCompleted {
 		return 0
 	}
 
@@ -45,7 +45,7 @@ func (mc *MetricsCalculator) GetTaskDuration(task *entities.Task) time.Duration 
 
 // IsTaskOnTime checks if a task was completed within its estimated time
 func (mc *MetricsCalculator) IsTaskOnTime(task *entities.Task) bool {
-	if task.Status != "completed" {
+	if task.Status != entities.StatusCompleted {
 		return false
 	}
 

@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
@@ -769,5 +770,5 @@ func (s *TaskService) inferTypeFromTags(tags []string) string {
 	}
 
 	// Default to implementation if no matching tag found
-	return "implementation"
+	return constants.TaskTypeImplementation
 }

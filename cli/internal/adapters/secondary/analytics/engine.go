@@ -8,6 +8,7 @@ import (
 	"sort"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/repositories"
 	"lerian-mcp-memory-cli/internal/domain/services"
@@ -771,7 +772,7 @@ func (ae *analyticsEngineImpl) countTasksByStatus(tasks []*entities.Task, status
 
 func (ae *analyticsEngineImpl) calculateCompletionTrend(completions []DailyCompletion) string {
 	if len(completions) < 3 {
-		return StatusStable
+		return constants.StatusStable
 	}
 
 	// Look at last 7 days vs previous 7 days
@@ -785,7 +786,7 @@ func (ae *analyticsEngineImpl) calculateCompletionTrend(completions []DailyCompl
 	recentAvg /= float64(len(recent))
 
 	if len(completions) < recentLen*2 {
-		return StatusStable
+		return constants.StatusStable
 	}
 
 	previousLen := min(recentLen, len(completions)-recentLen)

@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
@@ -759,13 +760,13 @@ func (s *DefaultDocumentChainService) estimateSubTaskDuration(step string) int {
 func (s *DefaultDocumentChainService) determineImplementationType(step string) string {
 	switch {
 	case contains(step, "test", "testing"):
-		return TaskTypeTesting
+		return constants.TaskTypeTesting
 	case contains(step, "doc", "documentation"):
 		return "documentation"
 	case contains(step, "research", "planning"):
-		return TaskTypeResearch
+		return constants.TaskTypeResearch
 	default:
-		return TaskTypeImplementation
+		return constants.TaskTypeImplementation
 	}
 }
 

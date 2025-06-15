@@ -11,9 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"lerian-mcp-memory-cli/internal/domain/entities"
-
 	"github.com/google/uuid"
+
+	"lerian-mcp-memory-cli/internal/domain/constants"
+	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
 // PatternAggregator interface for aggregating patterns across repositories
@@ -180,7 +181,7 @@ func (pa *patternAggregatorImpl) AnonymizePattern(
 	}
 
 	// Generalize project type if needed
-	if settings.AnonymizationLevel == SeverityHigh {
+	if settings.AnonymizationLevel == constants.SeverityHigh {
 		anonymized.Metadata["project_type"] = pa.generalizeProjectType(
 			anonymized.Metadata["project_type"],
 		)

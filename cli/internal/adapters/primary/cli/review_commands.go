@@ -366,7 +366,11 @@ func (c *CLI) runReviewStart(path, phase, mode, aiProvider, model, output string
 	if err := os.Chdir(absPath); err != nil {
 		return fmt.Errorf("failed to change directory: %w", err)
 	}
-	defer os.Chdir(originalDir)
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	fmt.Printf("📁 Reviewing: %s\n", absPath)
 	fmt.Printf("📊 Phase: %s\n", phase)

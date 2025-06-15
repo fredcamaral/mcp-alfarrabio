@@ -12,127 +12,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"lerian-mcp-memory-cli/internal/adapters/primary/commands"
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
 
-// Output format constants
-const (
-	OutputFormatJSON  = "json"
-	OutputFormatTable = "table"
-	OutputFormatPlain = "plain"
-)
-
-// Status string constants
-const (
-	StatusStringDone = "done"
-)
-
-// Directory constants
-const (
-	DefaultPreDevelopmentDir = "docs/pre-development"
-)
-
-// Repository constants  
-const (
-	RepositoryGlobal = "global"
-	RepositoryLocal  = "local"
-)
-
-// Export format constants
-const (
-	FormatYAML     = "yaml"
-	FormatCSV      = "csv"
-	FormatTSV      = "tsv"
-	FormatXML      = "xml"
-	FormatPDF      = "pdf"
-	FormatHTML     = "html"
-	FormatMarkdown = "markdown"
-	FormatZip      = "zip"
-)
-
-// Workflow status constants
-const (
-	WorkflowStatusReadyToStart          = "ready_to_start"
-	WorkflowStatusReadyForTRD           = "ready_for_trd"
-	WorkflowStatusReadyForTasks         = "ready_for_tasks"
-	WorkflowStatusReadyForSubtasks      = "ready_for_subtasks"
-	WorkflowStatusReadyForImplementation = "ready_for_implementation"
-)
-
-// Common field constants
-const (
-	FieldPriority  = "priority"
-	FieldAnalytics = "analytics"
-)
-
-// Project type constants  
-const (
-	ProjectTypeAPI    = "api"
-	ProjectTypeWebApp = "web-app"
-)
-
-// Boolean string constants
-const (
-	BoolStringTrue = "true"
-)
-
-// Analytics constants
-const (
-	OutlierTypePositive = "positive"
-	StatusStable        = "stable"
-)
-
-// Severity constants  
-const (
-	SeverityHigh    = "high"
-	SeverityMedium  = "medium"
-	SeverityLow     = "low"
-	SeverityInfo    = "info"
-	SeverityWarning = "warning"
-	SeverityError   = "error"
-)
-
-// Time of day constants
-const (
-	TimeOfDayMorning   = "morning"
-	TimeOfDayAfternoon = "afternoon"
-	TimeOfDayEvening   = "evening"
-	TimeOfDayNight     = "night"
-)
-
-// Task type constants
-const (
-	TaskTypeImplementation = "implementation"
-	TaskTypeResearch       = "research"
-	TaskTypeTesting        = "testing"
-	TaskTypeDefault        = "default"
-)
-
-// Language constants
-const (
-	LanguageJavaScript = "javascript"
-	LanguagePython     = "python"
-	LanguageCSharp     = "csharp"
-	LanguagePostgreSQL = "postgresql"
-)
-
-// Project classification constants
-const (
-	ProjectTypeGeneral = "general"
-)
-
-// MCP constants
-const (
-	MCPMethodMemorySystem = "memory_system"
-	MCPOperationHealth    = "health"
-)
-
-// Status constants
-const (
-	ChainStatusCompleted = "completed"
-)
 
 // IntelligenceDependencies holds intelligence service dependencies
 type IntelligenceDependencies struct {
@@ -285,7 +170,7 @@ and can be integrated with the Lerian MCP Memory Server for AI-powered features.
 
 	// Global flags
 	c.RootCmd.PersistentFlags().StringVarP(&c.outputFormat, "output", "o", "",
-		"Output format ("+OutputFormatTable+", "+OutputFormatJSON+", "+OutputFormatPlain+")")
+		"Output format ("+constants.OutputFormatTable+", "+constants.OutputFormatJSON+", "+constants.OutputFormatPlain+")")
 	c.RootCmd.PersistentFlags().BoolVarP(&c.verbose, "verbose", "v", false,
 		"Verbose output for debugging")
 }
@@ -358,9 +243,9 @@ func (c *CLI) getOutputFormatter(cmd *cobra.Command) OutputFormatter {
 	writer := cmd.OutOrStdout()
 
 	switch strings.ToLower(format) {
-	case OutputFormatJSON:
+	case constants.OutputFormatJSON:
 		return NewJSONFormatter(writer, true)
-	case OutputFormatPlain:
+	case constants.OutputFormatPlain:
 		return NewPlainFormatter(writer)
 	default:
 		return NewTableFormatter(writer)
@@ -381,7 +266,7 @@ func parseStatus(s string) (entities.Status, error) {
 		return entities.StatusPending, nil
 	case "in_progress", "in-progress", "inprogress":
 		return entities.StatusInProgress, nil
-	case "completed", StatusStringDone:
+	case "completed", constants.StatusStringDone:
 		return entities.StatusCompleted, nil
 	case "cancelled", "canceled":
 		return entities.StatusCancelled, nil

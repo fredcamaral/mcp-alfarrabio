@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
 
@@ -280,11 +281,11 @@ func (c *CLI) runWorkflowContinue(from string) error {
 		case "prd":
 			status = "ready_to_start"
 		case "trd":
-			status = WorkflowStatusReadyForTRD
+			status = constants.WorkflowStatusReadyForTRD
 		case "tasks":
-			status = WorkflowStatusReadyForTasks
+			status = constants.WorkflowStatusReadyForTasks
 		case "subtasks":
-			status = WorkflowStatusReadyForSubtasks
+			status = constants.WorkflowStatusReadyForSubtasks
 		default:
 			return fmt.Errorf("invalid step: %s (valid: prd, trd, tasks, subtasks)", from)
 		}
@@ -296,20 +297,20 @@ func (c *CLI) runWorkflowContinue(from string) error {
 		fmt.Printf("📝 Starting with PRD creation...\n\n")
 		return c.runPRDCreate(true, "", "", "", "", "")
 
-	case WorkflowStatusReadyForTRD:
+	case constants.WorkflowStatusReadyForTRD:
 		fmt.Printf("🔧 Continuing with TRD generation...\n\n")
 		return c.runTRDCreate("", "", true)
 
-	case WorkflowStatusReadyForTasks:
+	case constants.WorkflowStatusReadyForTasks:
 		fmt.Printf("📋 Continuing with task generation...\n\n")
 		return c.runTasksGenerate("", "", "", true)
 
-	case WorkflowStatusReadyForSubtasks:
+	case constants.WorkflowStatusReadyForSubtasks:
 		fmt.Printf("🔍 Ready to generate sub-tasks.\n")
 		fmt.Printf("Use: lmmc subtasks generate MT-001\n")
 		return nil
 
-	case WorkflowStatusReadyForImplementation:
+	case constants.WorkflowStatusReadyForImplementation:
 		fmt.Printf("✅ Workflow complete! All documents generated.\n")
 		fmt.Printf("Start implementation with: lmmc add --from-task MT-001\n")
 		return nil

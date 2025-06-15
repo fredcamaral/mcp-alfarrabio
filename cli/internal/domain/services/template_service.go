@@ -11,6 +11,7 @@ import (
 	"text/template"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/repositories"
 
@@ -773,14 +774,14 @@ func (ts *templateServiceImpl) suggestDatabase(characteristics *entities.Project
 	// Simple heuristic for database suggestion
 	primaryLang := characteristics.GetPrimaryLanguage()
 	switch primaryLang {
-	case "javascript", "typescript":
+	case constants.LanguageJavaScript, "typescript":
 		return "mongodb"
-	case "python":
-		return "postgresql"
-	case "java", "csharp":
-		return "postgresql"
+	case constants.LanguagePython:
+		return constants.LanguagePostgreSQL
+	case "java", constants.LanguageCSharp:
+		return constants.LanguagePostgreSQL
 	case "go":
-		return "postgresql"
+		return constants.LanguagePostgreSQL
 	default:
 		return "sqlite"
 	}
@@ -796,7 +797,7 @@ func (ts *templateServiceImpl) suggestTestingFramework(characteristics *entities
 	case "java":
 		return "junit"
 	case "go":
-		return "testing"
+		return constants.TaskTypeTesting
 	case "csharp":
 		return "xunit"
 	default:

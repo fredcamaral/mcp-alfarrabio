@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 	"lerian-mcp-memory-cli/internal/domain/services"
@@ -1799,7 +1800,7 @@ func (cra *crossRepoAnalyzer) detectOutliers(repoMetrics map[string]*entities.Wo
 		zScore := (score - mean) / stdDev
 
 		if zScore > 2 || zScore < -2 { // More than 2 standard deviations
-			outlierType := OutlierTypePositive
+			outlierType := constants.OutlierTypePositive
 			if zScore < 0 {
 				outlierType = "negative"
 			}

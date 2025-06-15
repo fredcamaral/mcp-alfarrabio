@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
 
@@ -167,7 +168,7 @@ func (c *CLI) runTRDCreate(fromPRD, output string, useSession bool) error {
 	// Determine output file
 	if output == "" && useSession {
 		// Default output location with matching name
-		preDev := DefaultPreDevelopmentDir
+		preDev := constants.DefaultPreDevelopmentDir
 		if err := os.MkdirAll(preDev, 0750); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
 		}

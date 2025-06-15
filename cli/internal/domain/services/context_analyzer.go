@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/repositories"
 )
@@ -137,7 +138,7 @@ func (ca *contextAnalyzerImpl) AnalyzeCurrentContext(
 	projectType, err := ca.DetermineProjectType(ctx, repository)
 	if err != nil {
 		ca.logger.Warn("failed to determine project type", slog.Any("error", err))
-		projectType = ProjectTypeGeneral
+		projectType = constants.ProjectTypeGeneral
 	}
 	workContext.ProjectType = projectType
 
@@ -829,13 +830,13 @@ func (ca *contextAnalyzerImpl) determineTimeOfDay(now time.Time) string {
 
 	switch {
 	case hour >= 5 && hour < 12:
-		return TimeOfDayMorning
+		return constants.TimeOfDayMorning
 	case hour >= 12 && hour < 17:
-		return TimeOfDayAfternoon
+		return constants.TimeOfDayAfternoon
 	case hour >= 17 && hour < 21:
-		return TimeOfDayEvening
+		return constants.TimeOfDayEvening
 	default:
-		return TimeOfDayNight
+		return constants.TimeOfDayNight
 	}
 }
 

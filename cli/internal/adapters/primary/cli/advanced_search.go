@@ -12,6 +12,7 @@ import (
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
@@ -327,7 +328,7 @@ func (c *CLI) applySortAndLimit(tasks []*entities.Task, opts *SearchOptions) []*
 		c.sortTasksByCreated(tasks)
 	case "updated":
 		c.sortTasksByUpdated(tasks)
-	case FieldPriority:
+	case constants.FieldPriority:
 		c.sortTasksByPriority(tasks)
 	case "due":
 		c.sortTasksByDue(tasks)
@@ -587,7 +588,7 @@ func (c *CLI) filtersToMap(filters *ports.TaskFilters) map[string]interface{} {
 		m["status"] = string(*filters.Status)
 	}
 	if filters.Priority != nil {
-		m[FieldPriority] = string(*filters.Priority)
+		m[constants.FieldPriority] = string(*filters.Priority)
 	}
 	if filters.Repository != "" {
 		m["repository"] = filters.Repository
@@ -631,7 +632,7 @@ func (c *CLI) mapToFilters(m map[string]interface{}) *ports.TaskFilters {
 		s := entities.Status(status)
 		filters.Status = &s
 	}
-	if priority, ok := m[FieldPriority].(string); ok {
+	if priority, ok := m[constants.FieldPriority].(string); ok {
 		p := entities.Priority(priority)
 		filters.Priority = &p
 	}

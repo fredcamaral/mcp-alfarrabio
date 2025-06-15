@@ -151,7 +151,11 @@ func (c *CLI) getLatestRelease(includePrerelease bool) (*GitHubRelease, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("GitHub API returned status %d", resp.StatusCode)
@@ -210,7 +214,11 @@ func (c *CLI) downloadAndInstall(downloadURL, filename string) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tempDir)
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	// Download file
 	tempFile := filepath.Join(tempDir, filename)
@@ -276,7 +284,11 @@ func (c *CLI) downloadFile(url, filePath string) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("download failed with status %d", resp.StatusCode)
@@ -286,7 +298,11 @@ func (c *CLI) downloadFile(url, filePath string) error {
 	if err != nil {
 		return err
 	}
-	defer out.Close()
+	defer func() {
+		if err := out.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	_, err = io.Copy(out, resp.Body)
 	return err

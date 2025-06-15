@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -51,17 +52,17 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 
 	// Check if this is a health check request
 	isHealthCheck := false
-	if request.Method == MCPMethodMemorySystem {
+	if request.Method == constants.MCPMethodMemorySystem {
 		if paramsMap, ok := request.Params.(map[string]interface{}); ok {
-			if operation, ok := paramsMap["operation"].(string); ok && operation == MCPOperationHealth {
+			if operation, ok := paramsMap["operation"].(string); ok && operation == constants.MCPOperationHealth {
 				isHealthCheck = true
 			}
 		}
 	} else if request.Method == "tools/call" {
 		if params, ok := request.Params.(map[string]interface{}); ok {
-			if toolName, ok := params["name"].(string); ok && toolName == MCPMethodMemorySystem {
+			if toolName, ok := params["name"].(string); ok && toolName == constants.MCPMethodMemorySystem {
 				if args, ok := params["arguments"].(map[string]interface{}); ok {
-					if operation, ok := args["operation"].(string); ok && operation == MCPOperationHealth {
+					if operation, ok := args["operation"].(string); ok && operation == constants.MCPOperationHealth {
 						isHealthCheck = true
 					}
 				}
@@ -106,7 +107,7 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 	case "tools/call":
 		// Handle tools/call wrapper
 		if params, ok := request.Params.(map[string]interface{}); ok {
-			if toolName, ok := params["name"].(string); ok && toolName == MCPMethodMemorySystem {
+			if toolName, ok := params["name"].(string); ok && toolName == constants.MCPMethodMemorySystem {
 				if args, ok := params["arguments"].(map[string]interface{}); ok {
 					m.handleMemorySystem(args, &response)
 					// Don't return early - let the response be written below
