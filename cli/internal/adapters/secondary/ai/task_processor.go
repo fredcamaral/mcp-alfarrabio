@@ -235,64 +235,95 @@ func (tp *TaskProcessor) storeTaskInsights(ctx context.Context, result *TaskProc
 
 // Helper methods
 
+// TaskEnhancement represents AI-generated task improvements
+type TaskEnhancement struct {
+	EnhancedDescription  string   `json:"enhanced_description"`
+	SuggestedPriority    string   `json:"suggested_priority"`
+	SuggestedTags        []string `json:"suggested_tags"`
+	EstimatedMinutes     int      `json:"estimated_minutes"`
+	EnhancementReasoning string   `json:"enhancement_reasoning"`
+	ActionabilityScore   float64  `json:"actionability_score"`
+	ClarityImprovements  []string `json:"clarity_improvements"`
+	MissingInformation   []string `json:"missing_information"`
+	SuccessCriteria      []string `json:"success_criteria"`
+}
+
 func (tp *TaskProcessor) applyTaskEnhancements(task *entities.Task, result *TaskProcessingResult) error {
-	var enhancement struct {
-		EnhancedDescription  string   `json:"enhanced_description"`
-		SuggestedPriority    string   `json:"suggested_priority"`
-		SuggestedTags        []string `json:"suggested_tags"`
-		EstimatedMinutes     int      `json:"estimated_minutes"`
-		EnhancementReasoning string   `json:"enhancement_reasoning"`
-		ActionabilityScore   float64  `json:"actionability_score"`
-		ClarityImprovements  []string `json:"clarity_improvements"`
-		MissingInformation   []string `json:"missing_information"`
-		SuccessCriteria      []string `json:"success_criteria"`
-	}
-
-	// Use heuristic-based enhancements since AI analysis isn't available
-	enhancement.EnhancedDescription = task.Content
-	enhancement.SuggestedPriority = string(task.Priority)
-	enhancement.SuggestedTags = task.Tags
-	enhancement.EstimatedMinutes = task.EstimatedMins
-	enhancement.EnhancementReasoning = "Heuristic-based task analysis"
-	enhancement.ActionabilityScore = 0.8
-
-	// Apply enhancements to the task
+	enhancement := tp.generateTaskEnhancement(task)
 	enhanced := *result.OriginalTask // Copy the task
 
-	if enhancement.EnhancedDescription != "" && enhancement.EnhancedDescription != result.OriginalTask.Content {
+	tp.applyDescriptionEnhancement(&enhanced, enhancement, result)
+	tp.applyPriorityEnhancement(&enhanced, enhancement, result)
+	tp.applyTagEnhancement(&enhanced, enhancement, result)
+	tp.applyEstimationEnhancement(&enhanced, enhancement, result)
+	tp.addAIInsights(enhancement, result)
+
+	result.EnhancedTask = &enhanced
+	return nil
+}
+
+// Helper functions for applyTaskEnhancements
+
+func (tp *TaskProcessor) generateTaskEnhancement(task *entities.Task) *TaskEnhancement {
+	return &TaskEnhancement{
+		EnhancedDescription:  task.Content,
+		SuggestedPriority:    string(task.Priority),
+		SuggestedTags:        task.Tags,
+		EstimatedMinutes:     task.EstimatedMins,
+		EnhancementReasoning: "Heuristic-based task analysis",
+		ActionabilityScore:   0.8,
+	}
+}
+
+func (tp *TaskProcessor) applyDescriptionEnhancement(enhanced *entities.Task, enhancement *TaskEnhancement, result *TaskProcessingResult) {
+	if enhancement.EnhancedDescription != "" && enhancement.EnhancedDescription != enhanced.Content {
 		enhanced.Content = enhancement.EnhancedDescription
 		result.ProcessingNotes = append(result.ProcessingNotes, "AI enhanced task description for better clarity")
 	}
+}
 
-	if tp.config.AutoPrioritization && enhancement.SuggestedPriority != "" {
-		if priority, err := parsePriority(enhancement.SuggestedPriority); err == nil {
-			if priority != enhanced.Priority {
-				enhanced.Priority = priority
-				result.ProcessingNotes = append(result.ProcessingNotes,
-					"AI suggested priority change to "+enhancement.SuggestedPriority)
-			}
-		}
+func (tp *TaskProcessor) applyPriorityEnhancement(enhanced *entities.Task, enhancement *TaskEnhancement, result *TaskProcessingResult) {
+	if !tp.config.AutoPrioritization || enhancement.SuggestedPriority == "" {
+		return
 	}
 
-	if tp.config.SmartTagging && len(enhancement.SuggestedTags) > 0 {
-		for _, tag := range enhancement.SuggestedTags {
-			if !enhanced.HasTag(tag) {
-				enhanced.AddTag(tag)
-				result.ProcessingNotes = append(result.ProcessingNotes,
-					"AI added smart tag: "+tag)
-			}
-		}
+	priority, err := parsePriority(enhancement.SuggestedPriority)
+	if err != nil {
+		return
 	}
 
-	if tp.config.AutoEstimation && enhancement.EstimatedMinutes > 0 {
-		if enhanced.EstimatedMins == 0 {
-			enhanced.EstimatedMins = enhancement.EstimatedMinutes
+	if priority != enhanced.Priority {
+		enhanced.Priority = priority
+		result.ProcessingNotes = append(result.ProcessingNotes,
+			"AI suggested priority change to "+enhancement.SuggestedPriority)
+	}
+}
+
+func (tp *TaskProcessor) applyTagEnhancement(enhanced *entities.Task, enhancement *TaskEnhancement, result *TaskProcessingResult) {
+	if !tp.config.SmartTagging || len(enhancement.SuggestedTags) == 0 {
+		return
+	}
+
+	for _, tag := range enhancement.SuggestedTags {
+		if !enhanced.HasTag(tag) {
+			enhanced.AddTag(tag)
 			result.ProcessingNotes = append(result.ProcessingNotes,
-				fmt.Sprintf("AI estimated %d minutes for completion", enhancement.EstimatedMinutes))
+				"AI added smart tag: "+tag)
 		}
 	}
+}
 
-	// Add AI-generated insights
+func (tp *TaskProcessor) applyEstimationEnhancement(enhanced *entities.Task, enhancement *TaskEnhancement, result *TaskProcessingResult) {
+	if !tp.config.AutoEstimation || enhancement.EstimatedMinutes <= 0 || enhanced.EstimatedMins != 0 {
+		return
+	}
+
+	enhanced.EstimatedMins = enhancement.EstimatedMinutes
+	result.ProcessingNotes = append(result.ProcessingNotes,
+		fmt.Sprintf("AI estimated %d minutes for completion", enhancement.EstimatedMinutes))
+}
+
+func (tp *TaskProcessor) addAIInsights(enhancement *TaskEnhancement, result *TaskProcessingResult) {
 	if enhancement.EnhancementReasoning != "" {
 		result.ContextInsights = append(result.ContextInsights, enhancement.EnhancementReasoning)
 	}
@@ -306,9 +337,6 @@ func (tp *TaskProcessor) applyTaskEnhancements(task *entities.Task, result *Task
 		result.AIRecommendations = append(result.AIRecommendations,
 			"Success criteria: "+strings.Join(enhancement.SuccessCriteria, "; "))
 	}
-
-	result.EnhancedTask = &enhanced
-	return nil
 }
 
 func (tp *TaskProcessor) generateHeuristicSuggestions(task *entities.Task, result *TaskProcessingResult) error {

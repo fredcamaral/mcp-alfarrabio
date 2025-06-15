@@ -465,27 +465,79 @@ func (c *CLI) runGenerateSamplePRD(cmd *cobra.Command, projectType, output strin
 }
 
 func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outputDir string, withTasks, withMemory bool) error {
-	// Generate project name if not specified
-	if name == "" {
-		adjectives := []string{"awesome", "stellar", "quantum", "nexus", "phoenix", "titan"}
-		nouns := []string{"api", "service", "platform", "system", "hub", "engine"}
-		n1, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(adjectives))))
-		n2, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(nouns))))
-		name = fmt.Sprintf("%s-%s", adjectives[n1.Int64()], nouns[n2.Int64()])
+	projectConfig := c.setupProjectConfiguration(template, name, outputDir)
+	
+	if err := c.createProjectStructure(projectConfig); err != nil {
+		return err
 	}
 
-	// Set output directory
+	c.printProjectHeader(cmd, projectConfig)
+
+	filePaths, err := c.generateProjectFiles(cmd, projectConfig)
+	if err != nil {
+		return err
+	}
+
+	if withMemory {
+		c.storeProjectInMemory(cmd, projectConfig, filePaths)
+	}
+
+	if withTasks {
+		c.generateProjectTasks(cmd, projectConfig)
+	}
+
+	c.printProjectSummary(cmd, projectConfig)
+	return nil
+}
+
+// Helper functions for runGenerateSampleProject
+
+type ProjectConfig struct {
+	Template  string
+	Name      string
+	OutputDir string
+}
+
+type ProjectFilePaths struct {
+	PRDPath       string
+	TRDPath       string
+	ReadmePath    string
+	GitignorePath string
+}
+
+func (c *CLI) setupProjectConfiguration(template, name, outputDir string) *ProjectConfig {
+	if name == "" {
+		name = c.generateRandomProjectName()
+	}
+
 	if outputDir == "" {
 		outputDir = name
 	}
 
-	// Create project structure
+	return &ProjectConfig{
+		Template:  template,
+		Name:      name,
+		OutputDir: outputDir,
+	}
+}
+
+func (c *CLI) generateRandomProjectName() string {
+	adjectives := []string{"awesome", "stellar", "quantum", "nexus", "phoenix", "titan"}
+	nouns := []string{"api", "service", "platform", "system", "hub", "engine"}
+	
+	n1, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(adjectives))))
+	n2, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(nouns))))
+	
+	return fmt.Sprintf("%s-%s", adjectives[n1.Int64()], nouns[n2.Int64()])
+}
+
+func (c *CLI) createProjectStructure(config *ProjectConfig) error {
 	dirs := []string{
-		filepath.Join(outputDir, "docs", "pre-development"),
-		filepath.Join(outputDir, "docs", "tasks"),
-		filepath.Join(outputDir, "src"),
-		filepath.Join(outputDir, "tests"),
-		filepath.Join(outputDir, "config"),
+		filepath.Join(config.OutputDir, "docs", "pre-development"),
+		filepath.Join(config.OutputDir, "docs", "tasks"),
+		filepath.Join(config.OutputDir, "src"),
+		filepath.Join(config.OutputDir, "tests"),
+		filepath.Join(config.OutputDir, "config"),
 	}
 
 	for _, dir := range dirs {
@@ -493,110 +545,117 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
+	
+	return nil
+}
 
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "🚀 Generating sample project: %s\n", name)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Template: %s\n", template)
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Directory: %s\n\n", outputDir)
+func (c *CLI) printProjectHeader(cmd *cobra.Command, config *ProjectConfig) {
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "🚀 Generating sample project: %s\n", config.Name)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Template: %s\n", config.Template)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Directory: %s\n\n", config.OutputDir)
+}
+
+func (c *CLI) generateProjectFiles(cmd *cobra.Command, config *ProjectConfig) (*ProjectFilePaths, error) {
+	paths := &ProjectFilePaths{
+		PRDPath:       filepath.Join(config.OutputDir, "docs", "pre-development", "prd.md"),
+		TRDPath:       filepath.Join(config.OutputDir, "docs", "pre-development", "trd.md"),
+		ReadmePath:    filepath.Join(config.OutputDir, "README.md"),
+		GitignorePath: filepath.Join(config.OutputDir, ".gitignore"),
+	}
 
 	// Generate PRD
-	prdPath := filepath.Join(outputDir, "docs", "pre-development", "prd.md")
-	if err := c.runGenerateSamplePRD(cmd, template, prdPath, 8); err != nil {
-		return fmt.Errorf("failed to generate PRD: %w", err)
+	if err := c.runGenerateSamplePRD(cmd, config.Template, paths.PRDPath, 8); err != nil {
+		return nil, fmt.Errorf("failed to generate PRD: %w", err)
 	}
 
 	// Generate TRD
-	trdPath := filepath.Join(outputDir, "docs", "pre-development", "trd.md")
-	if err := generateSampleTRD(template, name, trdPath); err != nil {
-		return fmt.Errorf("failed to generate TRD: %w", err)
+	if err := generateSampleTRD(config.Template, config.Name, paths.TRDPath); err != nil {
+		return nil, fmt.Errorf("failed to generate TRD: %w", err)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated sample TRD: %s\n", trdPath)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated sample TRD: %s\n", paths.TRDPath)
 
 	// Generate README
-	readmePath := filepath.Join(outputDir, "README.md")
-	if err := generateProjectReadme(template, name, readmePath); err != nil {
-		return fmt.Errorf("failed to generate README: %w", err)
+	if err := generateProjectReadme(config.Template, config.Name, paths.ReadmePath); err != nil {
+		return nil, fmt.Errorf("failed to generate README: %w", err)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated README: %s\n", readmePath)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated README: %s\n", paths.ReadmePath)
 
 	// Generate .gitignore
-	gitignorePath := filepath.Join(outputDir, ".gitignore")
-	if err := generateGitignore(template, gitignorePath); err != nil {
-		return fmt.Errorf("failed to generate .gitignore: %w", err)
+	if err := generateGitignore(config.Template, paths.GitignorePath); err != nil {
+		return nil, fmt.Errorf("failed to generate .gitignore: %w", err)
 	}
-	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated .gitignore: %s\n", gitignorePath)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated .gitignore: %s\n", paths.GitignorePath)
 
-	// Store in memory if requested
-	if withMemory && c.getMCPClient() != nil {
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n📝 Storing project documents in memory...\n")
+	return paths, nil
+}
 
-		// Store PRD
-		prdContent, _ := os.ReadFile(filepath.Clean(prdPath))
-		if _, err := c.getMCPClient().CallMCPTool(c.getContext(), "memory_create", map[string]interface{}{
-			"operation": "store_chunk",
-			"scope":     "single",
-			"options": map[string]interface{}{
-				"repository": name,
-				"session_id": fmt.Sprintf("sample-project-%d", time.Now().Unix()),
-				"content":    string(prdContent),
-				"metadata": map[string]interface{}{
-					"type":     "prd",
-					"filename": "prd.md",
-					"tags":     []string{"sample", "generated", template},
-				},
+func (c *CLI) storeProjectInMemory(cmd *cobra.Command, config *ProjectConfig, paths *ProjectFilePaths) {
+	if c.getMCPClient() == nil {
+		return
+	}
+
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n📝 Storing project documents in memory...\n")
+	sessionID := fmt.Sprintf("sample-project-%d", time.Now().Unix())
+
+	c.storeFileInMemory(cmd, paths.PRDPath, "prd", config.Name, sessionID, config.Template)
+	c.storeFileInMemory(cmd, paths.TRDPath, "trd", config.Name, sessionID, config.Template)
+}
+
+func (c *CLI) storeFileInMemory(cmd *cobra.Command, filePath, fileType, repository, sessionID, template string) {
+	content, err := os.ReadFile(filepath.Clean(filePath))
+	if err != nil {
+		return
+	}
+
+	_, err = c.getMCPClient().CallMCPTool(c.getContext(), "memory_create", map[string]interface{}{
+		"operation": "store_chunk",
+		"scope":     "single",
+		"options": map[string]interface{}{
+			"repository": repository,
+			"session_id": sessionID,
+			"content":    string(content),
+			"metadata": map[string]interface{}{
+				"type":     fileType,
+				"filename": filepath.Base(filePath),
+				"tags":     []string{"sample", "generated", template},
 			},
-		}); err == nil {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   ✓ Stored PRD in memory\n")
-		}
+		},
+	})
 
-		// Store TRD
-		trdContent, _ := os.ReadFile(filepath.Clean(trdPath))
-		if _, err := c.getMCPClient().CallMCPTool(c.getContext(), "memory_create", map[string]interface{}{
-			"operation": "store_chunk",
-			"scope":     "single",
-			"options": map[string]interface{}{
-				"repository": name,
-				"session_id": fmt.Sprintf("sample-project-%d", time.Now().Unix()),
-				"content":    string(trdContent),
-				"metadata": map[string]interface{}{
-					"type":     "trd",
-					"filename": "trd.md",
-					"tags":     []string{"sample", "generated", template},
-				},
-			},
-		}); err == nil {
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   ✓ Stored TRD in memory\n")
-		}
+	if err == nil {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   ✓ Stored %s in memory\n", strings.ToUpper(fileType))
 	}
+}
 
-	// Generate tasks if requested
-	if withTasks {
-		// Change to project directory for task generation
-		originalDir, _ := os.Getwd()
-		if err := os.Chdir(outputDir); err != nil {
-			c.logger.Warn("Failed to change directory", "error", err)
-		}
-		defer func() {
-			if err := os.Chdir(originalDir); err != nil {
-				c.logger.Warn("Failed to restore directory", "error", err)
-			}
-		}()
-
-		fmt.Fprintf(cmd.OutOrStdout(), "\n🔧 Generating tasks from PRD/TRD...\n")
-		n, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(10))
-		taskCount := 15 + int(n.Int64()) // 15-25 tasks
-		if err := c.runGenerateSampleTasks(cmd, taskCount, name, "", []string{template, "generated"}, true); err != nil {
-			c.logger.Warn("Failed to generate tasks", "error", err)
-		}
+func (c *CLI) generateProjectTasks(cmd *cobra.Command, config *ProjectConfig) {
+	originalDir, _ := os.Getwd()
+	if err := os.Chdir(config.OutputDir); err != nil {
+		c.logger.Warn("Failed to change directory", "error", err)
+		return
 	}
+	defer func() {
+		if err := os.Chdir(originalDir); err != nil {
+			c.logger.Warn("Failed to restore directory", "error", err)
+		}
+	}()
 
+	fmt.Fprintf(cmd.OutOrStdout(), "\n🔧 Generating tasks from PRD/TRD...\n")
+	
+	n, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(10))
+	taskCount := 15 + int(n.Int64()) // 15-25 tasks
+	
+	if err := c.runGenerateSampleTasks(cmd, taskCount, config.Name, "", []string{config.Template, "generated"}, true); err != nil {
+		c.logger.Warn("Failed to generate tasks", "error", err)
+	}
+}
+
+func (c *CLI) printProjectSummary(cmd *cobra.Command, config *ProjectConfig) {
 	fmt.Fprintf(cmd.OutOrStdout(), "\n✨ Sample project generated successfully!\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "   Name: %s\n", name)
-	fmt.Fprintf(cmd.OutOrStdout(), "   Location: %s\n", outputDir)
+	fmt.Fprintf(cmd.OutOrStdout(), "   Name: %s\n", config.Name)
+	fmt.Fprintf(cmd.OutOrStdout(), "   Location: %s\n", config.OutputDir)
 	fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "   cd %s\n", outputDir)
+	fmt.Fprintf(cmd.OutOrStdout(), "   cd %s\n", config.OutputDir)
 	fmt.Fprintf(cmd.OutOrStdout(), "   lmmc list\n")
-
-	return nil
 }
 
 // Helper functions

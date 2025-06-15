@@ -1199,111 +1199,14 @@ func (ae *analyticsEngineImpl) CalculateVelocityMetrics(
 	tasks []*entities.Task,
 ) (*entities.VelocityMetrics, error) {
 	if len(tasks) == 0 {
-		return &entities.VelocityMetrics{
-			CurrentVelocity: 0,
-			TrendDirection:  "stable",
-			TrendPercentage: 0,
-			ByWeek:          []entities.WeeklyVelocity{},
-			Consistency:     0,
-		}, nil
+		return ae.createEmptyVelocityMetrics(), nil
 	}
 
-	// Group tasks by week
-	weeklyTasks := make(map[string][]*entities.Task)
-	for _, task := range tasks {
-		if task.Status == entities.StatusCompleted && !task.CompletedAt.IsZero() {
-			year, week := task.CompletedAt.ISOWeek()
-			weekKey := fmt.Sprintf("%d-W%02d", year, week)
-			weeklyTasks[weekKey] = append(weeklyTasks[weekKey], task)
-		}
-	}
-
-	// Calculate weekly velocities
-	weeklyVelocities := make([]entities.WeeklyVelocity, 0, len(weeklyTasks))
-	for weekKey, weekTasks := range weeklyTasks {
-		// Parse week key to get year and week number
-		var year, week int
-		if _, err := fmt.Sscanf(weekKey, "%d-W%d", &year, &week); err != nil {
-			ae.logger.Warn("failed to parse week key", slog.String("key", weekKey), slog.Any("error", err))
-			continue
-		}
-
-		// Calculate start of week
-		startOfWeek := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
-		for startOfWeek.Weekday() != time.Monday {
-			startOfWeek = startOfWeek.AddDate(0, 0, 1)
-		}
-		startOfWeek = startOfWeek.AddDate(0, 0, (week-1)*7)
-
-		weeklyVelocities = append(weeklyVelocities, entities.WeeklyVelocity{
-			Number:    week,
-			Year:      year,
-			Velocity:  float64(len(weekTasks)),
-			Tasks:     len(weekTasks),
-			StartDate: startOfWeek,
-		})
-	}
-
-	// Sort by date
-	sort.Slice(weeklyVelocities, func(i, j int) bool {
-		return weeklyVelocities[i].StartDate.Before(weeklyVelocities[j].StartDate)
-	})
-
-	// Calculate current velocity (last week)
-	currentVelocity := 0.0
-	if len(weeklyVelocities) > 0 {
-		currentVelocity = weeklyVelocities[len(weeklyVelocities)-1].Velocity
-	}
-
-	// Calculate trend
-	trendDirection := "stable"
-	trendPercentage := 0.0
-	if len(weeklyVelocities) >= 2 {
-		recent := weeklyVelocities[len(weeklyVelocities)-1].Velocity
-		previous := weeklyVelocities[len(weeklyVelocities)-2].Velocity
-
-		if previous > 0 {
-			trendPercentage = ((recent - previous) / previous) * 100
-			if trendPercentage > 5 {
-				trendDirection = "up"
-			} else if trendPercentage < -5 {
-				trendDirection = "down"
-			}
-		}
-	}
-
-	// Calculate consistency (coefficient of variation)
-	consistency := 0.0
-	if len(weeklyVelocities) > 1 {
-		velocities := make([]float64, len(weeklyVelocities))
-		sum := 0.0
-		for i, wv := range weeklyVelocities {
-			velocities[i] = wv.Velocity
-			sum += wv.Velocity
-		}
-
-		mean := sum / float64(len(velocities))
-		variance := 0.0
-		for _, v := range velocities {
-			variance += (v - mean) * (v - mean)
-		}
-		variance /= float64(len(velocities))
-		stdDev := math.Sqrt(variance)
-
-		if mean > 0 {
-			cv := stdDev / mean
-			consistency = math.Max(0, 1.0-cv) // Higher consistency = lower coefficient of variation
-		}
-	}
-
-	// Generate forecast
-	forecast := entities.VelocityForecast{
-		PredictedVelocity: currentVelocity,
-		Confidence:        0.7,
-		Range:             []float64{currentVelocity * 0.8, currentVelocity * 1.2},
-		Method:            "simple_average",
-		UpdatedAt:         time.Now(),
-	}
+	weeklyVelocities := ae.calculateWeeklyVelocities(tasks)
+	currentVelocity := ae.getCurrentVelocity(weeklyVelocities)
+	trendDirection, trendPercentage := ae.calculateVelocityTrend(weeklyVelocities)
+	consistency := ae.calculateVelocityConsistency(weeklyVelocities)
+	forecast := ae.generateVelocityForecast(currentVelocity)
 
 	return &entities.VelocityMetrics{
 		CurrentVelocity: currentVelocity,
@@ -1313,6 +1216,146 @@ func (ae *analyticsEngineImpl) CalculateVelocityMetrics(
 		Forecast:        forecast,
 		Consistency:     consistency,
 	}, nil
+}
+
+// Helper functions for CalculateVelocityMetrics
+
+func (ae *analyticsEngineImpl) createEmptyVelocityMetrics() *entities.VelocityMetrics {
+	return &entities.VelocityMetrics{
+		CurrentVelocity: 0,
+		TrendDirection:  "stable",
+		TrendPercentage: 0,
+		ByWeek:          []entities.WeeklyVelocity{},
+		Consistency:     0,
+	}
+}
+
+func (ae *analyticsEngineImpl) calculateWeeklyVelocities(tasks []*entities.Task) []entities.WeeklyVelocity {
+	// Group tasks by week
+	weeklyTasks := ae.groupTasksByWeek(tasks)
+	
+	// Calculate weekly velocities
+	weeklyVelocities := make([]entities.WeeklyVelocity, 0, len(weeklyTasks))
+	for weekKey, weekTasks := range weeklyTasks {
+		velocity := ae.createWeeklyVelocity(weekKey, weekTasks)
+		if velocity != nil {
+			weeklyVelocities = append(weeklyVelocities, *velocity)
+		}
+	}
+
+	// Sort by date
+	sort.Slice(weeklyVelocities, func(i, j int) bool {
+		return weeklyVelocities[i].StartDate.Before(weeklyVelocities[j].StartDate)
+	})
+
+	return weeklyVelocities
+}
+
+func (ae *analyticsEngineImpl) groupTasksByWeek(tasks []*entities.Task) map[string][]*entities.Task {
+	weeklyTasks := make(map[string][]*entities.Task)
+	for _, task := range tasks {
+		if task.Status == entities.StatusCompleted && !task.CompletedAt.IsZero() {
+			year, week := task.CompletedAt.ISOWeek()
+			weekKey := fmt.Sprintf("%d-W%02d", year, week)
+			weeklyTasks[weekKey] = append(weeklyTasks[weekKey], task)
+		}
+	}
+	return weeklyTasks
+}
+
+func (ae *analyticsEngineImpl) createWeeklyVelocity(weekKey string, weekTasks []*entities.Task) *entities.WeeklyVelocity {
+	var year, week int
+	if _, err := fmt.Sscanf(weekKey, "%d-W%d", &year, &week); err != nil {
+		ae.logger.Warn("failed to parse week key", slog.String("key", weekKey), slog.Any("error", err))
+		return nil
+	}
+
+	startOfWeek := ae.calculateWeekStart(year, week)
+	
+	return &entities.WeeklyVelocity{
+		Number:    week,
+		Year:      year,
+		Velocity:  float64(len(weekTasks)),
+		Tasks:     len(weekTasks),
+		StartDate: startOfWeek,
+	}
+}
+
+func (ae *analyticsEngineImpl) calculateWeekStart(year, week int) time.Time {
+	startOfWeek := time.Date(year, 1, 1, 0, 0, 0, 0, time.UTC)
+	for startOfWeek.Weekday() != time.Monday {
+		startOfWeek = startOfWeek.AddDate(0, 0, 1)
+	}
+	return startOfWeek.AddDate(0, 0, (week-1)*7)
+}
+
+func (ae *analyticsEngineImpl) getCurrentVelocity(weeklyVelocities []entities.WeeklyVelocity) float64 {
+	if len(weeklyVelocities) > 0 {
+		return weeklyVelocities[len(weeklyVelocities)-1].Velocity
+	}
+	return 0.0
+}
+
+func (ae *analyticsEngineImpl) calculateVelocityTrend(weeklyVelocities []entities.WeeklyVelocity) (string, float64) {
+	if len(weeklyVelocities) < 2 {
+		return "stable", 0.0
+	}
+
+	recent := weeklyVelocities[len(weeklyVelocities)-1].Velocity
+	previous := weeklyVelocities[len(weeklyVelocities)-2].Velocity
+
+	if previous == 0 {
+		return "stable", 0.0
+	}
+
+	trendPercentage := ((recent - previous) / previous) * 100
+	trendDirection := "stable"
+	
+	if trendPercentage > 5 {
+		trendDirection = "up"
+	} else if trendPercentage < -5 {
+		trendDirection = "down"
+	}
+
+	return trendDirection, trendPercentage
+}
+
+func (ae *analyticsEngineImpl) calculateVelocityConsistency(weeklyVelocities []entities.WeeklyVelocity) float64 {
+	if len(weeklyVelocities) <= 1 {
+		return 0.0
+	}
+
+	velocities := make([]float64, len(weeklyVelocities))
+	sum := 0.0
+	for i, wv := range weeklyVelocities {
+		velocities[i] = wv.Velocity
+		sum += wv.Velocity
+	}
+
+	mean := sum / float64(len(velocities))
+	if mean == 0 {
+		return 0.0
+	}
+
+	variance := 0.0
+	for _, v := range velocities {
+		variance += (v - mean) * (v - mean)
+	}
+	variance /= float64(len(velocities))
+	stdDev := math.Sqrt(variance)
+
+	cv := stdDev / mean
+	return math.Max(0, 1.0-cv) // Higher consistency = lower coefficient of variation
+}
+
+func (ae *analyticsEngineImpl) generateVelocityForecast(currentVelocity float64) entities.VelocityForecast {
+	return entities.VelocityForecast{
+		PredictedVelocity: currentVelocity,
+		Confidence:        0.7,
+		Range:             []float64{currentVelocity * 0.8, currentVelocity * 1.2},
+		Method:            "simple_average",
+		UpdatedAt:         time.Now(),
+	}
 }
 
 // CalculateCycleTimeMetrics calculates cycle time metrics for tasks

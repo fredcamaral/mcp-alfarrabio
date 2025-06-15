@@ -185,24 +185,43 @@ func (c *CLI) getDefaultSubtasksOutputPath(taskID string) string {
 func (c *CLI) formatSubTasksAsMarkdown(mainTask *services.MainTask, subTasks []*services.SubTask) string {
 	var content strings.Builder
 
+	c.writeMarkdownHeader(&content, mainTask, subTasks)
+	c.writeMarkdownSummary(&content, mainTask, subTasks)
+	c.writeMarkdownOverviewTable(&content, subTasks)
+	c.writeMarkdownDetailedDescriptions(&content, subTasks)
+	c.writeMarkdownImplementationOrder(&content, subTasks)
+
+	return content.String()
+}
+
+// Helper functions for formatSubTasksAsMarkdown
+
+func (c *CLI) writeMarkdownHeader(content *strings.Builder, mainTask *services.MainTask, subTasks []*services.SubTask) {
 	content.WriteString(fmt.Sprintf("# Sub-tasks for: %s\n\n", mainTask.Name))
 	content.WriteString(fmt.Sprintf("**Main Task ID:** %s\n", mainTask.ID))
 	content.WriteString(fmt.Sprintf("**Generated at:** %s\n", time.Now().Format("2006-01-02 15:04:05")))
 	content.WriteString(fmt.Sprintf("**Total sub-tasks:** %d\n\n", len(subTasks)))
+}
 
-	// Calculate totals
-	totalHours := 0
-	for _, task := range subTasks {
-		totalHours += task.Duration
-	}
-
+func (c *CLI) writeMarkdownSummary(content *strings.Builder, mainTask *services.MainTask, subTasks []*services.SubTask) {
+	totalHours := c.calculateTotalHours(subTasks)
+	
 	content.WriteString("## Summary\n\n")
 	content.WriteString(fmt.Sprintf("- **Main Task Phase:** %s\n", mainTask.Phase))
 	content.WriteString(fmt.Sprintf("- **Main Task Duration:** %s\n", mainTask.Duration))
 	content.WriteString(fmt.Sprintf("- **Total Sub-task Hours:** %d hours\n", totalHours))
 	content.WriteString(fmt.Sprintf("- **Number of Sub-tasks:** %d\n\n", len(subTasks)))
+}
 
-	// Sub-tasks table
+func (c *CLI) calculateTotalHours(subTasks []*services.SubTask) int {
+	totalHours := 0
+	for _, task := range subTasks {
+		totalHours += task.Duration
+	}
+	return totalHours
+}
+
+func (c *CLI) writeMarkdownOverviewTable(content *strings.Builder, subTasks []*services.SubTask) {
 	content.WriteString("## Sub-tasks Overview\n\n")
 	content.WriteString("| ID | Sub-task Name | Type | Duration | Deliverables |\n")
 	content.WriteString("|----|---------------|------|----------|-------------|\n")
@@ -211,51 +230,58 @@ func (c *CLI) formatSubTasksAsMarkdown(mainTask *services.MainTask, subTasks []*
 		content.WriteString(fmt.Sprintf("| %s | %s | %s | %dh | %d |\n",
 			task.ID, task.Name, task.Type, task.Duration, len(task.Deliverables)))
 	}
+	content.WriteString("\n")
+}
 
-	content.WriteString("\n## Detailed Sub-task Descriptions\n\n")
+func (c *CLI) writeMarkdownDetailedDescriptions(content *strings.Builder, subTasks []*services.SubTask) {
+	content.WriteString("## Detailed Sub-task Descriptions\n\n")
 
 	for i, task := range subTasks {
-		content.WriteString(fmt.Sprintf("### %d. %s\n\n", i+1, task.Name))
-		content.WriteString(fmt.Sprintf("- **ID:** %s\n", task.ID))
-		content.WriteString(fmt.Sprintf("- **Parent Task:** %s\n", task.ParentTaskID))
-		content.WriteString(fmt.Sprintf("- **Type:** %s\n", task.Type))
-		content.WriteString(fmt.Sprintf("- **Duration:** %d hours\n", task.Duration))
+		c.writeSubTaskDetails(content, task, i+1)
+	}
+}
 
-		if task.Content != "" {
-			content.WriteString(fmt.Sprintf("\n**Description:**\n%s\n", task.Content))
-		}
+func (c *CLI) writeSubTaskDetails(content *strings.Builder, task *services.SubTask, index int) {
+	content.WriteString(fmt.Sprintf("### %d. %s\n\n", index, task.Name))
+	content.WriteString(fmt.Sprintf("- **ID:** %s\n", task.ID))
+	content.WriteString(fmt.Sprintf("- **Parent Task:** %s\n", task.ParentTaskID))
+	content.WriteString(fmt.Sprintf("- **Type:** %s\n", task.Type))
+	content.WriteString(fmt.Sprintf("- **Duration:** %d hours\n", task.Duration))
 
-		if len(task.Deliverables) > 0 {
-			content.WriteString("\n**Deliverables:**\n")
-			for _, deliverable := range task.Deliverables {
-				content.WriteString(fmt.Sprintf("- %s\n", deliverable))
-			}
-		}
+	c.writeSubTaskOptionalFields(content, task)
+	content.WriteString("\n---\n\n")
+}
 
-		if len(task.AcceptanceCriteria) > 0 {
-			content.WriteString("\n**Acceptance Criteria:**\n")
-			for _, criteria := range task.AcceptanceCriteria {
-				content.WriteString(fmt.Sprintf("- %s\n", criteria))
-			}
-		}
-
-		if len(task.Dependencies) > 0 {
-			content.WriteString("\n**Dependencies:**\n")
-			for _, dep := range task.Dependencies {
-				content.WriteString(fmt.Sprintf("- %s\n", dep))
-			}
-		}
-
-		content.WriteString("\n---\n\n")
+func (c *CLI) writeSubTaskOptionalFields(content *strings.Builder, task *services.SubTask) {
+	if task.Content != "" {
+		content.WriteString(fmt.Sprintf("\n**Description:**\n%s\n", task.Content))
 	}
 
-	// Implementation order
+	c.writeStringSliceSection(content, "Deliverables", task.Deliverables)
+	c.writeStringSliceSection(content, "Acceptance Criteria", task.AcceptanceCriteria)
+	c.writeStringSliceSection(content, "Dependencies", task.Dependencies)
+}
+
+func (c *CLI) writeStringSliceSection(content *strings.Builder, title string, items []string) {
+	if len(items) > 0 {
+		content.WriteString(fmt.Sprintf("\n**%s:**\n", title))
+		for _, item := range items {
+			content.WriteString(fmt.Sprintf("- %s\n", item))
+		}
+	}
+}
+
+func (c *CLI) writeMarkdownImplementationOrder(content *strings.Builder, subTasks []*services.SubTask) {
 	content.WriteString("## Suggested Implementation Order\n\n")
 	content.WriteString("Based on dependencies and complexity:\n\n")
 
-	// Group by no deps, then with deps
-	noDeps := []*services.SubTask{}
-	withDeps := []*services.SubTask{}
+	noDeps, withDeps := c.groupTasksByDependencies(subTasks)
+	c.writeImplementationPhases(content, noDeps, withDeps)
+}
+
+func (c *CLI) groupTasksByDependencies(subTasks []*services.SubTask) ([]*services.SubTask, []*services.SubTask) {
+	noDeps := make([]*services.SubTask, 0)
+	withDeps := make([]*services.SubTask, 0)
 
 	for _, task := range subTasks {
 		if len(task.Dependencies) == 0 {
@@ -265,7 +291,12 @@ func (c *CLI) formatSubTasksAsMarkdown(mainTask *services.MainTask, subTasks []*
 		}
 	}
 
+	return noDeps, withDeps
+}
+
+func (c *CLI) writeImplementationPhases(content *strings.Builder, noDeps, withDeps []*services.SubTask) {
 	phase := 1
+
 	if len(noDeps) > 0 {
 		content.WriteString(fmt.Sprintf("**Phase %d (No Dependencies):**\n", phase))
 		for _, task := range noDeps {
@@ -282,6 +313,4 @@ func (c *CLI) formatSubTasksAsMarkdown(mainTask *services.MainTask, subTasks []*
 				task.ID, task.Name, strings.Join(task.Dependencies, ", ")))
 		}
 	}
-
-	return content.String()
 }
