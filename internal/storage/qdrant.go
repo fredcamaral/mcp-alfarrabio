@@ -13,6 +13,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/qdrant/go-client/qdrant"
@@ -31,6 +32,7 @@ type QdrantStore struct {
 	client            *qdrant.Client
 	config            *config.QdrantConfig
 	metrics           *StorageMetrics
+	metricsMu         sync.RWMutex // Protects concurrent access to metrics
 	collectionName    string
 	relationshipStore *QdrantRelationshipStore
 }
@@ -68,7 +70,9 @@ func (qs *QdrantStore) Initialize(ctx context.Context) error {
 		SkipCompatibilityCheck: true, // Skip version compatibility warnings
 	})
 	if err != nil {
+		qs.metricsMu.Lock()
 		qs.metrics.ConnectionStatus = connectionStatusError
+		qs.metricsMu.Unlock()
 		return fmt.Errorf("failed to create Qdrant client: %w", err)
 	}
 	qs.client = client
@@ -82,7 +86,9 @@ func (qs *QdrantStore) Initialize(ctx context.Context) error {
 	// Check if collection exists
 	collections, err := qs.client.ListCollections(ctx)
 	if err != nil {
+		qs.metricsMu.Lock()
 		qs.metrics.ConnectionStatus = connectionStatusError
+		qs.metricsMu.Unlock()
 		return fmt.Errorf("failed to list collections: %w", err)
 	}
 
@@ -105,13 +111,17 @@ func (qs *QdrantStore) Initialize(ctx context.Context) error {
 			}),
 		})
 		if err != nil {
+			qs.metricsMu.Lock()
 			qs.metrics.ConnectionStatus = connectionStatusError
+			qs.metricsMu.Unlock()
 			return fmt.Errorf("failed to create collection %s: %w", qs.collectionName, err)
 		}
 		logging.Info("Created Qdrant collection", "collection", qs.collectionName)
 	}
 
+	qs.metricsMu.Lock()
 	qs.metrics.ConnectionStatus = "connected"
+	qs.metricsMu.Unlock()
 	logging.Info("Qdrant collection initialized", "collection", qs.collectionName)
 	return nil
 }
@@ -425,11 +435,15 @@ func (qs *QdrantStore) HealthCheck(ctx context.Context) error {
 	// Try to get collection info
 	_, err := qs.client.GetCollectionInfo(ctx, qs.collectionName)
 	if err != nil {
+		qs.metricsMu.Lock()
 		qs.metrics.ConnectionStatus = connectionStatusError
+		qs.metricsMu.Unlock()
 		return fmt.Errorf("qdrant health check failed: %w", err)
 	}
 
+	qs.metricsMu.Lock()
 	qs.metrics.ConnectionStatus = "healthy"
+	qs.metricsMu.Unlock()
 	return nil
 }
 
@@ -681,7 +695,9 @@ func (qs *QdrantStore) Close() error {
 	if qs.client != nil {
 		// Qdrant Go client doesn't have explicit close method
 		// Connection will be closed when client is garbage collected
+		qs.metricsMu.Lock()
 		qs.metrics.ConnectionStatus = "closed"
+		qs.metricsMu.Unlock()
 		logging.Info("Qdrant connection closed")
 	}
 	return nil
@@ -963,6 +979,10 @@ func (qs *QdrantStore) updateMetrics(operation string, start time.Time) {
 	}
 
 	duration := time.Since(start)
+
+	// Lock for thread-safe access
+	qs.metricsMu.Lock()
+	defer qs.metricsMu.Unlock()
 
 	// Initialize maps if nil
 	if qs.metrics.OperationCounts == nil {

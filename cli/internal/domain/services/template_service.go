@@ -378,9 +378,11 @@ func (ts *templateServiceImpl) InstantiateTemplate(
 		}
 	}
 
-	// Update template usage
+	// Update template usage with inherited context
 	go func() {
-		if err := ts.UpdateTemplateUsage(context.Background(), templateID, true); err != nil {
+		updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		defer cancel()
+		if err := ts.UpdateTemplateUsage(updateCtx, templateID, true); err != nil {
 			ts.logger.Error("failed to update template usage", slog.Any("error", err))
 		}
 	}()

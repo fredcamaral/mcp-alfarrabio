@@ -251,8 +251,8 @@ func TestContainer_MCPClientConfiguration(t *testing.T) {
 	}{
 		{
 			name:           "MCP enabled with valid URL",
-			serverURL:      "http://localhost:9080",
-			expectOnline:   false, // Will be offline since server doesn't exist
+			serverURL:      "http://localhost:9999", // Use a non-existent port
+			expectOnline:   false,                   // Will be offline since server doesn't exist
 			expectDisabled: false,
 		},
 		{
@@ -291,6 +291,9 @@ func TestContainer_MCPClientConfiguration(t *testing.T) {
 
 			// Verify MCP client
 			assert.NotNil(t, container.MCPClient)
+
+			// Wait a moment for health check to complete
+			time.Sleep(200 * time.Millisecond)
 
 			// Check online status
 			assert.Equal(t, tt.expectOnline, container.MCPClient.IsOnline())

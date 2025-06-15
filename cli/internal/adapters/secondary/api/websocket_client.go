@@ -247,6 +247,9 @@ func (c *WebSocketClient) sendSubscribe() error {
 
 // readPump handles incoming WebSocket messages
 func (c *WebSocketClient) readPump() {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	defer func() {
 		c.mu.Lock()
 		if c.conn != nil {
@@ -269,7 +272,7 @@ func (c *WebSocketClient) readPump() {
 			c.logger.Info("websocket client shut down")
 		default:
 			c.logger.Info("websocket disconnected, attempting reconnection")
-			go c.reconnectLoop()
+			go c.reconnectLoop(ctx)
 		}
 	}()
 
@@ -513,12 +516,14 @@ func (c *WebSocketClient) handleRepositorySync(event Event) {
 }
 
 // reconnectLoop handles automatic reconnection with exponential backoff
-func (c *WebSocketClient) reconnectLoop() {
+func (c *WebSocketClient) reconnectLoop(ctx context.Context) {
 	delay := c.reconnectDelay
 
 	for {
 		select {
 		case <-c.done:
+			return
+		case <-ctx.Done():
 			return
 		default:
 		}
@@ -530,8 +535,8 @@ func (c *WebSocketClient) reconnectLoop() {
 
 		time.Sleep(delay)
 
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		err := c.Connect(ctx)
+		connectCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+		err := c.Connect(connectCtx)
 		cancel()
 
 		if err == nil {

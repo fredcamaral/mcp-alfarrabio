@@ -49,20 +49,34 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// Always allow health checks to succeed
+	// Check if this is a health check request
+	isHealthCheck := false
 	if request.Method == "memory_system" {
-		// Check if this is a health operation
 		if paramsMap, ok := request.Params.(map[string]interface{}); ok {
 			if operation, ok := paramsMap["operation"].(string); ok && operation == "health" {
-				response := MCPResponse{
-					JSONRPC: "2.0",
-					ID:      request.ID,
-					Result:  map[string]string{"status": "healthy"},
-				}
-				w.Header().Set("Content-Type", "application/json")
-				_ = json.NewEncoder(w).Encode(response)
-				return
+				isHealthCheck = true
 			}
+		}
+	} else if request.Method == "tools/call" {
+		if params, ok := request.Params.(map[string]interface{}); ok {
+			if toolName, ok := params["name"].(string); ok && toolName == "memory_system" {
+				if args, ok := params["arguments"].(map[string]interface{}); ok {
+					if operation, ok := args["operation"].(string); ok && operation == "health" {
+						isHealthCheck = true
+					}
+				}
+			}
+		}
+	}
+
+	// Add delay for non-health requests to allow context cancellation testing
+	if !isHealthCheck {
+		select {
+		case <-time.After(5 * time.Millisecond):
+			// Continue processing
+		case <-r.Context().Done():
+			// Request was cancelled
+			return
 		}
 	}
 
@@ -89,6 +103,26 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 		m.handleMemoryAnalyze(request.Params, &response)
 	case "memory_system":
 		m.handleMemorySystem(request.Params, &response)
+	case "tools/call":
+		// Handle tools/call wrapper
+		if params, ok := request.Params.(map[string]interface{}); ok {
+			if toolName, ok := params["name"].(string); ok && toolName == "memory_system" {
+				if args, ok := params["arguments"].(map[string]interface{}); ok {
+					m.handleMemorySystem(args, &response)
+					// Don't return early - let the response be written below
+				}
+			} else {
+				response.Error = &MCPError{
+					Code:    -32601,
+					Message: "Method not found",
+				}
+			}
+		} else {
+			response.Error = &MCPError{
+				Code:    -32602,
+				Message: "Invalid params",
+			}
+		}
 	default:
 		response.Error = &MCPError{
 			Code:    -32601,
@@ -136,7 +170,7 @@ func (m *mockMCPServer) handleMemoryCreate(params interface{}, response *MCPResp
 
 		// Extract metadata if provided
 		metadata, _ := options["metadata"].(map[string]interface{})
-		
+
 		// Create a simple task from the content
 		task := &entities.Task{
 			ID:         uuid.New().String(),
@@ -145,7 +179,7 @@ func (m *mockMCPServer) handleMemoryCreate(params interface{}, response *MCPResp
 			Priority:   entities.PriorityMedium,
 			Repository: repository,
 		}
-		
+
 		// If metadata contains task info, use it
 		if metadata != nil {
 			if id, ok := metadata["id"].(string); ok && id != "" {
@@ -209,10 +243,11 @@ func (m *mockMCPServer) handleMemoryRead(params interface{}, response *MCPRespon
 				"repository": task.Repository,
 				"created_at": task.CreatedAt.Format(time.RFC3339),
 				"updated_at": task.UpdatedAt.Format(time.RFC3339),
+				"status":     string(task.Status),
+				"priority":   string(task.Priority),
+				"tags":       task.Tags,
 				"metadata": map[string]interface{}{
-					"status":   string(task.Status),
-					"priority": string(task.Priority),
-					"tags":     task.Tags,
+					"extra": "metadata",
 				},
 			}
 
@@ -571,6 +606,9 @@ func TestHTTPMCPClient_HealthCheck(t *testing.T) {
 	client := NewHTTPMCPClient(config, logger).(*HTTPMCPClient)
 	defer func() { _ = client.Close() }()
 
+	// Wait for initial health check to complete
+	time.Sleep(100 * time.Millisecond)
+
 	// Test connection
 	ctx := context.Background()
 	err := client.TestConnection(ctx)
@@ -584,8 +622,7 @@ func TestHTTPMCPClient_ContextCancellation(t *testing.T) {
 	server := newMockMCPServer(t)
 	defer server.Close()
 
-	// Configure server to delay response
-	server.setMaxFailures(5) // Will cause delays due to retries
+	// Don't configure any failures - let the context cancel during normal operation
 
 	config := &entities.Config{
 		Server: entities.ServerConfig{
@@ -598,8 +635,13 @@ func TestHTTPMCPClient_ContextCancellation(t *testing.T) {
 	client := NewHTTPMCPClient(config, logger).(*HTTPMCPClient)
 	defer func() { _ = client.Close() }()
 
-	// Wait for initial health check to complete
-	time.Sleep(100 * time.Millisecond)
+	// Wait for initial health check to complete and client to be online
+	for i := 0; i < 100; i++ {
+		if client.IsOnline() {
+			break
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 
 	// Create test task
 	task, err := entities.NewTask("Test cancel task", "test-repo")

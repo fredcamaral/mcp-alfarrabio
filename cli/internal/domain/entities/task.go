@@ -68,11 +68,18 @@ type Task struct {
 // NewTask creates a new task with required fields and default values
 func NewTask(content, repository string) (*Task, error) {
 	trimmedContent := strings.TrimSpace(content)
+
+	// Truncate title to max 255 chars for server compatibility
+	title := trimmedContent
+	if len(title) > 255 {
+		title = title[:252] + "..."
+	}
+
 	task := &Task{
 		ID:          uuid.New().String(),
 		Content:     trimmedContent,
-		Title:       trimmedContent, // For server compatibility
-		Description: "",             // Empty description by default
+		Title:       title, // For server compatibility
+		Description: "",    // Empty description by default
 		Status:      StatusPending,
 		Priority:    PriorityMedium,
 		Repository:  repository,
@@ -92,11 +99,18 @@ func NewTask(content, repository string) (*Task, error) {
 // NewTaskWithOptions creates a new task with optional parameters
 func NewTaskWithOptions(content, repository string, options *TaskOptions) (*Task, error) {
 	trimmedContent := strings.TrimSpace(content)
+
+	// Truncate title to max 255 chars for server compatibility
+	title := trimmedContent
+	if len(title) > 255 {
+		title = title[:252] + "..."
+	}
+
 	task := &Task{
 		ID:          uuid.New().String(),
 		Content:     trimmedContent,
-		Title:       trimmedContent, // For server compatibility
-		Description: "",             // Empty description by default
+		Title:       title, // For server compatibility
+		Description: "",    // Empty description by default
 		Status:      StatusPending,
 		Priority:    PriorityMedium,
 		Repository:  repository,

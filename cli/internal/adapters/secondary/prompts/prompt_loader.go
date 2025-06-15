@@ -75,8 +75,14 @@ func (l *PromptLoader) LoadPrompts() error {
 
 // loadPrompt loads a single prompt from a file
 func (l *PromptLoader) loadPrompt(path string) (*entities.ReviewPrompt, error) {
+	// Validate path is within prompts directory
+	cleanPath := filepath.Clean(path)
+	if !strings.HasPrefix(cleanPath, l.promptsDir) {
+		return nil, fmt.Errorf("invalid path: outside of prompts directory")
+	}
+
 	// Read file content
-	content, err := os.ReadFile(path)
+	content, err := os.ReadFile(cleanPath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file: %w", err)
 	}

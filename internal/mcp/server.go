@@ -43,11 +43,12 @@ import (
 
 // String constants for repeated values
 const (
-	StatusSuccess = "success"
-	LevelMedium   = "medium"
-	LevelHigh     = "high"
-	ValueUnknown  = "unknown"
-	ValueDefault  = "default"
+	StatusSuccess  = "success"
+	StatusDegraded = "degraded"
+	LevelMedium    = "medium"
+	LevelHigh      = "high"
+	ValueUnknown   = "unknown"
+	ValueDefault   = "default"
 )
 
 // MemoryServer implements the MCP server for Claude memory
@@ -1359,14 +1360,14 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 			"status": "unhealthy",
 			"error":  "vector store not initialized",
 		}
-		health["status"] = "degraded"
+		health["status"] = StatusDegraded
 	} else if err := ms.container.GetVectorStore().HealthCheck(ctx); err != nil {
 		logging.Error("Vector store health check failed", "error", err)
 		health["services"].(map[string]interface{})["vector_store"] = map[string]interface{}{
 			"status": "unhealthy",
 			"error":  err.Error(),
 		}
-		health["status"] = "degraded"
+		health["status"] = StatusDegraded
 	} else {
 		logging.Info("Vector store health check passed")
 		health["services"].(map[string]interface{})["vector_store"] = map[string]interface{}{
@@ -1382,14 +1383,14 @@ func (ms *MemoryServer) handleHealth(ctx context.Context, _ map[string]interface
 			"status": "unhealthy",
 			"error":  "embedding service not initialized",
 		}
-		health["status"] = "degraded"
+		health["status"] = StatusDegraded
 	} else if err := ms.container.GetEmbeddingService().HealthCheck(ctx); err != nil {
 		logging.Error("Embedding service health check failed", "error", err)
 		health["services"].(map[string]interface{})["embedding_service"] = map[string]interface{}{
 			"status": "unhealthy",
 			"error":  err.Error(),
 		}
-		health["status"] = "degraded"
+		health["status"] = StatusDegraded
 	} else {
 		logging.Info("Embedding service health check passed")
 		health["services"].(map[string]interface{})["embedding_service"] = map[string]interface{}{

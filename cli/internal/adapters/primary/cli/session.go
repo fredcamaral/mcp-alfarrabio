@@ -2,8 +2,10 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"lerian-mcp-memory-cli/internal/domain/services"
@@ -31,7 +33,13 @@ func (c *CLI) getSessionFilePath() string {
 func (c *CLI) loadSession() (*SessionData, error) {
 	sessionFile := c.getSessionFilePath()
 
-	data, err := os.ReadFile(sessionFile)
+	// Validate session file path
+	cleanPath := filepath.Clean(sessionFile)
+	if !strings.HasSuffix(cleanPath, filepath.Join(".lmmc", "session.json")) {
+		return nil, fmt.Errorf("invalid session file path")
+	}
+
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			// Create new session
@@ -59,7 +67,7 @@ func (c *CLI) saveSession(session *SessionData) error {
 
 	// Ensure directory exists
 	dir := filepath.Dir(sessionFile)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return err
 	}
 
@@ -70,7 +78,7 @@ func (c *CLI) saveSession(session *SessionData) error {
 		return err
 	}
 
-	return os.WriteFile(sessionFile, data, 0644)
+	return os.WriteFile(sessionFile, data, 0600)
 }
 
 // getSessionValue retrieves a value from the session
@@ -112,7 +120,9 @@ func (c *CLI) updateSession(key, value string) {
 		session.CurrentStep = "subtasks_generated"
 	}
 
-	c.saveSession(session)
+	if err := c.saveSession(session); err != nil {
+		c.logger.Warn("Failed to save session", "error", err)
+	}
 }
 
 // clearSession clears the current session

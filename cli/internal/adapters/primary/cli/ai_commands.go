@@ -211,6 +211,41 @@ func (c *CLI) createAISyncCommand() *cobra.Command {
 	return cmd
 }
 
+// executeAIOperation is a helper function to execute AI operations with common setup
+func (c *CLI) executeAIOperation(
+	cmd *cobra.Command,
+	startMessage string,
+	operation func(context.Context, *ai.EnhancedAIService) (interface{}, error),
+	displayResult func(interface{}) error,
+) error {
+	// Get enhanced AI service
+	enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
+	if !ok {
+		return c.handleError(cmd, errors.New("AI enhancements not available"))
+	}
+
+	// Set current context
+	repoInfo, _ := c.repositoryDetector.DetectCurrent(c.getContext())
+	repository := "local"
+	if repoInfo != nil {
+		repository = repoInfo.Name
+	}
+
+	sessionID := fmt.Sprintf("cli_session_%d", time.Now().Unix())
+	enhancedAI.SetContext(repository, sessionID, nil)
+
+	fmt.Printf("%s\n", startMessage)
+
+	// Perform the operation
+	result, err := operation(c.getContext(), enhancedAI)
+	if err != nil {
+		return err
+	}
+
+	// Display results
+	return displayResult(result)
+}
+
 // createAIOptimizeCommand creates the 'ai optimize' command for workflow optimization
 func (c *CLI) createAIOptimizeCommand() *cobra.Command {
 	cmd := &cobra.Command{
@@ -222,32 +257,20 @@ func (c *CLI) createAIOptimizeCommand() *cobra.Command {
 - Workflow improvements
 - Automatic optimizations`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get enhanced AI service
-			enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
-			if !ok {
-				return c.handleError(cmd, errors.New("AI enhancements not available"))
-			}
-
-			// Set current context
-			repoInfo, _ := c.repositoryDetector.DetectCurrent(c.getContext())
-			repository := "local"
-			if repoInfo != nil {
-				repository = repoInfo.Name
-			}
-
-			sessionID := fmt.Sprintf("cli_session_%d", time.Now().Unix())
-			enhancedAI.SetContext(repository, sessionID, nil)
-
-			fmt.Printf("🚀 Starting AI workflow optimization...\n")
-
-			// Perform workflow optimization
-			result, err := enhancedAI.OptimizeWorkflow(c.getContext())
-			if err != nil {
-				return c.handleError(cmd, fmt.Errorf("workflow optimization failed: %w", err))
-			}
-
-			// Display optimization results
-			return c.displayAIOptimizationResult(result)
+			return c.executeAIOperation(
+				cmd,
+				"🚀 Starting AI workflow optimization...",
+				func(ctx context.Context, ai *ai.EnhancedAIService) (interface{}, error) {
+					result, err := ai.OptimizeWorkflow(ctx)
+					if err != nil {
+						return nil, fmt.Errorf("workflow optimization failed: %w", err)
+					}
+					return result, nil
+				},
+				func(result interface{}) error {
+					return c.displayAIOptimizationResult(result.(*ai.AICommandResult))
+				},
+			)
 		},
 	}
 
@@ -265,32 +288,20 @@ func (c *CLI) createAIAnalyzeCommand() *cobra.Command {
 - Memory usage analysis
 - Performance recommendations`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get enhanced AI service
-			enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
-			if !ok {
-				return c.handleError(cmd, errors.New("AI enhancements not available"))
-			}
-
-			// Set current context
-			repoInfo, _ := c.repositoryDetector.DetectCurrent(c.getContext())
-			repository := "local"
-			if repoInfo != nil {
-				repository = repoInfo.Name
-			}
-
-			sessionID := fmt.Sprintf("cli_session_%d", time.Now().Unix())
-			enhancedAI.SetContext(repository, sessionID, nil)
-
-			fmt.Printf("📊 Starting AI performance analysis...\n")
-
-			// Perform performance analysis
-			result, err := enhancedAI.AnalyzePerformance(c.getContext())
-			if err != nil {
-				return c.handleError(cmd, fmt.Errorf("performance analysis failed: %w", err))
-			}
-
-			// Display analysis results
-			return c.displayAIAnalysisResult(result)
+			return c.executeAIOperation(
+				cmd,
+				"📊 Starting AI performance analysis...",
+				func(ctx context.Context, ai *ai.EnhancedAIService) (interface{}, error) {
+					result, err := ai.AnalyzePerformance(ctx)
+					if err != nil {
+						return nil, fmt.Errorf("performance analysis failed: %w", err)
+					}
+					return result, nil
+				},
+				func(result interface{}) error {
+					return c.displayAIAnalysisResult(result.(*ai.AICommandResult))
+				},
+			)
 		},
 	}
 
@@ -308,32 +319,20 @@ func (c *CLI) createAIInsightsCommand() *cobra.Command {
 - Optimization recommendations
 - Health dashboard`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			// Get enhanced AI service
-			enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
-			if !ok {
-				return c.handleError(cmd, errors.New("AI enhancements not available"))
-			}
-
-			// Set current context
-			repoInfo, _ := c.repositoryDetector.DetectCurrent(c.getContext())
-			repository := "local"
-			if repoInfo != nil {
-				repository = repoInfo.Name
-			}
-
-			sessionID := fmt.Sprintf("cli_session_%d", time.Now().Unix())
-			enhancedAI.SetContext(repository, sessionID, nil)
-
-			fmt.Printf("💡 Generating AI-powered memory insights...\n")
-
-			// Get memory insights through the memory manager
-			insights, err := enhancedAI.GetMemoryInsights(c.getContext())
-			if err != nil {
-				return c.handleError(cmd, fmt.Errorf("failed to get memory insights: %w", err))
-			}
-
-			// Display insights
-			return c.displayMemoryInsights(insights)
+			return c.executeAIOperation(
+				cmd,
+				"💡 Generating AI-powered memory insights...",
+				func(ctx context.Context, ai *ai.EnhancedAIService) (interface{}, error) {
+					insights, err := ai.GetMemoryInsights(ctx)
+					if err != nil {
+						return nil, fmt.Errorf("failed to get memory insights: %w", err)
+					}
+					return insights, nil
+				},
+				func(result interface{}) error {
+					return c.displayMemoryInsights(result.([]*ai.MemoryInsight))
+				},
+			)
 		},
 	}
 

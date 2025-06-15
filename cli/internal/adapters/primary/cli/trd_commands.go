@@ -149,7 +149,7 @@ func (c *CLI) runTRDCreate(fromPRD, output string, useSession bool) error {
 			Features:    []string{"Feature 1", "Feature 2", "Feature 3"},
 			UserStories: []string{"As a user, I want feature 1", "As a user, I want feature 2"},
 			Metadata: map[string]interface{}{
-				"repository":   c.detectRepository(),
+				"repository":   c.detectRepository(c.getContext()),
 				"project_type": "general",
 			},
 			CreatedAt: time.Now(),
@@ -168,7 +168,9 @@ func (c *CLI) runTRDCreate(fromPRD, output string, useSession bool) error {
 	if output == "" && useSession {
 		// Default output location with matching name
 		preDev := "docs/pre-development"
-		os.MkdirAll(preDev, 0755)
+		if err := os.MkdirAll(preDev, 0750); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
+		}
 
 		// Extract base name from PRD file
 		baseName := "project"

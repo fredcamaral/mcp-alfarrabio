@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -84,8 +85,7 @@ func (c *CLI) createMemoryStorePRDCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Project name (required)")
 	cmd.Flags().StringSliceVar(&tags, "tag", []string{}, "Tags to associate with the PRD")
 
-	cmd.MarkFlagRequired("file")
-	cmd.MarkFlagRequired("project")
+	markFlagRequired(cmd, "file", "project")
 
 	return cmd
 }
@@ -116,8 +116,7 @@ func (c *CLI) createMemoryStoreTRDCommand() *cobra.Command {
 	cmd.Flags().StringVar(&prdID, "prd-id", "", "Associated PRD ID (optional)")
 	cmd.Flags().StringSliceVar(&tags, "tag", []string{}, "Tags to associate with the TRD")
 
-	cmd.MarkFlagRequired("file")
-	cmd.MarkFlagRequired("project")
+	markFlagRequired(cmd, "file", "project")
 
 	return cmd
 }
@@ -146,7 +145,7 @@ func (c *CLI) createMemoryStoreReviewCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Project name (required)")
 	cmd.Flags().StringSliceVar(&tags, "tag", []string{}, "Tags to associate with the review")
 
-	cmd.MarkFlagRequired("project")
+	markFlagRequired(cmd, "project")
 
 	return cmd
 }
@@ -176,9 +175,7 @@ func (c *CLI) createMemoryStoreDecisionCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Project name (required)")
 	cmd.Flags().StringSliceVar(&tags, "tag", []string{}, "Tags to associate with the decision")
 
-	cmd.MarkFlagRequired("decision")
-	cmd.MarkFlagRequired("rationale")
-	cmd.MarkFlagRequired("project")
+	markFlagRequired(cmd, "decision", "rationale", "project")
 
 	return cmd
 }
@@ -328,7 +325,7 @@ func (c *CLI) createMemoryPatternsCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&patternType, "type", "t", "", "Filter by pattern type")
 	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json, plain)")
 
-	cmd.MarkFlagRequired("project")
+	markFlagRequired(cmd, "project")
 
 	return cmd
 }
@@ -357,7 +354,7 @@ func (c *CLI) createMemorySuggestCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Project context (required)")
 	cmd.Flags().StringVar(&format, "format", "table", "Output format (table, json, plain)")
 
-	cmd.MarkFlagRequired("project")
+	markFlagRequired(cmd, "project")
 
 	return cmd
 }
@@ -418,7 +415,7 @@ func (c *CLI) createMemoryCompareCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&aspect, "aspect", "a", "", "Specific aspect to compare")
 	cmd.Flags().StringVarP(&format, "format", "f", "table", "Output format (table, json, plain)")
 
-	cmd.MarkFlagRequired("projects")
+	markFlagRequired(cmd, "projects")
 
 	return cmd
 }
@@ -426,8 +423,23 @@ func (c *CLI) createMemoryCompareCommand() *cobra.Command {
 // Implementation methods
 
 func (c *CLI) runMemoryStorePRD(cmd *cobra.Command, file, project string, tags []string) error {
+	// Validate file path
+	cleanPath := filepath.Clean(file)
+	if filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "/") && !strings.HasPrefix(cleanPath, filepath.Clean(".")) {
+		return fmt.Errorf("invalid file path")
+	}
+
+	// Check file exists and is regular file
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return fmt.Errorf("cannot access file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("not a regular file: %s", cleanPath)
+	}
+
 	// Read PRD file content
-	content, err := os.ReadFile(file)
+	content, err := os.ReadFile(cleanPath) // #nosec G304 - Path validated above
 	if err != nil {
 		return fmt.Errorf("failed to read PRD file: %w", err)
 	}
@@ -465,8 +477,23 @@ func (c *CLI) runMemoryStorePRD(cmd *cobra.Command, file, project string, tags [
 }
 
 func (c *CLI) runMemoryStoreTRD(cmd *cobra.Command, file, project, prdID string, tags []string) error {
+	// Validate file path
+	cleanPath := filepath.Clean(file)
+	if filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "/") && !strings.HasPrefix(cleanPath, filepath.Clean(".")) {
+		return fmt.Errorf("invalid file path")
+	}
+
+	// Check file exists and is regular file
+	info, err := os.Stat(cleanPath)
+	if err != nil {
+		return fmt.Errorf("cannot access file: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("not a regular file: %s", cleanPath)
+	}
+
 	// Read TRD file content
-	content, err := os.ReadFile(file)
+	content, err := os.ReadFile(cleanPath) // #nosec G304 - Path validated above
 	if err != nil {
 		return fmt.Errorf("failed to read TRD file: %w", err)
 	}

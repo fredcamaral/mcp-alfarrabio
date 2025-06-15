@@ -1,8 +1,9 @@
 package cli
 
 import (
+	cryptorand "crypto/rand"
 	"fmt"
-	"math/rand"
+	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,8 +146,6 @@ func (c *CLI) createGenerateSampleProjectCommand() *cobra.Command {
 // Implementation functions
 
 func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, priority string, tags []string, withSubtasks bool) error {
-	// Initialize random seed
-	rand.Seed(time.Now().UnixNano())
 
 	// Sample task templates
 	taskTemplates := []struct {
@@ -189,13 +188,15 @@ func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, 
 	var createdTasks []*entities.Task
 	for i := 0; i < count; i++ {
 		// Pick a random template
-		template := taskTemplates[rand.Intn(len(taskTemplates))]
+		n, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(taskTemplates))))
+		template := taskTemplates[n.Int64()]
 
 		// Determine priority
 		taskPriority := priority
 		if taskPriority == "" || taskPriority == "random" {
 			priorities := []string{"low", "medium", "high"}
-			taskPriority = priorities[rand.Intn(len(priorities))]
+			n, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(priorities))))
+			taskPriority = priorities[n.Int64()]
 		}
 
 		// Combine tags
@@ -211,7 +212,8 @@ func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, 
 		options = append(options, services.WithTags(taskTags...))
 
 		// Add estimated time
-		estimatedTime := 30 + rand.Intn(240) // 30 min to 4 hours
+		n1, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(240))
+		estimatedTime := 30 + int(n1.Int64()) // 30 min to 4 hours
 		options = append(options, services.WithEstimatedTime(estimatedTime))
 
 		// Create the task
@@ -224,8 +226,10 @@ func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, 
 		fmt.Fprintf(cmd.OutOrStdout(), "Created task %d/%d: %s\n", i+1, count, task.ID[:8])
 
 		// Generate subtasks if requested
-		if withSubtasks && rand.Float32() < 0.6 { // 60% chance of having subtasks
-			subtaskCount := 2 + rand.Intn(4) // 2-5 subtasks
+		n3, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(10))
+		if withSubtasks && n3.Int64() < 6 { // 60% chance of having subtasks
+			n4, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(4))
+			subtaskCount := 2 + int(n4.Int64()) // 2-5 subtasks
 			for j := 0; j < subtaskCount; j++ {
 				subtaskContent := fmt.Sprintf("Subtask %d for %s", j+1, taskContent)
 				subtask, err := c.taskService.CreateTask(c.getContext(), subtaskContent,
@@ -376,7 +380,9 @@ func (c *CLI) runGenerateSamplePRD(cmd *cobra.Command, projectType, output strin
 
 	// Determine output path
 	if output == "" {
-		os.MkdirAll("docs/pre-development", 0755)
+		if err := os.MkdirAll("docs/pre-development", 0750); err != nil {
+			return fmt.Errorf("failed to create docs directory: %w", err)
+		}
 		output = fmt.Sprintf("docs/pre-development/sample-prd-%s.md", projectType)
 	}
 
@@ -454,7 +460,7 @@ func (c *CLI) runGenerateSamplePRD(cmd *cobra.Command, projectType, output strin
 	content.WriteString("- Positive user feedback score > 4.5/5\n")
 
 	// Write to file
-	if err := os.WriteFile(output, []byte(content.String()), 0644); err != nil {
+	if err := os.WriteFile(output, []byte(content.String()), 0600); err != nil {
 		return fmt.Errorf("failed to write PRD: %w", err)
 	}
 
@@ -470,8 +476,9 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 	if name == "" {
 		adjectives := []string{"awesome", "stellar", "quantum", "nexus", "phoenix", "titan"}
 		nouns := []string{"api", "service", "platform", "system", "hub", "engine"}
-		rand.Seed(time.Now().UnixNano())
-		name = fmt.Sprintf("%s-%s", adjectives[rand.Intn(len(adjectives))], nouns[rand.Intn(len(nouns))])
+		n1, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(adjectives))))
+		n2, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(nouns))))
+		name = fmt.Sprintf("%s-%s", adjectives[n1.Int64()], nouns[n2.Int64()])
 	}
 
 	// Set output directory
@@ -489,7 +496,7 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 	}
 
 	for _, dir := range dirs {
-		if err := os.MkdirAll(dir, 0755); err != nil {
+		if err := os.MkdirAll(dir, 0750); err != nil {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
@@ -530,7 +537,7 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 		fmt.Fprintf(cmd.OutOrStdout(), "\n📝 Storing project documents in memory...\n")
 
 		// Store PRD
-		prdContent, _ := os.ReadFile(prdPath)
+		prdContent, _ := os.ReadFile(filepath.Clean(prdPath))
 		if _, err := c.getMCPClient().CallMCPTool(c.getContext(), "memory_create", map[string]interface{}{
 			"operation": "store_chunk",
 			"scope":     "single",
@@ -549,7 +556,7 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 		}
 
 		// Store TRD
-		trdContent, _ := os.ReadFile(trdPath)
+		trdContent, _ := os.ReadFile(filepath.Clean(trdPath))
 		if _, err := c.getMCPClient().CallMCPTool(c.getContext(), "memory_create", map[string]interface{}{
 			"operation": "store_chunk",
 			"scope":     "single",
@@ -572,11 +579,18 @@ func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outpu
 	if withTasks {
 		// Change to project directory for task generation
 		originalDir, _ := os.Getwd()
-		os.Chdir(outputDir)
-		defer os.Chdir(originalDir)
+		if err := os.Chdir(outputDir); err != nil {
+			c.logger.Warn("Failed to change directory", "error", err)
+		}
+		defer func() {
+			if err := os.Chdir(originalDir); err != nil {
+				c.logger.Warn("Failed to restore directory", "error", err)
+			}
+		}()
 
 		fmt.Fprintf(cmd.OutOrStdout(), "\n🔧 Generating tasks from PRD/TRD...\n")
-		taskCount := 15 + rand.Intn(10) // 15-25 tasks
+		n, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(10))
+		taskCount := 15 + int(n.Int64()) // 15-25 tasks
 		if err := c.runGenerateSampleTasks(cmd, taskCount, name, "", []string{template, "generated"}, true); err != nil {
 			c.logger.Warn("Failed to generate tasks", "error", err)
 		}
@@ -664,7 +678,7 @@ func generateSampleTRD(projectType, projectName, path string) error {
 	content.WriteString("7. Write tests\n")
 	content.WriteString("8. Deploy to staging\n")
 
-	return os.WriteFile(path, []byte(content.String()), 0644)
+	return os.WriteFile(path, []byte(content.String()), 0600)
 }
 
 func generateProjectReadme(projectType, projectName, path string) error {
@@ -701,7 +715,7 @@ func generateProjectReadme(projectType, projectName, path string) error {
 	content.WriteString(fmt.Sprintf("lmmc generate sample-project --template %s --name %s\n", projectType, projectName))
 	content.WriteString("```\n")
 
-	return os.WriteFile(path, []byte(content.String()), 0644)
+	return os.WriteFile(path, []byte(content.String()), 0600)
 }
 
 func generateGitignore(projectType, path string) error {
@@ -742,5 +756,5 @@ func generateGitignore(projectType, path string) error {
 	content.WriteString("*.swp\n")
 	content.WriteString("*.swo\n")
 
-	return os.WriteFile(path, []byte(content.String()), 0644)
+	return os.WriteFile(path, []byte(content.String()), 0600)
 }

@@ -129,7 +129,7 @@ func (m *SyncManager) Start(ctx context.Context) error {
 	go m.periodicSync(ctx)
 
 	// Test initial connection
-	m.updateConnectionStatus()
+	m.updateConnectionStatus(ctx)
 
 	return nil
 }
@@ -236,7 +236,7 @@ func (m *SyncManager) SyncWithServer(ctx context.Context) error {
 	m.logger.Info("starting full server synchronization")
 
 	// Update connection status
-	m.updateConnectionStatus()
+	m.updateConnectionStatus(ctx)
 
 	if !m.isOnline {
 		return errors.New("server not available for sync")
@@ -453,8 +453,8 @@ func (m *SyncManager) periodicSync(ctx context.Context) {
 }
 
 // updateConnectionStatus checks and updates connection status
-func (m *SyncManager) updateConnectionStatus() {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+func (m *SyncManager) updateConnectionStatus(ctx context.Context) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	var online bool

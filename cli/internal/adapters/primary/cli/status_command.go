@@ -47,7 +47,7 @@ func (c *CLI) printSystemStatus(cmd *cobra.Command, detailed bool) {
 
 	// Repository Detection
 	fmt.Fprintf(out, "\nRepository:\n")
-	repo := c.detectRepository()
+	repo := c.detectRepository(c.getContext())
 	if repo != "" {
 		fmt.Fprintf(out, "  Current: %s ✅\n", repo)
 	} else {

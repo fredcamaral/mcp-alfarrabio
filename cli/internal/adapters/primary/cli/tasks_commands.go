@@ -63,8 +63,7 @@ func (c *CLI) createTasksGenerateCommand() *cobra.Command {
 	// Legacy flags for backward compatibility
 	cmd.Flags().StringVar(&fromPRD, "prd", "", "PRD file path (deprecated, use --from-prd)")
 	cmd.Flags().StringVar(&fromTRD, "trd", "", "TRD file path (deprecated, use --from-trd)")
-	cmd.Flags().MarkHidden("prd")
-	cmd.Flags().MarkHidden("trd")
+	markFlagHidden(cmd, "prd", "trd")
 
 	return cmd
 }
@@ -382,7 +381,10 @@ func (c *CLI) runTasksAtomicCheck(taskID string) error {
 func (c *CLI) getDefaultTasksOutputPath() string {
 	// Create standard output path
 	preDev := "docs/pre-development"
-	os.MkdirAll(preDev, 0755)
+	if err := os.MkdirAll(preDev, 0750); err != nil {
+		// Log the error but continue with the path
+		c.logger.Warn("failed to create directory", "path", preDev, "error", err)
+	}
 
 	timestamp := time.Now().Format("2006-01-02")
 	return filepath.Join(preDev, fmt.Sprintf("tasks-%s.md", timestamp))
@@ -454,10 +456,10 @@ func (c *CLI) formatMainTasksAsMarkdown(tasks []*services.MainTask) string {
 func (c *CLI) saveToFile(path, content string) error {
 	// Ensure directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
+	if err := os.MkdirAll(dir, 0750); err != nil {
 		return fmt.Errorf("failed to create directory: %w", err)
 	}
 
 	// Write file
-	return os.WriteFile(path, []byte(content), 0644)
+	return os.WriteFile(path, []byte(content), 0600)
 }

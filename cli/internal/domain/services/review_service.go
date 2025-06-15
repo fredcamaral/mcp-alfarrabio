@@ -69,8 +69,12 @@ func (s *ReviewService) StartReview(ctx context.Context, config entities.ReviewC
 	s.sessions[session.ID] = session
 	s.mu.Unlock()
 
-	// Start review in background
-	go s.executeReview(context.Background(), session, config)
+	// Start review in background with inherited context
+	reviewCtx, cancel := context.WithCancel(ctx)
+	go func() {
+		defer cancel()
+		s.executeReview(reviewCtx, session, config)
+	}()
 
 	return session, nil
 }
@@ -675,7 +679,7 @@ func (s *ReviewService) generateSummary(session *entities.ReviewSession) *entiti
 
 func (s *ReviewService) writePromptOutput(prompt *entities.ReviewPrompt, content string, outputDir string) error {
 	// Create output directory if it doesn't exist
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
+	if err := os.MkdirAll(outputDir, 0750); err != nil {
 		return fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -684,7 +688,7 @@ func (s *ReviewService) writePromptOutput(prompt *entities.ReviewPrompt, content
 	filepath := filepath.Join(outputDir, filename)
 
 	// Write content
-	return os.WriteFile(filepath, []byte(content), 0644)
+	return os.WriteFile(filepath, []byte(content), 0600)
 }
 
 func (s *ReviewService) generateTodoList(ctx context.Context, session *entities.ReviewSession, outputDir string) error {
@@ -749,7 +753,7 @@ func (s *ReviewService) generateTodoList(ctx context.Context, session *entities.
 		filename = filepath.Join(outputDir, filename)
 	}
 
-	return os.WriteFile(filename, []byte(content.String()), 0644)
+	return os.WriteFile(filename, []byte(content.String()), 0600)
 }
 
 func (s *ReviewService) storeInMemory(ctx context.Context, session *entities.ReviewSession) error {

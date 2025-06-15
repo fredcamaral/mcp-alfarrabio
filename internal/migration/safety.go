@@ -714,66 +714,13 @@ func (msm *MigrationSafetyManager) executeSingleMigration(ctx context.Context, m
 	containsConcurrently := strings.Contains(strings.ToUpper(sqlContent), "CONCURRENTLY")
 
 	if containsConcurrently {
-		// Execute migrations with CONCURRENTLY outside of transaction
-		msm.logger.Info("Migration contains CONCURRENTLY statements, executing without transaction")
-
-		// Split the SQL into statements
-		statements := msm.splitSQLStatements(sqlContent)
-
-		for i, stmt := range statements {
-			stmt = strings.TrimSpace(stmt)
-			if stmt == "" {
-				continue
-			}
-
-			// Check if this statement needs to run outside transaction
-			if strings.Contains(strings.ToUpper(stmt), "CONCURRENTLY") {
-				msm.logger.Debug("Executing CONCURRENTLY statement", "statement_index", i)
-				_, err = msm.db.ExecContext(ctx, stmt)
-				if err != nil {
-					_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
-					return fmt.Errorf("failed to execute CONCURRENTLY statement: %w", err)
-				}
-			} else {
-				// Execute non-concurrent statements in transaction
-				tx, err := msm.db.BeginTx(ctx, nil)
-				if err != nil {
-					return fmt.Errorf("failed to begin transaction: %w", err)
-				}
-
-				_, err = tx.ExecContext(ctx, stmt)
-				if err != nil {
-					_ = tx.Rollback()
-					_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
-					return fmt.Errorf("failed to execute statement: %w", err)
-				}
-
-				err = tx.Commit()
-				if err != nil {
-					_ = tx.Rollback()
-					return fmt.Errorf("failed to commit transaction: %w", err)
-				}
-			}
-		}
+		err = msm.executeConcurrentMigration(ctx, migration, sqlContent, startTime, backupPath)
 	} else {
-		// Execute migration in transaction (original behavior)
-		tx, err := msm.db.BeginTx(ctx, nil)
-		if err != nil {
-			return fmt.Errorf("failed to begin transaction: %w", err)
-		}
-		defer func() { _ = tx.Rollback() }()
+		err = msm.executeTransactionalMigration(ctx, migration, sqlContent, startTime, backupPath)
+	}
 
-		_, err = tx.ExecContext(ctx, sqlContent)
-		if err != nil {
-			// Record failed migration
-			_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
-			return fmt.Errorf("failed to execute migration SQL: %w", err)
-		}
-
-		err = tx.Commit()
-		if err != nil {
-			return fmt.Errorf("failed to commit migration transaction: %w", err)
-		}
+	if err != nil {
+		return err
 	}
 
 	// Record successful migration
@@ -790,79 +737,217 @@ func (msm *MigrationSafetyManager) executeSingleMigration(ctx context.Context, m
 	return nil
 }
 
+// executeConcurrentMigration executes migrations containing CONCURRENTLY statements
+func (msm *MigrationSafetyManager) executeConcurrentMigration(ctx context.Context, migration *PlannedMigration, sqlContent string, startTime time.Time, backupPath string) error {
+	msm.logger.Info("Migration contains CONCURRENTLY statements, executing without transaction")
+
+	statements := msm.splitSQLStatements(sqlContent)
+
+	for i, stmt := range statements {
+		stmt = strings.TrimSpace(stmt)
+		if stmt == "" {
+			continue
+		}
+
+		if err := msm.executeSingleStatement(ctx, migration, stmt, i, startTime, backupPath); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// executeTransactionalMigration executes migrations in a single transaction
+func (msm *MigrationSafetyManager) executeTransactionalMigration(ctx context.Context, migration *PlannedMigration, sqlContent string, startTime time.Time, backupPath string) error {
+	tx, err := msm.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	_, err = tx.ExecContext(ctx, sqlContent)
+	if err != nil {
+		_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
+		return fmt.Errorf("failed to execute migration SQL: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return fmt.Errorf("failed to commit migration transaction: %w", err)
+	}
+
+	return nil
+}
+
+// executeSingleStatement executes a single SQL statement, handling CONCURRENTLY appropriately
+func (msm *MigrationSafetyManager) executeSingleStatement(ctx context.Context, migration *PlannedMigration, stmt string, index int, startTime time.Time, backupPath string) error {
+	if strings.Contains(strings.ToUpper(stmt), "CONCURRENTLY") {
+		return msm.executeConcurrentStatement(ctx, migration, stmt, index, startTime, backupPath)
+	}
+
+	return msm.executeTransactionalStatement(ctx, migration, stmt, startTime, backupPath)
+}
+
+// executeConcurrentStatement executes a statement containing CONCURRENTLY outside of a transaction
+func (msm *MigrationSafetyManager) executeConcurrentStatement(ctx context.Context, migration *PlannedMigration, stmt string, index int, startTime time.Time, backupPath string) error {
+	msm.logger.Debug("Executing CONCURRENTLY statement", "statement_index", index)
+	_, err := msm.db.ExecContext(ctx, stmt)
+	if err != nil {
+		_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
+		return fmt.Errorf("failed to execute CONCURRENTLY statement: %w", err)
+	}
+	return nil
+}
+
+// executeTransactionalStatement executes a statement in a transaction
+func (msm *MigrationSafetyManager) executeTransactionalStatement(ctx context.Context, migration *PlannedMigration, stmt string, startTime time.Time, backupPath string) error {
+	tx, err := msm.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+
+	_, err = tx.ExecContext(ctx, stmt)
+	if err != nil {
+		_ = tx.Rollback()
+		_ = msm.recordMigration(ctx, migration, startTime, backupPath, false, err.Error())
+		return fmt.Errorf("failed to execute statement: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		_ = tx.Rollback()
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
+}
+
 // splitSQLStatements splits SQL content into individual statements
 // It's a simple implementation that splits on semicolons not inside quotes
-func (msm *MigrationSafetyManager) splitSQLStatements(sql string) []string {
-	var statements []string
-	var currentStatement strings.Builder
-	inSingleQuote := false
-	inDoubleQuote := false
-	inDollarQuote := false
-	var dollarTag string
+func (msm *MigrationSafetyManager) splitSQLStatements(sqlContent string) []string {
+	parser := &sqlParser{
+		runes:            []rune(sqlContent),
+		statements:       []string{},
+		currentStatement: strings.Builder{},
+	}
 
-	runes := []rune(sql)
-	for i := 0; i < len(runes); i++ {
-		char := runes[i]
+	return parser.parse()
+}
 
-		// Handle dollar quotes (PostgreSQL specific)
-		if char == '$' && !inSingleQuote && !inDoubleQuote {
-			// Look for dollar quote tag
-			tagStart := i
-			tagEnd := i + 1
-			for tagEnd < len(runes) && runes[tagEnd] != '$' {
-				tagEnd++
-			}
-			if tagEnd < len(runes) {
-				tag := string(runes[tagStart : tagEnd+1])
-				if inDollarQuote && tag == dollarTag {
-					inDollarQuote = false
-					dollarTag = ""
-				} else if !inDollarQuote {
-					inDollarQuote = true
-					dollarTag = tag
-				}
-				currentStatement.WriteString(tag)
-				i = tagEnd
+// sqlParser handles the parsing state for SQL statement splitting
+type sqlParser struct {
+	runes            []rune
+	statements       []string
+	currentStatement strings.Builder
+	inSingleQuote    bool
+	inDoubleQuote    bool
+	inDollarQuote    bool
+	dollarTag        string
+	position         int
+}
+
+// parse processes the SQL content and returns individual statements
+func (p *sqlParser) parse() []string {
+	for p.position < len(p.runes) {
+		char := p.runes[p.position]
+
+		if p.shouldHandleDollarQuote(char) {
+			p.handleDollarQuote()
+			continue
+		}
+
+		if p.shouldHandleQuote(char) {
+			if p.handleQuote(char) {
 				continue
 			}
 		}
 
-		// Handle quotes
-		if !inDollarQuote {
-			if char == '\'' && !inDoubleQuote {
-				// Check for escaped single quote
-				if i+1 < len(runes) && runes[i+1] == '\'' {
-					currentStatement.WriteRune(char)
-					currentStatement.WriteRune(runes[i+1])
-					i++
-					continue
-				}
-				inSingleQuote = !inSingleQuote
-			} else if char == '"' && !inSingleQuote {
-				inDoubleQuote = !inDoubleQuote
-			}
-		}
-
-		// Handle statement separator
-		if char == ';' && !inSingleQuote && !inDoubleQuote && !inDollarQuote {
-			stmt := strings.TrimSpace(currentStatement.String())
-			if stmt != "" {
-				statements = append(statements, stmt)
-			}
-			currentStatement.Reset()
+		if p.isStatementSeparator(char) {
+			p.finalizeStatement()
+			p.position++
 			continue
 		}
 
-		currentStatement.WriteRune(char)
+		p.currentStatement.WriteRune(char)
+		p.position++
 	}
 
 	// Add any remaining statement
-	stmt := strings.TrimSpace(currentStatement.String())
-	if stmt != "" {
-		statements = append(statements, stmt)
+	p.finalizeStatement()
+	return p.statements
+}
+
+// shouldHandleDollarQuote checks if we should process a dollar quote
+func (p *sqlParser) shouldHandleDollarQuote(char rune) bool {
+	return char == '$' && !p.inSingleQuote && !p.inDoubleQuote
+}
+
+// handleDollarQuote processes PostgreSQL dollar quotes
+func (p *sqlParser) handleDollarQuote() {
+	tagStart := p.position
+	tagEnd := p.position + 1
+
+	// Find the end of the potential tag
+	for tagEnd < len(p.runes) && p.runes[tagEnd] != '$' {
+		tagEnd++
 	}
 
-	return statements
+	if tagEnd >= len(p.runes) {
+		// Not a valid dollar quote
+		p.currentStatement.WriteRune(p.runes[p.position])
+		p.position++
+		return
+	}
+
+	tag := string(p.runes[tagStart : tagEnd+1])
+
+	if p.inDollarQuote && tag == p.dollarTag {
+		p.inDollarQuote = false
+		p.dollarTag = ""
+	} else if !p.inDollarQuote {
+		p.inDollarQuote = true
+		p.dollarTag = tag
+	}
+
+	p.currentStatement.WriteString(tag)
+	p.position = tagEnd + 1
+}
+
+// shouldHandleQuote checks if we should process a quote character
+func (p *sqlParser) shouldHandleQuote(char rune) bool {
+	return !p.inDollarQuote && (char == '\'' || char == '"')
+}
+
+// handleQuote processes single and double quotes
+// Returns true if position was advanced (for escaped quotes)
+func (p *sqlParser) handleQuote(char rune) bool {
+	if char == '\'' && !p.inDoubleQuote {
+		// Check for escaped single quote
+		if p.position+1 < len(p.runes) && p.runes[p.position+1] == '\'' {
+			p.currentStatement.WriteRune(char)
+			p.currentStatement.WriteRune(p.runes[p.position+1])
+			p.position += 2
+			return true
+		}
+		p.inSingleQuote = !p.inSingleQuote
+	} else if char == '"' && !p.inSingleQuote {
+		p.inDoubleQuote = !p.inDoubleQuote
+	}
+	return false
+}
+
+// isStatementSeparator checks if the character is a statement separator
+func (p *sqlParser) isStatementSeparator(char rune) bool {
+	return char == ';' && !p.inSingleQuote && !p.inDoubleQuote && !p.inDollarQuote
+}
+
+// finalizeStatement adds the current statement to the list if not empty
+func (p *sqlParser) finalizeStatement() {
+	stmt := strings.TrimSpace(p.currentStatement.String())
+	if stmt != "" {
+		p.statements = append(p.statements, stmt)
+	}
+	p.currentStatement.Reset()
 }
 
 func (msm *MigrationSafetyManager) recordMigration(ctx context.Context, migration *PlannedMigration, startTime time.Time, backupPath string, success bool, errorMsg string) error {

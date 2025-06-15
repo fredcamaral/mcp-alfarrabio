@@ -216,7 +216,9 @@ func setupMCPHandler(mux *http.ServeMux, mcpServer *server.Server) {
 
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(errorResp)
+				if err := json.NewEncoder(w).Encode(errorResp); err != nil {
+					log.Printf("Failed to encode error response: %v", err)
+				}
 			}
 		}()
 

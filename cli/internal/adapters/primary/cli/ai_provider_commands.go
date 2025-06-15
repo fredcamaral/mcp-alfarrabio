@@ -264,7 +264,7 @@ Examples:
 	cmd.Flags().StringVar(&name, "name", "", "Custom name for this provider configuration")
 	cmd.Flags().BoolVar(&setDefault, "default", false, "Set as default provider")
 
-	cmd.MarkFlagRequired("type")
+	markFlagRequired(cmd, "type")
 
 	return cmd
 }
@@ -823,7 +823,14 @@ func (c *CLI) createAIListFallbackCommand() *cobra.Command {
 		Long:  `Display the configured fallback chain for AI providers.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			configFile := filepath.Join(c.getAIConfigDir(), "fallback.yaml")
-			data, err := os.ReadFile(configFile)
+			cleanPath := filepath.Clean(configFile)
+
+			// Validate path is within config directory
+			if !strings.HasPrefix(cleanPath, c.getAIConfigDir()) {
+				return fmt.Errorf("invalid config file path")
+			}
+
+			data, err := os.ReadFile(cleanPath)
 			if err != nil {
 				if os.IsNotExist(err) {
 					fmt.Printf("No fallback chain configured.\n")
@@ -972,7 +979,14 @@ func (c *CLI) saveAIProviderConfig(config *AIProviderConfig) error {
 
 func (c *CLI) loadAIProviders() ([]AIProviderConfig, error) {
 	configFile := filepath.Join(c.getAIConfigDir(), "providers.yaml")
-	data, err := os.ReadFile(configFile)
+	cleanPath := filepath.Clean(configFile)
+
+	// Validate path is within config directory
+	if !strings.HasPrefix(cleanPath, c.getAIConfigDir()) {
+		return nil, fmt.Errorf("invalid config file path")
+	}
+
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return []AIProviderConfig{}, nil
@@ -1004,7 +1018,14 @@ func (c *CLI) saveAIDefaults(defaults map[string]AIDefaultConfig) error {
 
 func (c *CLI) loadAIDefaults() (map[string]AIDefaultConfig, error) {
 	configFile := filepath.Join(c.getAIConfigDir(), "defaults.yaml")
-	data, err := os.ReadFile(configFile)
+	cleanPath := filepath.Clean(configFile)
+
+	// Validate path is within config directory
+	if !strings.HasPrefix(cleanPath, c.getAIConfigDir()) {
+		return nil, fmt.Errorf("invalid config file path")
+	}
+
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return make(map[string]AIDefaultConfig), nil
@@ -1036,7 +1057,14 @@ func (c *CLI) saveAIBudget(budget *AICostBudget) error {
 
 func (c *CLI) loadAIBudget() (*AICostBudget, error) {
 	configFile := filepath.Join(c.getAIConfigDir(), "budget.yaml")
-	data, err := os.ReadFile(configFile)
+	cleanPath := filepath.Clean(configFile)
+
+	// Validate path is within config directory
+	if !strings.HasPrefix(cleanPath, c.getAIConfigDir()) {
+		return nil, fmt.Errorf("invalid config file path")
+	}
+
+	data, err := os.ReadFile(cleanPath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return &AICostBudget{PerProvider: make(map[string]float64)}, nil

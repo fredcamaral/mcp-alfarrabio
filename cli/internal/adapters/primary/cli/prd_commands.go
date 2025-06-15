@@ -237,7 +237,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 	}
 
 	context := &services.GenerationContext{
-		Repository:  c.detectRepository(),
+		Repository:  c.detectRepository(ctx),
 		ProjectType: projectType,
 		UserInputs:  userInputs,
 		UserPrefs: services.UserPreferences{
@@ -261,7 +261,9 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 	if output == "" {
 		// Default output location
 		preDev := "docs/pre-development"
-		os.MkdirAll(preDev, 0755)
+		if err := os.MkdirAll(preDev, 0750); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
+		}
 
 		// Create filename from title
 		baseName := strings.ToLower(prd.Title)
@@ -299,7 +301,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, output, aiProvider, model string) error {
 	// Create basic context
 	context := &services.GenerationContext{
-		Repository:  c.detectRepository(),
+		Repository:  c.detectRepository(ctx),
 		ProjectType: projectType,
 		UserInputs:  []string{title},
 		UserPrefs: services.UserPreferences{
@@ -324,7 +326,9 @@ func (c *CLI) createPRDNonInteractive(ctx context.Context, title, projectType, o
 	if output == "" {
 		// Default output location
 		preDev := "docs/pre-development"
-		os.MkdirAll(preDev, 0755)
+		if err := os.MkdirAll(preDev, 0750); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
+		}
 
 		// Create filename from title
 		baseName := strings.ToLower(title)
@@ -410,9 +414,9 @@ func (c *CLI) formatPRDAsMarkdown(prd *services.PRDEntity) string {
 }
 
 // detectRepository attempts to detect the current repository
-func (c *CLI) detectRepository() string {
+func (c *CLI) detectRepository(ctx context.Context) string {
 	if c.repositoryDetector != nil {
-		if repo, err := c.repositoryDetector.DetectCurrent(context.Background()); err == nil && repo != nil {
+		if repo, err := c.repositoryDetector.DetectCurrent(ctx); err == nil && repo != nil {
 			return repo.Name
 		}
 	}

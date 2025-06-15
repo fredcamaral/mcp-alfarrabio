@@ -3,6 +3,8 @@ package cli
 import (
 	"fmt"
 	"strings"
+
+	"github.com/spf13/cobra"
 )
 
 // CLIError represents an enhanced error with recovery suggestions
@@ -165,6 +167,28 @@ func NewWorkflowInterruptedError(step string) *CLIError {
 			},
 		},
 		SessionID: "current",
+	}
+}
+
+// markFlagRequired is a helper to mark flags as required and handle errors
+func markFlagRequired(cmd *cobra.Command, flags ...string) {
+	for _, flag := range flags {
+		if err := cmd.MarkFlagRequired(flag); err != nil {
+			// Log the error but don't fail - this is a setup issue
+			// that should be caught during development
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to mark flag '%s' as required: %v\n", flag, err)
+		}
+	}
+}
+
+// markFlagHidden is a helper to mark flags as hidden and handle errors
+func markFlagHidden(cmd *cobra.Command, flags ...string) {
+	for _, flag := range flags {
+		if err := cmd.Flags().MarkHidden(flag); err != nil {
+			// Log the error but don't fail - this is a setup issue
+			// that should be caught during development
+			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to mark flag '%s' as hidden: %v\n", flag, err)
+		}
 	}
 }
 

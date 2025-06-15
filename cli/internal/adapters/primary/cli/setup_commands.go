@@ -131,7 +131,7 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 	}
 
 	fmt.Fprintf(cmd.OutOrStdout(), "Enable auto-sync? (y/n) [y]: ")
-	reader.ReadString('\n') // Just read and ignore for now
+	_, _ = reader.ReadString('\n') // Just read and ignore for now
 
 	// Test MCP connection
 	fmt.Fprintf(cmd.OutOrStdout(), "\n🔍 Testing MCP server connection...\n")
@@ -169,7 +169,7 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 
 	if len(availableProviders) > 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "\nDefault AI provider [openai]: ")
-		reader.ReadString('\n') // Just read for now
+		_, _ = reader.ReadString('\n') // Just read for now
 	} else {
 		fmt.Fprintf(cmd.OutOrStdout(), "\n⚠️  No AI provider API keys found in environment.\n")
 		fmt.Fprintf(cmd.OutOrStdout(), "   Set environment variables before using AI features:\n")
@@ -195,7 +195,7 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 		}
 
 		for _, dir := range dirs {
-			if err := os.MkdirAll(dir, 0755); err != nil {
+			if err := os.MkdirAll(dir, 0750); err != nil {
 				fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to create %s: %v\n", dir, err)
 			} else {
 				fmt.Fprintf(cmd.OutOrStdout(), "✅ Created %s\n", dir)
@@ -208,7 +208,7 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 	fmt.Fprintf(cmd.OutOrStdout(), "-----------------------------\n")
 
 	// Create config directory if it doesn't exist
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -410,7 +410,7 @@ func (c *CLI) runSetupProvider(cmd *cobra.Command, provider string) error {
 	configDir := filepath.Join(os.Getenv("HOME"), ".lmmc")
 	configFile := filepath.Join(configDir, "config.yaml")
 
-	if err := os.MkdirAll(configDir, 0755); err != nil {
+	if err := os.MkdirAll(configDir, 0750); err != nil {
 		return fmt.Errorf("failed to create config directory: %w", err)
 	}
 
@@ -475,5 +475,5 @@ func (c *CLI) saveConfig(config *entities.Config, path string) error {
 		return fmt.Errorf("failed to marshal config: %w", err)
 	}
 
-	return os.WriteFile(path, data, 0644)
+	return os.WriteFile(path, data, 0600)
 }

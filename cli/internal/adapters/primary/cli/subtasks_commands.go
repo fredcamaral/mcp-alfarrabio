@@ -59,7 +59,7 @@ func (c *CLI) createSubtasksGenerateCommand() *cobra.Command {
 
 	// Legacy flag for backward compatibility
 	cmd.Flags().StringVar(&fromTask, "task", "", "Main task ID (deprecated, use --from-task)")
-	cmd.Flags().MarkHidden("task")
+	markFlagHidden(cmd, "task")
 
 	return cmd
 }
@@ -175,7 +175,10 @@ func (c *CLI) loadMainTask(taskID string) (*services.MainTask, error) {
 func (c *CLI) getDefaultSubtasksOutputPath(taskID string) string {
 	// Create standard output path
 	preDev := "docs/pre-development/tasks"
-	os.MkdirAll(preDev, 0755)
+	if err := os.MkdirAll(preDev, 0750); err != nil {
+		// Log the error but continue with the path
+		c.logger.Warn("failed to create directory", "path", preDev, "error", err)
+	}
 
 	timestamp := time.Now().Format("2006-01-02")
 	return filepath.Join(preDev, fmt.Sprintf("subtasks-%s-%s.md", taskID, timestamp))

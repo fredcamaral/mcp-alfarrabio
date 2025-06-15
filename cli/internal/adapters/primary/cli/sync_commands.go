@@ -191,7 +191,7 @@ func (c *CLI) runSyncRun(repository string, verbose bool) error {
 
 	// Auto-detect repository if not provided
 	if repository == "" {
-		repository = c.detectRepository()
+		repository = c.detectRepository(c.getContext())
 	}
 
 	fmt.Printf("🔄 Starting batch synchronization\n")
@@ -267,7 +267,7 @@ func (c *CLI) runSyncStatus() error {
 	if status.Repository == "" {
 		fmt.Printf("  Repository: %s\n", "(not set - using current directory)")
 		// Try to detect current repository
-		if repoInfo := c.detectRepository(); repoInfo != "" {
+		if repoInfo := c.detectRepository(c.getContext()); repoInfo != "" {
 			fmt.Printf("  Detected: %s\n", repoInfo)
 		}
 	} else {
@@ -307,7 +307,7 @@ func (c *CLI) runSyncStatus() error {
 	// Check pending changes if repository is available
 	repo := status.Repository
 	if repo == "" {
-		repo = c.detectRepository()
+		repo = c.detectRepository(c.getContext())
 	}
 
 	if repo != "" {
@@ -344,7 +344,7 @@ func (c *CLI) runSyncForce(repository string) error {
 	}
 
 	if repository == "" {
-		repository = c.detectRepository()
+		repository = c.detectRepository(c.getContext())
 	}
 
 	fmt.Printf("⚠️  Forcing full synchronization\n")
@@ -372,7 +372,7 @@ func (c *CLI) runSyncDelta(repository string) error {
 	}
 
 	if repository == "" {
-		repository = c.detectRepository()
+		repository = c.detectRepository(c.getContext())
 	}
 
 	fmt.Printf("📊 Starting delta synchronization\n")
@@ -398,7 +398,7 @@ func (c *CLI) runSyncAuto(repository string, interval time.Duration, stop bool) 
 	}
 
 	if repository == "" {
-		repository = c.detectRepository()
+		repository = c.detectRepository(c.getContext())
 	}
 
 	if stop {
