@@ -442,7 +442,7 @@ func (pa *patternAggregatorImpl) createAggregatedPattern(
 
 		totalFreq += pattern.Frequency
 		totalSuccess += pattern.SuccessRate
-		
+
 		// Extract time metrics
 		if cycleMetrics := pa.extractCycleTimeMetrics(pattern); cycleMetrics != nil {
 			timeMetrics = append(timeMetrics, *cycleMetrics)
@@ -466,6 +466,50 @@ func (pa *patternAggregatorImpl) createAggregatedPattern(
 	aggregated.Confidence = pa.calculateAggregatedConfidence(aggregated)
 
 	return aggregated, nil
+}
+
+// collectPatternKeywords collects keywords from pattern metadata
+func (pa *patternAggregatorImpl) collectPatternKeywords(pattern *entities.TaskPattern, keywords *[]string, keywordSet map[string]bool) {
+	if keywordList, ok := pattern.Metadata["keywords"].([]string); ok {
+		for _, keyword := range keywordList {
+			if !keywordSet[keyword] {
+				*keywords = append(*keywords, keyword)
+				keywordSet[keyword] = true
+			}
+		}
+	}
+}
+
+// collectPatternProjectTypes collects project types from pattern metadata
+func (pa *patternAggregatorImpl) collectPatternProjectTypes(pattern *entities.TaskPattern, projectTypes *[]string, projectTypeSet map[string]bool) {
+	if projectType, ok := pattern.Metadata["project_type"].(string); ok {
+		if !projectTypeSet[projectType] {
+			*projectTypes = append(*projectTypes, projectType)
+			projectTypeSet[projectType] = true
+		}
+	}
+}
+
+// addPatternSource adds a pattern source to the aggregated sources list
+func (pa *patternAggregatorImpl) addPatternSource(pattern *entities.TaskPattern, weight float64, sources *[]entities.PatternSource) {
+	source := entities.PatternSource{
+		Repository:      pattern.Repository,
+		Weight:          weight,
+		SuccessRate:     pattern.SuccessRate,
+		Contribution:    weight,
+		LastContributed: pattern.UpdatedAt,
+		Metadata:        make(map[string]interface{}),
+	}
+	*sources = append(*sources, source)
+}
+
+// copyNonSensitiveMetadata copies non-sensitive metadata from pattern
+func (pa *patternAggregatorImpl) copyNonSensitiveMetadata(pattern *entities.TaskPattern, targetMetadata map[string]interface{}) {
+	for key, value := range pattern.Metadata {
+		if !pa.isSensitiveMetadataKey(key) {
+			targetMetadata[key] = value
+		}
+	}
 }
 
 func (pa *patternAggregatorImpl) createGeneralizedSequence(patterns []*entities.TaskPattern) []entities.PatternStep {

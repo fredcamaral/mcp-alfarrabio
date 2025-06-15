@@ -285,7 +285,7 @@ func (c *CLI) generatePRDFromInputs(ctx context.Context, userInputs []string, pr
 	}
 
 	context := c.createGenerationContext(ctx, userInputs, projectType)
-	
+
 	prd, err := c.documentChain.GeneratePRDInteractive(ctx, context)
 	if err != nil {
 		return nil, fmt.Errorf("failed to generate PRD: %w", err)
@@ -326,7 +326,7 @@ func (c *CLI) determinePRDOutputPath(prd *services.PRDEntity, output string) (st
 
 	baseName := c.createFileBaseName(prd.Title)
 	timestamp := time.Now().Format("2006-01-02")
-	
+
 	return filepath.Join(preDev, fmt.Sprintf("prd-%s-%s.md", baseName, timestamp)), nil
 }
 
@@ -344,7 +344,7 @@ func (c *CLI) finalizePRDCreation(prd *services.PRDEntity, outputPath string) er
 
 	c.updateSession("prd_file", outputPath)
 	c.printPRDCreationSummary(prd, outputPath)
-	
+
 	return nil
 }
 

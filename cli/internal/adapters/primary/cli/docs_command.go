@@ -319,68 +319,7 @@ func (g *DocsGenerator) generateOpenAPIFromCLI() (*OpenAPISpec, error) {
 // generateComponents creates reusable OpenAPI components
 func (g *DocsGenerator) generateComponents() *Components {
 	return &Components{
-		Schemas: map[string]*Schema{
-			"Task": {
-				Type:        "object",
-				Description: "Task entity with metadata and status tracking",
-				Required:    []string{"id", "title", "status", "priority"},
-				Properties: map[string]*Schema{
-					"id":          {Type: "string", Description: "Unique task identifier"},
-					"title":       {Type: "string", Description: "Task title/summary"},
-					"description": {Type: "string", Description: "Detailed task description"},
-					"status":      {Type: "string", Enum: []interface{}{"pending", "in_progress", "completed", "cancelled"}},
-					"priority":    {Type: "string", Enum: []interface{}{"low", "medium", "high"}},
-					"created_at":  {Type: "string", Format: "date-time"},
-					"updated_at":  {Type: "string", Format: "date-time"},
-					"metadata":    {Type: "object", AdditionalProperties: true},
-				},
-			},
-			"TaskList": {
-				Type:        "object",
-				Description: "List of tasks with pagination",
-				Properties: map[string]*Schema{
-					"tasks": {
-						Type:  "array",
-						Items: &Schema{Ref: "#/components/schemas/Task"},
-					},
-					"total": {Type: "integer", Description: "Total number of tasks"},
-					"page":  {Type: "integer", Description: "Current page number"},
-					"limit": {Type: "integer", Description: "Items per page"},
-				},
-			},
-			"Config": {
-				Type:        "object",
-				Description: "CLI configuration settings",
-				Properties: map[string]*Schema{
-					"output_format": {Type: "string", Enum: []interface{}{"table", "json", "plain"}},
-					"verbose":       {Type: "boolean"},
-					"ai_enabled":    {Type: "boolean"},
-				},
-			},
-			"Analytics": {
-				Type:        "object",
-				Description: "Analytics and insights data",
-				Properties: map[string]*Schema{
-					"task_completion_rate":    {Type: "number", Format: "float"},
-					"average_completion_time": {Type: "string"},
-					"most_active_projects": {
-						Type:  "array",
-						Items: &Schema{Type: "string"},
-					},
-					"productivity_trends": {Type: "object", AdditionalProperties: true},
-				},
-			},
-			"Error": {
-				Type:        "object",
-				Description: "Error response",
-				Required:    []string{"error", "message"},
-				Properties: map[string]*Schema{
-					"error":   {Type: "string", Description: "Error type"},
-					"message": {Type: "string", Description: "Error message"},
-					"details": {Type: "object", AdditionalProperties: true},
-				},
-			},
-		},
+		Schemas:         g.generateSchemas(),
 		SecuritySchemes: map[string]*SecurityScheme{
 			"bearerAuth": {
 				Type:         "http",

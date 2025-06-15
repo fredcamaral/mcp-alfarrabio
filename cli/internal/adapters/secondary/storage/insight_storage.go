@@ -118,7 +118,7 @@ func (s *FileInsightStorage) saveInsightsWithLogging(filePath string, insights [
 	if err := s.saveInsightsToFile(filePath, insights); err != nil {
 		return fmt.Errorf("failed to save insights: %w", err)
 	}
-	
+
 	s.logger.Debug("insight "+operation, slog.String("id", insightID))
 	return nil
 }

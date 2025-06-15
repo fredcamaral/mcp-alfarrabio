@@ -1233,7 +1233,7 @@ func (ae *analyticsEngineImpl) createEmptyVelocityMetrics() *entities.VelocityMe
 func (ae *analyticsEngineImpl) calculateWeeklyVelocities(tasks []*entities.Task) []entities.WeeklyVelocity {
 	// Group tasks by week
 	weeklyTasks := ae.groupTasksByWeek(tasks)
-	
+
 	// Calculate weekly velocities
 	weeklyVelocities := make([]entities.WeeklyVelocity, 0, len(weeklyTasks))
 	for weekKey, weekTasks := range weeklyTasks {
@@ -1271,7 +1271,7 @@ func (ae *analyticsEngineImpl) createWeeklyVelocity(weekKey string, weekTasks []
 	}
 
 	startOfWeek := ae.calculateWeekStart(year, week)
-	
+
 	return &entities.WeeklyVelocity{
 		Number:    week,
 		Year:      year,
@@ -1310,7 +1310,7 @@ func (ae *analyticsEngineImpl) calculateVelocityTrend(weeklyVelocities []entitie
 
 	trendPercentage := ((recent - previous) / previous) * 100
 	trendDirection := "stable"
-	
+
 	if trendPercentage > 5 {
 		trendDirection = "up"
 	} else if trendPercentage < -5 {

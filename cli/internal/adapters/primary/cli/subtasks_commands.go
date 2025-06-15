@@ -205,7 +205,7 @@ func (c *CLI) writeMarkdownHeader(content *strings.Builder, mainTask *services.M
 
 func (c *CLI) writeMarkdownSummary(content *strings.Builder, mainTask *services.MainTask, subTasks []*services.SubTask) {
 	totalHours := c.calculateTotalHours(subTasks)
-	
+
 	content.WriteString("## Summary\n\n")
 	content.WriteString(fmt.Sprintf("- **Main Task Phase:** %s\n", mainTask.Phase))
 	content.WriteString(fmt.Sprintf("- **Main Task Duration:** %s\n", mainTask.Duration))

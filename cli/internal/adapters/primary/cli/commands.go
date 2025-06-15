@@ -772,7 +772,7 @@ func (c *CLI) formatSuggestionsPlain(cmd *cobra.Command, suggestions []entities.
 // printSuggestionHeader prints the suggestion number, content, and confidence
 func (c *CLI) printSuggestionHeader(cmd *cobra.Command, num int, suggestion entities.TaskSuggestion) {
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%d. %s ", num, suggestion.Content)
-	
+
 	indicator := c.getConfidenceIndicator(suggestion.Confidence)
 	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "(%s confidence: %.0f%%)\n", indicator, suggestion.Confidence*100)
 }

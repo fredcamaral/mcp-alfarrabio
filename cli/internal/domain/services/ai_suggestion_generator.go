@@ -680,7 +680,7 @@ func (ai *aiSuggestionGeneratorImpl) createBasicTaskSuggestion(
 		},
 		repository,
 	)
-	
+
 	suggestion.Confidence = confidence
 	return suggestion
 }

@@ -466,7 +466,7 @@ func (c *CLI) runGenerateSamplePRD(cmd *cobra.Command, projectType, output strin
 
 func (c *CLI) runGenerateSampleProject(cmd *cobra.Command, template, name, outputDir string, withTasks, withMemory bool) error {
 	projectConfig := c.setupProjectConfiguration(template, name, outputDir)
-	
+
 	if err := c.createProjectStructure(projectConfig); err != nil {
 		return err
 	}
@@ -524,10 +524,10 @@ func (c *CLI) setupProjectConfiguration(template, name, outputDir string) *Proje
 func (c *CLI) generateRandomProjectName() string {
 	adjectives := []string{"awesome", "stellar", "quantum", "nexus", "phoenix", "titan"}
 	nouns := []string{"api", "service", "platform", "system", "hub", "engine"}
-	
+
 	n1, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(adjectives))))
 	n2, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(nouns))))
-	
+
 	return fmt.Sprintf("%s-%s", adjectives[n1.Int64()], nouns[n2.Int64()])
 }
 
@@ -545,7 +545,7 @@ func (c *CLI) createProjectStructure(config *ProjectConfig) error {
 			return fmt.Errorf("failed to create directory %s: %w", dir, err)
 		}
 	}
-	
+
 	return nil
 }
 
@@ -640,10 +640,10 @@ func (c *CLI) generateProjectTasks(cmd *cobra.Command, config *ProjectConfig) {
 	}()
 
 	fmt.Fprintf(cmd.OutOrStdout(), "\n🔧 Generating tasks from PRD/TRD...\n")
-	
+
 	n, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(10))
 	taskCount := 15 + int(n.Int64()) // 15-25 tasks
-	
+
 	if err := c.runGenerateSampleTasks(cmd, taskCount, config.Name, "", []string{config.Template, "generated"}, true); err != nil {
 		c.logger.Warn("Failed to generate tasks", "error", err)
 	}

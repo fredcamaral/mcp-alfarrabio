@@ -212,25 +212,7 @@ Examples:
 			}
 
 			// Load default models for known providers
-			switch providerType {
-			case "anthropic":
-				config.Models = []AIModelConfig{
-					{ID: "claude-opus-4", Name: "Claude Opus 4", ContextSize: 200000, InputCost: 15.0, OutputCost: 75.0, Capabilities: []string{"chat", "code", "analysis"}},
-					{ID: "claude-sonnet-3.5", Name: "Claude Sonnet 3.5", ContextSize: 200000, InputCost: 3.0, OutputCost: 15.0, Capabilities: []string{"chat", "code"}},
-					{ID: "claude-haiku", Name: "Claude Haiku", ContextSize: 200000, InputCost: 0.25, OutputCost: 1.25, Capabilities: []string{"chat", "quick"}},
-				}
-			case "openai":
-				config.Models = []AIModelConfig{
-					{ID: "gpt-4o", Name: "GPT-4 Optimized", ContextSize: 128000, InputCost: 5.0, OutputCost: 15.0, Capabilities: []string{"chat", "code", "function"}},
-					{ID: "gpt-4-turbo", Name: "GPT-4 Turbo", ContextSize: 128000, InputCost: 10.0, OutputCost: 30.0, Capabilities: []string{"chat", "code", "vision"}},
-					{ID: "gpt-3.5-turbo", Name: "GPT-3.5 Turbo", ContextSize: 16385, InputCost: 0.5, OutputCost: 1.5, Capabilities: []string{"chat", "quick"}},
-				}
-			case "google":
-				config.Models = []AIModelConfig{
-					{ID: "gemini-ultra", Name: "Gemini Ultra", ContextSize: 1000000, InputCost: 20.0, OutputCost: 60.0, Capabilities: []string{"chat", "code", "multimodal"}},
-					{ID: "gemini-pro", Name: "Gemini Pro", ContextSize: 32000, InputCost: 0.5, OutputCost: 1.5, Capabilities: []string{"chat", "code"}},
-				}
-			}
+			config.Models = c.getDefaultModelsForProvider(providerType)
 
 			// Save provider config
 			if err := c.saveAIProviderConfig(config); err != nil {
@@ -1395,4 +1377,44 @@ func (c *CLI) limitEstimationResults(estimations []CostEstimation, provider, mod
 		return estimations[:3]
 	}
 	return estimations
+}
+
+// getDefaultModelsForProvider returns default model configurations for known providers
+func (c *CLI) getDefaultModelsForProvider(providerType string) []AIModelConfig {
+	switch providerType {
+	case "anthropic":
+		return c.getAnthropicModels()
+	case "openai":
+		return c.getOpenAIModels()
+	case "google":
+		return c.getGoogleModels()
+	default:
+		return []AIModelConfig{}
+	}
+}
+
+// getAnthropicModels returns Anthropic model configurations
+func (c *CLI) getAnthropicModels() []AIModelConfig {
+	return []AIModelConfig{
+		{ID: "claude-opus-4", Name: "Claude Opus 4", ContextSize: 200000, InputCost: 15.0, OutputCost: 75.0, Capabilities: []string{"chat", "code", "analysis"}},
+		{ID: "claude-sonnet-3.5", Name: "Claude Sonnet 3.5", ContextSize: 200000, InputCost: 3.0, OutputCost: 15.0, Capabilities: []string{"chat", "code"}},
+		{ID: "claude-haiku", Name: "Claude Haiku", ContextSize: 200000, InputCost: 0.25, OutputCost: 1.25, Capabilities: []string{"chat", "quick"}},
+	}
+}
+
+// getOpenAIModels returns OpenAI model configurations
+func (c *CLI) getOpenAIModels() []AIModelConfig {
+	return []AIModelConfig{
+		{ID: "gpt-4o", Name: "GPT-4 Optimized", ContextSize: 128000, InputCost: 5.0, OutputCost: 15.0, Capabilities: []string{"chat", "code", "function"}},
+		{ID: "gpt-4-turbo", Name: "GPT-4 Turbo", ContextSize: 128000, InputCost: 10.0, OutputCost: 30.0, Capabilities: []string{"chat", "code", "vision"}},
+		{ID: "gpt-3.5-turbo", Name: "GPT-3.5 Turbo", ContextSize: 16385, InputCost: 0.5, OutputCost: 1.5, Capabilities: []string{"chat", "quick"}},
+	}
+}
+
+// getGoogleModels returns Google model configurations
+func (c *CLI) getGoogleModels() []AIModelConfig {
+	return []AIModelConfig{
+		{ID: "gemini-ultra", Name: "Gemini Ultra", ContextSize: 1000000, InputCost: 20.0, OutputCost: 60.0, Capabilities: []string{"chat", "code", "multimodal"}},
+		{ID: "gemini-pro", Name: "Gemini Pro", ContextSize: 32000, InputCost: 0.5, OutputCost: 1.5, Capabilities: []string{"chat", "code"}},
+	}
 }
