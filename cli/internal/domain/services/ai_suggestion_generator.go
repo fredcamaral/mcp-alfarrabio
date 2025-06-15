@@ -1069,6 +1069,23 @@ func (ai *aiSuggestionGeneratorImpl) calculateTaskSimilarity(task1, task2 *entit
 	return similarity
 }
 
+// countCommonTags counts common tags between two tag slices
+func (ai *aiSuggestionGeneratorImpl) countCommonTags(tags1, tags2 []string) int {
+	tagSet := make(map[string]bool)
+	for _, tag := range tags2 {
+		tagSet[tag] = true
+	}
+
+	commonCount := 0
+	for _, tag := range tags1 {
+		if tagSet[tag] {
+			commonCount++
+		}
+	}
+
+	return commonCount
+}
+
 func (ai *aiSuggestionGeneratorImpl) analyzeTaskOptimizations(_ *entities.Task, similar []*entities.Task) []taskOptimization {
 	var optimizations []taskOptimization
 

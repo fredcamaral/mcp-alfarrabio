@@ -442,47 +442,20 @@ func (pa *patternAggregatorImpl) createAggregatedPattern(
 
 		totalFreq += pattern.Frequency
 		totalSuccess += pattern.SuccessRate
-		// Extract time metrics from pattern sequence duration stats using extractCycleTimeMetrics
+		
+		// Extract time metrics
 		if cycleMetrics := pa.extractCycleTimeMetrics(pattern); cycleMetrics != nil {
 			timeMetrics = append(timeMetrics, *cycleMetrics)
 		}
 
-		// Collect keywords
-		if keywords, ok := pattern.Metadata["keywords"].([]string); ok {
-			for _, keyword := range keywords {
-				if !keywordSet[keyword] {
-					aggregated.Keywords = append(aggregated.Keywords, keyword)
-					keywordSet[keyword] = true
-				}
-			}
-		}
+		// Process pattern data
+		pa.collectPatternKeywords(pattern, &aggregated.Keywords, keywordSet)
+		pa.collectPatternProjectTypes(pattern, &aggregated.ProjectTypes, projectTypeSet)
+		pa.addPatternSource(pattern, weight, &aggregated.Sources)
 
-		// Collect project types
-		if projectType, ok := pattern.Metadata["project_type"].(string); ok {
-			if !projectTypeSet[projectType] {
-				aggregated.ProjectTypes = append(aggregated.ProjectTypes, projectType)
-				projectTypeSet[projectType] = true
-			}
-		}
-
-		// Add source
-		source := entities.PatternSource{
-			Repository:      pattern.Repository,
-			Weight:          weight,
-			SuccessRate:     pattern.SuccessRate,
-			Contribution:    weight,
-			LastContributed: pattern.UpdatedAt,
-			Metadata:        make(map[string]interface{}),
-		}
-		aggregated.Sources = append(aggregated.Sources, source)
-
-		// Copy some metadata from first pattern
+		// Copy metadata from first pattern
 		if i == 0 {
-			for key, value := range pattern.Metadata {
-				if !pa.isSensitiveMetadataKey(key) {
-					aggregated.Metadata[key] = value
-				}
-			}
+			pa.copyNonSensitiveMetadata(pattern, aggregated.Metadata)
 		}
 	}
 

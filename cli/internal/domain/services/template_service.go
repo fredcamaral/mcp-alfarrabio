@@ -891,52 +891,72 @@ func (ts *templateServiceImpl) estimateTemplateComplexity(template *entities.Tas
 func (ts *templateServiceImpl) validateVariableValue(variable entities.TemplateVariable, value interface{}) error {
 	switch variable.Type {
 	case "string":
-		if _, ok := value.(string); !ok {
-			return errors.New("expected string value")
-		}
-		if variable.ValidationRegex != "" {
-			strValue := value.(string)
-			matched, err := regexp.MatchString(variable.ValidationRegex, strValue)
-			if err != nil {
-				return fmt.Errorf("regex validation error: %w", err)
-			}
-			if !matched {
-				return errors.New("value does not match required pattern")
-			}
-		}
-
+		return ts.validateStringVariable(variable, value)
 	case "number":
-		switch value.(type) {
-		case int, int64, float64:
-			// Valid number types
-		default:
-			return errors.New("expected number value")
-		}
-
+		return ts.validateNumberVariable(value)
 	case "boolean":
-		if _, ok := value.(bool); !ok {
-			return errors.New("expected boolean value")
-		}
-
+		return ts.validateBooleanVariable(value)
 	case "choice":
-		strValue, ok := value.(string)
-		if !ok {
-			return errors.New("expected string value for choice")
-		}
+		return ts.validateChoiceVariable(variable, value)
+	default:
+		return nil
+	}
+}
 
-		validChoice := false
-		for _, option := range variable.Options {
-			if strValue == option {
-				validChoice = true
-				break
-			}
-		}
-		if !validChoice {
-			return fmt.Errorf("invalid choice, must be one of: %v", variable.Options)
-		}
+// validateStringVariable validates string type variables
+func (ts *templateServiceImpl) validateStringVariable(variable entities.TemplateVariable, value interface{}) error {
+	strValue, ok := value.(string)
+	if !ok {
+		return errors.New("expected string value")
+	}
+
+	if variable.ValidationRegex == "" {
+		return nil
+	}
+
+	matched, err := regexp.MatchString(variable.ValidationRegex, strValue)
+	if err != nil {
+		return fmt.Errorf("regex validation error: %w", err)
+	}
+	if !matched {
+		return errors.New("value does not match required pattern")
 	}
 
 	return nil
+}
+
+// validateNumberVariable validates number type variables
+func (ts *templateServiceImpl) validateNumberVariable(value interface{}) error {
+	switch value.(type) {
+	case int, int64, float64:
+		return nil
+	default:
+		return errors.New("expected number value")
+	}
+}
+
+// validateBooleanVariable validates boolean type variables
+func (ts *templateServiceImpl) validateBooleanVariable(value interface{}) error {
+	if _, ok := value.(bool); !ok {
+		return errors.New("expected boolean value")
+	}
+	return nil
+}
+
+// validateChoiceVariable validates choice type variables
+func (ts *templateServiceImpl) validateChoiceVariable(variable entities.TemplateVariable, value interface{}) error {
+	strValue, ok := value.(string)
+	if !ok {
+		return errors.New("expected string value for choice")
+	}
+
+	for _, option := range variable.Options {
+		if strValue == option {
+			return nil
+		}
+	}
+
+	return fmt.Errorf("invalid choice, must be one of: %v", variable.Options)
 }
 
 // createBuiltInTemplates creates the built-in templates
