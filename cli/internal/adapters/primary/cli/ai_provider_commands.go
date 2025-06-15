@@ -1157,7 +1157,7 @@ func min(a, b int) int {
 	return b
 }
 
-// Model recommendation types
+// ModelRecommendation represents model recommendation types
 type ModelRecommendation struct {
 	Provider      string
 	Model         string
@@ -1167,7 +1167,7 @@ type ModelRecommendation struct {
 	Speed         string
 }
 
-// Cost estimation types
+// CostEstimation represents cost estimation types
 type CostEstimation struct {
 	Provider     string
 	Model        string
@@ -1291,9 +1291,9 @@ func (c *CLI) analyzeTaskRequirements(task string) []ModelRecommendation {
 func (c *CLI) estimateTaskCost(task, provider, model string) []CostEstimation {
 	inputTokens, outputTokens := c.estimateTokenUsage(task)
 	providers, _ := c.loadAIProviders()
-	
+
 	estimations := c.calculateCostEstimations(providers, inputTokens, outputTokens, provider, model)
-	
+
 	return c.limitEstimationResults(estimations, provider, model)
 }
 

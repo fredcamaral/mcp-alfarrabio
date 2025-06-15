@@ -786,7 +786,6 @@ func (v *simpleVisualizer) getSeasonalIntensity(multiplier float64) string {
 	}
 }
 
-
 func (v *simpleVisualizer) GenerateVisualization(metrics *entities.WorkflowMetrics, format entities.VisFormat) ([]byte, error) {
 	output := fmt.Sprintf(`📊 WORKFLOW ANALYTICS DASHBOARD
 ════════════════════════════════

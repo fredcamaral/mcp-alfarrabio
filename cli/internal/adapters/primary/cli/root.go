@@ -18,7 +18,6 @@ import (
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
 
-
 // IntelligenceDependencies holds intelligence service dependencies
 type IntelligenceDependencies struct {
 	PatternDetector   services.PatternDetector

@@ -651,7 +651,7 @@ func (pa *patternAggregatorImpl) deepCopyPattern(pattern *entities.TaskPattern) 
 	// Create a deep copy of the pattern
 	copied := &entities.TaskPattern{
 		ID:          uuid.New().String(), // New ID for anonymized version
-		Type:        entities.PatternType(pattern.Type),
+		Type:        pattern.Type,
 		Repository:  pattern.Repository,
 		Frequency:   pattern.Frequency,
 		SuccessRate: pattern.SuccessRate,
@@ -731,7 +731,6 @@ func (pa *patternAggregatorImpl) isSensitiveMetadataKey(key string) bool {
 
 	return false
 }
-
 
 func (pa *patternAggregatorImpl) mergeKeywords(existing []string, new []string) []string {
 	keywordSet := make(map[string]bool)

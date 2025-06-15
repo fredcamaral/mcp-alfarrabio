@@ -235,7 +235,6 @@ func (tp *TaskProcessor) storeTaskInsights(ctx context.Context, result *TaskProc
 
 // Helper methods
 
-
 func (tp *TaskProcessor) applyTaskEnhancements(task *entities.Task, result *TaskProcessingResult) error {
 	var enhancement struct {
 		EnhancedDescription  string   `json:"enhanced_description"`

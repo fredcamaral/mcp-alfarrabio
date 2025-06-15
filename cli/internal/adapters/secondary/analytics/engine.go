@@ -360,7 +360,7 @@ func (ae *analyticsEngineImpl) GetProductivityTrends(
 	// Group sessions by day
 	dailyGroups := ae.groupSessionsByDay(sessions)
 
-	var dailyScores []DailyProductivity
+	dailyScores := make([]DailyProductivity, 0, len(dailyGroups))
 	var totalScore float64
 	var bestPeriod, worstPeriod DailyProductivity
 	bestScore, worstScore := -1.0, 2.0
@@ -425,7 +425,7 @@ func (ae *analyticsEngineImpl) GetTaskCompletionTrends(
 	// Group tasks by day
 	dailyGroups := ae.groupTasksByDay(tasks)
 
-	var dailyCompletions []DailyCompletion
+	dailyCompletions := make([]DailyCompletion, 0, len(dailyGroups))
 	totalCompleted, totalStarted := 0, 0
 
 	for date, dayTasks := range dailyGroups {
@@ -1219,7 +1219,7 @@ func (ae *analyticsEngineImpl) CalculateVelocityMetrics(
 	}
 
 	// Calculate weekly velocities
-	var weeklyVelocities []entities.WeeklyVelocity
+	weeklyVelocities := make([]entities.WeeklyVelocity, 0, len(weeklyTasks))
 	for weekKey, weekTasks := range weeklyTasks {
 		// Parse week key to get year and week number
 		var year, week int

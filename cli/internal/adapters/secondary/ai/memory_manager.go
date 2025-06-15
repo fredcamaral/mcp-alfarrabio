@@ -519,7 +519,6 @@ func (mm *MemoryManager) updateFileMappings(ctx context.Context, mappings map[st
 	return nil
 }
 
-
 func (mm *MemoryManager) generatePredictions(_ context.Context, workContext *entities.WorkContext) ([]string, error) {
 	// Generate intelligent predictions based on context patterns
 	var predictions []string

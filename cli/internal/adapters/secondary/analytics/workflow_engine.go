@@ -163,7 +163,7 @@ func (ae *workflowAnalyticsEngine) CalculateVelocityMetrics(ctx context.Context,
 	}
 
 	// Convert to slice and sort
-	var byWeek []entities.WeeklyVelocity
+	byWeek := make([]entities.WeeklyVelocity, 0, len(weeklyData))
 	for _, data := range weeklyData {
 		byWeek = append(byWeek, *data)
 	}

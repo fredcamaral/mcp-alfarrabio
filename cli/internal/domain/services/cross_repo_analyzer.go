@@ -268,7 +268,7 @@ func (a *crossRepoAnalyzerImpl) GetSharedInsights(
 	projectType entities.ProjectType,
 ) ([]*entities.CrossRepoInsight, error) {
 	// Query insights from storage
-	insights, err := a.insightStore.GetByProjectType(ctx, entities.ProjectType(projectType))
+	insights, err := a.insightStore.GetByProjectType(ctx, projectType)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get shared insights: %w", err)
 	}

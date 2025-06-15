@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -199,7 +200,8 @@ func WrapError(err error, code string) *CLIError {
 	}
 
 	// Check if it's already a CLIError
-	if cliErr, ok := err.(*CLIError); ok {
+	var cliErr *CLIError
+	if errors.As(err, &cliErr) {
 		return cliErr
 	}
 

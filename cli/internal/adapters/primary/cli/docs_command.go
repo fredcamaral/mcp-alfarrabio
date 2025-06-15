@@ -699,7 +699,7 @@ func (g *DocsGenerator) watchForChanges() {
 	}
 }
 
-// OpenAPI type definitions (reused from internal/docs/openapi_generator.go)
+// OpenAPISpec represents OpenAPI type definitions (reused from internal/docs/openapi_generator.go)
 type OpenAPISpec struct {
 	OpenAPI    string                `json:"openapi"`
 	Info       *Info                 `json:"info"`

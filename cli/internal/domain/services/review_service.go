@@ -409,7 +409,6 @@ func (s *ReviewService) parseFileList(fileStr string) []string {
 	return files
 }
 
-
 // buildPromptContext builds context for a prompt execution
 func (s *ReviewService) buildPromptContext(session *entities.ReviewSession, prompt *entities.ReviewPrompt) string {
 	var contextParts []string

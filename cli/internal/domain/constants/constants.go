@@ -22,10 +22,10 @@ const (
 
 // Workflow status constants
 const (
-	WorkflowStatusReadyToStart          = "ready_to_start"
-	WorkflowStatusReadyForTRD           = "ready_for_trd"
-	WorkflowStatusReadyForTasks         = "ready_for_tasks"
-	WorkflowStatusReadyForSubtasks      = "ready_for_subtasks"
+	WorkflowStatusReadyToStart           = "ready_to_start"
+	WorkflowStatusReadyForTRD            = "ready_for_trd"
+	WorkflowStatusReadyForTasks          = "ready_for_tasks"
+	WorkflowStatusReadyForSubtasks       = "ready_for_subtasks"
 	WorkflowStatusReadyForImplementation = "ready_for_implementation"
 )
 
@@ -101,7 +101,7 @@ const (
 
 // Status string constants
 const (
-	StatusStringDone     = "done"
+	StatusStringDone      = "done"
 	StatusStringCompleted = "completed"
 )
 

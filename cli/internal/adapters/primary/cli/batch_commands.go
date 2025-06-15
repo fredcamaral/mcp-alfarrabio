@@ -281,4 +281,3 @@ func (c *CLI) createTagCommand() *cobra.Command {
 
 	return cmd
 }
-

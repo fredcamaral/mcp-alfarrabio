@@ -249,7 +249,7 @@ func (ae *analyticsExporter) writeVelocityCSV(writer *csv.Writer, metrics entiti
 	// Velocity summary
 	_ = writer.Write([]string{"Velocity Metric", "Value"})
 	_ = writer.Write([]string{"Current Velocity", fmt.Sprintf("%.2f", metrics.CurrentVelocity)})
-	_ = writer.Write([]string{"Trend Direction", string(metrics.TrendDirection)})
+	_ = writer.Write([]string{"Trend Direction", metrics.TrendDirection})
 	_ = writer.Write([]string{"Trend Percentage", fmt.Sprintf("%.2f", metrics.TrendPercentage)})
 	_ = writer.Write([]string{"Consistency", fmt.Sprintf("%.2f", metrics.Consistency)})
 	_ = writer.Write([]string{""}) // Empty row

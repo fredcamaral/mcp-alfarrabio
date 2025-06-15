@@ -234,10 +234,7 @@ func (c *CLI) parseRelativeDate(dateStr string) (*time.Time, error) {
 		return nil, fmt.Errorf("invalid number in relative date: %s", parts[0])
 	}
 
-	unit := parts[1]
-	if strings.HasSuffix(unit, "s") {
-		unit = unit[:len(unit)-1] // Remove plural 's'
-	}
+	unit := strings.TrimSuffix(parts[1], "s") // Remove plural 's'
 
 	var duration time.Duration
 	switch unit {

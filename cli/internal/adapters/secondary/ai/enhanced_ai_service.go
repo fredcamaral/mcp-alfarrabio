@@ -357,7 +357,7 @@ func (eas *EnhancedAIService) updateWorkContext(result *TaskProcessingResult) {
 }
 
 func (eas *EnhancedAIService) extractMemoryInsights(result *MemoryOperationResult) []string {
-	var insights []string
+	insights := make([]string, 0, 8) // Pre-allocate capacity for typical number of insights
 
 	if result.FilesProcessed > 0 {
 		insights = append(insights, fmt.Sprintf("Processed %d files for memory sync", result.FilesProcessed))

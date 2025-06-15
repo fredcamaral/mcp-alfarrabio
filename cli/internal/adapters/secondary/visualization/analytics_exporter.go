@@ -221,7 +221,7 @@ func (e *AnalyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filenam
 	}
 	_ = writer.Write([]string{"Metric", "Value", "Unit"})
 	_ = writer.Write([]string{"Current Velocity", fmt.Sprintf("%.1f", metrics.Velocity.CurrentVelocity), "tasks/week"})
-	_ = writer.Write([]string{"Trend Direction", string(metrics.Velocity.TrendDirection), ""})
+	_ = writer.Write([]string{"Trend Direction", metrics.Velocity.TrendDirection, ""})
 	_ = writer.Write([]string{"Trend Percentage", fmt.Sprintf("%.1f", metrics.Velocity.TrendPercentage), "percent"})
 	_ = writer.Write([]string{"Consistency", fmt.Sprintf("%.0f", metrics.Velocity.Consistency*100), "percent"})
 	_ = writer.Write([]string{}) // Empty row

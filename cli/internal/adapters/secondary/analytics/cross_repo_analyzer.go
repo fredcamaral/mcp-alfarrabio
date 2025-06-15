@@ -609,7 +609,7 @@ func (cra *crossRepoAnalyzer) FindSimilarRepositories(ctx context.Context, repos
 		}
 	}
 
-	var similarities []*entities.RepositorySimilarity
+	similarities := make([]*entities.RepositorySimilarity, 0, len(repoSet))
 	for otherRepo := range repoSet {
 		similarity, err := cra.CalculateRepositorySimilarity(ctx, repository, otherRepo)
 		if err != nil {
@@ -1883,7 +1883,6 @@ func (cra *crossRepoAnalyzer) getRepositoriesForTaskType(tasks []*entities.Task)
 	}
 	return repos
 }
-
 
 func (cra *crossRepoAnalyzer) findTopPerformer(repoMetrics map[string]*entities.WorkflowMetrics, metric string) string {
 	if len(repoMetrics) == 0 {
