@@ -527,18 +527,31 @@ func (e *AnalyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, filena
 func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filename string) (string, error) {
 	e.logger.Debug("exporting to PDF", slog.String("filename", filename))
 
-	// For PDF export, we'll create a structured text report that can be easily converted
-	// In a production environment, you would use a PDF library like gofpdf
-	// For now, we'll create a well-formatted text report with PDF extension
-
-	// Ensure output directory exists
 	if err := os.MkdirAll(filepath.Dir(filename), 0o750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
 	var report strings.Builder
+	e.writePDFHeader(&report, metrics)
+	e.writePDFProductivitySection(&report, metrics)
+	e.writePDFVelocitySection(&report, metrics)
+	e.writePDFCompletionSection(&report, metrics)
+	e.writePDFCycleTimeSection(&report, metrics)
+	e.writePDFBottlenecksSection(&report, metrics)
+	e.writePDFPrioritySection(&report, metrics)
+	e.writePDFTaskTypeSection(&report, metrics)
+	e.writePDFFooter(&report)
 
-	// Header
+	if err := os.WriteFile(filename, []byte(report.String()), 0o600); err != nil {
+		return "", fmt.Errorf("failed to write PDF file: %w", err)
+	}
+
+	e.logger.Info("analytics exported to PDF (text format)", slog.String("filename", filename))
+	return filename, nil
+}
+
+// writePDFHeader writes the PDF report header
+func (e *AnalyticsExporter) writePDFHeader(report *strings.Builder, metrics *entities.WorkflowMetrics) {
 	report.WriteString("====================================================================\n")
 	report.WriteString("                    ANALYTICS REPORT (PDF)\n")
 	report.WriteString("====================================================================\n\n")
@@ -549,8 +562,10 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 		metrics.Period.End.Format("Jan 2, 2006")))
 	report.WriteString(fmt.Sprintf("Overall Score: %.0f/100\n", metrics.GetOverallScore()*100))
 	report.WriteString(fmt.Sprintf("Generated: %s\n\n", time.Now().Format("January 2, 2006 at 3:04 PM")))
+}
 
-	// Productivity Section
+// writePDFProductivitySection writes the productivity metrics section
+func (e *AnalyticsExporter) writePDFProductivitySection(report *strings.Builder, metrics *entities.WorkflowMetrics) {
 	report.WriteString("--------------------------------------------------------------------\n")
 	report.WriteString("📈 PRODUCTIVITY METRICS\n")
 	report.WriteString("--------------------------------------------------------------------\n")
@@ -571,8 +586,10 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 		report.WriteString("\n")
 	}
 	report.WriteString("\n")
+}
 
-	// Velocity Section
+// writePDFVelocitySection writes the velocity metrics section
+func (e *AnalyticsExporter) writePDFVelocitySection(report *strings.Builder, metrics *entities.WorkflowMetrics) {
 	report.WriteString("--------------------------------------------------------------------\n")
 	report.WriteString("🚀 VELOCITY METRICS\n")
 	report.WriteString("--------------------------------------------------------------------\n")
@@ -587,8 +604,10 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 			metrics.Velocity.Forecast.Confidence*100))
 	}
 	report.WriteString("\n")
+}
 
-	// Completion Section
+// writePDFCompletionSection writes the completion metrics section
+func (e *AnalyticsExporter) writePDFCompletionSection(report *strings.Builder, metrics *entities.WorkflowMetrics) {
 	report.WriteString("--------------------------------------------------------------------\n")
 	report.WriteString("✅ COMPLETION METRICS\n")
 	report.WriteString("--------------------------------------------------------------------\n")
@@ -602,8 +621,10 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 	report.WriteString(fmt.Sprintf("On Time Rate:       %.0f%%\n", metrics.Completion.OnTimeRate*100))
 	report.WriteString(fmt.Sprintf("Quality Score:      %.0f%%\n", metrics.Completion.QualityScore*100))
 	report.WriteString("\n")
+}
 
-	// Cycle Time Section
+// writePDFCycleTimeSection writes the cycle time analysis section
+func (e *AnalyticsExporter) writePDFCycleTimeSection(report *strings.Builder, metrics *entities.WorkflowMetrics) {
 	report.WriteString("--------------------------------------------------------------------\n")
 	report.WriteString("⏰ CYCLE TIME ANALYSIS\n")
 	report.WriteString("--------------------------------------------------------------------\n")
@@ -614,82 +635,86 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 	report.WriteString(fmt.Sprintf("Wait Time:          %.1f hours\n", metrics.CycleTime.WaitTime.Hours()))
 	report.WriteString(fmt.Sprintf("Efficiency Score:   %.0f%%\n", metrics.CycleTime.GetEfficiencyScore()*100))
 	report.WriteString("\n")
+}
 
-	// Bottlenecks Section
-	if len(metrics.Bottlenecks) > 0 {
-		report.WriteString("--------------------------------------------------------------------\n")
-		report.WriteString("🚨 DETECTED BOTTLENECKS\n")
-		report.WriteString("--------------------------------------------------------------------\n")
-		for i, bottleneck := range metrics.Bottlenecks {
-			if i >= 5 { // Limit to top 5
-				break
-			}
-			report.WriteString(fmt.Sprintf("%d. [%s] %s\n",
-				i+1,
-				strings.ToUpper(string(bottleneck.Severity)),
-				bottleneck.Description))
-			report.WriteString(fmt.Sprintf("   Impact: %.1f hours lost • Frequency: %d occurrences\n",
-				bottleneck.Impact,
-				bottleneck.Frequency))
-			if len(bottleneck.Suggestions) > 0 {
-				report.WriteString("   Suggestions:\n")
-				for _, suggestion := range bottleneck.Suggestions {
-					report.WriteString(fmt.Sprintf("   • %s\n", suggestion))
-				}
-			}
-			report.WriteString("\n")
-		}
+// writePDFBottlenecksSection writes the bottlenecks section
+func (e *AnalyticsExporter) writePDFBottlenecksSection(report *strings.Builder, metrics *entities.WorkflowMetrics) {
+	if len(metrics.Bottlenecks) == 0 {
+		return
 	}
 
-	// Priority Breakdown
-	if len(metrics.Productivity.ByPriority) > 0 {
-		report.WriteString("--------------------------------------------------------------------\n")
-		report.WriteString("📊 PRIORITY PERFORMANCE\n")
-		report.WriteString("--------------------------------------------------------------------\n")
-		priorities := []string{"high", "medium", "low"}
-		for _, priority := range priorities {
-			if rate, exists := metrics.Productivity.ByPriority[priority]; exists {
-				caser := cases.Title(language.English)
-				report.WriteString(fmt.Sprintf("%-8s: %.0f%% completion rate\n",
-					caser.String(priority),
-					rate*100))
+	report.WriteString("--------------------------------------------------------------------\n")
+	report.WriteString("🚨 DETECTED BOTTLENECKS\n")
+	report.WriteString("--------------------------------------------------------------------\n")
+	for i, bottleneck := range metrics.Bottlenecks {
+		if i >= 5 { // Limit to top 5
+			break
+		}
+		report.WriteString(fmt.Sprintf("%d. [%s] %s\n",
+			i+1,
+			strings.ToUpper(string(bottleneck.Severity)),
+			bottleneck.Description))
+		report.WriteString(fmt.Sprintf("   Impact: %.1f hours lost • Frequency: %d occurrences\n",
+			bottleneck.Impact,
+			bottleneck.Frequency))
+		if len(bottleneck.Suggestions) > 0 {
+			report.WriteString("   Suggestions:\n")
+			for _, suggestion := range bottleneck.Suggestions {
+				report.WriteString(fmt.Sprintf("   • %s\n", suggestion))
 			}
 		}
 		report.WriteString("\n")
 	}
+}
 
-	// Task Type Breakdown
-	if len(metrics.Productivity.ByType) > 0 {
-		report.WriteString("--------------------------------------------------------------------\n")
-		report.WriteString("📋 TASK TYPE PERFORMANCE\n")
-		report.WriteString("--------------------------------------------------------------------\n")
-		count := 0
-		for taskType, rate := range metrics.Productivity.ByType {
-			if count >= 10 { // Limit to top 10
-				break
-			}
-			report.WriteString(fmt.Sprintf("%-20s: %.0f%%\n", taskType, rate*100))
-			count++
-		}
-		report.WriteString("\n")
+// writePDFPrioritySection writes the priority breakdown section
+func (e *AnalyticsExporter) writePDFPrioritySection(report *strings.Builder, metrics *entities.WorkflowMetrics) {
+	if len(metrics.Productivity.ByPriority) == 0 {
+		return
 	}
 
-	// Footer
+	report.WriteString("--------------------------------------------------------------------\n")
+	report.WriteString("📊 PRIORITY PERFORMANCE\n")
+	report.WriteString("--------------------------------------------------------------------\n")
+	priorities := []string{"high", "medium", "low"}
+	for _, priority := range priorities {
+		if rate, exists := metrics.Productivity.ByPriority[priority]; exists {
+			caser := cases.Title(language.English)
+			report.WriteString(fmt.Sprintf("%-8s: %.0f%% completion rate\n",
+				caser.String(priority),
+				rate*100))
+		}
+	}
+	report.WriteString("\n")
+}
+
+// writePDFTaskTypeSection writes the task type breakdown section
+func (e *AnalyticsExporter) writePDFTaskTypeSection(report *strings.Builder, metrics *entities.WorkflowMetrics) {
+	if len(metrics.Productivity.ByType) == 0 {
+		return
+	}
+
+	report.WriteString("--------------------------------------------------------------------\n")
+	report.WriteString("📋 TASK TYPE PERFORMANCE\n")
+	report.WriteString("--------------------------------------------------------------------\n")
+	count := 0
+	for taskType, rate := range metrics.Productivity.ByType {
+		if count >= 10 { // Limit to top 10
+			break
+		}
+		report.WriteString(fmt.Sprintf("%-20s: %.0f%%\n", taskType, rate*100))
+		count++
+	}
+	report.WriteString("\n")
+}
+
+// writePDFFooter writes the PDF report footer
+func (e *AnalyticsExporter) writePDFFooter(report *strings.Builder) {
 	report.WriteString("====================================================================\n")
 	report.WriteString("End of Report\n")
 	report.WriteString("====================================================================\n")
-
-	// Note about PDF generation
 	report.WriteString("\nNOTE: This is a text-based PDF export. For full PDF functionality\n")
 	report.WriteString("with graphics and charts, consider using a dedicated PDF library.\n")
-
-	// Write to file
-	if err := os.WriteFile(filename, []byte(report.String()), 0o600); err != nil {
-		return "", fmt.Errorf("failed to write PDF file: %w", err)
-	}
-
-	e.logger.Info("analytics exported to PDF (text format)", slog.String("filename", filename))
-	return filename, nil
 }
 
 // convertReportToMetrics converts a ProductivityReport to WorkflowMetrics for export

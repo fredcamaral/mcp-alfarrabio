@@ -341,89 +341,146 @@ func (ca *contextAnalyzerImpl) CalculateStressLevel(
 	var stressFactors []float64
 
 	// Check for overdue tasks
-	overdueTasks, err := ca.getOverdueTasks(ctx, repository)
-	if err == nil && len(overdueTasks) > 0 {
-		severity := math.Min(1.0, float64(len(overdueTasks))/10.0) // Cap at 10 overdue tasks
-		indicators = append(indicators, entities.StressIndicator{
-			Type:        "overdue_tasks",
-			Severity:    severity,
-			Description: fmt.Sprintf("%d overdue tasks", len(overdueTasks)),
-			Impact:      "productivity",
-			DetectedAt:  time.Now(),
-		})
-		stressFactors = append(stressFactors, severity)
-	}
+	ca.checkOverdueTaskStress(ctx, repository, &indicators, &stressFactors)
 
 	// Check velocity trends
-	velocity, err := ca.AnalyzeVelocityTrends(ctx, repository, 7)
-	if err == nil {
-		avgVelocity, err := ca.getAverageVelocity(ctx, repository, 30)
-		if err == nil && avgVelocity > 0 {
-			velocityRatio := velocity / avgVelocity
-			if velocityRatio > 1.5 { // Working 50% faster than normal
-				severity := math.Min(1.0, (velocityRatio-1.0)/1.0) // Normalize
-				indicators = append(indicators, entities.StressIndicator{
-					Type:        "high_velocity",
-					Severity:    severity,
-					Description: fmt.Sprintf("Working %.0f%% faster than normal", (velocityRatio-1)*100),
-					Impact:      "wellbeing",
-					DetectedAt:  time.Now(),
-				})
-				stressFactors = append(stressFactors, severity*0.7) // Weight slightly lower
-			}
-		}
-	}
+	ca.checkVelocityStress(ctx, repository, &indicators, &stressFactors)
 
-	// Check for long work periods without breaks
+	// Check for long work periods without breaks and interruptions
 	currentSession, err := ca.getCurrentSession(ctx, repository)
 	if err == nil && currentSession != nil {
-		if currentSession.Duration > 4*time.Hour && len(currentSession.WorkPeriods) == 0 {
-			severity := math.Min(1.0, currentSession.Duration.Hours()/8.0) // Cap at 8 hours
-			indicators = append(indicators, entities.StressIndicator{
-				Type:        "long_work_period",
-				Severity:    severity,
-				Description: fmt.Sprintf("Working for %.1f hours without recorded breaks", currentSession.Duration.Hours()),
-				Impact:      "wellbeing",
-				DetectedAt:  time.Now(),
-			})
-			stressFactors = append(stressFactors, severity)
-		}
+		ca.checkWorkPeriodStress(currentSession, &indicators, &stressFactors)
+		ca.checkInterruptionStress(currentSession, &indicators, &stressFactors)
 	}
 
-	// Check for high interruption rate
-	if currentSession != nil && len(currentSession.Interruptions) > 0 {
-		interruptionRate := float64(len(currentSession.Interruptions)) / currentSession.Duration.Hours()
-		if interruptionRate > 2.0 { // More than 2 interruptions per hour
-			severity := math.Min(1.0, interruptionRate/5.0) // Cap at 5 per hour
-			indicators = append(indicators, entities.StressIndicator{
-				Type:        "high_interruptions",
-				Severity:    severity,
-				Description: fmt.Sprintf("%.1f interruptions per hour", interruptionRate),
-				Impact:      "productivity",
-				DetectedAt:  time.Now(),
-			})
-			stressFactors = append(stressFactors, severity*0.8)
-		}
-	}
-
-	// Calculate overall stress level
-	stressLevel := 0.0
-	if len(stressFactors) > 0 {
-		for _, factor := range stressFactors {
-			stressLevel += factor
-		}
-		stressLevel = stressLevel / float64(len(stressFactors))
-
-		// Apply non-linear scaling to emphasize high stress
-		stressLevel = math.Pow(stressLevel, 1.5)
-
-		// Cap at 1.0
-		if stressLevel > 1.0 {
-			stressLevel = 1.0
-		}
-	}
-
+	stressLevel := ca.calculateOverallStressLevel(stressFactors)
 	return stressLevel, indicators, nil
+}
+
+// checkOverdueTaskStress checks for stress from overdue tasks
+func (ca *contextAnalyzerImpl) checkOverdueTaskStress(
+	ctx context.Context,
+	repository string,
+	indicators *[]entities.StressIndicator,
+	stressFactors *[]float64,
+) {
+	overdueTasks, err := ca.getOverdueTasks(ctx, repository)
+	if err != nil || len(overdueTasks) == 0 {
+		return
+	}
+
+	severity := math.Min(1.0, float64(len(overdueTasks))/10.0) // Cap at 10 overdue tasks
+	*indicators = append(*indicators, entities.StressIndicator{
+		Type:        "overdue_tasks",
+		Severity:    severity,
+		Description: fmt.Sprintf("%d overdue tasks", len(overdueTasks)),
+		Impact:      "productivity",
+		DetectedAt:  time.Now(),
+	})
+	*stressFactors = append(*stressFactors, severity)
+}
+
+// checkVelocityStress checks for stress from high velocity
+func (ca *contextAnalyzerImpl) checkVelocityStress(
+	ctx context.Context,
+	repository string,
+	indicators *[]entities.StressIndicator,
+	stressFactors *[]float64,
+) {
+	velocity, err := ca.AnalyzeVelocityTrends(ctx, repository, 7)
+	if err != nil {
+		return
+	}
+
+	avgVelocity, err := ca.getAverageVelocity(ctx, repository, 30)
+	if err != nil || avgVelocity <= 0 {
+		return
+	}
+
+	velocityRatio := velocity / avgVelocity
+	if velocityRatio <= 1.5 { // Not working significantly faster than normal
+		return
+	}
+
+	severity := math.Min(1.0, (velocityRatio-1.0)/1.0) // Normalize
+	*indicators = append(*indicators, entities.StressIndicator{
+		Type:        "high_velocity",
+		Severity:    severity,
+		Description: fmt.Sprintf("Working %.0f%% faster than normal", (velocityRatio-1)*100),
+		Impact:      "wellbeing",
+		DetectedAt:  time.Now(),
+	})
+	*stressFactors = append(*stressFactors, severity*0.7) // Weight slightly lower
+}
+
+// checkWorkPeriodStress checks for stress from long work periods
+func (ca *contextAnalyzerImpl) checkWorkPeriodStress(
+	currentSession *entities.WorkSession,
+	indicators *[]entities.StressIndicator,
+	stressFactors *[]float64,
+) {
+	if currentSession.Duration <= 4*time.Hour || len(currentSession.WorkPeriods) > 0 {
+		return
+	}
+
+	severity := math.Min(1.0, currentSession.Duration.Hours()/8.0) // Cap at 8 hours
+	*indicators = append(*indicators, entities.StressIndicator{
+		Type:        "long_work_period",
+		Severity:    severity,
+		Description: fmt.Sprintf("Working for %.1f hours without recorded breaks", currentSession.Duration.Hours()),
+		Impact:      "wellbeing",
+		DetectedAt:  time.Now(),
+	})
+	*stressFactors = append(*stressFactors, severity)
+}
+
+// checkInterruptionStress checks for stress from high interruption rate
+func (ca *contextAnalyzerImpl) checkInterruptionStress(
+	currentSession *entities.WorkSession,
+	indicators *[]entities.StressIndicator,
+	stressFactors *[]float64,
+) {
+	if len(currentSession.Interruptions) == 0 {
+		return
+	}
+
+	interruptionRate := float64(len(currentSession.Interruptions)) / currentSession.Duration.Hours()
+	if interruptionRate <= 2.0 { // Not more than 2 interruptions per hour
+		return
+	}
+
+	severity := math.Min(1.0, interruptionRate/5.0) // Cap at 5 per hour
+	*indicators = append(*indicators, entities.StressIndicator{
+		Type:        "high_interruptions",
+		Severity:    severity,
+		Description: fmt.Sprintf("%.1f interruptions per hour", interruptionRate),
+		Impact:      "productivity",
+		DetectedAt:  time.Now(),
+	})
+	*stressFactors = append(*stressFactors, severity*0.8)
+}
+
+// calculateOverallStressLevel calculates the overall stress level from factors
+func (ca *contextAnalyzerImpl) calculateOverallStressLevel(stressFactors []float64) float64 {
+	if len(stressFactors) == 0 {
+		return 0.0
+	}
+
+	stressLevel := 0.0
+	for _, factor := range stressFactors {
+		stressLevel += factor
+	}
+	stressLevel = stressLevel / float64(len(stressFactors))
+
+	// Apply non-linear scaling to emphasize high stress
+	stressLevel = math.Pow(stressLevel, 1.5)
+
+	// Cap at 1.0
+	if stressLevel > 1.0 {
+		stressLevel = 1.0
+	}
+
+	return stressLevel
 }
 
 // PredictOptimalTaskType predicts the best task type for current context
