@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
@@ -351,7 +353,8 @@ func (pa *patternAggregatorImpl) FilterSensitiveContent(
 			placeholder := pa.generatePlaceholder(keyword, settings.AnonymizationLevel)
 			filtered = strings.ReplaceAll(filtered, keyword, placeholder)
 			// Also replace case variations
-			filtered = strings.ReplaceAll(filtered, strings.Title(keyword), placeholder)
+			caser := cases.Title(language.English)
+			filtered = strings.ReplaceAll(filtered, caser.String(keyword), placeholder)
 			filtered = strings.ReplaceAll(filtered, strings.ToUpper(keyword), placeholder)
 		}
 	}

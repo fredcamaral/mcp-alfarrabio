@@ -12,6 +12,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
 
 	"lerian-mcp-memory-cli/internal/domain/constants"
@@ -744,7 +746,8 @@ func (c *CLI) generateMarkdown(tasks []*entities.Task, _ *ExportOptions, _ []str
 	statusGroups := groupTasksByStatus(tasks)
 
 	for status, statusTasks := range statusGroups {
-		md.WriteString(fmt.Sprintf("## %s (%d tasks)\n\n", strings.Title(string(status)), len(statusTasks)))
+		caser := cases.Title(language.English)
+		md.WriteString(fmt.Sprintf("## %s (%d tasks)\n\n", caser.String(string(status)), len(statusTasks)))
 
 		for _, task := range statusTasks {
 			md.WriteString(fmt.Sprintf("### %s\n", task.Content))

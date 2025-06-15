@@ -32,11 +32,11 @@ type FileWrapper[T Entity] struct {
 
 // FileStorageConfig contains configuration for file storage
 type FileStorageConfig struct {
-	BasePath    string
-	SubDir      string
-	FileName    string
-	Version     string
-	Logger      *slog.Logger
+	BasePath string
+	SubDir   string
+	FileName string
+	Version  string
+	Logger   *slog.Logger
 }
 
 // GenericFileStorage provides common CRUD operations for file-based storage

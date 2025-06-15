@@ -325,12 +325,13 @@ func (g *TaskGenerator) setTaskDependencies(tasks []*MainTask) {
 func (g *TaskGenerator) estimateTaskDuration(complexity int) string {
 	weeks := float64(complexity) / 10.0
 
-	if weeks < 1 {
+	switch {
+	case weeks < 1:
 		days := int(math.Ceil(weeks * 5))
 		return strconv.Itoa(days) + " days"
-	} else if weeks < 2 {
+	case weeks < 2:
 		return fmt.Sprintf("%.1f weeks", weeks)
-	} else {
+	default:
 		return strconv.Itoa(int(weeks)) + "-" + strconv.Itoa(int(weeks)+1) + " weeks"
 	}
 }
@@ -1111,12 +1112,13 @@ func EstimateProjectTimeline(mainTasks []*MainTask) string {
 	// Add buffer for integration and testing
 	totalWeeks *= 1.2
 
-	if totalWeeks < 4 {
+	switch {
+	case totalWeeks < 4:
 		return strconv.Itoa(int(totalWeeks)) + "-" + strconv.Itoa(int(totalWeeks)+1) + " weeks"
-	} else if totalWeeks < 12 {
+	case totalWeeks < 12:
 		months := totalWeeks / 4.0
 		return fmt.Sprintf("%.1f months", months)
-	} else {
+	default:
 		months := totalWeeks / 4.0
 		return strconv.Itoa(int(months)) + "-" + strconv.Itoa(int(months)+1) + " months"
 	}

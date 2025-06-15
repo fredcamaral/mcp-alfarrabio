@@ -11,6 +11,8 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
 )
 
@@ -471,10 +473,11 @@ func (g *DocsGenerator) generatePathsFromCommands(spec *OpenAPISpec, cmd *cobra.
 		}
 
 		// Create POST operation for the command
+		caser := cases.Title(language.English)
 		operation := &Operation{
 			Summary:     fmt.Sprintf("Execute %s command", subCmd.Name()),
 			Description: subCmd.Long,
-			OperationID: "execute" + strings.Title(subCmd.Name()),
+			OperationID: "execute" + caser.String(subCmd.Name()),
 			Tags:        []string{g.getTagForCommand(subCmd.Name())},
 			Parameters:  g.generateParametersFromFlags(subCmd),
 			Responses: map[string]*Response{

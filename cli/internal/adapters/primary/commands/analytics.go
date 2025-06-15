@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/services"
 
@@ -358,8 +360,9 @@ func runTrendAnalysis(
 		for i := range metrics.Trends.Predictions {
 			prediction := &metrics.Trends.Predictions[i]
 			if prediction.Confidence > 0.6 {
+				caser := cases.Title(language.English)
 				fmt.Printf("• %s: %.1f (%.0f%% confidence)\n",
-					strings.Title(string(prediction.Metric)),
+					caser.String(string(prediction.Metric)),
 					prediction.Value,
 					prediction.Confidence*100)
 			}
@@ -671,9 +674,10 @@ func (v *simpleVisualizer) renderPredictions(predictions []entities.Prediction) 
 		}
 
 		confidenceIcon := v.getConfidenceIcon(prediction.Confidence)
+		caser := cases.Title(language.English)
 		result += fmt.Sprintf("  %s %s: %.1f (%.0f%% confidence)\n",
 			confidenceIcon,
-			strings.Title(string(prediction.Metric)),
+			caser.String(string(prediction.Metric)),
 			prediction.Value,
 			prediction.Confidence*100)
 
@@ -700,8 +704,9 @@ func (v *simpleVisualizer) renderSeasonality(seasonality entities.Seasonality) s
 	if len(seasonality.Patterns) > 0 {
 		result += "  Detected Patterns:\n"
 		for _, pattern := range seasonality.Patterns {
+			caser := cases.Title(language.English)
 			result += fmt.Sprintf("    • %s: %s (%.1f%% confidence)\n",
-				strings.Title(pattern.Type),
+				caser.String(pattern.Type),
 				pattern.Description,
 				pattern.Confidence*100)
 		}

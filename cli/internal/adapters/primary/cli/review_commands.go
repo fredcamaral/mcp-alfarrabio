@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 
 	"github.com/spf13/cobra"
@@ -581,7 +583,8 @@ func (c *CLI) runReviewOrchestrate(_ string, quick bool, focus, _ string) error 
 }
 
 func (c *CLI) runReviewPhase(_ string, phase ReviewPhase) error {
-	fmt.Printf("🔄 Running Review Phase: %s\n", strings.Title(string(phase)))
+	caser := cases.Title(language.English)
+	fmt.Printf("🔄 Running Review Phase: %s\n", caser.String(string(phase)))
 	fmt.Printf("================================\n\n")
 
 	// Map phases to prompts

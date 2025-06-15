@@ -1307,7 +1307,6 @@ func (cra *crossRepoAnalyzer) AnalyzeRepositories(ctx context.Context, repositor
 
 	repoMetrics := make(map[string]*entities.WorkflowMetrics)
 	allTasks := make([]*entities.Task, 0)
-	allSessions := make([]*entities.Session, 0)
 
 	// Collect data from all repositories
 	for _, repo := range repositories {
@@ -1327,13 +1326,11 @@ func (cra *crossRepoAnalyzer) AnalyzeRepositories(ctx context.Context, repositor
 		}
 		allTasks = append(allTasks, tasks...)
 
-		// Collect sessions
-		sessions, err := cra.sessionRepo.GetByRepository(ctx, repo, period)
+		// Collect sessions - currently unused but may be needed for future analytics
+		_, err = cra.sessionRepo.GetByRepository(ctx, repo, period)
 		if err != nil {
 			cra.logger.Warn("failed to get sessions for repository", slog.String("repo", repo), slog.Any("error", err))
-			continue
 		}
-		allSessions = append(allSessions, sessions...)
 	}
 
 	// Analyze patterns across repositories

@@ -410,15 +410,16 @@ func (d *Domain) FindSimilarContent(ctx context.Context, req *domainTypes.FindSi
 	var content string
 
 	// Get content string
-	if req.Content != "" {
+	switch {
+	case req.Content != "":
 		content = req.Content
-	} else if req.ContentID != "" {
+	case req.ContentID != "":
 		existingContent, err := d.contentStore.Get(ctx, req.ProjectID, req.ContentID)
 		if err != nil {
 			return nil, fmt.Errorf("content not found: %w", err)
 		}
 		content = existingContent.Content
-	} else {
+	default:
 		return nil, errors.New("either content or content_id must be provided")
 	}
 

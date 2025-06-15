@@ -11,6 +11,8 @@ import (
 	"strconv"
 	"strings"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -124,7 +126,8 @@ func (l *PromptLoader) parseFilename(filename string) (string, int, string) {
 	if len(matches) == 3 {
 		order, _ := strconv.Atoi(matches[1])
 		cleanName := strings.ReplaceAll(matches[2], "-", " ")
-		cleanName = strings.Title(cleanName)
+		caser := cases.Title(language.English)
+		cleanName = caser.String(cleanName)
 		return fmt.Sprintf("prompt-%02d", order), order, cleanName
 	}
 

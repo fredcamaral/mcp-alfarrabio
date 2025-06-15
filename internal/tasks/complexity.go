@@ -245,11 +245,12 @@ func (ca *ComplexityAnalyzer) calculateBusinessLogicComplexity(task *types.Task,
 	}
 
 	// Acceptance criteria complexity
-	if len(task.AcceptanceCriteria) > 5 {
+	switch {
+	case len(task.AcceptanceCriteria) > 5:
 		score += 0.3
-	} else if len(task.AcceptanceCriteria) > 3 {
+	case len(task.AcceptanceCriteria) > 3:
 		score += 0.2
-	} else if len(task.AcceptanceCriteria) > 1 {
+	case len(task.AcceptanceCriteria) > 1:
 		score += 0.1
 	}
 

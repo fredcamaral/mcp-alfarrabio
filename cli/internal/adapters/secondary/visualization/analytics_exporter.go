@@ -13,6 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
+
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
@@ -284,8 +287,9 @@ func (e *AnalyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filenam
 		_ = writer.Write([]string{"# Priority Performance"})
 		_ = writer.Write([]string{"Priority", "Completion Rate", "Percentage"})
 		for priority, rate := range metrics.Productivity.ByPriority {
+			caser := cases.Title(language.English)
 			_ = writer.Write([]string{
-				strings.Title(priority),
+				caser.String(priority),
 				fmt.Sprintf("%.1f", rate),
 				fmt.Sprintf("%.0f", rate*100),
 			})
@@ -645,8 +649,9 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 		priorities := []string{"high", "medium", "low"}
 		for _, priority := range priorities {
 			if rate, exists := metrics.Productivity.ByPriority[priority]; exists {
+				caser := cases.Title(language.English)
 				report.WriteString(fmt.Sprintf("%-8s: %.0f%% completion rate\n",
-					strings.Title(priority),
+					caser.String(priority),
 					rate*100))
 			}
 		}

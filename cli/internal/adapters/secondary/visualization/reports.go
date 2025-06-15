@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -490,11 +492,12 @@ func (ae *analyticsExporter) generateProductivityHTML(metrics entities.Productiv
 		priorities := []string{"high", "medium", "low"}
 		for _, priority := range priorities {
 			if rate, exists := metrics.ByPriority[priority]; exists {
+				caser := cases.Title(language.English)
 				html.WriteString(fmt.Sprintf(`
                     <tr>
                         <td>%s</td>
                         <td>%.0f%%</td>
-                    </tr>`, strings.Title(priority), rate*100))
+                    </tr>`, caser.String(priority), rate*100))
 			}
 		}
 

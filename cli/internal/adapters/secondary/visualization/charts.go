@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -156,7 +158,8 @@ func (tv *terminalVisualizer) RenderProductivityChart(metrics entities.Productiv
 		for _, priority := range priorities {
 			if rate, exists := metrics.ByPriority[priority]; exists {
 				icon := tv.getPriorityIcon(priority)
-				builder.WriteString(fmt.Sprintf("  %s %-6s ", icon, strings.Title(priority)))
+				caser := cases.Title(language.English)
+				builder.WriteString(fmt.Sprintf("  %s %-6s ", icon, caser.String(priority)))
 				builder.WriteString(tv.renderMiniBar(rate, 20))
 				builder.WriteString(fmt.Sprintf(" %.0f%%\n", rate*100))
 			}
@@ -327,7 +330,8 @@ func (tv *terminalVisualizer) RenderCompletionChart(metrics entities.CompletionM
 			if count, exists := metrics.ByStatus[status]; exists && count > 0 {
 				percentage := float64(count) / float64(metrics.TotalTasks) * 100
 				icon := tv.getStatusIcon(status)
-				builder.WriteString(fmt.Sprintf("  %s %-12s ", icon, strings.Title(status)))
+				caser := cases.Title(language.English)
+				builder.WriteString(fmt.Sprintf("  %s %-12s ", icon, caser.String(status)))
 				builder.WriteString(tv.renderMiniBar(percentage/100, 15))
 				builder.WriteString(fmt.Sprintf(" %d (%.0f%%)\n", count, percentage))
 			}
@@ -344,7 +348,8 @@ func (tv *terminalVisualizer) RenderCompletionChart(metrics entities.CompletionM
 			if count, exists := metrics.ByPriority[priority]; exists && count > 0 {
 				percentage := float64(count) / float64(metrics.TotalTasks) * 100
 				icon := tv.getPriorityIcon(priority)
-				builder.WriteString(fmt.Sprintf("  %s %-6s ", icon, strings.Title(priority)))
+				caser := cases.Title(language.English)
+				builder.WriteString(fmt.Sprintf("  %s %-6s ", icon, caser.String(priority)))
 				builder.WriteString(tv.renderMiniBar(percentage/100, 15))
 				builder.WriteString(fmt.Sprintf(" %d (%.0f%%)\n", count, percentage))
 			}
@@ -542,8 +547,9 @@ func (tv *terminalVisualizer) RenderTrends(trends entities.TrendAnalysis) string
 		builder.WriteString("🔮 Predictions:\n")
 		for _, prediction := range trends.Predictions {
 			if prediction.Confidence > 0.6 {
+				caser := cases.Title(language.English)
 				builder.WriteString(fmt.Sprintf("  %s: %.1f (%.0f%% confidence)\n",
-					strings.Title(string(prediction.Metric)),
+					caser.String(string(prediction.Metric)),
 					prediction.Value,
 					prediction.Confidence*100))
 			}
@@ -556,8 +562,9 @@ func (tv *terminalVisualizer) RenderTrends(trends entities.TrendAnalysis) string
 		builder.WriteString("📅 Seasonal Patterns Detected:\n")
 		for _, pattern := range trends.Seasonality.Patterns {
 			if pattern.Confidence > 0.6 {
+				caser := cases.Title(language.English)
 				builder.WriteString(fmt.Sprintf("  %s: %s (%.0f%% confidence)\n",
-					strings.Title(pattern.Type),
+					caser.String(pattern.Type),
 					pattern.Description,
 					pattern.Confidence*100))
 			}

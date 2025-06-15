@@ -10,6 +10,8 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"lerian-mcp-memory-cli/internal/adapters/secondary/ai"
 	"lerian-mcp-memory-cli/internal/domain/constants"
@@ -495,7 +497,8 @@ func (c *CLI) displayAIAnalysisResult(result *ai.AICommandResult) error {
 	if len(result.PerformanceMetrics) > 0 {
 		fmt.Printf("📈 Performance Metrics:\n")
 		for metric, value := range result.PerformanceMetrics {
-			fmt.Printf("  • %s: %v\n", strings.Title(strings.ReplaceAll(metric, "_", " ")), value)
+			caser := cases.Title(language.English)
+			fmt.Printf("  • %s: %v\n", caser.String(strings.ReplaceAll(metric, "_", " ")), value)
 		}
 		fmt.Printf("\n")
 	}

@@ -12,7 +12,6 @@ import (
 	"github.com/spf13/cobra"
 
 	"lerian-mcp-memory-cli/internal/domain/constants"
-	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/services"
 )
 
@@ -185,7 +184,6 @@ func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, 
 	}
 
 	// Generate tasks
-	var createdTasks []*entities.Task
 	for i := 0; i < count; i++ {
 		// Pick a random template
 		n, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(int64(len(taskTemplates))))
@@ -222,7 +220,6 @@ func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, 
 			return fmt.Errorf("failed to create task %d: %w", i+1, err)
 		}
 
-		createdTasks = append(createdTasks, task)
 		fmt.Fprintf(cmd.OutOrStdout(), "Created task %d/%d: %s\n", i+1, count, task.ID[:8])
 
 		// Generate subtasks if requested

@@ -651,7 +651,7 @@ func (sa *similarityAnalyzerImpl) sumLanguageCounts(languages map[string]int) in
 
 func contains(slice []string, item string) bool {
 	for _, s := range slice {
-		if strings.ToLower(s) == strings.ToLower(item) {
+		if strings.EqualFold(s, item) {
 			return true
 		}
 	}

@@ -161,4 +161,3 @@ func (s *FilePatternStorage) GetByProjectType(ctx context.Context, projectType e
 
 	return results, nil
 }
-
