@@ -625,20 +625,30 @@ func (c *CLI) runMemorySearch(cmd *cobra.Command, query, project string, limit i
 	}
 
 	// Format output
-	if chunks, ok := result["chunks"].([]interface{}); ok && len(chunks) > 0 {
-		for _, chunk := range chunks {
-			if chunkMap, ok := chunk.(map[string]interface{}); ok {
-				fmt.Fprintf(cmd.OutOrStdout(), "ID: %s\n", chunkMap["id"].(string))
-				fmt.Fprintf(cmd.OutOrStdout(), "Content: %s\n", chunkMap["content"].(string))
-				fmt.Fprintf(cmd.OutOrStdout(), "Repository: %s\n", project)
-				fmt.Fprintf(cmd.OutOrStdout(), "Score: %.2f\n\n", chunkMap["score"])
-			}
-		}
-	} else {
+	chunks, hasChunks := result["chunks"].([]interface{})
+	if !hasChunks || len(chunks) == 0 {
 		fmt.Fprintf(cmd.OutOrStdout(), "No results found\n")
+		return nil
 	}
 
+	c.formatSearchChunks(cmd, chunks, project)
+
 	return nil
+}
+
+// formatSearchChunks formats and displays search result chunks
+func (c *CLI) formatSearchChunks(cmd *cobra.Command, chunks []interface{}, project string) {
+	for _, chunk := range chunks {
+		chunkMap, ok := chunk.(map[string]interface{})
+		if !ok {
+			continue
+		}
+
+		fmt.Fprintf(cmd.OutOrStdout(), "ID: %s\n", chunkMap["id"].(string))
+		fmt.Fprintf(cmd.OutOrStdout(), "Content: %s\n", chunkMap["content"].(string))
+		fmt.Fprintf(cmd.OutOrStdout(), "Repository: %s\n", project)
+		fmt.Fprintf(cmd.OutOrStdout(), "Score: %.2f\n\n", chunkMap["score"])
+	}
 }
 
 func (c *CLI) runMemoryGet(cmd *cobra.Command, _, id, format string) error {

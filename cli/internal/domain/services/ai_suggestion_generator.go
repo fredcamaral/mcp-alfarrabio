@@ -1034,16 +1034,7 @@ func (ai *aiSuggestionGeneratorImpl) calculateTaskSimilarity(task1, task2 *entit
 
 	// Compare task types using tags
 	if len(task1.Tags) > 0 && len(task2.Tags) > 0 {
-		// Check if tasks have common tags
-		commonTags := 0
-		for _, tag1 := range task1.Tags {
-			for _, tag2 := range task2.Tags {
-				if tag1 == tag2 {
-					commonTags++
-					break
-				}
-			}
-		}
+		commonTags := ai.countCommonTags(task1.Tags, task2.Tags)
 		if commonTags > 0 {
 			similarity += 0.4
 		}

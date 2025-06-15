@@ -391,22 +391,9 @@ func (c *CLI) exportYAML(tasks []*entities.Task, outputFile string, opts *Export
 }
 
 func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, _ *ExportOptions, fields []string) (int64, error) {
-	// Clean and validate the output file path
-	cleanPath := filepath.Clean(outputFile)
-
-	// Security check: prevent path traversal attacks
-	if strings.Contains(cleanPath, "..") {
-		return 0, errors.New("invalid output path: path traversal not allowed")
-	}
-
-	// If absolute path, ensure it's not accessing system directories
-	if filepath.IsAbs(cleanPath) {
-		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
-		for _, sysDir := range systemDirs {
-			if strings.HasPrefix(cleanPath, sysDir) {
-				return 0, errors.New("invalid output path: access to system directory not allowed")
-			}
-		}
+	cleanPath, err := c.validateOutputPath(outputFile)
+	if err != nil {
+		return 0, err
 	}
 
 	file, err := os.Create(cleanPath) // #nosec G304 -- Path is cleaned and validated above
@@ -442,22 +429,9 @@ func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, _ *ExportOpti
 }
 
 func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, _ *ExportOptions, fields []string) (int64, error) {
-	// Clean and validate the output file path
-	cleanPath := filepath.Clean(outputFile)
-
-	// Security check: prevent path traversal attacks
-	if strings.Contains(cleanPath, "..") {
-		return 0, errors.New("invalid output path: path traversal not allowed")
-	}
-
-	// If absolute path, ensure it's not accessing system directories
-	if filepath.IsAbs(cleanPath) {
-		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
-		for _, sysDir := range systemDirs {
-			if strings.HasPrefix(cleanPath, sysDir) {
-				return 0, errors.New("invalid output path: access to system directory not allowed")
-			}
-		}
+	cleanPath, err := c.validateOutputPath(outputFile)
+	if err != nil {
+		return 0, err
 	}
 
 	// Similar to CSV but with tab delimiter

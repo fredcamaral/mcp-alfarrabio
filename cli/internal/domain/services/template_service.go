@@ -301,86 +301,147 @@ func (ts *templateServiceImpl) InstantiateTemplate(
 		slog.String("template_id", templateID),
 		slog.String("repository", repository))
 
-	// Get template
+	template, processedVars, err := ts.prepareTemplateInstantiation(ctx, templateID, repository, vars)
+	if err != nil {
+		return nil, err
+	}
+
+	tasks, taskMap, err := ts.createTasksFromTemplate(template, repository, processedVars)
+	if err != nil {
+		return nil, err
+	}
+
+	ts.setupTaskDependencies(template, taskMap)
+
+	if err := ts.storeTasks(ctx, tasks); err != nil {
+		return nil, err
+	}
+
+	ts.updateTemplateUsageAsync(ctx, templateID)
+
+	ts.logger.Info("template instantiated successfully",
+		slog.Int("tasks_created", len(tasks)))
+
+	return tasks, nil
+}
+
+// Helper functions for InstantiateTemplate
+
+func (ts *templateServiceImpl) prepareTemplateInstantiation(
+	ctx context.Context,
+	templateID string,
+	repository string,
+	vars map[string]interface{},
+) (*entities.TaskTemplate, map[string]interface{}, error) {
 	template, err := ts.GetTemplate(ctx, templateID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get template: %w", err)
+		return nil, nil, fmt.Errorf("failed to get template: %w", err)
 	}
 
-	// Validate variables
 	if err := ts.ValidateVariables(template, vars); err != nil {
-		return nil, fmt.Errorf("variable validation failed: %w", err)
+		return nil, nil, fmt.Errorf("variable validation failed: %w", err)
 	}
 
-	// Apply defaults for missing variables
-	vars = ts.applyDefaults(template, vars)
+	processedVars := ts.applyDefaults(template, vars)
+	processedVars["repository"] = repository
 
-	// Add repository to variables
-	vars["repository"] = repository
+	return template, processedVars, nil
+}
 
-	// Create tasks from template
+func (ts *templateServiceImpl) createTasksFromTemplate(
+	template *entities.TaskTemplate,
+	repository string,
+	vars map[string]interface{},
+) ([]*entities.Task, map[int]*entities.Task, error) {
 	tasks := make([]*entities.Task, 0, len(template.Tasks))
-	taskMap := make(map[int]*entities.Task) // For dependency resolution
+	taskMap := make(map[int]*entities.Task)
 
 	for _, tmplTask := range template.Tasks {
-		// Substitute variables in content
-		content, err := ts.substituteVariables(tmplTask.Content, vars)
+		task, err := ts.createTaskFromTemplate(tmplTask, repository, vars)
 		if err != nil {
-			return nil, fmt.Errorf("failed to substitute variables: %w", err)
-		}
-
-		// Substitute variables in description if present
-		description := tmplTask.Description
-		if description != "" {
-			description, err = ts.substituteVariables(description, vars)
-			if err != nil {
-				return nil, fmt.Errorf("failed to substitute variables in description: %w", err)
-			}
-		}
-
-		task := &entities.Task{
-			ID:          uuid.New().String(),
-			Content:     content,
-			Description: description,
-			Status:      entities.StatusPending,
-			Priority:    entities.Priority(tmplTask.Priority),
-			Repository:  repository,
-			Tags:        tmplTask.Tags,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			return nil, nil, err
 		}
 
 		tasks = append(tasks, task)
 		taskMap[tmplTask.Order] = task
 	}
 
-	// Set dependencies
-	for _, tmplTask := range template.Tasks {
-		if len(tmplTask.Dependencies) > 0 {
-			var dependsOn []string
-			for _, depOrder := range tmplTask.Dependencies {
-				if depTask, exists := taskMap[depOrder]; exists {
-					dependsOn = append(dependsOn, depTask.ID)
-				}
-			}
-			// Store dependencies in current task metadata
-			if currentTask, exists := taskMap[tmplTask.Order]; exists {
-				if currentTask.Metadata == nil {
-					currentTask.Metadata = make(map[string]interface{})
-				}
-				currentTask.Metadata["depends_on"] = dependsOn
-			}
+	return tasks, taskMap, nil
+}
+
+func (ts *templateServiceImpl) createTaskFromTemplate(
+	tmplTask entities.TemplateTask,
+	repository string,
+	vars map[string]interface{},
+) (*entities.Task, error) {
+	content, err := ts.substituteVariables(tmplTask.Content, vars)
+	if err != nil {
+		return nil, fmt.Errorf("failed to substitute variables: %w", err)
+	}
+
+	description := tmplTask.Description
+	if description != "" {
+		description, err = ts.substituteVariables(description, vars)
+		if err != nil {
+			return nil, fmt.Errorf("failed to substitute variables in description: %w", err)
 		}
 	}
 
-	// Store tasks in repository
+	return &entities.Task{
+		ID:          uuid.New().String(),
+		Content:     content,
+		Description: description,
+		Status:      entities.StatusPending,
+		Priority:    entities.Priority(tmplTask.Priority),
+		Repository:  repository,
+		Tags:        tmplTask.Tags,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}, nil
+}
+
+func (ts *templateServiceImpl) setupTaskDependencies(template *entities.TaskTemplate, taskMap map[int]*entities.Task) {
+	for _, tmplTask := range template.Tasks {
+		if len(tmplTask.Dependencies) == 0 {
+			continue
+		}
+
+		dependsOn := ts.resolveDependencies(tmplTask.Dependencies, taskMap)
+		ts.setTaskDependencies(taskMap[tmplTask.Order], dependsOn)
+	}
+}
+
+func (ts *templateServiceImpl) resolveDependencies(dependencies []int, taskMap map[int]*entities.Task) []string {
+	dependsOn := make([]string, 0, len(dependencies))
+	for _, depOrder := range dependencies {
+		if depTask, exists := taskMap[depOrder]; exists {
+			dependsOn = append(dependsOn, depTask.ID)
+		}
+	}
+	return dependsOn
+}
+
+func (ts *templateServiceImpl) setTaskDependencies(task *entities.Task, dependsOn []string) {
+	if task == nil || len(dependsOn) == 0 {
+		return
+	}
+
+	if task.Metadata == nil {
+		task.Metadata = make(map[string]interface{})
+	}
+	task.Metadata["depends_on"] = dependsOn
+}
+
+func (ts *templateServiceImpl) storeTasks(ctx context.Context, tasks []*entities.Task) error {
 	for _, task := range tasks {
 		if err := ts.taskRepo.Create(ctx, task); err != nil {
-			return nil, fmt.Errorf("failed to create task: %w", err)
+			return fmt.Errorf("failed to create task: %w", err)
 		}
 	}
+	return nil
+}
 
-	// Update template usage with inherited context
+func (ts *templateServiceImpl) updateTemplateUsageAsync(ctx context.Context, templateID string) {
 	go func() {
 		updateCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
 		defer cancel()
@@ -388,11 +449,6 @@ func (ts *templateServiceImpl) InstantiateTemplate(
 			ts.logger.Error("failed to update template usage", slog.Any("error", err))
 		}
 	}()
-
-	ts.logger.Info("template instantiated successfully",
-		slog.Int("tasks_created", len(tasks)))
-
-	return tasks, nil
 }
 
 // MatchTemplates finds templates that match a project

@@ -172,71 +172,129 @@ func (c *CLI) createPRDExportCommand() *cobra.Command {
 
 // runPRDCreate handles interactive PRD creation
 func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvider, model string) error {
-	if c.aiService == nil {
-		return errors.New("AI service not available - please check configuration")
+	if err := c.validatePRDCreatePrerequisites(); err != nil {
+		return err
 	}
 
-	fmt.Printf("🚀 Starting PRD Creation\n")
-	fmt.Printf("======================\n\n")
-
+	c.printPRDCreationHeader()
 	ctx := context.Background()
 
 	if !interactive {
-		// Non-interactive mode with provided parameters
-		if title == "" {
-			return errors.New("title is required for non-interactive mode")
-		}
-		return c.createPRDNonInteractive(ctx, title, projectType, output, aiProvider, model)
+		return c.handleNonInteractivePRDCreation(ctx, title, projectType, output, aiProvider, model)
 	}
 
-	// Start interactive session
+	return c.handleInteractivePRDCreation(ctx, projectType, output)
+}
+
+// Helper functions for runPRDCreate
+
+func (c *CLI) validatePRDCreatePrerequisites() error {
+	if c.aiService == nil {
+		return errors.New("AI service not available - please check configuration")
+	}
+	return nil
+}
+
+func (c *CLI) printPRDCreationHeader() {
+	fmt.Printf("🚀 Starting PRD Creation\n")
+	fmt.Printf("======================\n\n")
+}
+
+func (c *CLI) handleNonInteractivePRDCreation(ctx context.Context, title, projectType, output, aiProvider, model string) error {
+	if title == "" {
+		return errors.New("title is required for non-interactive mode")
+	}
+	return c.createPRDNonInteractive(ctx, title, projectType, output, aiProvider, model)
+}
+
+func (c *CLI) handleInteractivePRDCreation(ctx context.Context, projectType, output string) error {
+	userInputs, err := c.runInteractivePRDSession(ctx)
+	if err != nil {
+		return err
+	}
+
+	prd, err := c.generatePRDFromInputs(ctx, userInputs, projectType)
+	if err != nil {
+		return err
+	}
+
+	outputPath, err := c.determinePRDOutputPath(prd, output)
+	if err != nil {
+		return err
+	}
+
+	return c.finalizePRDCreation(prd, outputPath)
+}
+
+func (c *CLI) runInteractivePRDSession(ctx context.Context) ([]string, error) {
 	session, err := c.aiService.StartInteractiveSession(ctx, "prd")
 	if err != nil {
-		return fmt.Errorf("failed to start PRD creation session: %w", err)
+		return nil, fmt.Errorf("failed to start PRD creation session: %w", err)
 	}
 
 	fmt.Printf("I'll help you create a comprehensive PRD. Let me ask you some questions.\n\n")
 
-	// Interactive Q&A loop
 	scanner := bufio.NewScanner(os.Stdin)
 	var userInputs []string
 
 	for session.State == ports.SessionStateActive {
-		// Get next question from AI
-		response, err := c.aiService.ContinueSession(ctx, session.ID, "")
+		userInput, err := c.handleInteractiveQuestion(ctx, session, scanner)
 		if err != nil {
-			return fmt.Errorf("session error: %w", err)
+			return nil, err
 		}
 
-		// Display AI question
-		fmt.Printf("🤖 %s\n> ", response.Message.Content)
-
-		// Get user input
-		if !scanner.Scan() {
+		if userInput == "" {
 			break
 		}
 
-		userInput := strings.TrimSpace(scanner.Text())
-		if userInput == "" {
-			continue
-		}
-
 		userInputs = append(userInputs, userInput)
-
-		// Send response to AI
-		_, err = c.aiService.ContinueSession(ctx, session.ID, userInput)
-		if err != nil {
-			return fmt.Errorf("failed to process response: %w", err)
-		}
-
-		fmt.Println() // Add spacing
 	}
 
-	// Generate final PRD using document chain
+	return userInputs, nil
+}
+
+func (c *CLI) handleInteractiveQuestion(ctx context.Context, session *ports.InteractiveSession, scanner *bufio.Scanner) (string, error) {
+	response, err := c.aiService.ContinueSession(ctx, session.ID, "")
+	if err != nil {
+		return "", fmt.Errorf("session error: %w", err)
+	}
+
+	fmt.Printf("🤖 %s\n> ", response.Message.Content)
+
+	if !scanner.Scan() {
+		return "", nil
+	}
+
+	userInput := strings.TrimSpace(scanner.Text())
+	if userInput == "" {
+		return "", nil
+	}
+
+	_, err = c.aiService.ContinueSession(ctx, session.ID, userInput)
+	if err != nil {
+		return "", fmt.Errorf("failed to process response: %w", err)
+	}
+
+	fmt.Println() // Add spacing
+	return userInput, nil
+}
+
+func (c *CLI) generatePRDFromInputs(ctx context.Context, userInputs []string, projectType string) (*services.PRDEntity, error) {
 	if c.documentChain == nil {
-		return errors.New("document chain service not available")
+		return nil, errors.New("document chain service not available")
 	}
 
+	context := c.createGenerationContext(ctx, userInputs, projectType)
+	
+	prd, err := c.documentChain.GeneratePRDInteractive(ctx, context)
+	if err != nil {
+		return nil, fmt.Errorf("failed to generate PRD: %w", err)
+	}
+
+	return prd, nil
+}
+
+func (c *CLI) createGenerationContext(ctx context.Context, userInputs []string, projectType string) *services.GenerationContext {
 	context := &services.GenerationContext{
 		Repository:  c.detectRepository(ctx),
 		ProjectType: projectType,
@@ -253,38 +311,45 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 		context.ProjectType = c.inferProjectType(userInputs)
 	}
 
-	prd, err := c.documentChain.GeneratePRDInteractive(ctx, context)
-	if err != nil {
-		return fmt.Errorf("failed to generate PRD: %w", err)
+	return context
+}
+
+func (c *CLI) determinePRDOutputPath(prd *services.PRDEntity, output string) (string, error) {
+	if output != "" {
+		return output, nil
 	}
 
-	// Determine output file
-	if output == "" {
-		// Default output location
-		preDev := constants.DefaultPreDevelopmentDir
-		if err := os.MkdirAll(preDev, 0750); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", preDev, err)
-		}
-
-		// Create filename from title
-		baseName := strings.ToLower(prd.Title)
-		baseName = strings.ReplaceAll(baseName, " ", "-")
-		baseName = strings.ReplaceAll(baseName, "/", "-")
-		timestamp := time.Now().Format("2006-01-02")
-
-		output = filepath.Join(preDev, fmt.Sprintf("prd-%s-%s.md", baseName, timestamp))
+	preDev := constants.DefaultPreDevelopmentDir
+	if err := os.MkdirAll(preDev, 0750); err != nil {
+		return "", fmt.Errorf("failed to create directory %s: %w", preDev, err)
 	}
 
-	// Save PRD
-	if err := c.savePRDToFile(prd, output); err != nil {
+	baseName := c.createFileBaseName(prd.Title)
+	timestamp := time.Now().Format("2006-01-02")
+	
+	return filepath.Join(preDev, fmt.Sprintf("prd-%s-%s.md", baseName, timestamp)), nil
+}
+
+func (c *CLI) createFileBaseName(title string) string {
+	baseName := strings.ToLower(title)
+	baseName = strings.ReplaceAll(baseName, " ", "-")
+	baseName = strings.ReplaceAll(baseName, "/", "-")
+	return baseName
+}
+
+func (c *CLI) finalizePRDCreation(prd *services.PRDEntity, outputPath string) error {
+	if err := c.savePRDToFile(prd, outputPath); err != nil {
 		return fmt.Errorf("failed to save PRD to file: %w", err)
 	}
-	fmt.Printf("📄 PRD saved to: %s\n", output)
 
-	// Update session for next commands
-	c.updateSession("prd_file", output)
+	c.updateSession("prd_file", outputPath)
+	c.printPRDCreationSummary(prd, outputPath)
+	
+	return nil
+}
 
-	// Display results
+func (c *CLI) printPRDCreationSummary(prd *services.PRDEntity, outputPath string) {
+	fmt.Printf("📄 PRD saved to: %s\n", outputPath)
 	fmt.Printf("\n✅ PRD created successfully!\n")
 	fmt.Printf("   ID: %s\n", prd.ID)
 	fmt.Printf("   Title: %s\n", prd.Title)
@@ -294,8 +359,6 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 	fmt.Printf("\n💡 Next steps:\n")
 	fmt.Printf("   - Run 'lmmc trd create' to generate technical requirements\n")
 	fmt.Printf("   - Run 'lmmc workflow run' to execute complete automation\n")
-
-	return nil
 }
 
 // createPRDNonInteractive creates a PRD without interaction

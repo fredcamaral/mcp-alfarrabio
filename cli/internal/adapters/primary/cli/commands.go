@@ -751,52 +751,67 @@ func (c *CLI) formatSuggestions(cmd *cobra.Command, formatter OutputFormatter, s
 	case *JSONFormatter:
 		return formatter.FormatDocument(suggestions)
 	default:
-		// Table/plain format - custom formatting for suggestions
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n🤖 AI Task Suggestions:\n\n")
+		return c.formatSuggestionsPlain(cmd, suggestions)
+	}
+}
 
-		for i, suggestion := range suggestions {
-			// Header with confidence score
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%d. %s ", i+1, suggestion.Content)
+// formatSuggestionsPlain formats suggestions in plain text format
+func (c *CLI) formatSuggestionsPlain(cmd *cobra.Command, suggestions []entities.TaskSuggestion) error {
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n🤖 AI Task Suggestions:\n\n")
 
-			// Show confidence with colored indicators
-			confidence := suggestion.Confidence
-			var indicator string
-			switch {
-			case confidence >= 0.8:
-				indicator = "🟢 High"
-			case confidence >= 0.6:
-				indicator = "🟡 Medium"
-			case confidence >= 0.4:
-				indicator = "🟠 Low"
-			default:
-				indicator = "🔴 Very Low"
-			}
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "(%s confidence: %.0f%%)\n", indicator, confidence*100)
+	for i, suggestion := range suggestions {
+		c.printSuggestionHeader(cmd, i+1, suggestion)
+		c.printSuggestionDetails(cmd, suggestion)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
+	}
 
-			// Description if available
-			if suggestion.Description != "" {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   %s\n", suggestion.Description)
-			}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "💡 Use 'lmmc add \"<suggestion>\"' to create a task from these suggestions.\n\n")
+	return nil
+}
 
-			// Show reasoning if available
-			if suggestion.Reasoning != "" {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   💡 Why: %s\n", suggestion.Reasoning)
-			}
+// printSuggestionHeader prints the suggestion number, content, and confidence
+func (c *CLI) printSuggestionHeader(cmd *cobra.Command, num int, suggestion entities.TaskSuggestion) {
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%d. %s ", num, suggestion.Content)
+	
+	indicator := c.getConfidenceIndicator(suggestion.Confidence)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "(%s confidence: %.0f%%)\n", indicator, suggestion.Confidence*100)
+}
 
-			// Show suggested priority/tags if available
-			if suggestion.Priority != "" {
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   📌 Priority: %s", suggestion.Priority)
-				if len(suggestion.Tags) > 0 {
-					_, _ = fmt.Fprintf(cmd.OutOrStdout(), " | Tags: %s", strings.Join(suggestion.Tags, ", "))
-				}
-				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
-			}
+// printSuggestionDetails prints optional suggestion details (description, reasoning, priority/tags)
+func (c *CLI) printSuggestionDetails(cmd *cobra.Command, suggestion entities.TaskSuggestion) {
+	if suggestion.Description != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   %s\n", suggestion.Description)
+	}
 
-			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
-		}
+	if suggestion.Reasoning != "" {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   💡 Why: %s\n", suggestion.Reasoning)
+	}
 
-		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "💡 Use 'lmmc add \"<suggestion>\"' to create a task from these suggestions.\n\n")
-		return nil
+	if suggestion.Priority != "" {
+		c.printSuggestionPriorityAndTags(cmd, suggestion)
+	}
+}
+
+// printSuggestionPriorityAndTags prints priority and tags if available
+func (c *CLI) printSuggestionPriorityAndTags(cmd *cobra.Command, suggestion entities.TaskSuggestion) {
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   📌 Priority: %s", suggestion.Priority)
+	if len(suggestion.Tags) > 0 {
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), " | Tags: %s", strings.Join(suggestion.Tags, ", "))
+	}
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
+}
+
+// getConfidenceIndicator returns colored indicator based on confidence level
+func (c *CLI) getConfidenceIndicator(confidence float64) string {
+	switch {
+	case confidence >= 0.8:
+		return "🟢 High"
+	case confidence >= 0.6:
+		return "🟡 Medium"
+	case confidence >= 0.4:
+		return "🟠 Low"
+	default:
+		return "🔴 Very Low"
 	}
 }
 

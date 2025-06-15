@@ -253,27 +253,31 @@ func (fa *fileAnalyzerImpl) shouldIgnore(name string) bool {
 	name = strings.ToLower(name)
 
 	for _, pattern := range fa.config.IgnorePatterns {
-		pattern = strings.ToLower(pattern)
-
-		// Simple pattern matching (could be improved with glob)
-		if strings.Contains(name, pattern) {
+		if fa.matchesPattern(name, strings.ToLower(pattern)) {
 			return true
 		}
+	}
 
-		// Handle wildcard patterns
-		if strings.HasSuffix(pattern, "*") {
-			prefix := strings.TrimSuffix(pattern, "*")
-			if strings.HasPrefix(name, prefix) {
-				return true
-			}
-		}
+	return false
+}
 
-		if strings.HasPrefix(pattern, "*") {
-			suffix := strings.TrimPrefix(pattern, "*")
-			if strings.HasSuffix(name, suffix) {
-				return true
-			}
-		}
+// matchesPattern checks if a name matches a pattern (supports wildcards)
+func (fa *fileAnalyzerImpl) matchesPattern(name, pattern string) bool {
+	// Simple pattern matching (could be improved with glob)
+	if strings.Contains(name, pattern) {
+		return true
+	}
+
+	// Handle suffix wildcard patterns
+	if strings.HasSuffix(pattern, "*") {
+		prefix := strings.TrimSuffix(pattern, "*")
+		return strings.HasPrefix(name, prefix)
+	}
+
+	// Handle prefix wildcard patterns
+	if strings.HasPrefix(pattern, "*") {
+		suffix := strings.TrimPrefix(pattern, "*")
+		return strings.HasSuffix(name, suffix)
 	}
 
 	return false
@@ -282,6 +286,17 @@ func (fa *fileAnalyzerImpl) shouldIgnore(name string) bool {
 func (fa *fileAnalyzerImpl) isConfigFile(name string) bool {
 	name = strings.ToLower(name)
 
+	// Check configured patterns first
+	if fa.matchesConfigPattern(name) {
+		return true
+	}
+
+	// Check common config file indicators
+	return fa.hasConfigIndicator(name)
+}
+
+// matchesConfigPattern checks if name matches any configured pattern
+func (fa *fileAnalyzerImpl) matchesConfigPattern(name string) bool {
 	for _, pattern := range fa.config.ConfigFilePatterns {
 		pattern = strings.ToLower(pattern)
 
@@ -290,36 +305,27 @@ func (fa *fileAnalyzerImpl) isConfigFile(name string) bool {
 			return true
 		}
 
-		// Pattern matching
-		if strings.Contains(pattern, "*") {
-			if strings.HasSuffix(pattern, "*") {
-				prefix := strings.TrimSuffix(pattern, "*")
-				if strings.HasPrefix(name, prefix) {
-					return true
-				}
-			}
-			if strings.HasPrefix(pattern, "*") {
-				suffix := strings.TrimPrefix(pattern, "*")
-				if strings.HasSuffix(name, suffix) {
-					return true
-				}
-			}
+		// Wildcard pattern matching
+		if strings.Contains(pattern, "*") && fa.matchesPattern(name, pattern) {
+			return true
 		}
 
-		// Check if it's in a specific directory pattern
+		// Directory pattern check
 		if strings.Contains(pattern, "/") && strings.Contains(name, strings.ToLower(filepath.Base(pattern))) {
 			return true
 		}
 	}
+	return false
+}
 
-	// Common config file patterns
+// hasConfigIndicator checks if name contains common config indicators
+func (fa *fileAnalyzerImpl) hasConfigIndicator(name string) bool {
 	configIndicators := []string{"config", "conf", ".env", "settings", "rc", "yaml", "yml", "toml", "ini"}
 	for _, indicator := range configIndicators {
 		if strings.Contains(name, indicator) {
 			return true
 		}
 	}
-
 	return false
 }
 
@@ -338,26 +344,34 @@ func (fa *fileAnalyzerImpl) findFilesByPattern(ctx context.Context, basePath, pa
 		default:
 		}
 
-		// Skip ignored directories
-		if d.IsDir() && fa.shouldIgnore(d.Name()) {
-			return filepath.SkipDir
-		}
-
-		if !d.IsDir() {
-			name := strings.ToLower(d.Name())
-			pattern = strings.ToLower(pattern)
-
-			// Simple pattern matching
-			if name == pattern || strings.Contains(name, pattern) {
-				relativePath, _ := filepath.Rel(basePath, path)
-				matches = append(matches, relativePath)
-			}
-		}
-
-		return nil
+		return fa.processPathEntry(basePath, path, d, pattern, &matches)
 	})
 
 	return matches, err
+}
+
+// processPathEntry handles a single path entry during directory walking
+func (fa *fileAnalyzerImpl) processPathEntry(basePath, path string, d fs.DirEntry, pattern string, matches *[]string) error {
+	// Skip ignored directories
+	if d.IsDir() && fa.shouldIgnore(d.Name()) {
+		return filepath.SkipDir
+	}
+
+	// Process files only
+	if d.IsDir() {
+		return nil
+	}
+
+	name := strings.ToLower(d.Name())
+	pattern = strings.ToLower(pattern)
+
+	// Simple pattern matching
+	if name == pattern || strings.Contains(name, pattern) {
+		relativePath, _ := filepath.Rel(basePath, path)
+		*matches = append(*matches, relativePath)
+	}
+
+	return nil
 }
 
 func (fa *fileAnalyzerImpl) readConfigFile(filePath string) (interface{}, error) {
@@ -368,13 +382,8 @@ func (fa *fileAnalyzerImpl) readConfigFile(filePath string) (interface{}, error)
 	}
 
 	// Check file size
-	info, err := os.Stat(filePath)
-	if err != nil {
+	if err := fa.validateFileSize(filePath); err != nil {
 		return nil, err
-	}
-
-	if info.Size() > fa.config.MaxFileSize {
-		return nil, fmt.Errorf("file too large: %d bytes", info.Size())
 	}
 
 	content, err := os.ReadFile(filePath)
@@ -382,21 +391,38 @@ func (fa *fileAnalyzerImpl) readConfigFile(filePath string) (interface{}, error)
 		return nil, err
 	}
 
-	// Try to parse as JSON first
+	return fa.parseConfigContent(content, filePath)
+}
+
+// validateFileSize checks if file size is within limits
+func (fa *fileAnalyzerImpl) validateFileSize(filePath string) error {
+	info, err := os.Stat(filePath)
+	if err != nil {
+		return err
+	}
+
+	if info.Size() > fa.config.MaxFileSize {
+		return fmt.Errorf("file too large: %d bytes", info.Size())
+	}
+
+	return nil
+}
+
+// parseConfigContent parses config file content based on file type
+func (fa *fileAnalyzerImpl) parseConfigContent(content []byte, filePath string) (interface{}, error) {
 	ext := strings.ToLower(filepath.Ext(filePath))
 	filename := strings.ToLower(filepath.Base(filePath))
 
-	switch {
-	case ext == ".json" || strings.Contains(filename, "package.json"):
+	// Try to parse as JSON for .json files or package.json
+	if ext == ".json" || strings.Contains(filename, "package.json") {
 		var jsonContent interface{}
 		if err := json.Unmarshal(content, &jsonContent); err == nil {
 			return jsonContent, nil
 		}
-		fallthrough
-	default:
-		// Return as string for other file types
-		return string(content), nil
 	}
+
+	// Return as string for other file types
+	return string(content), nil
 }
 
 func (fa *fileAnalyzerImpl) formatFileSize(size int64) string {
