@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -132,7 +133,7 @@ func (c *CLI) createTasksAtomicCheckCommand() *cobra.Command {
 // runTasksGenerate handles task generation with smart defaults
 func (c *CLI) runTasksGenerate(fromPRD, fromTRD, output string, useSession bool) error {
 	if c.documentChain == nil {
-		return fmt.Errorf("document chain service not available")
+		return errors.New("document chain service not available")
 	}
 
 	fmt.Printf("⚙️  Generating Project Tasks\n")
@@ -416,7 +417,7 @@ func (c *CLI) formatMainTasksAsMarkdown(tasks []*services.MainTask) string {
 	content.WriteString("|----|-----------| ------|----------|--------|-------------|\n")
 
 	for _, task := range tasks {
-		deps := fmt.Sprintf("%d", len(task.Dependencies))
+		deps := strconv.Itoa(len(task.Dependencies))
 		if len(task.Dependencies) == 0 {
 			deps = "None"
 		}

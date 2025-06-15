@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sort"
@@ -347,7 +348,7 @@ func (a *analyticsServiceImpl) GenerateVisualization(
 	format entities.VisFormat,
 ) ([]byte, error) {
 	if a.visualizer == nil {
-		return nil, fmt.Errorf("visualizer not configured")
+		return nil, errors.New("visualizer not configured")
 	}
 
 	return a.visualizer.GenerateVisualization(metrics, format)
@@ -361,7 +362,7 @@ func (a *analyticsServiceImpl) ExportAnalytics(
 	format entities.ExportFormat,
 ) (string, error) {
 	if a.exporter == nil {
-		return "", fmt.Errorf("exporter not configured")
+		return "", errors.New("exporter not configured")
 	}
 
 	metrics, err := a.GetWorkflowMetrics(ctx, repository, period)
@@ -834,7 +835,7 @@ func (a *analyticsServiceImpl) GenerateRecommendations(
 	for _, bottleneck := range metrics.Bottlenecks {
 		if bottleneck.IsHighImpact() {
 			recommendation := &entities.Recommendation{
-				ID:          fmt.Sprintf("bottleneck_%s", bottleneck.Type),
+				ID:          "bottleneck_" + bottleneck.Type,
 				Title:       fmt.Sprintf("Address %s Bottleneck", bottleneck.Type),
 				Description: bottleneck.Description,
 				Priority:    entities.RecommendationPriorityHigh,

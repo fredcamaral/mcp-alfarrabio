@@ -357,7 +357,7 @@ func (tp *TaskProcessor) applyTaskEnhancements(task *entities.Task, result *Task
 			if priority != enhanced.Priority {
 				enhanced.Priority = priority
 				result.ProcessingNotes = append(result.ProcessingNotes,
-					fmt.Sprintf("AI suggested priority change to %s", enhancement.SuggestedPriority))
+					"AI suggested priority change to "+enhancement.SuggestedPriority)
 			}
 		}
 	}
@@ -367,7 +367,7 @@ func (tp *TaskProcessor) applyTaskEnhancements(task *entities.Task, result *Task
 			if !enhanced.HasTag(tag) {
 				enhanced.AddTag(tag)
 				result.ProcessingNotes = append(result.ProcessingNotes,
-					fmt.Sprintf("AI added smart tag: %s", tag))
+					"AI added smart tag: "+tag)
 			}
 		}
 	}

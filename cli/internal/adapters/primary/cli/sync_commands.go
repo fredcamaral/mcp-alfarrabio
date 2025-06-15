@@ -3,6 +3,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -185,7 +186,7 @@ func (c *CLI) createSyncClearCommand() *cobra.Command {
 // runSyncRun performs batch synchronization
 func (c *CLI) runSyncRun(repository string, verbose bool) error {
 	if c.batchSyncService == nil {
-		return fmt.Errorf("batch sync service not available - please check server configuration")
+		return errors.New("batch sync service not available - please check server configuration")
 	}
 
 	// Auto-detect repository if not provided
@@ -233,7 +234,7 @@ func (c *CLI) runSyncRun(repository string, verbose bool) error {
 // runSyncStatus shows current sync status
 func (c *CLI) runSyncStatus() error {
 	if c.batchSyncService == nil {
-		return fmt.Errorf("batch sync service not available")
+		return errors.New("batch sync service not available")
 	}
 
 	status := c.batchSyncService.GetSyncStatus()
@@ -339,7 +340,7 @@ func (c *CLI) runSyncStatus() error {
 // runSyncForce performs forced full synchronization
 func (c *CLI) runSyncForce(repository string) error {
 	if c.batchSyncService == nil {
-		return fmt.Errorf("batch sync service not available")
+		return errors.New("batch sync service not available")
 	}
 
 	if repository == "" {
@@ -367,7 +368,7 @@ func (c *CLI) runSyncForce(repository string) error {
 // runSyncDelta performs delta synchronization
 func (c *CLI) runSyncDelta(repository string) error {
 	if c.batchSyncService == nil {
-		return fmt.Errorf("batch sync service not available")
+		return errors.New("batch sync service not available")
 	}
 
 	if repository == "" {
@@ -393,7 +394,7 @@ func (c *CLI) runSyncDelta(repository string) error {
 // runSyncAuto manages automatic synchronization
 func (c *CLI) runSyncAuto(repository string, interval time.Duration, stop bool) error {
 	if c.batchSyncService == nil {
-		return fmt.Errorf("batch sync service not available")
+		return errors.New("batch sync service not available")
 	}
 
 	if repository == "" {
@@ -409,7 +410,7 @@ func (c *CLI) runSyncAuto(repository string, interval time.Duration, stop bool) 
 	if c.autoSyncActive {
 		fmt.Printf("⚠️  Automatic synchronization is already running\n")
 		fmt.Printf("Use 'lmmc sync auto --stop' to stop it first.\n")
-		return fmt.Errorf("auto sync already active")
+		return errors.New("auto sync already active")
 	}
 
 	fmt.Printf("🔄 Starting automatic synchronization\n")
@@ -450,7 +451,7 @@ func (c *CLI) stopAutoSync() error {
 	} else {
 		fmt.Printf("⚠️  Failed to stop automatic synchronization (no cancel function)\n")
 		c.autoSyncActive = false
-		return fmt.Errorf("failed to stop auto sync: no cancel function")
+		return errors.New("failed to stop auto sync: no cancel function")
 	}
 
 	return nil
@@ -472,7 +473,7 @@ func (c *CLI) runSyncConflicts() error {
 // runSyncClear clears sync state
 func (c *CLI) runSyncClear(force bool) error {
 	if c.batchSyncService == nil {
-		return fmt.Errorf("batch sync service not available")
+		return errors.New("batch sync service not available")
 	}
 
 	if !force {

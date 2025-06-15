@@ -2,6 +2,7 @@ package cli
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -293,7 +294,7 @@ func (c *CLI) createMemoryLearnCommand() *cobra.Command {
 			} else if projectFlag != "" {
 				return c.runMemoryLearnFromProject(cmd, projectFlag)
 			}
-			return fmt.Errorf("please specify either --from-review or --from-project")
+			return errors.New("please specify either --from-review or --from-project")
 		},
 	}
 
@@ -434,7 +435,7 @@ func (c *CLI) runMemoryStorePRD(cmd *cobra.Command, file, project string, tags [
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Create request for memory_create tool
@@ -473,7 +474,7 @@ func (c *CLI) runMemoryStoreTRD(cmd *cobra.Command, file, project, prdID string,
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Build metadata
@@ -512,13 +513,13 @@ func (c *CLI) runMemoryStoreReview(cmd *cobra.Command, sessionID, project string
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// If sessionID is "current", get the current review session
 	if sessionID == "current" {
 		if c.reviewService == nil {
-			return fmt.Errorf("review service not available")
+			return errors.New("review service not available")
 		}
 		// TODO: Get current session from review service
 		sessionID = fmt.Sprintf("review-%d", time.Now().Unix())
@@ -541,7 +542,7 @@ func (c *CLI) runMemoryStoreReview(cmd *cobra.Command, sessionID, project string
 		"options": map[string]interface{}{
 			"repository": project,
 			"session_id": sessionID,
-			"content":    fmt.Sprintf("Code review session %s", sessionID),
+			"content":    "Code review session " + sessionID,
 			"metadata": map[string]interface{}{
 				"type":    "review",
 				"tags":    tags,
@@ -563,7 +564,7 @@ func (c *CLI) runMemoryStoreDecision(cmd *cobra.Command, decision, rationale, pr
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Create request for memory_create tool
@@ -596,7 +597,7 @@ func (c *CLI) runMemorySearch(cmd *cobra.Command, query, project string, limit i
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Build search options
@@ -648,7 +649,7 @@ func (c *CLI) runMemoryGet(cmd *cobra.Command, memoryType, id, format string) er
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Create request for memory_read tool
@@ -685,7 +686,7 @@ func (c *CLI) runMemoryList(cmd *cobra.Command, memoryType, project string, limi
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Build list options
@@ -733,7 +734,7 @@ func (c *CLI) runMemoryLearnFromReview(cmd *cobra.Command, reviewID string) erro
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Create request for memory_analyze tool
@@ -760,7 +761,7 @@ func (c *CLI) runMemoryLearnFromProject(cmd *cobra.Command, project string) erro
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Create request for memory_analyze tool
@@ -796,7 +797,7 @@ func (c *CLI) runMemoryPatterns(cmd *cobra.Command, project, patternType, format
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Create request for memory_read tool
@@ -835,11 +836,11 @@ func (c *CLI) runMemorySuggest(cmd *cobra.Command, feature, project, format stri
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Build context for suggestions
-	currentContext := fmt.Sprintf("Working on project %s", project)
+	currentContext := "Working on project " + project
 	if feature != "" {
 		currentContext = fmt.Sprintf("Working on feature '%s' in project %s", feature, project)
 	}
@@ -882,7 +883,7 @@ func (c *CLI) runMemoryInsights(cmd *cobra.Command, topic, project string, cross
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Determine scope and repository
@@ -943,7 +944,7 @@ func (c *CLI) runMemoryCompare(cmd *cobra.Command, projects []string, aspect, fo
 	// Get MCP client
 	mcpClient := c.getMCPClient()
 	if mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Create request for memory_analyze tool

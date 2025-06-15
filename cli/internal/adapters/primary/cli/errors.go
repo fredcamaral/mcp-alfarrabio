@@ -39,7 +39,7 @@ func (e *CLIError) Error() string {
 	}
 
 	if e.SessionID != "" {
-		sb.WriteString(fmt.Sprintf("\n📌 Session saved. Use 'lmmc workflow status' to see progress.\n"))
+		sb.WriteString("\n📌 Session saved. Use 'lmmc workflow status' to see progress.\n")
 	}
 
 	return sb.String()
@@ -106,7 +106,7 @@ func NewTaskValidationError(taskID string, issues []string) *CLIError {
 		Details: details,
 		Recovery: []RecoveryOption{
 			{
-				Command:     fmt.Sprintf("lmmc tasks split %s", taskID),
+				Command:     "lmmc tasks split " + taskID,
 				Description: "Split this task into smaller atomic tasks",
 			},
 			{
@@ -148,7 +148,7 @@ func NewAIServiceError(provider string) *CLIError {
 func NewWorkflowInterruptedError(step string) *CLIError {
 	return &CLIError{
 		Code:    "WORKFLOW_INTERRUPTED",
-		Message: fmt.Sprintf("Workflow interrupted at step: %s", step),
+		Message: "Workflow interrupted at step: " + step,
 		Details: "Your progress has been saved",
 		Recovery: []RecoveryOption{
 			{
@@ -160,7 +160,7 @@ func NewWorkflowInterruptedError(step string) *CLIError {
 				Description: "Check current workflow status",
 			},
 			{
-				Command:     fmt.Sprintf("lmmc workflow restart --from %s", step),
+				Command:     "lmmc workflow restart --from " + step,
 				Description: "Restart from this specific step",
 			},
 		},

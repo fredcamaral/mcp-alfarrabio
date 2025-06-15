@@ -574,7 +574,7 @@ func (tv *terminalVisualizer) renderHeader(metrics *entities.WorkflowMetrics) st
 
 	builder.WriteString(tv.colorize("📊 WORKFLOW ANALYTICS DASHBOARD", "bold"))
 	builder.WriteString("\n")
-	builder.WriteString(tv.colorize(fmt.Sprintf("Repository: %s", metrics.Repository), "cyan"))
+	builder.WriteString(tv.colorize("Repository: "+metrics.Repository, "cyan"))
 	builder.WriteString("\n")
 	builder.WriteString(tv.colorize(fmt.Sprintf("Period: %s to %s",
 		metrics.Period.Start.Format("Jan 2"),

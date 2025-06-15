@@ -753,7 +753,7 @@ func (ae *analyticsEngineImpl) generateProductivityInsights(
 	// Find patterns in the data
 	if len(dailyScores) >= 7 {
 		bestDay := findBestDayOfWeek(dailyScores)
-		insights = append(insights, fmt.Sprintf("Best productivity typically on %s", bestDay))
+		insights = append(insights, "Best productivity typically on "+bestDay)
 	}
 
 	return insights

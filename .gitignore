@@ -11,41 +11,70 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 coverage.html
+coverage.out
+coverage.txt
 
 # Project binaries
 lerian-mcp-memory
 lerian-mcp-memory_unix
 lerian-mcp-memory-server
+lmmc
 /bin/
 /server
+/cli/bin/
+/cli/lmmc
 
 # Dependency directories (remove the comment below to include it)
 # vendor/
 
 # Go workspace file
 go.work
+go.work.sum
 
 # Environment variables
 .env
 .env.local
 .env.*.local
+.env.development
+.env.production
+.env.test
 
 # Docker volumes and data
 data/
 docker-compose.override.yml
+.dockerignore
 
-# IDE
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+/db/
+/database/
+
+# IDE and editors
 .vscode/
 .idea/
 *.swp
 *.swo
+*~
+.vim/
+.emacs.d/
+.sublime-*
 
 # OS
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+Desktop.ini
 
 # Logs
 *.log
+logs/
+/var/log/
 
 # Audit logs (all development audit logs)
 **/audit_logs/
@@ -54,23 +83,33 @@ audit_logs/
 # Local development
 /dist/
 /tmp/
+/temp/
+/build/
+/target/
+/docs/
 
 # AI development artifacts
 tmp/
 *.tmp
 .claude/
 CLAUDE.md
+.aider*
+.cursor/
+.copilot/
 
 # Development backup files
 *.bak
 *.backup
 *.bak2
+*.orig
+*.rej
 
 # Marketing prototypes (should be in separate repo)
 /lp/
 
 # External documentation copies
 docs/tmp/
+docs/build/
 
 # Next.js build artifacts
 web-ui/.next/
@@ -78,7 +117,74 @@ web-ui/out/
 web-ui/.env.local
 web-ui/.env.*.local
 web-ui/node_modules/
+web-ui/dist/
+web-ui/.turbo/
 
-coverage.out
-coverage.txt
-.aider*
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+.pnpm-debug.log*
+
+# Memory and cache files
+*.cache
+.cache/
+.parcel-cache/
+.eslintcache
+.stylelintcache
+
+# Testing
+.nyc_output/
+coverage/
+*.lcov
+test-results/
+playwright-report/
+test-results.xml
+
+# Profiling and debugging
+*.prof
+*.pprof
+*.trace
+debug.log
+debug/
+
+# Configuration overrides
+config.local.*
+settings.local.*
+*.local.json
+*.local.yaml
+*.local.yml
+
+# Certificates and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+certs/
+
+# Temporary files
+*.swp
+*.swo
+*~
+.#*
+\#*#
+.*.swp
+.*.swo
+
+# Archive files
+*.tar
+*.tar.gz
+*.tgz
+*.zip
+*.rar
+*.7z
+
+# Memory dumps
+*.dmp
+*.dump
+core.*

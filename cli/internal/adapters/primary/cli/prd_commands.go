@@ -172,7 +172,7 @@ func (c *CLI) createPRDExportCommand() *cobra.Command {
 // runPRDCreate handles interactive PRD creation
 func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvider, model string) error {
 	if c.aiService == nil {
-		return fmt.Errorf("AI service not available - please check configuration")
+		return errors.New("AI service not available - please check configuration")
 	}
 
 	fmt.Printf("🚀 Starting PRD Creation\n")
@@ -183,7 +183,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 	if !interactive {
 		// Non-interactive mode with provided parameters
 		if title == "" {
-			return fmt.Errorf("title is required for non-interactive mode")
+			return errors.New("title is required for non-interactive mode")
 		}
 		return c.createPRDNonInteractive(ctx, title, projectType, output, aiProvider, model)
 	}
@@ -233,7 +233,7 @@ func (c *CLI) runPRDCreate(interactive bool, title, projectType, output, aiProvi
 
 	// Generate final PRD using document chain
 	if c.documentChain == nil {
-		return fmt.Errorf("document chain service not available")
+		return errors.New("document chain service not available")
 	}
 
 	context := &services.GenerationContext{
@@ -377,7 +377,7 @@ func (c *CLI) formatPRDAsMarkdown(prd *services.PRDEntity) string {
 	content.WriteString(fmt.Sprintf("**ID:** %s\n\n", prd.ID))
 
 	content.WriteString("## Description\n\n")
-	content.WriteString(fmt.Sprintf("%s\n\n", prd.Description))
+	content.WriteString(prd.Description + "\n\n")
 
 	if len(prd.Features) > 0 {
 		content.WriteString("## Features\n\n")

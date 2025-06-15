@@ -200,7 +200,7 @@ func (n *NotificationService) handleTaskEvent(event *api.TaskEvent) {
 	case api.EventTypeTaskCreated:
 		if event.Task != nil {
 			content := n.truncateContent(event.Task.Content)
-			message = fmt.Sprintf("📝 New task created: %s", content)
+			message = "📝 New task created: " + content
 		} else {
 			message = fmt.Sprintf("📝 New task created (ID: %s)", event.TaskID)
 		}
@@ -209,7 +209,7 @@ func (n *NotificationService) handleTaskEvent(event *api.TaskEvent) {
 	case api.EventTypeTaskUpdated:
 		if event.Task != nil {
 			content := n.truncateContent(event.Task.Content)
-			message = fmt.Sprintf("✏️  Task updated: %s", content)
+			message = "✏️  Task updated: " + content
 		} else {
 			message = fmt.Sprintf("✏️  Task updated (ID: %s)", event.TaskID)
 		}

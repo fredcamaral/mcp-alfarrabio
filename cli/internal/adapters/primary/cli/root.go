@@ -203,7 +203,15 @@ func (c *CLI) setupCommands() {
 		c.createStatusCommand(),     // Service status overview
 		c.createReviewCommand(),     // Code review functionality
 		c.createMemoryCommand(),     // Memory MCP integration
+		c.createGenerateCommand(),   // Sample data generator
+		c.createSetupCommand(),      // Configuration wizard
 	}
+
+	// Update existing commands for batch operations
+	c.updateCommandsForBatchOperations()
+
+	// Add the new tag command for batch tagging
+	commands = append(commands, c.createTagCommand())
 
 	// Add intelligence-based commands if available
 	if c.intelligence != nil && c.intelligence.AnalyticsService != nil {

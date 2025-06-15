@@ -67,7 +67,7 @@ func (c *CLI) createSubtasksGenerateCommand() *cobra.Command {
 // runSubtasksGenerate handles sub-task generation
 func (c *CLI) runSubtasksGenerate(fromTask, output string, useSession bool) error {
 	if c.documentChain == nil {
-		return fmt.Errorf("document chain service not available")
+		return errors.New("document chain service not available")
 	}
 
 	if fromTask == "" {

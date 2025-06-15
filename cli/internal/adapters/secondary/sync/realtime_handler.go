@@ -4,6 +4,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -116,7 +117,7 @@ func (h *RealtimeHandler) handleChunkCreated(ctx context.Context, event *MemoryC
 	if h.notificationHub != nil {
 		systemEvent := &api.SystemEvent{
 			Type:      "memory.chunk_created",
-			Message:   fmt.Sprintf("New memory chunk: %s", event.Summary),
+			Message:   "New memory chunk: " + event.Summary,
 			Timestamp: event.Timestamp,
 			Data: map[string]interface{}{
 				"chunk_id":   event.ChunkID,
@@ -142,7 +143,7 @@ func (h *RealtimeHandler) handleChunkUpdated(ctx context.Context, event *MemoryC
 	if h.notificationHub != nil {
 		systemEvent := &api.SystemEvent{
 			Type:      "memory.chunk_updated",
-			Message:   fmt.Sprintf("Memory chunk updated: %s", event.Summary),
+			Message:   "Memory chunk updated: " + event.Summary,
 			Timestamp: event.Timestamp,
 			Data: map[string]interface{}{
 				"chunk_id":   event.ChunkID,
@@ -166,7 +167,7 @@ func (h *RealtimeHandler) handleChunkDeleted(ctx context.Context, event *MemoryC
 	if h.notificationHub != nil {
 		systemEvent := &api.SystemEvent{
 			Type:      "memory.chunk_deleted",
-			Message:   fmt.Sprintf("Memory chunk deleted: %s", event.ChunkID),
+			Message:   "Memory chunk deleted: " + event.ChunkID,
 			Timestamp: event.Timestamp,
 			Data: map[string]interface{}{
 				"chunk_id":   event.ChunkID,
@@ -372,7 +373,7 @@ func (h *RealtimeHandler) convertEventToTask(event *MemoryChangeEvent) (*entitie
 	// Extract task data from the event metadata
 	metadata := event.Metadata
 	if metadata == nil {
-		return nil, fmt.Errorf("no metadata in task event")
+		return nil, errors.New("no metadata in task event")
 	}
 
 	task := &entities.Task{

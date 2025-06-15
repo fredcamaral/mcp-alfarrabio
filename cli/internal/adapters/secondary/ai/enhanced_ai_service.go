@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"time"
@@ -90,7 +91,7 @@ func (eas *EnhancedAIService) SetContext(repository, sessionID string, workConte
 func (eas *EnhancedAIService) ProcessTaskWithAI(ctx context.Context, task *entities.Task) (*AICommandResult, error) {
 	startTime := time.Now()
 	result := &AICommandResult{
-		OriginalCommand: fmt.Sprintf("process_task:%s", task.ID),
+		OriginalCommand: "process_task:" + task.ID,
 		Success:         false,
 	}
 
@@ -137,7 +138,7 @@ func (eas *EnhancedAIService) ProcessTaskWithAI(ctx context.Context, task *entit
 func (eas *EnhancedAIService) SyncMemoryWithAI(ctx context.Context, localPath string) (*AICommandResult, error) {
 	startTime := time.Now()
 	result := &AICommandResult{
-		OriginalCommand: fmt.Sprintf("sync_memory:%s", localPath),
+		OriginalCommand: "sync_memory:" + localPath,
 		Success:         false,
 	}
 
@@ -222,7 +223,7 @@ func (eas *EnhancedAIService) AnalyzePerformance(ctx context.Context) (*AIComman
 
 	if eas.mcpClient == nil || !eas.mcpClient.IsOnline() {
 		result.ErrorMessages = append(result.ErrorMessages, "MCP client not available for performance analysis")
-		return result, fmt.Errorf("MCP client not available")
+		return result, errors.New("MCP client not available")
 	}
 
 	// Get performance analytics from MCP
@@ -320,7 +321,7 @@ func (eas *EnhancedAIService) learnFromTaskProcessing(ctx context.Context, task 
 			"options": map[string]interface{}{
 				"repository": eas.repository,
 				"session_id": eas.sessionID,
-				"content":    fmt.Sprintf("Learning data from task processing: %s", task.Content),
+				"content":    "Learning data from task processing: " + task.Content,
 				"type":       "ai_learning",
 				"metadata":   learningData,
 			},

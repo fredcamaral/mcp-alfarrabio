@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -246,7 +247,7 @@ func (mm *MemoryManager) ResolveConflicts(ctx context.Context, conflicts []strin
 // GetMemoryInsights provides AI-generated insights about memory usage patterns
 func (mm *MemoryManager) GetMemoryInsights(ctx context.Context) ([]*MemoryInsight, error) {
 	if mm.mcpClient == nil || !mm.mcpClient.IsOnline() {
-		return nil, fmt.Errorf("MCP client not available")
+		return nil, errors.New("MCP client not available")
 	}
 
 	// Get memory analytics from MCP server
@@ -562,7 +563,7 @@ func (mm *MemoryManager) generatePredictions(ctx context.Context, workContext *e
 		// Predict based on task types
 		for _, task := range workContext.CurrentTasks {
 			for _, tag := range task.Tags {
-				predictions = append(predictions, fmt.Sprintf("%s_related_memories", tag))
+				predictions = append(predictions, tag+"_related_memories")
 			}
 		}
 	}
@@ -575,7 +576,7 @@ func (mm *MemoryManager) generatePredictions(ctx context.Context, workContext *e
 	}
 
 	// Repository-specific predictions
-	predictions = append(predictions, fmt.Sprintf("%s_specific_memories", workContext.Repository))
+	predictions = append(predictions, workContext.Repository+"_specific_memories")
 
 	return predictions, nil
 }

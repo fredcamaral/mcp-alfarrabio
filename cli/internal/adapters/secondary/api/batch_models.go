@@ -4,6 +4,7 @@ package api
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
@@ -223,11 +224,11 @@ func FromTask(task *entities.Task) TaskSyncItem {
 // ValidateSync validates a sync request for basic correctness
 func (r *BatchSyncRequest) ValidateSync() error {
 	if r.Repository == "" {
-		return fmt.Errorf("repository is required")
+		return errors.New("repository is required")
 	}
 
 	if r.ClientID == "" {
-		return fmt.Errorf("client_id is required")
+		return errors.New("client_id is required")
 	}
 
 	// Validate task items

@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -60,7 +61,7 @@ func (c *CLI) createWorkflowRunCommand() *cobra.Command {
 // runWorkflow executes the complete automation workflow
 func (c *CLI) runWorkflow(input, output string) error {
 	if c.documentChain == nil {
-		return fmt.Errorf("document chain service not available")
+		return errors.New("document chain service not available")
 	}
 
 	fmt.Printf("🔄 Starting Complete Development Workflow\n")

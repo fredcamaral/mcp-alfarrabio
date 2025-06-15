@@ -6,6 +6,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -143,7 +144,7 @@ func (c *CLI) getLatestRelease(includePrerelease bool) (*GitHubRelease, error) {
 	}
 
 	req.Header.Set("Accept", "application/vnd.github.v3+json")
-	req.Header.Set("User-Agent", fmt.Sprintf("lmmc/%s", Version))
+	req.Header.Set("User-Agent", "lmmc/"+Version)
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
@@ -163,7 +164,7 @@ func (c *CLI) getLatestRelease(includePrerelease bool) (*GitHubRelease, error) {
 			return nil, err
 		}
 		if len(releases) == 0 {
-			return nil, fmt.Errorf("no releases found")
+			return nil, errors.New("no releases found")
 		}
 		release = releases[0]
 	} else {
@@ -299,7 +300,7 @@ func (c *CLI) extractBinary(archivePath, extractDir string) (string, error) {
 		return c.extractFromTarGz(archivePath, extractDir)
 	}
 
-	return "", fmt.Errorf("unsupported archive format")
+	return "", errors.New("unsupported archive format")
 }
 
 // extractFromZip extracts binary from ZIP archive
@@ -316,7 +317,7 @@ func (c *CLI) extractFromZip(zipPath, extractDir string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("binary not found in archive")
+	return "", errors.New("binary not found in archive")
 }
 
 // extractZipFile extracts a single file from ZIP
@@ -406,7 +407,7 @@ func (c *CLI) extractFromTarGz(tarPath, extractDir string) (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("binary not found in archive")
+	return "", errors.New("binary not found in archive")
 }
 
 // copyFile copies a file from src to dst

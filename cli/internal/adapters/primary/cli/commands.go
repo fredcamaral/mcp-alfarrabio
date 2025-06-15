@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -567,7 +568,7 @@ Advanced options:
 			if len(args) > 0 {
 				query = strings.Join(args, " ")
 			} else if !c.hasSearchFilters(cmd) {
-				return fmt.Errorf("search query required unless using filters (use --help for examples)")
+				return errors.New("search query required unless using filters (use --help for examples)")
 			}
 
 			// Build advanced filters
@@ -697,7 +698,7 @@ Note: Suggestions improve with more task history and patterns in your repository
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Check if intelligence services are available
 			if c.intelligence == nil || c.intelligence.SuggestionService == nil {
-				return c.handleError(cmd, fmt.Errorf("suggestion service not available - intelligence features not configured"))
+				return c.handleError(cmd, errors.New("suggestion service not available - intelligence features not configured"))
 			}
 
 			// Build context from args if provided

@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -86,7 +87,7 @@ func generateClientID() string {
 	if _, err := rand.Read(bytes); err != nil {
 		return fmt.Sprintf("cli_%d", time.Now().Unix())
 	}
-	return fmt.Sprintf("cli_%s", hex.EncodeToString(bytes)[:16])
+	return "cli_" + hex.EncodeToString(bytes)[:16]
 }
 
 // loadSyncState loads sync state from persistent storage
@@ -161,7 +162,7 @@ func (s *BatchSyncService) PerformSync(ctx context.Context, repository string) (
 	// Check if server is available
 	if s.mcpClient == nil || !s.mcpClient.IsOnline() {
 		result.Errors = append(result.Errors, "server not available")
-		return result, fmt.Errorf("server not available for sync")
+		return result, errors.New("server not available for sync")
 	}
 
 	// Get local tasks modified since last sync
@@ -436,7 +437,7 @@ func (s *BatchSyncService) generateSyncToken() string {
 	if _, err := rand.Read(bytes); err != nil {
 		return fmt.Sprintf("sync_%d", time.Now().Unix())
 	}
-	return fmt.Sprintf("sync_%s", hex.EncodeToString(bytes))
+	return "sync_" + hex.EncodeToString(bytes)
 }
 
 // PerformDeltaSync performs an optimized delta-only sync

@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
@@ -775,7 +776,7 @@ func (ca *contextAnalyzerImpl) getCurrentSession(ctx context.Context, repository
 	}
 
 	if len(sessions) == 0 {
-		return nil, fmt.Errorf("no sessions found")
+		return nil, errors.New("no sessions found")
 	}
 
 	session := sessions[0]
@@ -785,7 +786,7 @@ func (ca *contextAnalyzerImpl) getCurrentSession(ctx context.Context, repository
 		return session, nil
 	}
 
-	return nil, fmt.Errorf("no active session found")
+	return nil, errors.New("no active session found")
 }
 
 func (ca *contextAnalyzerImpl) getRecentSessions(ctx context.Context, repository string, days int) ([]*entities.Session, error) {
@@ -1241,7 +1242,7 @@ func (ca *contextAnalyzerImpl) detectProductivityPattern(sessions []*entities.Se
 	pattern := &entities.TaskPattern{
 		ID:          fmt.Sprintf("productivity_%d", time.Now().Unix()),
 		Type:        entities.PatternTypeTemporal,
-		Name:        fmt.Sprintf("High Productivity - %s", bestDay.String()),
+		Name:        "High Productivity - " + bestDay.String(),
 		Description: fmt.Sprintf("Typically most productive on %s (%.1f%% average)", bestDay.String(), bestScore*100),
 		Confidence:  bestScore,
 		Frequency:   1.0 / 7.0, // Once per week

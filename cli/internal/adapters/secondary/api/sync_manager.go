@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"sync"
@@ -220,7 +221,7 @@ func (m *SyncManager) SyncWithServer(ctx context.Context) error {
 	m.mu.Lock()
 	if m.syncInProgress {
 		m.mu.Unlock()
-		return fmt.Errorf("sync already in progress")
+		return errors.New("sync already in progress")
 	}
 	m.syncInProgress = true
 	m.mu.Unlock()
@@ -238,7 +239,7 @@ func (m *SyncManager) SyncWithServer(ctx context.Context) error {
 	m.updateConnectionStatus()
 
 	if !m.isOnline {
-		return fmt.Errorf("server not available for sync")
+		return errors.New("server not available for sync")
 	}
 
 	// Process offline queue
@@ -301,7 +302,7 @@ func (m *SyncManager) processOfflineQueue(ctx context.Context) error {
 // processQueuedOperation executes a single queued operation
 func (m *SyncManager) processQueuedOperation(ctx context.Context, op *QueuedOperation) error {
 	if m.mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	switch op.Type {
@@ -330,7 +331,7 @@ func (m *SyncManager) processQueuedOperation(ctx context.Context, op *QueuedOper
 // syncTasksFromServer pulls tasks from server and resolves conflicts
 func (m *SyncManager) syncTasksFromServer(ctx context.Context) error {
 	if m.mcpClient == nil {
-		return fmt.Errorf("MCP client not available")
+		return errors.New("MCP client not available")
 	}
 
 	// Get repository from current directory or config

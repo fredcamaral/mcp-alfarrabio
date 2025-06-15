@@ -3,6 +3,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -133,14 +134,14 @@ func (c *WebSocketClient) Connect(ctx context.Context) error {
 	}
 
 	// Parse WebSocket URL
-	u, err := url.Parse(fmt.Sprintf("%s/ws", c.serverURL))
+	u, err := url.Parse(c.serverURL + "/ws")
 	if err != nil {
 		return fmt.Errorf("invalid WebSocket URL: %w", err)
 	}
 
 	headers := http.Header{}
 	headers.Set("X-Version", c.version)
-	headers.Set("User-Agent", fmt.Sprintf("lmmc-cli/%s", c.version))
+	headers.Set("User-Agent", "lmmc-cli/"+c.version)
 
 	dialer := websocket.Dialer{
 		HandshakeTimeout: 10 * time.Second,
@@ -228,7 +229,7 @@ func (c *WebSocketClient) sendSubscribe() error {
 	c.mu.RUnlock()
 
 	if conn == nil {
-		return fmt.Errorf("not connected")
+		return errors.New("not connected")
 	}
 
 	if err := conn.SetWriteDeadline(time.Now().Add(writeWait)); err != nil {
@@ -605,7 +606,7 @@ func (c *WebSocketClient) SendMessage(eventType string, data interface{}) error 
 	c.mu.RUnlock()
 
 	if !isConnected || conn == nil {
-		return fmt.Errorf("not connected to WebSocket server")
+		return errors.New("not connected to WebSocket server")
 	}
 
 	event := Event{

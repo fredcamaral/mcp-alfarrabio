@@ -464,7 +464,7 @@ func (g *DocsGenerator) generatePathsFromCommands(spec *OpenAPISpec, cmd *cobra.
 			continue
 		}
 
-		path := fmt.Sprintf("/cli/%s", subCmd.Name())
+		path := "/cli/" + subCmd.Name()
 		pathItem := &PathItem{
 			Summary:     subCmd.Short,
 			Description: subCmd.Long,
@@ -474,7 +474,7 @@ func (g *DocsGenerator) generatePathsFromCommands(spec *OpenAPISpec, cmd *cobra.
 		operation := &Operation{
 			Summary:     fmt.Sprintf("Execute %s command", subCmd.Name()),
 			Description: subCmd.Long,
-			OperationID: fmt.Sprintf("execute%s", strings.Title(subCmd.Name())),
+			OperationID: "execute" + strings.Title(subCmd.Name()),
 			Tags:        []string{g.getTagForCommand(subCmd.Name())},
 			Parameters:  g.generateParametersFromFlags(subCmd),
 			Responses: map[string]*Response{

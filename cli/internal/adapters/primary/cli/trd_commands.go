@@ -120,7 +120,7 @@ func (c *CLI) createTRDExportCommand() *cobra.Command {
 // runTRDCreate handles TRD creation from PRD
 func (c *CLI) runTRDCreate(fromPRD, output string, useSession bool) error {
 	if c.documentChain == nil {
-		return fmt.Errorf("document chain service not available")
+		return errors.New("document chain service not available")
 	}
 
 	fmt.Printf("🔧 Creating Technical Requirements Document\n")
@@ -286,7 +286,7 @@ func (c *CLI) formatTRDAsMarkdown(trd *services.TRDEntity) string {
 	content.WriteString(fmt.Sprintf("**PRD ID:** %s\n\n", trd.PRDID))
 
 	content.WriteString("## Architecture\n\n")
-	content.WriteString(fmt.Sprintf("%s\n\n", trd.Architecture))
+	content.WriteString(trd.Architecture + "\n\n")
 
 	if len(trd.TechStack) > 0 {
 		content.WriteString("## Technology Stack\n\n")

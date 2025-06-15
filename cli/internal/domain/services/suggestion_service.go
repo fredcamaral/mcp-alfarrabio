@@ -243,7 +243,7 @@ func (ss *suggestionServiceImpl) GenerateNextTaskSuggestions(
 
 		suggestion := entities.NewTaskSuggestion(
 			entities.SuggestionTypeNext,
-			fmt.Sprintf("Work on: %s", ts.task.Content),
+			"Work on: "+ts.task.Content,
 			entities.SuggestionSource{
 				Type:       "analytics",
 				Name:       "next_task_scorer",
@@ -826,7 +826,7 @@ func (ss *suggestionServiceImpl) createPatternSuggestion(pattern *entities.TaskP
 
 	suggestion := entities.NewTaskSuggestion(
 		entities.SuggestionTypePattern,
-		fmt.Sprintf("Continue pattern: %s", nextStep.TaskType),
+		"Continue pattern: "+nextStep.TaskType,
 		entities.SuggestionSource{
 			Type:       "pattern",
 			Name:       pattern.Name,

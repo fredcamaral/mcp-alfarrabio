@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -225,7 +226,7 @@ func (c *CLI) parseRelativeDate(dateStr string) (*time.Time, error) {
 	// Parse number and unit
 	parts := strings.Fields(dateStr)
 	if len(parts) != 2 {
-		return nil, fmt.Errorf("invalid relative date format (use like '1 week ago')")
+		return nil, errors.New("invalid relative date format (use like '1 week ago')")
 	}
 
 	num, err := strconv.Atoi(parts[0])
@@ -413,19 +414,19 @@ func (c *CLI) getAppliedFilters(filters *ports.TaskFilters) []string {
 		applied = append(applied, fmt.Sprintf("Priority: %s", *filters.Priority))
 	}
 	if len(filters.Tags) > 0 {
-		applied = append(applied, fmt.Sprintf("Tags: %s", strings.Join(filters.Tags, ",")))
+		applied = append(applied, "Tags: "+strings.Join(filters.Tags, ","))
 	}
 	if len(filters.ExcludeTags) > 0 {
-		applied = append(applied, fmt.Sprintf("Exclude tags: %s", strings.Join(filters.ExcludeTags, ",")))
+		applied = append(applied, "Exclude tags: "+strings.Join(filters.ExcludeTags, ","))
 	}
 	if filters.Repository != "" {
-		applied = append(applied, fmt.Sprintf("Repository: %s", filters.Repository))
+		applied = append(applied, "Repository: "+filters.Repository)
 	}
 	if filters.CreatedAfter != nil {
-		applied = append(applied, fmt.Sprintf("Created after: %s", *filters.CreatedAfter))
+		applied = append(applied, "Created after: "+*filters.CreatedAfter)
 	}
 	if filters.CreatedBefore != nil {
-		applied = append(applied, fmt.Sprintf("Created before: %s", *filters.CreatedBefore))
+		applied = append(applied, "Created before: "+*filters.CreatedBefore)
 	}
 	if filters.OverdueOnly {
 		applied = append(applied, "Overdue tasks only")

@@ -201,7 +201,7 @@ func (ai *aiSuggestionGeneratorImpl) GenerateLearningPathSuggestions(
 	for _, gap := range learningGaps {
 		suggestion := entities.NewTaskSuggestion(
 			entities.SuggestionTypeLearning,
-			fmt.Sprintf("Learn: %s", gap.topic),
+			"Learn: "+gap.topic,
 			entities.SuggestionSource{
 				Type:       "ai",
 				Name:       "learning_path_ai",
@@ -245,7 +245,7 @@ func (ai *aiSuggestionGeneratorImpl) GenerateProductivityOptimizations(
 	for _, bottleneck := range bottlenecks {
 		suggestion := entities.NewTaskSuggestion(
 			entities.SuggestionTypeOptimize,
-			fmt.Sprintf("Optimize: %s", bottleneck.area),
+			"Optimize: "+bottleneck.area,
 			entities.SuggestionSource{
 				Type:       "ai",
 				Name:       "productivity_optimizer_ai",
@@ -288,7 +288,7 @@ func (ai *aiSuggestionGeneratorImpl) GenerateWorkflowImprovements(
 	for _, improvement := range improvements {
 		suggestion := entities.NewTaskSuggestion(
 			entities.SuggestionTypeWorkflow,
-			fmt.Sprintf("Improve workflow: %s", improvement.title),
+			"Improve workflow: "+improvement.title,
 			entities.SuggestionSource{
 				Type:       "ai",
 				Name:       "workflow_analyzer_ai",
@@ -331,7 +331,7 @@ func (ai *aiSuggestionGeneratorImpl) GenerateGoalAlignedSuggestions(
 	for _, alignment := range alignments {
 		suggestion := entities.NewTaskSuggestion(
 			entities.SuggestionTypePriority,
-			fmt.Sprintf("Align with goal: %s", alignment.goal),
+			"Align with goal: "+alignment.goal,
 			entities.SuggestionSource{
 				Type:       "ai",
 				Name:       "goal_alignment_ai",
@@ -590,7 +590,7 @@ func (ai *aiSuggestionGeneratorImpl) SuggestTaskOptimizations(
 	for _, opt := range optimizations {
 		suggestion := entities.NewTaskSuggestion(
 			entities.SuggestionTypeOptimize,
-			fmt.Sprintf("Optimize: %s", opt.title),
+			"Optimize: "+opt.title,
 			entities.SuggestionSource{
 				Type:       "ai",
 				Name:       "task_optimizer_ai",
@@ -763,7 +763,7 @@ func (ai *aiSuggestionGeneratorImpl) generateAdaptiveSuggestions(workContext *en
 
 		suggestion := entities.NewTaskSuggestion(
 			entities.SuggestionTypePattern,
-			fmt.Sprintf("Continue successful pattern: %s", primaryPattern.Name),
+			"Continue successful pattern: "+primaryPattern.Name,
 			entities.SuggestionSource{
 				Type:       "ai",
 				Name:       "adaptive_pattern_ai",

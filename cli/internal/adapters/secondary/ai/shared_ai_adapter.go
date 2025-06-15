@@ -3,6 +3,7 @@ package ai
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -261,7 +262,7 @@ func (s *SharedAIService) EndSession(ctx context.Context, sessionID string) erro
 func (s *SharedAIService) TestConnection(ctx context.Context) error {
 	// For shared AI service, we can just check if the service is not nil
 	if s.aiService == nil {
-		return fmt.Errorf("shared AI service is not initialized")
+		return errors.New("shared AI service is not initialized")
 	}
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"encoding/csv"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -46,7 +47,7 @@ func validateAndWriteFile(outputFile string, data []byte, perm os.FileMode) erro
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return fmt.Errorf("invalid output path: path traversal not allowed")
+		return errors.New("invalid output path: path traversal not allowed")
 	}
 
 	// If absolute path, ensure it's not accessing system directories
@@ -54,7 +55,7 @@ func validateAndWriteFile(outputFile string, data []byte, perm os.FileMode) erro
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return fmt.Errorf("invalid output path: access to system directory not allowed")
+				return errors.New("invalid output path: access to system directory not allowed")
 			}
 		}
 	}
@@ -369,7 +370,7 @@ func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, opts *ExportO
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return 0, fmt.Errorf("invalid output path: path traversal not allowed")
+		return 0, errors.New("invalid output path: path traversal not allowed")
 	}
 
 	// If absolute path, ensure it's not accessing system directories
@@ -377,7 +378,7 @@ func (c *CLI) exportCSV(tasks []*entities.Task, outputFile string, opts *ExportO
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return 0, fmt.Errorf("invalid output path: access to system directory not allowed")
+				return 0, errors.New("invalid output path: access to system directory not allowed")
 			}
 		}
 	}
@@ -420,7 +421,7 @@ func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, opts *ExportO
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return 0, fmt.Errorf("invalid output path: path traversal not allowed")
+		return 0, errors.New("invalid output path: path traversal not allowed")
 	}
 
 	// If absolute path, ensure it's not accessing system directories
@@ -428,7 +429,7 @@ func (c *CLI) exportTSV(tasks []*entities.Task, outputFile string, opts *ExportO
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return 0, fmt.Errorf("invalid output path: access to system directory not allowed")
+				return 0, errors.New("invalid output path: access to system directory not allowed")
 			}
 		}
 	}
@@ -523,7 +524,7 @@ func (c *CLI) exportArchive(tasks []*entities.Task, outputFile string, opts *Exp
 
 	// Security check: prevent path traversal attacks
 	if strings.Contains(cleanPath, "..") {
-		return 0, fmt.Errorf("invalid output path: path traversal not allowed")
+		return 0, errors.New("invalid output path: path traversal not allowed")
 	}
 
 	// If absolute path, ensure it's not accessing system directories
@@ -531,7 +532,7 @@ func (c *CLI) exportArchive(tasks []*entities.Task, outputFile string, opts *Exp
 		systemDirs := []string{"/etc/", "/usr/", "/bin/", "/sbin/", "/sys/", "/proc/", "/dev/"}
 		for _, sysDir := range systemDirs {
 			if strings.HasPrefix(cleanPath, sysDir) {
-				return 0, fmt.Errorf("invalid output path: access to system directory not allowed")
+				return 0, errors.New("invalid output path: access to system directory not allowed")
 			}
 		}
 	}

@@ -3,8 +3,11 @@ package learning
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"fmt"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -269,7 +272,7 @@ func (pa *patternAggregatorImpl) ValidatePrivacyCompliance(
 ) error {
 	// Check if pattern sharing is enabled
 	if !settings.SharePatterns {
-		return fmt.Errorf("pattern sharing disabled")
+		return errors.New("pattern sharing disabled")
 	}
 
 	// Check data age
@@ -311,7 +314,7 @@ func (pa *patternAggregatorImpl) GeneratePatternSignature(pattern *entities.Task
 	sigData = append(sigData, fmt.Sprintf("%.2f", pattern.Frequency))
 
 	// Add sequence length and types
-	sigData = append(sigData, fmt.Sprintf("%d", len(pattern.Sequence)))
+	sigData = append(sigData, strconv.Itoa(len(pattern.Sequence)))
 	for _, step := range pattern.Sequence {
 		sigData = append(sigData, step.TaskType)
 	}
@@ -324,7 +327,7 @@ func (pa *patternAggregatorImpl) GeneratePatternSignature(pattern *entities.Task
 	// Create hash
 	combined := strings.Join(sigData, "|")
 	hash := sha256.Sum256([]byte(combined))
-	return fmt.Sprintf("%x", hash)[:16] // Use first 16 characters
+	return hex.EncodeToString(hash[:])[:16] // Use first 16 characters
 }
 
 // FilterSensitiveContent removes sensitive information from content
@@ -401,7 +404,7 @@ func (pa *patternAggregatorImpl) createAggregatedPattern(
 	patterns []*entities.TaskPattern,
 ) (*entities.AggregatedPattern, error) {
 	if len(patterns) == 0 {
-		return nil, fmt.Errorf("no patterns to aggregate")
+		return nil, errors.New("no patterns to aggregate")
 	}
 
 	// Use the first pattern as base

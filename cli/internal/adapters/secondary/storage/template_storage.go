@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -67,7 +68,7 @@ func (s *FileTemplateStorage) Create(ctx context.Context, template *entities.Tas
 	defer s.mutex.Unlock()
 
 	if template.ID == "" {
-		return fmt.Errorf("template ID is required")
+		return errors.New("template ID is required")
 	}
 
 	filePath := filepath.Join(s.basePath, TemplatesFileName)
@@ -103,7 +104,7 @@ func (s *FileTemplateStorage) Update(ctx context.Context, template *entities.Tas
 	defer s.mutex.Unlock()
 
 	if template.ID == "" {
-		return fmt.Errorf("template ID is required")
+		return errors.New("template ID is required")
 	}
 
 	// Validate template structure
@@ -122,7 +123,7 @@ func (s *FileTemplateStorage) Update(ctx context.Context, template *entities.Tas
 		if existing.ID == template.ID {
 			// Don't allow updating built-in templates
 			if existing.IsBuiltIn {
-				return fmt.Errorf("cannot update built-in template")
+				return errors.New("cannot update built-in template")
 			}
 			template.UpdatedAt = time.Now()
 			templates[i] = template
@@ -161,7 +162,7 @@ func (s *FileTemplateStorage) Delete(ctx context.Context, id string) error {
 		if template.ID == id {
 			// Don't allow deleting built-in templates
 			if template.IsBuiltIn {
-				return fmt.Errorf("cannot delete built-in template")
+				return errors.New("cannot delete built-in template")
 			}
 			found = true
 			continue

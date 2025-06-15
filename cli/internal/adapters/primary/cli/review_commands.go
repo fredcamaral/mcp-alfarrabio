@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -215,7 +217,7 @@ func (c *CLI) createReviewPhaseCommand() *cobra.Command {
 		}
 
 		cmd.AddCommand(&cobra.Command{
-			Use:   fmt.Sprintf("%d", phaseNum),
+			Use:   strconv.Itoa(phaseNum),
 			Short: fmt.Sprintf("Run phase %d", phaseNum),
 			RunE: func(cmd *cobra.Command, args []string) error {
 				path := "."
@@ -380,7 +382,7 @@ func (c *CLI) runReviewStart(path, phase, mode, aiProvider, model, output string
 
 	// Check if review service is available
 	if c.reviewService == nil {
-		return fmt.Errorf("review service not initialized - check if prompts directory exists")
+		return errors.New("review service not initialized - check if prompts directory exists")
 	}
 
 	// Map phase string to review mode
@@ -430,7 +432,7 @@ func (c *CLI) runReviewStart(path, phase, mode, aiProvider, model, output string
 func (c *CLI) runReviewStatus(sessionID string) error {
 	// Check if review service is available
 	if c.reviewService == nil {
-		return fmt.Errorf("review service not initialized")
+		return errors.New("review service not initialized")
 	}
 
 	// If no session ID provided, try to get from current session
@@ -442,7 +444,7 @@ func (c *CLI) runReviewStatus(sessionID string) error {
 			}
 		}
 		if sessionID == "" {
-			return fmt.Errorf("no session ID provided and no recent session found")
+			return errors.New("no session ID provided and no recent session found")
 		}
 	}
 

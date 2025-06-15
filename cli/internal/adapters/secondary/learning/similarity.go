@@ -149,8 +149,8 @@ func (sa *similarityAnalyzerImpl) CalculateSimilarity(
 	overallScore := sa.calculateWeightedScore(dimensions)
 
 	similarity := &entities.RepositorySimilarity{
-		RepositoryA:    fmt.Sprintf("repo_a_%s", string(repoA.ProjectType)),
-		RepositoryB:    fmt.Sprintf("repo_b_%s", string(repoB.ProjectType)),
+		RepositoryA:    "repo_a_" + string(repoA.ProjectType),
+		RepositoryB:    "repo_b_" + string(repoB.ProjectType),
 		Score:          overallScore,
 		Dimensions:     dimensions,
 		SharedPatterns: sa.findSharedPatterns(repoA, repoB),

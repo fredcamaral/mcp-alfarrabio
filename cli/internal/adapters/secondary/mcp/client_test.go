@@ -134,6 +134,9 @@ func (m *mockMCPServer) handleMemoryCreate(params interface{}, response *MCPResp
 			return
 		}
 
+		// Extract metadata if provided
+		metadata, _ := options["metadata"].(map[string]interface{})
+		
 		// Create a simple task from the content
 		task := &entities.Task{
 			ID:         uuid.New().String(),
@@ -141,6 +144,19 @@ func (m *mockMCPServer) handleMemoryCreate(params interface{}, response *MCPResp
 			Status:     entities.StatusPending,
 			Priority:   entities.PriorityMedium,
 			Repository: repository,
+		}
+		
+		// If metadata contains task info, use it
+		if metadata != nil {
+			if id, ok := metadata["id"].(string); ok && id != "" {
+				task.ID = id
+			}
+			if status, ok := metadata["status"].(string); ok {
+				task.Status = entities.Status(status)
+			}
+			if priority, ok := metadata["priority"].(string); ok {
+				task.Priority = entities.Priority(priority)
+			}
 		}
 
 		m.tasks[task.ID] = task
@@ -221,7 +237,7 @@ func (m *mockMCPServer) handleMemoryRead(params interface{}, response *MCPRespon
 		}
 
 		response.Result = map[string]interface{}{
-			"chunks": chunks,
+			"todos": chunks,
 		}
 		return
 	}
@@ -466,9 +482,6 @@ func TestHTTPMCPClient_RetryLogic(t *testing.T) {
 	server := newMockMCPServer(t)
 	defer server.Close()
 
-	// Configure server to fail twice before succeeding
-	server.setMaxFailures(2)
-
 	config := &entities.Config{
 		Server: entities.ServerConfig{
 			URL:     server.URL,
@@ -496,6 +509,9 @@ func TestHTTPMCPClient_RetryLogic(t *testing.T) {
 	// Create test task
 	task, err := entities.NewTask("Test retry task", "test-repo")
 	require.NoError(t, err)
+
+	// Configure server to fail first 2 attempts (should succeed on 3rd)
+	server.setMaxFailures(2)
 
 	// Test sync with retries
 	ctx := context.Background()

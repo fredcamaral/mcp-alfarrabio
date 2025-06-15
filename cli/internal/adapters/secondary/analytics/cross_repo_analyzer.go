@@ -77,7 +77,7 @@ func (cra *crossRepoAnalyzer) AnalyzeCrossRepoPatterns(ctx context.Context, repo
 			insight := &entities.CrossRepoInsight{
 				ID:          generateInsightID("similarity"),
 				Type:        entities.InsightTypeComparison,
-				Title:       fmt.Sprintf("High Pattern Similarity with %s", otherRepo),
+				Title:       "High Pattern Similarity with " + otherRepo,
 				Description: fmt.Sprintf("Repository %s shows %.1f%% pattern similarity with %s", repository, similarity*100, otherRepo),
 				SourceCount: len(otherPatterns),
 				Confidence:  0.8,
@@ -548,7 +548,7 @@ func (cra *crossRepoAnalyzer) identifyCommonAreas(patternsA, patternsB []*entiti
 	}
 
 	if len(commonKeywords) > 0 {
-		commonAreas = append(commonAreas, fmt.Sprintf("Common focus areas: %s", strings.Join(commonKeywords[:min(len(commonKeywords), 5)], ", ")))
+		commonAreas = append(commonAreas, "Common focus areas: "+strings.Join(commonKeywords[:min(len(commonKeywords), 5)], ", "))
 	}
 
 	return commonAreas
@@ -1562,8 +1562,8 @@ func (cra *crossRepoAnalyzer) GetBestPractices(ctx context.Context, repositories
 			Confidence:   0.7,
 			Repositories: []string{topCycleTimeRepo},
 			Evidence: []string{
-				fmt.Sprintf("Average cycle time: %s", formatDuration(metrics.CycleTime.AverageCycleTime)),
-				fmt.Sprintf("P90 cycle time: %s", formatDuration(metrics.CycleTime.P90CycleTime)),
+				"Average cycle time: " + formatDuration(metrics.CycleTime.AverageCycleTime),
+				"P90 cycle time: " + formatDuration(metrics.CycleTime.P90CycleTime),
 			},
 			Implementation: []string{
 				"Break down tasks into smaller chunks",
@@ -1747,7 +1747,7 @@ func (cra *crossRepoAnalyzer) generateRecommendations(repoMetrics map[string]*en
 				"Pilot successful practices in other repositories",
 			},
 			Evidence: []string{
-				fmt.Sprintf("%s shows superior performance metrics", topRepo),
+				topRepo + " shows superior performance metrics",
 			},
 			CreatedAt: time.Now(),
 		}

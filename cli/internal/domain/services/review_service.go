@@ -3,6 +3,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -435,9 +436,9 @@ func (s *ReviewService) buildPromptContext(session *entities.ReviewSession, prom
 	var contextParts []string
 
 	// Add repository context
-	contextParts = append(contextParts, fmt.Sprintf("Repository: %s", session.Repository))
+	contextParts = append(contextParts, "Repository: "+session.Repository)
 	if session.Branch != "" {
-		contextParts = append(contextParts, fmt.Sprintf("Branch: %s", session.Branch))
+		contextParts = append(contextParts, "Branch: "+session.Branch)
 	}
 
 	// Add dependent prompt results
@@ -492,7 +493,7 @@ func (s *ReviewService) detectBranch() string {
 
 func (s *ReviewService) getGitRemoteURL() (string, error) {
 	// Implementation would use git commands
-	return "", fmt.Errorf("not implemented")
+	return "", errors.New("not implemented")
 }
 
 func (s *ReviewService) updateSessionStatus(sessionID string, status entities.ReviewStatus) {
@@ -821,7 +822,7 @@ func (s *ReviewService) CancelReview(sessionID string) error {
 	}
 
 	if session.Status != entities.ReviewStatusInProgress {
-		return fmt.Errorf("session is not in progress")
+		return errors.New("session is not in progress")
 	}
 
 	session.Status = entities.ReviewStatusCancelled

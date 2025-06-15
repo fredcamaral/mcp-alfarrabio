@@ -2,6 +2,7 @@ package commands
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -71,7 +72,7 @@ func runAnalyticsCommand(cmd *cobra.Command, args []string, deps CommandDeps) er
 	}
 
 	if repository == "" {
-		return fmt.Errorf("no repository specified. Use --repository flag or run from a git repository")
+		return errors.New("no repository specified. Use --repository flag or run from a git repository")
 	}
 
 	// Parse period
@@ -96,7 +97,7 @@ func runAnalyticsCommand(cmd *cobra.Command, args []string, deps CommandDeps) er
 	// Get analytics service
 	analyticsService := deps.AnalyticsService
 	if analyticsService == nil {
-		return fmt.Errorf("analytics service not available")
+		return errors.New("analytics service not available")
 	}
 
 	// Generate analytics
@@ -463,7 +464,7 @@ func parsePeriod(periodStr string) (entities.TimePeriod, error) {
 		if strings.Contains(periodStr, ":") {
 			parts := strings.Split(periodStr, ":")
 			if len(parts) != 2 {
-				return entities.TimePeriod{}, fmt.Errorf("invalid period format, use YYYY-MM-DD:YYYY-MM-DD")
+				return entities.TimePeriod{}, errors.New("invalid period format, use YYYY-MM-DD:YYYY-MM-DD")
 			}
 
 			start, err := time.Parse("2006-01-02", parts[0])

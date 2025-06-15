@@ -227,7 +227,7 @@ func (c *HTTPMCPClient) CallMCPTool(ctx context.Context, tool string, params map
 					}
 				}
 			}
-			return nil, fmt.Errorf("MCP tool returned error without details")
+			return nil, errors.New("MCP tool returned error without details")
 		}
 
 		// Extract content for successful responses

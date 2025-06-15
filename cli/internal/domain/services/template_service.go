@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"regexp"
@@ -243,7 +244,7 @@ func (ts *templateServiceImpl) UpdateTemplate(ctx context.Context, template *ent
 
 	// Don't allow updating built-in templates
 	if existing.IsBuiltIn {
-		return fmt.Errorf("cannot update built-in template")
+		return errors.New("cannot update built-in template")
 	}
 
 	// Update metadata
@@ -274,7 +275,7 @@ func (ts *templateServiceImpl) DeleteTemplate(ctx context.Context, templateID st
 
 	// Don't allow deleting built-in templates
 	if template.IsBuiltIn {
-		return fmt.Errorf("cannot delete built-in template")
+		return errors.New("cannot delete built-in template")
 	}
 
 	// Delete from repository
@@ -830,7 +831,7 @@ func (ts *templateServiceImpl) validateVariableValue(variable entities.TemplateV
 	switch variable.Type {
 	case "string":
 		if _, ok := value.(string); !ok {
-			return fmt.Errorf("expected string value")
+			return errors.New("expected string value")
 		}
 		if variable.ValidationRegex != "" {
 			strValue := value.(string)
@@ -839,7 +840,7 @@ func (ts *templateServiceImpl) validateVariableValue(variable entities.TemplateV
 				return fmt.Errorf("regex validation error: %w", err)
 			}
 			if !matched {
-				return fmt.Errorf("value does not match required pattern")
+				return errors.New("value does not match required pattern")
 			}
 		}
 
@@ -848,18 +849,18 @@ func (ts *templateServiceImpl) validateVariableValue(variable entities.TemplateV
 		case int, int64, float64:
 			// Valid number types
 		default:
-			return fmt.Errorf("expected number value")
+			return errors.New("expected number value")
 		}
 
 	case "boolean":
 		if _, ok := value.(bool); !ok {
-			return fmt.Errorf("expected boolean value")
+			return errors.New("expected boolean value")
 		}
 
 	case "choice":
 		strValue, ok := value.(string)
 		if !ok {
-			return fmt.Errorf("expected string value for choice")
+			return errors.New("expected string value for choice")
 		}
 
 		validChoice := false

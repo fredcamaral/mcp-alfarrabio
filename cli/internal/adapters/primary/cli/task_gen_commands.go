@@ -98,7 +98,7 @@ func (c *CLI) createTaskGenAnalyzeCommand() *cobra.Command {
 // runTaskGenMain handles main task generation
 func (c *CLI) runTaskGenMain(prdFile, trdFile, output string) error {
 	if c.documentChain == nil {
-		return fmt.Errorf("document chain service not available")
+		return errors.New("document chain service not available")
 	}
 
 	fmt.Printf("⚙️  Generating main tasks from TRD\n")
@@ -169,7 +169,7 @@ func (c *CLI) runTaskGenMain(prdFile, trdFile, output string) error {
 // runTaskGenSub handles sub-task generation
 func (c *CLI) runTaskGenSub(taskID, output string) error {
 	if c.documentChain == nil {
-		return fmt.Errorf("document chain service not available")
+		return errors.New("document chain service not available")
 	}
 
 	if taskID == "" {

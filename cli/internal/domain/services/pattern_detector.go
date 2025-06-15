@@ -504,7 +504,7 @@ func (pd *patternDetectorImpl) createPatternFromSequence(sequence []*entities.Ta
 	pattern := &entities.TaskPattern{
 		ID:          generatePatternID(),
 		Type:        entities.PatternTypeSequence,
-		Name:        fmt.Sprintf("Sequence: %s", pd.generatePatternName(sequence)),
+		Name:        "Sequence: " + pd.generatePatternName(sequence),
 		Description: pd.generatePatternDescription(sequence),
 		Sequence:    make([]entities.PatternStep, 0, len(sequence)),
 		Repository:  sequence[0].Repository,
@@ -686,7 +686,7 @@ func (pd *patternDetectorImpl) analyzeWorkflowPattern(
 	pattern := &entities.TaskPattern{
 		ID:          generatePatternID(),
 		Type:        entities.PatternTypeWorkflow,
-		Name:        fmt.Sprintf("Workflow: %s", projectType),
+		Name:        "Workflow: " + projectType,
 		Description: fmt.Sprintf("Common workflow pattern for %s projects", projectType),
 		Repository:  tasks[0].Repository,
 		ProjectType: projectType,

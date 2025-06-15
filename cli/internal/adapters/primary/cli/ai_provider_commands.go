@@ -2,9 +2,11 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -137,7 +139,7 @@ Examples:
 			}
 
 			if forTask == "" {
-				return fmt.Errorf("task description required")
+				return errors.New("task description required")
 			}
 
 			fmt.Printf("🤖 AI Model Recommendations\n")
@@ -190,7 +192,7 @@ Examples:
   lmmc ai provider add --type local --endpoint http://localhost:11434 --name ollama`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if providerType == "" {
-				return fmt.Errorf("provider type is required")
+				return errors.New("provider type is required")
 			}
 
 			// Generate name if not provided
@@ -406,7 +408,7 @@ Examples:
   lmmc ai model set-default --for quick-analysis --provider anthropic --model claude-haiku`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if forTask == "" || provider == "" || model == "" {
-				return fmt.Errorf("--for, --provider, and --model are required")
+				return errors.New("--for, --provider, and --model are required")
 			}
 
 			// Load and update defaults
@@ -875,7 +877,7 @@ Examples:
   lmmc ai fallback set --primary anthropic/claude-opus-4 --secondary openai/gpt-4o --tertiary local/llama-70b`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if primary == "" {
-				return fmt.Errorf("--primary is required")
+				return errors.New("--primary is required")
 			}
 
 			fallback := AIFallbackChain{
@@ -1102,7 +1104,7 @@ func (c *CLI) testAIProvider(config *AIProviderConfig) error {
 	// In a real implementation, this would create a client and test the connection
 	select {
 	case <-ctx.Done():
-		return fmt.Errorf("connection timeout")
+		return errors.New("connection timeout")
 	case <-time.After(500 * time.Millisecond):
 		// Simulate successful connection
 		return nil
@@ -1112,7 +1114,7 @@ func (c *CLI) testAIProvider(config *AIProviderConfig) error {
 // Utility functions
 func formatNumber(n int) string {
 	if n < 1000 {
-		return fmt.Sprintf("%d", n)
+		return strconv.Itoa(n)
 	}
 	if n < 1000000 {
 		return fmt.Sprintf("%.1fK", float64(n)/1000)

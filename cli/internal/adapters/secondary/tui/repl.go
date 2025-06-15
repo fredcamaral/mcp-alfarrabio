@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -468,7 +469,7 @@ func (m REPLModel) executeCommand(cmd string) REPLModel {
 	m.historyIndex = -1
 
 	// Add command to output
-	m.output = append(m.output, fmt.Sprintf("lmmc> %s", cmd))
+	m.output = append(m.output, "lmmc> "+cmd)
 
 	// Process command
 	switch {
@@ -515,7 +516,7 @@ func (m REPLModel) executeCommand(cmd string) REPLModel {
 	case strings.HasPrefix(cmd, "status"):
 		m.output = append(m.output, m.getStatusInfo()...)
 	default:
-		m.output = append(m.output, fmt.Sprintf("Unknown command: %s", cmd))
+		m.output = append(m.output, "Unknown command: "+cmd)
 		m.output = append(m.output, "Type 'help' for available commands")
 	}
 
@@ -880,10 +881,10 @@ func (m REPLModel) renderTaskStatsPanel(width, height int) string {
 	contentBuilder.WriteString(progressBar + "\n\n")
 
 	// Stats grid
-	contentBuilder.WriteString(labelStyle.Render("Total Tasks:    ") + numberStyle.Render(fmt.Sprint(stats.Total)) + "\n")
+	contentBuilder.WriteString(labelStyle.Render("Total Tasks:    ") + numberStyle.Render(strconv.Itoa(stats.Total)) + "\n")
 	contentBuilder.WriteString(labelStyle.Render("✅ Completed:   ") + numberStyle.Render(fmt.Sprintf("%d (%.1f%%)", stats.Completed, completionRate*100)) + "\n")
-	contentBuilder.WriteString(labelStyle.Render("🔄 In Progress: ") + numberStyle.Render(fmt.Sprint(stats.InProgress)) + "\n")
-	contentBuilder.WriteString(labelStyle.Render("⛔ Blocked:     ") + numberStyle.Render(fmt.Sprint(stats.Blocked)) + "\n\n")
+	contentBuilder.WriteString(labelStyle.Render("🔄 In Progress: ") + numberStyle.Render(strconv.Itoa(stats.InProgress)) + "\n")
+	contentBuilder.WriteString(labelStyle.Render("⛔ Blocked:     ") + numberStyle.Render(strconv.Itoa(stats.Blocked)) + "\n\n")
 	contentBuilder.WriteString(labelStyle.Render("📅 Today:       ") + numberStyle.Render(fmt.Sprintf("%d tasks", stats.TodayCount)) + "\n")
 	contentBuilder.WriteString(labelStyle.Render("📈 This Week:   ") + numberStyle.Render(fmt.Sprintf("%d tasks", stats.WeekCount)))
 
@@ -1222,7 +1223,7 @@ func (m REPLModel) renderHeader(title string) string {
 	}
 
 	// Title section
-	titleSection := titleStyle.Render(fmt.Sprintf("🚀 LMMC TUI - %s", title))
+	titleSection := titleStyle.Render("🚀 LMMC TUI - " + title)
 
 	// Mode bar
 	modeBar := lipgloss.JoinHorizontal(lipgloss.Left, modeButtons...)
@@ -1254,7 +1255,7 @@ func (m REPLModel) renderFooter(text string) string {
 		status = append(status, statusStyle.Copy().
 			Foreground(bgColor).
 			Background(successColor).
-			Render("● HTTP:"+fmt.Sprint(m.httpPort)))
+			Render("● HTTP:"+strconv.Itoa(m.httpPort)))
 	} else {
 		status = append(status, statusStyle.Copy().
 			Foreground(mutedColor).

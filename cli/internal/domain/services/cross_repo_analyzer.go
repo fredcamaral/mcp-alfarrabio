@@ -216,7 +216,7 @@ func (a *crossRepoAnalyzerImpl) FindSimilarRepositories(
 	limit int,
 ) ([]*entities.RepositorySimilarity, error) {
 	// Check cache
-	cacheKey := fmt.Sprintf("similar_repos:%s", repository)
+	cacheKey := "similar_repos:" + repository
 	if cached, found := a.similarityCache.Get(cacheKey); found {
 		if similarities, ok := cached.([]*entities.RepositorySimilarity); ok {
 			return a.limitSimilarities(similarities, limit), nil
@@ -700,7 +700,7 @@ func (a *crossRepoAnalyzerImpl) calculateImpact(pattern *entities.AggregatedPatt
 }
 
 func (a *crossRepoAnalyzerImpl) generateInsightTitle(pattern *entities.AggregatedPattern) string {
-	return fmt.Sprintf("Pattern: %s", pattern.Type)
+	return "Pattern: " + pattern.Type
 }
 
 func (a *crossRepoAnalyzerImpl) generateInsightDescription(pattern *entities.AggregatedPattern) string {

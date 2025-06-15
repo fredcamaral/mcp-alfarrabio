@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -212,7 +213,7 @@ func (ae *analyticsExporter) writeProductivityCSV(writer *csv.Writer, metrics en
 	_ = writer.Write([]string{"Tasks Per Day", fmt.Sprintf("%.2f", metrics.TasksPerDay)})
 	_ = writer.Write([]string{"Focus Time (minutes)", fmt.Sprintf("%.0f", metrics.FocusTime.Minutes())})
 	_ = writer.Write([]string{"Deep Work Ratio", fmt.Sprintf("%.2f", metrics.DeepWorkRatio)})
-	_ = writer.Write([]string{"Context Switches", fmt.Sprintf("%d", metrics.ContextSwitches)})
+	_ = writer.Write([]string{"Context Switches", strconv.Itoa(metrics.ContextSwitches)})
 	_ = writer.Write([]string{""}) // Empty row
 
 	// Priority completion rates
@@ -247,7 +248,7 @@ func (ae *analyticsExporter) writeVelocityCSV(writer *csv.Writer, metrics entiti
 		_ = writer.Write([]string{
 			fmt.Sprintf("W%d", week.Number),
 			fmt.Sprintf("%.2f", week.Velocity),
-			fmt.Sprintf("%d", week.Tasks),
+			strconv.Itoa(week.Tasks),
 		})
 	}
 	_ = writer.Write([]string{""}) // Empty row
@@ -258,10 +259,10 @@ func (ae *analyticsExporter) writeVelocityCSV(writer *csv.Writer, metrics entiti
 func (ae *analyticsExporter) writeCompletionCSV(writer *csv.Writer, metrics entities.CompletionMetrics) error {
 	// Completion summary
 	_ = writer.Write([]string{"Completion Metric", "Value"})
-	_ = writer.Write([]string{"Total Tasks", fmt.Sprintf("%d", metrics.TotalTasks)})
-	_ = writer.Write([]string{"Completed", fmt.Sprintf("%d", metrics.Completed)})
-	_ = writer.Write([]string{"In Progress", fmt.Sprintf("%d", metrics.InProgress)})
-	_ = writer.Write([]string{"Cancelled", fmt.Sprintf("%d", metrics.Cancelled)})
+	_ = writer.Write([]string{"Total Tasks", strconv.Itoa(metrics.TotalTasks)})
+	_ = writer.Write([]string{"Completed", strconv.Itoa(metrics.Completed)})
+	_ = writer.Write([]string{"In Progress", strconv.Itoa(metrics.InProgress)})
+	_ = writer.Write([]string{"Cancelled", strconv.Itoa(metrics.Cancelled)})
 	_ = writer.Write([]string{"Completion Rate", fmt.Sprintf("%.2f", metrics.CompletionRate)})
 	_ = writer.Write([]string{"Average Time (hours)", fmt.Sprintf("%.2f", metrics.AverageTime.Hours())})
 	_ = writer.Write([]string{"On Time Rate", fmt.Sprintf("%.2f", metrics.OnTimeRate)})
@@ -282,7 +283,7 @@ func (ae *analyticsExporter) writeBottlenecksCSV(writer *csv.Writer, bottlenecks
 			bottleneck.Type,
 			bottleneck.Description,
 			fmt.Sprintf("%.2f", bottleneck.Impact),
-			fmt.Sprintf("%d", bottleneck.Frequency),
+			strconv.Itoa(bottleneck.Frequency),
 			string(bottleneck.Severity),
 		})
 	}

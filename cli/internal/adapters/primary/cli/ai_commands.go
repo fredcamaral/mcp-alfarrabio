@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
@@ -86,7 +87,7 @@ func (c *CLI) createAIProcessCommand() *cobra.Command {
 			}
 
 			if taskID == "" {
-				return c.handleError(cmd, fmt.Errorf("task ID is required"))
+				return c.handleError(cmd, errors.New("task ID is required"))
 			}
 
 			// Resolve task ID from short form
@@ -104,7 +105,7 @@ func (c *CLI) createAIProcessCommand() *cobra.Command {
 			// Get enhanced AI service
 			enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
 			if !ok {
-				return c.handleError(cmd, fmt.Errorf("AI enhancements not available"))
+				return c.handleError(cmd, errors.New("AI enhancements not available"))
 			}
 
 			// Set current context
@@ -178,7 +179,7 @@ func (c *CLI) createAISyncCommand() *cobra.Command {
 			// Get enhanced AI service
 			enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
 			if !ok {
-				return c.handleError(cmd, fmt.Errorf("AI enhancements not available"))
+				return c.handleError(cmd, errors.New("AI enhancements not available"))
 			}
 
 			// Set current context
@@ -224,7 +225,7 @@ func (c *CLI) createAIOptimizeCommand() *cobra.Command {
 			// Get enhanced AI service
 			enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
 			if !ok {
-				return c.handleError(cmd, fmt.Errorf("AI enhancements not available"))
+				return c.handleError(cmd, errors.New("AI enhancements not available"))
 			}
 
 			// Set current context
@@ -267,7 +268,7 @@ func (c *CLI) createAIAnalyzeCommand() *cobra.Command {
 			// Get enhanced AI service
 			enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
 			if !ok {
-				return c.handleError(cmd, fmt.Errorf("AI enhancements not available"))
+				return c.handleError(cmd, errors.New("AI enhancements not available"))
 			}
 
 			// Set current context
@@ -310,7 +311,7 @@ func (c *CLI) createAIInsightsCommand() *cobra.Command {
 			// Get enhanced AI service
 			enhancedAI, ok := c.aiService.(*ai.EnhancedAIService)
 			if !ok {
-				return c.handleError(cmd, fmt.Errorf("AI enhancements not available"))
+				return c.handleError(cmd, errors.New("AI enhancements not available"))
 			}
 
 			// Set current context
