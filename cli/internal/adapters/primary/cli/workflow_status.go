@@ -42,7 +42,7 @@ func (c *CLI) runWorkflowStatus() error {
 	// Check workflow progress and display status
 	status := c.getWorkflowStatus()
 	c.displayCompletedSteps(session)
-	c.displayNextSteps(status)
+	c.displayWorkflowNextSteps(status)
 	c.displayWorkflowFiles(session)
 	c.displayWorkflowCommands()
 
@@ -100,8 +100,8 @@ func (c *CLI) displayCompletedSteps(session *SessionData) int {
 	return completedSteps
 }
 
-// displayNextSteps shows what to do next based on current status
-func (c *CLI) displayNextSteps(status string) {
+// displayWorkflowNextSteps shows what to do next based on current status
+func (c *CLI) displayWorkflowNextSteps(status string) {
 	fmt.Printf("💡 Next Steps:\n")
 
 	switch status {

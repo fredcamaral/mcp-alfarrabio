@@ -5,6 +5,8 @@ import (
 	"errors"
 	"log/slog"
 	"strconv"
+
+	"lerian-mcp-memory-cli/internal/domain/constants"
 )
 
 // TemplateMatcher handles matching tasks to appropriate templates
@@ -129,7 +131,7 @@ func (m *DefaultTemplateMatcher) AddTemplate(template *TaskTemplate) error {
 
 // GetAllTemplates returns all available templates
 func (m *DefaultTemplateMatcher) GetAllTemplates() []*TaskTemplate {
-	var templates []*TaskTemplate
+	templates := make([]*TaskTemplate, 0, len(m.templates))
 	for _, template := range m.templates {
 		templates = append(templates, template)
 	}
@@ -170,11 +172,11 @@ func (m *DefaultTemplateMatcher) calculateMatchScore(template *TaskTemplate, fea
 	// Normalize score by template complexity to favor simpler templates when scores are equal
 	complexityMultiplier := 1.0
 	switch toLowerCase(template.Complexity) {
-	case "low":
+	case constants.SeverityLow:
 		complexityMultiplier = 1.2
-	case "medium":
+	case constants.SeverityMedium:
 		complexityMultiplier = 1.0
-	case "high":
+	case constants.SeverityHigh:
 		complexityMultiplier = 0.8
 	}
 

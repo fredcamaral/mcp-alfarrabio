@@ -1320,27 +1320,62 @@ func (ae *analyticsEngineImpl) CalculateCycleTimeMetrics(
 	ctx context.Context,
 	tasks []*entities.Task,
 ) (*entities.CycleTimeMetrics, error) {
+	completedTasks := ae.filterCompletedTasks(tasks)
+	if len(completedTasks) == 0 {
+		return ae.createEmptyCycleTimeMetrics(), nil
+	}
+
+	cycleData := ae.extractCycleTimeData(completedTasks)
+	statistics := ae.calculateCycleTimeStatistics(cycleData.cycleTimes)
+	averages := ae.calculateCycleTimeAverages(cycleData.byType, cycleData.byPriority)
+	distribution := ae.createCycleTimeDistribution(cycleData.cycleTimes)
+
+	return &entities.CycleTimeMetrics{
+		AverageCycleTime: statistics.average,
+		MedianCycleTime:  statistics.median,
+		P90CycleTime:     statistics.p90,
+		ByType:           averages.byType,
+		ByPriority:       averages.byPriority,
+		Distribution:     distribution,
+		LeadTime:         statistics.average, // Simplified: lead time = cycle time
+		WaitTime:         0,                  // Would need more data to calculate actual wait time
+	}, nil
+}
+
+// filterCompletedTasks filters tasks to only include completed ones
+func (ae *analyticsEngineImpl) filterCompletedTasks(tasks []*entities.Task) []*entities.Task {
 	completedTasks := make([]*entities.Task, 0)
 	for _, task := range tasks {
 		if task.Status == entities.StatusCompleted && !task.CompletedAt.IsZero() {
 			completedTasks = append(completedTasks, task)
 		}
 	}
+	return completedTasks
+}
 
-	if len(completedTasks) == 0 {
-		return &entities.CycleTimeMetrics{
-			AverageCycleTime: 0,
-			MedianCycleTime:  0,
-			P90CycleTime:     0,
-			ByType:           make(map[string]time.Duration),
-			ByPriority:       make(map[string]time.Duration),
-			Distribution:     []entities.CycleTimePoint{},
-			LeadTime:         0,
-			WaitTime:         0,
-		}, nil
+// createEmptyCycleTimeMetrics creates empty cycle time metrics
+func (ae *analyticsEngineImpl) createEmptyCycleTimeMetrics() *entities.CycleTimeMetrics {
+	return &entities.CycleTimeMetrics{
+		AverageCycleTime: 0,
+		MedianCycleTime:  0,
+		P90CycleTime:     0,
+		ByType:           make(map[string]time.Duration),
+		ByPriority:       make(map[string]time.Duration),
+		Distribution:     []entities.CycleTimePoint{},
+		LeadTime:         0,
+		WaitTime:         0,
 	}
+}
 
-	// Calculate cycle times
+// cycleTimeData holds extracted cycle time data
+type cycleTimeData struct {
+	cycleTimes []time.Duration
+	byType     map[string][]time.Duration
+	byPriority map[string][]time.Duration
+}
+
+// extractCycleTimeData extracts cycle time data from completed tasks
+func (ae *analyticsEngineImpl) extractCycleTimeData(completedTasks []*entities.Task) cycleTimeData {
 	cycleTimes := make([]time.Duration, len(completedTasks))
 	byType := make(map[string][]time.Duration)
 	byPriority := make(map[string][]time.Duration)
@@ -1364,24 +1399,54 @@ func (ae *analyticsEngineImpl) CalculateCycleTimeMetrics(
 		return cycleTimes[i] < cycleTimes[j]
 	})
 
+	return cycleTimeData{
+		cycleTimes: cycleTimes,
+		byType:     byType,
+		byPriority: byPriority,
+	}
+}
+
+// cycleTimeStatistics holds basic statistics
+type cycleTimeStatistics struct {
+	average time.Duration
+	median  time.Duration
+	p90     time.Duration
+}
+
+// calculateCycleTimeStatistics calculates basic statistics from cycle times
+func (ae *analyticsEngineImpl) calculateCycleTimeStatistics(cycleTimes []time.Duration) cycleTimeStatistics {
 	// Calculate average
 	var totalTime time.Duration
 	for _, ct := range cycleTimes {
 		totalTime += ct
 	}
-	averageCycleTime := totalTime / time.Duration(len(cycleTimes))
+	average := totalTime / time.Duration(len(cycleTimes))
 
 	// Calculate median
-	medianCycleTime := cycleTimes[len(cycleTimes)/2]
+	median := cycleTimes[len(cycleTimes)/2]
 
 	// Calculate P90
 	p90Index := int(float64(len(cycleTimes)) * 0.9)
 	if p90Index >= len(cycleTimes) {
 		p90Index = len(cycleTimes) - 1
 	}
-	p90CycleTime := cycleTimes[p90Index]
+	p90 := cycleTimes[p90Index]
 
-	// Calculate averages by type and priority
+	return cycleTimeStatistics{
+		average: average,
+		median:  median,
+		p90:     p90,
+	}
+}
+
+// cycleTimeAverages holds averages by different dimensions
+type cycleTimeAverages struct {
+	byType     map[string]time.Duration
+	byPriority map[string]time.Duration
+}
+
+// calculateCycleTimeAverages calculates averages by type and priority
+func (ae *analyticsEngineImpl) calculateCycleTimeAverages(byType, byPriority map[string][]time.Duration) cycleTimeAverages {
 	typeAverages := make(map[string]time.Duration)
 	for taskType, times := range byType {
 		var total time.Duration
@@ -1400,7 +1465,14 @@ func (ae *analyticsEngineImpl) CalculateCycleTimeMetrics(
 		priorityAverages[priority] = total / time.Duration(len(times))
 	}
 
-	// Create distribution (simplified)
+	return cycleTimeAverages{
+		byType:     typeAverages,
+		byPriority: priorityAverages,
+	}
+}
+
+// createCycleTimeDistribution creates distribution from cycle times
+func (ae *analyticsEngineImpl) createCycleTimeDistribution(cycleTimes []time.Duration) []entities.CycleTimePoint {
 	distribution := make([]entities.CycleTimePoint, 0)
 	buckets := 10
 	maxTime := cycleTimes[len(cycleTimes)-1]
@@ -1426,16 +1498,7 @@ func (ae *analyticsEngineImpl) CalculateCycleTimeMetrics(
 		}
 	}
 
-	return &entities.CycleTimeMetrics{
-		AverageCycleTime: averageCycleTime,
-		MedianCycleTime:  medianCycleTime,
-		P90CycleTime:     p90CycleTime,
-		ByType:           typeAverages,
-		ByPriority:       priorityAverages,
-		Distribution:     distribution,
-		LeadTime:         averageCycleTime, // Simplified: lead time = cycle time
-		WaitTime:         0,                // Would need more data to calculate actual wait time
-	}, nil
+	return distribution
 }
 
 // GenerateWorkflowMetrics generates comprehensive workflow metrics

@@ -321,7 +321,7 @@ func (c *projectClassifierImpl) scoreDesktop(chars *entities.ProjectCharacterist
 		scores[entities.ProjectTypeDesktop] += 0.8
 	}
 	primaryLang := chars.GetPrimaryLanguage()
-	if primaryLang == "cpp" || primaryLang == constants.LanguageCSharp || primaryLang == "java" {
+	if primaryLang == "cpp" || primaryLang == constants.LanguageCSharp || primaryLang == constants.LanguageJava {
 		scores[entities.ProjectTypeDesktop] += 0.4
 	}
 }
@@ -770,7 +770,7 @@ func (c *projectClassifierImpl) fallbackClassification(chars *entities.ProjectCh
 		return entities.ProjectTypeCLI, 0.4
 	case constants.LanguagePython:
 		return entities.ProjectTypeAPI, 0.3
-	case "java", constants.LanguageCSharp:
+	case constants.LanguageJava, constants.LanguageCSharp:
 		return entities.ProjectTypeAPI, 0.3
 	}
 

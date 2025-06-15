@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
@@ -199,13 +200,13 @@ func (h *HybridSuggestionService) convertServerSuggestion(
 func (h *HybridSuggestionService) mapPatternTypeToPriority(patternType string) string {
 	switch strings.ToLower(patternType) {
 	case "error", "bug":
-		return "high"
+		return constants.SeverityHigh
 	case "optimization", "refactoring":
-		return "medium"
+		return constants.SeverityMedium
 	case "architectural", "workflow":
-		return "medium"
+		return constants.SeverityMedium
 	default:
-		return "low"
+		return constants.SeverityLow
 	}
 }
 
@@ -293,11 +294,11 @@ func (h *HybridSuggestionService) rankSuggestions(suggestions []*entities.TaskSu
 // priorityScore assigns numeric scores to priorities for ranking
 func (h *HybridSuggestionService) priorityScore(priority string) int {
 	switch strings.ToLower(priority) {
-	case "high":
+	case constants.SeverityHigh:
 		return 3
-	case "medium":
+	case constants.SeverityMedium:
 		return 2
-	case "low":
+	case constants.SeverityLow:
 		return 1
 	default:
 		return 0

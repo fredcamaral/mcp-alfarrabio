@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -67,87 +68,122 @@ This wizard helps you:
 // runInteractiveSetup runs the interactive configuration wizard
 func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 	reader := bufio.NewReader(os.Stdin)
+	out := cmd.OutOrStdout()
 
-	fmt.Fprintf(cmd.OutOrStdout(), "🚀 Welcome to Lerian MCP Memory CLI Setup Wizard\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "================================================\n\n")
+	fmt.Fprintf(out, "🚀 Welcome to Lerian MCP Memory CLI Setup Wizard\n")
+	fmt.Fprintf(out, "================================================\n\n")
 
-	// Check if config already exists
-	configDir := filepath.Join(os.Getenv("HOME"), ".lmmc")
-	configFile := filepath.Join(configDir, "config.yaml")
+	config, err := c.loadOrCreateConfig(out, reader)
+	if err != nil {
+		return err
+	}
 
-	var config *entities.Config
+	if err := c.configureBasicSettings(out, reader, config); err != nil {
+		return err
+	}
+
+	if err := c.configureMCPServer(out, reader, config); err != nil {
+		return err
+	}
+
+	availableProviders := c.configureAIProviders(out, config)
+	
+	if err := c.setupProjectStructure(out, reader); err != nil {
+		return err
+	}
+
+	if err := c.saveAndSummarizeConfig(out, config, availableProviders); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// loadOrCreateConfig loads existing config or creates a new one
+func (c *CLI) loadOrCreateConfig(out io.Writer, reader *bufio.Reader) (*entities.Config, error) {
+	configFile := filepath.Join(os.Getenv("HOME"), ".lmmc", "config.yaml")
+
 	if _, err := os.Stat(configFile); err == nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "📋 Existing configuration found at: %s\n", configFile)
-		fmt.Fprintf(cmd.OutOrStdout(), "Would you like to update it? [Y/n]: ")
+		fmt.Fprintf(out, "📋 Existing configuration found at: %s\n", configFile)
+		fmt.Fprintf(out, "Would you like to update it? [Y/n]: ")
 
 		response, _ := reader.ReadString('\n')
 		response = strings.TrimSpace(strings.ToLower(response))
 
 		if response == "n" || response == "no" {
-			fmt.Fprintf(cmd.OutOrStdout(), "Setup cancelled.\n")
-			return nil
+			fmt.Fprintf(out, "Setup cancelled.\n")
+			return nil, errors.New("setup cancelled by user")
 		}
 
 		// Load existing config
-		config, _ = c.configMgr.Load()
-	}
-
-	if config == nil {
-		config = &entities.Config{
-			CLI: entities.CLIConfig{
-				DefaultRepository: "default",
-				OutputFormat:      "table",
-				PageSize:          20,
-			},
-			Server: entities.ServerConfig{
-				URL:     "http://localhost:9080",
-				Timeout: 30,
-			},
+		if config, err := c.configMgr.Load(); err == nil {
+			return config, nil
 		}
 	}
 
-	// Step 1: Basic Configuration
-	fmt.Fprintf(cmd.OutOrStdout(), "\n📝 Step 1: Basic Configuration\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "------------------------------\n")
+	return &entities.Config{
+		CLI: entities.CLIConfig{
+			DefaultRepository: "default",
+			OutputFormat:      "table",
+			PageSize:          20,
+		},
+		Server: entities.ServerConfig{
+			URL:     "http://localhost:9080",
+			Timeout: 30,
+		},
+	}, nil
+}
+
+// configureBasicSettings handles Step 1: Basic Configuration
+func (c *CLI) configureBasicSettings(out io.Writer, reader *bufio.Reader, config *entities.Config) error {
+	fmt.Fprintf(out, "\n📝 Step 1: Basic Configuration\n")
+	fmt.Fprintf(out, "------------------------------\n")
 
 	// Default repository
-	fmt.Fprintf(cmd.OutOrStdout(), "\nDefault repository name [%s]: ", config.CLI.DefaultRepository)
+	fmt.Fprintf(out, "\nDefault repository name [%s]: ", config.CLI.DefaultRepository)
 	if input, _ := reader.ReadString('\n'); strings.TrimSpace(input) != "" {
 		config.CLI.DefaultRepository = strings.TrimSpace(input)
 	}
 
 	// Output format
-	fmt.Fprintf(cmd.OutOrStdout(), "Default output format (table/json/plain) [%s]: ", config.CLI.OutputFormat)
+	fmt.Fprintf(out, "Default output format (table/json/plain) [%s]: ", config.CLI.OutputFormat)
 	if input, _ := reader.ReadString('\n'); strings.TrimSpace(input) != "" {
 		config.CLI.OutputFormat = strings.TrimSpace(input)
 	}
 
-	// Step 2: MCP Server Configuration
-	fmt.Fprintf(cmd.OutOrStdout(), "\n🔌 Step 2: MCP Server Configuration\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "-----------------------------------\n")
+	return nil
+}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "\nMCP Server URL [%s]: ", config.Server.URL)
+// configureMCPServer handles Step 2: MCP Server Configuration
+func (c *CLI) configureMCPServer(out io.Writer, reader *bufio.Reader, config *entities.Config) error {
+	fmt.Fprintf(out, "\n🔌 Step 2: MCP Server Configuration\n")
+	fmt.Fprintf(out, "-----------------------------------\n")
+
+	fmt.Fprintf(out, "\nMCP Server URL [%s]: ", config.Server.URL)
 	if input, _ := reader.ReadString('\n'); strings.TrimSpace(input) != "" {
 		config.Server.URL = strings.TrimSpace(input)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "Enable auto-sync? (y/n) [y]: ")
+	fmt.Fprintf(out, "Enable auto-sync? (y/n) [y]: ")
 	_, _ = reader.ReadString('\n') // Just read and ignore for now
 
 	// Test MCP connection
-	fmt.Fprintf(cmd.OutOrStdout(), "\n🔍 Testing MCP server connection...\n")
+	fmt.Fprintf(out, "\n🔍 Testing MCP server connection...\n")
 	if err := c.testMCPConnection(config.Server.URL); err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "❌ MCP server connection failed: %v\n", err)
-		fmt.Fprintf(cmd.OutOrStdout(), "   Make sure the server is running: docker-compose --profile dev up\n")
+		fmt.Fprintf(out, "❌ MCP server connection failed: %v\n", err)
+		fmt.Fprintf(out, "   Make sure the server is running: docker-compose --profile dev up\n")
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "✅ MCP server connection successful!\n")
+		fmt.Fprintf(out, "✅ MCP server connection successful!\n")
 	}
 
-	// Step 3: AI Provider Configuration
-	fmt.Fprintf(cmd.OutOrStdout(), "\n🤖 Step 3: AI Provider Configuration\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "------------------------------------\n")
+	return nil
+}
 
-	// Check environment variables
+// configureAIProviders handles Step 3: AI Provider Configuration
+func (c *CLI) configureAIProviders(out io.Writer, config *entities.Config) []string {
+	fmt.Fprintf(out, "\n🤖 Step 3: AI Provider Configuration\n")
+	fmt.Fprintf(out, "------------------------------------\n")
+
 	providers := []struct {
 		name   string
 		envVar string
@@ -162,28 +198,29 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 	for _, p := range providers {
 		if os.Getenv(p.envVar) != "" {
 			availableProviders = append(availableProviders, p.name)
-			fmt.Fprintf(cmd.OutOrStdout(), "✅ %s API key found in environment\n", p.desc)
+			fmt.Fprintf(out, "✅ %s API key found in environment\n", p.desc)
 		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), "❌ %s API key not found (%s)\n", p.desc, p.envVar)
+			fmt.Fprintf(out, "❌ %s API key not found (%s)\n", p.desc, p.envVar)
 		}
 	}
 
-	if len(availableProviders) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "\nDefault AI provider [openai]: ")
-		_, _ = reader.ReadString('\n') // Just read for now
-	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "\n⚠️  No AI provider API keys found in environment.\n")
-		fmt.Fprintf(cmd.OutOrStdout(), "   Set environment variables before using AI features:\n")
+	if len(availableProviders) == 0 {
+		fmt.Fprintf(out, "\n⚠️  No AI provider API keys found in environment.\n")
+		fmt.Fprintf(out, "   Set environment variables before using AI features:\n")
 		for _, p := range providers {
-			fmt.Fprintf(cmd.OutOrStdout(), "   export %s=your-api-key\n", p.envVar)
+			fmt.Fprintf(out, "   export %s=your-api-key\n", p.envVar)
 		}
 	}
 
-	// Step 4: Project Structure
-	fmt.Fprintf(cmd.OutOrStdout(), "\n📁 Step 4: Project Structure\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "----------------------------\n")
+	return availableProviders
+}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "\nWould you like to create standard project directories? [Y/n]: ")
+// setupProjectStructure handles Step 4: Project Structure
+func (c *CLI) setupProjectStructure(out io.Writer, reader *bufio.Reader) error {
+	fmt.Fprintf(out, "\n📁 Step 4: Project Structure\n")
+	fmt.Fprintf(out, "----------------------------\n")
+
+	fmt.Fprintf(out, "\nWould you like to create standard project directories? [Y/n]: ")
 	response, _ := reader.ReadString('\n')
 	response = strings.TrimSpace(strings.ToLower(response))
 
@@ -197,16 +234,23 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 
 		for _, dir := range dirs {
 			if err := os.MkdirAll(dir, 0750); err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to create %s: %v\n", dir, err)
+				fmt.Fprintf(out, "❌ Failed to create %s: %v\n", dir, err)
 			} else {
-				fmt.Fprintf(cmd.OutOrStdout(), "✅ Created %s\n", dir)
+				fmt.Fprintf(out, "✅ Created %s\n", dir)
 			}
 		}
 	}
 
-	// Step 5: Save Configuration
-	fmt.Fprintf(cmd.OutOrStdout(), "\n💾 Step 5: Save Configuration\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "-----------------------------\n")
+	return nil
+}
+
+// saveAndSummarizeConfig handles Step 5: Save Configuration and final summary
+func (c *CLI) saveAndSummarizeConfig(out io.Writer, config *entities.Config, availableProviders []string) error {
+	fmt.Fprintf(out, "\n💾 Step 5: Save Configuration\n")
+	fmt.Fprintf(out, "-----------------------------\n")
+
+	configDir := filepath.Join(os.Getenv("HOME"), ".lmmc")
+	configFile := filepath.Join(configDir, "config.yaml")
 
 	// Create config directory if it doesn't exist
 	if err := os.MkdirAll(configDir, 0750); err != nil {
@@ -218,24 +262,24 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 		return fmt.Errorf("failed to save configuration: %w", err)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "✅ Configuration saved to: %s\n", configFile)
+	fmt.Fprintf(out, "✅ Configuration saved to: %s\n", configFile)
 
 	// Final summary
-	fmt.Fprintf(cmd.OutOrStdout(), "\n✨ Setup Complete!\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "==================\n\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "Your configuration:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "- Default repository: %s\n", config.CLI.DefaultRepository)
-	fmt.Fprintf(cmd.OutOrStdout(), "- Output format: %s\n", config.CLI.OutputFormat)
-	fmt.Fprintf(cmd.OutOrStdout(), "- MCP Server: %s\n", config.Server.URL)
+	fmt.Fprintf(out, "\n✨ Setup Complete!\n")
+	fmt.Fprintf(out, "==================\n\n")
+	fmt.Fprintf(out, "Your configuration:\n")
+	fmt.Fprintf(out, "- Default repository: %s\n", config.CLI.DefaultRepository)
+	fmt.Fprintf(out, "- Output format: %s\n", config.CLI.OutputFormat)
+	fmt.Fprintf(out, "- MCP Server: %s\n", config.Server.URL)
 	if len(availableProviders) > 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "- AI Providers available: %s\n", strings.Join(availableProviders, ", "))
+		fmt.Fprintf(out, "- AI Providers available: %s\n", strings.Join(availableProviders, ", "))
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "\nNext steps:\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "1. Test your setup: lmmc setup --test\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "2. Create your first PRD: lmmc prd create \"Your feature\"\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "3. Generate sample data: lmmc generate sample-tasks\n")
-	fmt.Fprintf(cmd.OutOrStdout(), "\nHappy coding! 🚀\n")
+	fmt.Fprintf(out, "\nNext steps:\n")
+	fmt.Fprintf(out, "1. Test your setup: lmmc setup --test\n")
+	fmt.Fprintf(out, "2. Create your first PRD: lmmc prd create \"Your feature\"\n")
+	fmt.Fprintf(out, "3. Generate sample data: lmmc generate sample-tasks\n")
+	fmt.Fprintf(out, "\nHappy coding! 🚀\n")
 
 	return nil
 }

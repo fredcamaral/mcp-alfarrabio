@@ -34,43 +34,91 @@ func (ae *workflowAnalyticsEngine) CalculateProductivityMetrics(ctx context.Cont
 		return &entities.ProductivityMetrics{}, nil
 	}
 
-	// Calculate basic metrics
+	taskMetrics := ae.analyzeTaskMetrics(tasks)
+	sessionMetrics := ae.analyzeSessionMetrics(sessions)
+	
+	completionRate := taskMetrics.completionRate
+	deepWorkRatio := sessionMetrics.deepWorkRatio
+	tasksPerDay := float64(len(tasks)) / 7.0 // Assume weekly data
+
+	score := ae.calculateProductivityScore(completionRate, deepWorkRatio, tasksPerDay)
+	peakHours := []int{9, 10, 11, 14, 15} // Default business hours
+
+	return &entities.ProductivityMetrics{
+		Score:           score,
+		TasksPerDay:     tasksPerDay,
+		FocusTime:       taskMetrics.totalFocusTime / time.Duration(len(sessions)+1), // Average per day
+		DeepWorkRatio:   deepWorkRatio,
+		ContextSwitches: sessionMetrics.contextSwitches,
+		PeakHours:       peakHours,
+		ByPriority:      taskMetrics.byPriority,
+		ByType:          taskMetrics.byType,
+	}, nil
+}
+
+// taskAnalysisResult holds the results of task analysis
+type taskAnalysisResult struct {
+	completionRate   float64
+	totalFocusTime   time.Duration
+	byPriority       map[string]float64
+	byType           map[string]float64
+}
+
+// sessionAnalysisResult holds the results of session analysis
+type sessionAnalysisResult struct {
+	deepWorkRatio     float64
+	contextSwitches   int
+}
+
+// analyzeTaskMetrics analyzes task-related metrics
+func (ae *workflowAnalyticsEngine) analyzeTaskMetrics(tasks []*entities.Task) taskAnalysisResult {
 	totalTasks := float64(len(tasks))
 	completedTasks := 0
 	totalFocusTime := time.Duration(0)
-	contextSwitches := 0
-
+	
 	byPriority := make(map[string]float64)
 	byType := make(map[string]float64)
 	priorityCounts := make(map[string]int)
 	typeCounts := make(map[string]int)
 
-	// Analyze tasks
+	// Analyze each task
 	for _, task := range tasks {
 		if task.Status == entities.StatusCompleted {
 			completedTasks++
 		}
 
-		// Estimate focus time from task duration
 		if task.EstimatedMins > 0 {
 			totalFocusTime += time.Duration(task.EstimatedMins) * time.Minute
 		}
 
-		// Count by priority
-		priority := string(task.Priority)
-		priorityCounts[priority]++
-		if task.Status == entities.StatusCompleted {
-			byPriority[priority]++
-		}
-
-		// Count by type
-		typeCounts[task.Type]++
-		if task.Status == entities.StatusCompleted {
-			byType[task.Type]++
-		}
+		ae.updateCounts(task, priorityCounts, typeCounts, byPriority, byType)
 	}
 
 	// Calculate completion rates
+	ae.calculateCompletionRates(priorityCounts, typeCounts, byPriority, byType)
+
+	return taskAnalysisResult{
+		completionRate: float64(completedTasks) / totalTasks,
+		totalFocusTime: totalFocusTime,
+		byPriority:     byPriority,
+		byType:         byType,
+	}
+}
+
+// updateCounts updates the counting maps for a task
+func (ae *workflowAnalyticsEngine) updateCounts(task *entities.Task, priorityCounts, typeCounts map[string]int, byPriority, byType map[string]float64) {
+	priority := string(task.Priority)
+	priorityCounts[priority]++
+	typeCounts[task.Type]++
+	
+	if task.Status == entities.StatusCompleted {
+		byPriority[priority]++
+		byType[task.Type]++
+	}
+}
+
+// calculateCompletionRates calculates completion rates by priority and type
+func (ae *workflowAnalyticsEngine) calculateCompletionRates(priorityCounts, typeCounts map[string]int, byPriority, byType map[string]float64) {
 	for priority, count := range priorityCounts {
 		if count > 0 {
 			byPriority[priority] /= float64(count)
@@ -82,55 +130,60 @@ func (ae *workflowAnalyticsEngine) CalculateProductivityMetrics(ctx context.Cont
 			byType[taskType] /= float64(count)
 		}
 	}
+}
 
-	// Analyze sessions for context switches
+// analyzeSessionMetrics analyzes session-related metrics
+func (ae *workflowAnalyticsEngine) analyzeSessionMetrics(sessions []*entities.Session) sessionAnalysisResult {
+	if len(sessions) == 0 {
+		return sessionAnalysisResult{deepWorkRatio: 0.8} // Default estimate
+	}
+
+	contextSwitches := ae.countContextSwitches(sessions)
+	deepWorkRatio := ae.calculateDeepWorkRatio(sessions)
+
+	return sessionAnalysisResult{
+		deepWorkRatio:   deepWorkRatio,
+		contextSwitches: contextSwitches,
+	}
+}
+
+// countContextSwitches counts context switches between repositories
+func (ae *workflowAnalyticsEngine) countContextSwitches(sessions []*entities.Session) int {
+	contextSwitches := 0
 	for i := 1; i < len(sessions); i++ {
 		if sessions[i].Repository != sessions[i-1].Repository {
 			contextSwitches++
 		}
 	}
+	return contextSwitches
+}
 
-	// Calculate derived metrics
-	completionRate := float64(completedTasks) / totalTasks
-	tasksPerDay := totalTasks / 7.0 // Assume weekly data
-	deepWorkRatio := 0.8            // Default estimate
+// calculateDeepWorkRatio calculates the ratio of deep work time
+func (ae *workflowAnalyticsEngine) calculateDeepWorkRatio(sessions []*entities.Session) float64 {
+	totalSessionTime := time.Duration(0)
+	deepWorkTime := time.Duration(0)
 
-	if len(sessions) > 0 {
-		totalSessionTime := time.Duration(0)
-		deepWorkTime := time.Duration(0)
-
-		for _, session := range sessions {
-			duration := session.EndTime.Sub(session.StartTime)
-			totalSessionTime += duration
-			if duration > 30*time.Minute { // Consider sessions > 30min as deep work
-				deepWorkTime += duration
-			}
-		}
-
-		if totalSessionTime > 0 {
-			deepWorkRatio = float64(deepWorkTime) / float64(totalSessionTime)
+	for _, session := range sessions {
+		duration := session.EndTime.Sub(session.StartTime)
+		totalSessionTime += duration
+		if duration > 30*time.Minute { // Consider sessions > 30min as deep work
+			deepWorkTime += duration
 		}
 	}
 
-	// Calculate productivity score (0-100)
+	if totalSessionTime > 0 {
+		return float64(deepWorkTime) / float64(totalSessionTime)
+	}
+	return 0.8 // Default estimate
+}
+
+// calculateProductivityScore calculates the overall productivity score
+func (ae *workflowAnalyticsEngine) calculateProductivityScore(completionRate, deepWorkRatio, tasksPerDay float64) float64 {
 	score := (completionRate * 40) + (deepWorkRatio * 30) + (math.Min(tasksPerDay/10, 1) * 30)
 	if score > 100 {
 		score = 100
 	}
-
-	// Determine peak hours (simplified)
-	peakHours := []int{9, 10, 11, 14, 15} // Default business hours
-
-	return &entities.ProductivityMetrics{
-		Score:           score,
-		TasksPerDay:     tasksPerDay,
-		FocusTime:       totalFocusTime / time.Duration(len(sessions)+1), // Average per day
-		DeepWorkRatio:   deepWorkRatio,
-		ContextSwitches: contextSwitches,
-		PeakHours:       peakHours,
-		ByPriority:      byPriority,
-		ByType:          byType,
-	}, nil
+	return score
 }
 
 // CalculateVelocityMetrics calculates velocity metrics from tasks

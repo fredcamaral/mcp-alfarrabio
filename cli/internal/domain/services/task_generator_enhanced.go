@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
@@ -128,7 +129,9 @@ func (g *DefaultTaskGeneratorService) GenerateFromAnalysis(ctx context.Context, 
 		slog.Int("features", len(analysis.KeyFeatures)),
 		slog.Int("tech_reqs", len(analysis.TechnicalReqs)))
 
-	var tasks []*entities.Task
+	// Pre-allocate with estimate: features + technical requirements  
+	estimatedTasks := len(analysis.KeyFeatures) + len(analysis.TechnicalReqs)
+	tasks := make([]*entities.Task, 0, estimatedTasks)
 
 	// Generate tasks from key features
 	for i, feature := range analysis.KeyFeatures {
@@ -546,7 +549,7 @@ func (g *DefaultTaskGeneratorService) generateTestingTasks(analysis *AIAnalysis,
 	testTasks = append(testTasks, unitTestTask)
 
 	// Generate integration test task if complexity is medium or high
-	if analysis.Complexity != "low" {
+	if analysis.Complexity != constants.SeverityLow {
 		integrationTestTask := &entities.Task{
 			ID:            uuid.New().String(),
 			Content:       "Implement integration tests for system components",

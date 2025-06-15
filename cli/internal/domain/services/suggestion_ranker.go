@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -322,9 +323,9 @@ func (sr *suggestionRankerImpl) CalculateUrgencyScore(
 	switch strings.ToLower(suggestion.Priority) {
 	case "critical", "urgent":
 		baseUrgency += 0.2
-	case "high":
+	case constants.SeverityHigh:
 		baseUrgency += 0.1
-	case "low":
+	case constants.SeverityLow:
 		baseUrgency -= 0.1
 	}
 
@@ -1019,9 +1020,9 @@ func (sr *suggestionRankerImpl) calculateDeadlineUrgency(suggestion *entities.Ta
 			if task.ID == taskID {
 				// Use task creation time and priority as urgency indicators
 				age := time.Since(task.CreatedAt)
-				if string(task.Priority) == "high" && age > 24*time.Hour {
+				if string(task.Priority) == constants.SeverityHigh && age > 24*time.Hour {
 					return 0.9
-				} else if string(task.Priority) == "medium" && age > 3*24*time.Hour {
+				} else if string(task.Priority) == constants.SeverityMedium && age > 3*24*time.Hour {
 					return 0.6
 				} else if age > 7*24*time.Hour {
 					return 0.3

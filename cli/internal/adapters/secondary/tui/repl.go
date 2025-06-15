@@ -204,65 +204,9 @@ func (m REPLModel) Init() tea.Cmd {
 func (m REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		m.width = msg.Width
-		m.height = msg.Height
-		return m, nil
-
+		return m.handleWindowResize(msg), nil
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "esc":
-			if m.server != nil {
-				ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-				defer cancel()
-				_ = m.server.Shutdown(ctx)
-			}
-			return m, tea.Quit
-
-		// Enhanced F-key detection for better terminal compatibility
-		case "f1", "F1", "ctrl+1", "alt+1":
-			m.viewMode = ViewModeCommand
-			return m, nil
-		case "f2", "F2", "ctrl+2", "alt+2":
-			m.viewMode = ViewModeDashboard
-			m.loadDashboardData()
-			return m, nil
-		case "f3", "F3", "ctrl+3", "alt+3":
-			m.viewMode = ViewModeAnalytics
-			m.loadAnalyticsData()
-			return m, nil
-		case "f4", "F4", "ctrl+4", "alt+4":
-			m.viewMode = ViewModeTaskList
-			return m, nil
-		case "f5", "F5", "ctrl+5", "alt+5":
-			m.viewMode = ViewModePatterns
-			return m, nil
-		case "f6", "F6", "ctrl+6", "alt+6":
-			m.viewMode = ViewModeInsights
-			return m, nil
-
-		// Additional help key
-		case "ctrl+h", "?":
-			if m.viewMode == ViewModeCommand {
-				m.output = append(m.output, m.getHelpText()...)
-			}
-			return m, nil
-
-		// Navigation in dashboard/analytics modes
-		case "tab":
-			if m.viewMode == ViewModeDashboard || m.viewMode == ViewModeAnalytics {
-				m.activePane = (m.activePane + 1) % 4
-				return m, nil
-			}
-
-		// Handle input based on current view mode
-		default:
-			if m.viewMode == ViewModeCommand {
-				return m.handleCommandInput(msg), nil
-			} else {
-				return m.handleNavigationInput(msg), nil
-			}
-		}
-
+		return m.handleKeyInput(msg)
 	case tickMsg:
 		return m, tickCmd()
 	}
@@ -270,117 +214,277 @@ func (m REPLModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
+// handleWindowResize handles window resize messages
+func (m REPLModel) handleWindowResize(msg tea.WindowSizeMsg) REPLModel {
+	m.width = msg.Width
+	m.height = msg.Height
+	return m
+}
+
+// handleKeyInput handles keyboard input
+func (m REPLModel) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	key := msg.String()
+	
+	// Handle global keys first
+	if model, cmd := m.handleGlobalKeys(key); cmd != nil {
+		return model, cmd
+	}
+	
+	// Handle view mode switches
+	if newModel := m.handleViewModeKeys(key); newModel.viewMode != m.viewMode {
+		return newModel, nil
+	}
+	
+	// Handle help keys
+	if m.handleHelpKeys(key) {
+		return m, nil
+	}
+	
+	// Handle tab navigation
+	if m.handleTabNavigation(key) {
+		return m, nil
+	}
+	
+	// Handle input based on current view mode
+	return m.handleModeSpecificInput(msg), nil
+}
+
+// handleGlobalKeys handles global keys like quit
+func (m REPLModel) handleGlobalKeys(key string) (tea.Model, tea.Cmd) {
+	if key == "ctrl+c" || key == "esc" {
+		if m.server != nil {
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			_ = m.server.Shutdown(ctx)
+		}
+		return m, tea.Quit
+	}
+	return m, nil
+}
+
+// handleViewModeKeys handles F-key view mode switches
+func (m REPLModel) handleViewModeKeys(key string) REPLModel {
+	viewModes := map[string]ViewMode{
+		"f1": ViewModeCommand, "F1": ViewModeCommand, "ctrl+1": ViewModeCommand, "alt+1": ViewModeCommand,
+		"f2": ViewModeDashboard, "F2": ViewModeDashboard, "ctrl+2": ViewModeDashboard, "alt+2": ViewModeDashboard,
+		"f3": ViewModeAnalytics, "F3": ViewModeAnalytics, "ctrl+3": ViewModeAnalytics, "alt+3": ViewModeAnalytics,
+		"f4": ViewModeTaskList, "F4": ViewModeTaskList, "ctrl+4": ViewModeTaskList, "alt+4": ViewModeTaskList,
+		"f5": ViewModePatterns, "F5": ViewModePatterns, "ctrl+5": ViewModePatterns, "alt+5": ViewModePatterns,
+		"f6": ViewModeInsights, "F6": ViewModeInsights, "ctrl+6": ViewModeInsights, "alt+6": ViewModeInsights,
+	}
+	
+	if mode, exists := viewModes[key]; exists {
+		m.viewMode = mode
+		
+		// Load data for specific modes
+		switch mode {
+		case ViewModeDashboard:
+			m.loadDashboardData()
+		case ViewModeAnalytics:
+			m.loadAnalyticsData()
+		}
+	}
+	
+	return m
+}
+
+// handleHelpKeys handles help key presses
+func (m REPLModel) handleHelpKeys(key string) bool {
+	if (key == "ctrl+h" || key == "?") && m.viewMode == ViewModeCommand {
+		m.output = append(m.output, m.getHelpText()...)
+		return true
+	}
+	return false
+}
+
+// handleTabNavigation handles tab navigation in dashboard/analytics modes
+func (m REPLModel) handleTabNavigation(key string) bool {
+	if key == "tab" && (m.viewMode == ViewModeDashboard || m.viewMode == ViewModeAnalytics) {
+		m.activePane = (m.activePane + 1) % 4
+		return true
+	}
+	return false
+}
+
+// handleModeSpecificInput handles input based on current view mode
+func (m REPLModel) handleModeSpecificInput(msg tea.KeyMsg) REPLModel {
+	if m.viewMode == ViewModeCommand {
+		return m.handleCommandInput(msg)
+	}
+	return m.handleNavigationInput(msg)
+}
+
 // handleCommandInput handles input in command mode
 func (m REPLModel) handleCommandInput(msg tea.KeyMsg) REPLModel {
-	switch msg.String() {
+	key := msg.String()
+	
+	switch key {
 	case "enter":
-		if m.input != "" {
-			return m.executeCommand(m.input)
-		}
-		return m
-
+		return m.handleEnterKey()
 	case "up":
-		if len(m.history) > 0 && m.historyIndex < len(m.history)-1 {
-			m.historyIndex++
-			m.input = m.history[len(m.history)-1-m.historyIndex]
-			m.cursor = len(m.input)
-		}
-		return m
-
+		return m.handleHistoryUp()
 	case "down":
-		if m.historyIndex > 0 {
-			m.historyIndex--
-			m.input = m.history[len(m.history)-1-m.historyIndex]
-			m.cursor = len(m.input)
-		} else if m.historyIndex == 0 {
-			m.historyIndex = -1
-			m.input = ""
-			m.cursor = 0
-		}
-		return m
-
+		return m.handleHistoryDown()
 	case "left":
-		if m.cursor > 0 {
-			m.cursor--
-		}
-		return m
-
+		return m.handleCursorLeft()
 	case "right":
-		if m.cursor < len(m.input) {
-			m.cursor++
-		}
-		return m
-
+		return m.handleCursorRight()
 	case "backspace":
-		if m.cursor > 0 {
-			m.input = m.input[:m.cursor-1] + m.input[m.cursor:]
-			m.cursor--
-		}
-		return m
-
+		return m.handleBackspace()
 	case "delete":
-		if m.cursor < len(m.input) {
-			m.input = m.input[:m.cursor] + m.input[m.cursor+1:]
-		}
-		return m
-
+		return m.handleDelete()
 	default:
-		if len(msg.String()) == 1 {
-			m.input = m.input[:m.cursor] + msg.String() + m.input[m.cursor:]
-			m.cursor++
-		}
-		return m
+		return m.handleCharacterInput(key)
 	}
+}
+
+// handleEnterKey handles the enter key press
+func (m REPLModel) handleEnterKey() REPLModel {
+	if m.input != "" {
+		return m.executeCommand(m.input)
+	}
+	return m
+}
+
+// handleHistoryUp handles up arrow for command history
+func (m REPLModel) handleHistoryUp() REPLModel {
+	if len(m.history) > 0 && m.historyIndex < len(m.history)-1 {
+		m.historyIndex++
+		m.input = m.history[len(m.history)-1-m.historyIndex]
+		m.cursor = len(m.input)
+	}
+	return m
+}
+
+// handleHistoryDown handles down arrow for command history
+func (m REPLModel) handleHistoryDown() REPLModel {
+	if m.historyIndex > 0 {
+		m.historyIndex--
+		m.input = m.history[len(m.history)-1-m.historyIndex]
+		m.cursor = len(m.input)
+	} else if m.historyIndex == 0 {
+		m.historyIndex = -1
+		m.input = ""
+		m.cursor = 0
+	}
+	return m
+}
+
+// handleCursorLeft handles left arrow key
+func (m REPLModel) handleCursorLeft() REPLModel {
+	if m.cursor > 0 {
+		m.cursor--
+	}
+	return m
+}
+
+// handleCursorRight handles right arrow key  
+func (m REPLModel) handleCursorRight() REPLModel {
+	if m.cursor < len(m.input) {
+		m.cursor++
+	}
+	return m
+}
+
+// handleBackspace handles backspace key
+func (m REPLModel) handleBackspace() REPLModel {
+	if m.cursor > 0 {
+		m.input = m.input[:m.cursor-1] + m.input[m.cursor:]
+		m.cursor--
+	}
+	return m
+}
+
+// handleDelete handles delete key
+func (m REPLModel) handleDelete() REPLModel {
+	if m.cursor < len(m.input) {
+		m.input = m.input[:m.cursor] + m.input[m.cursor+1:]
+	}
+	return m
+}
+
+// handleCharacterInput handles regular character input
+func (m REPLModel) handleCharacterInput(key string) REPLModel {
+	if len(key) == 1 {
+		m.input = m.input[:m.cursor] + key + m.input[m.cursor:]
+		m.cursor++
+	}
+	return m
 }
 
 // handleNavigationInput handles input in dashboard/analytics modes
 func (m REPLModel) handleNavigationInput(msg tea.KeyMsg) REPLModel {
-	switch msg.String() {
-	case "j", "down":
-		// Navigate down in current pane
+	key := msg.String()
+	
+	switch {
+	case key == "j" || key == "down":
+		return m.handleVerticalNavigation(true)
+	case key == "k" || key == "up":
+		return m.handleVerticalNavigation(false)
+	case key == "h" || key == "left":
+		return m.handleHorizontalNavigation(false)
+	case key == "l" || key == "right":
+		return m.handleHorizontalNavigation(true)
+	case key == "r":
+		return m.handleRefreshData()
+	case len(key) == 1 && key >= "1" && key <= "4":
+		return m.handleChartSwitching(key)
+	case key == "d" || key == "w" || key == "m":
+		return m.handleTimeRangeSwitching(key)
+	}
+	
+	return m
+}
+
+// handleVerticalNavigation handles up/down navigation
+func (m REPLModel) handleVerticalNavigation(down bool) REPLModel {
+	// Navigate up/down in current pane
+	// Implementation would depend on specific pane content
+	return m
+}
+
+// handleHorizontalNavigation handles left/right pane navigation
+func (m REPLModel) handleHorizontalNavigation(right bool) REPLModel {
+	if right && m.activePane < 3 {
+		m.activePane++
+	} else if !right && m.activePane > 0 {
+		m.activePane--
+	}
+	return m
+}
+
+// handleRefreshData refreshes data based on current view mode
+func (m REPLModel) handleRefreshData() REPLModel {
+	switch m.viewMode {
+	case ViewModeDashboard:
+		m.loadDashboardData()
+	case ViewModeAnalytics:
+		m.loadAnalyticsData()
+	}
+	return m
+}
+
+// handleChartSwitching handles quick chart switching in analytics mode
+func (m REPLModel) handleChartSwitching(key string) REPLModel {
+	if m.viewMode != ViewModeAnalytics {
 		return m
-	case "k", "up":
-		// Navigate up in current pane
-		return m
-	case "h", "left":
-		// Navigate left between panes
-		if m.activePane > 0 {
-			m.activePane--
-		}
-		return m
-	case "l", "right":
-		// Navigate right between panes
-		if m.activePane < 3 {
-			m.activePane++
-		}
-		return m
-	case "r":
-		// Refresh data
-		if m.viewMode == ViewModeDashboard {
-			m.loadDashboardData()
-		} else if m.viewMode == ViewModeAnalytics {
+	}
+	
+	charts := []string{"productivity", "velocity", "completion", "patterns"}
+	if idx := int(key[0] - '1'); idx < len(charts) {
+		m.chartType = charts[idx]
+	}
+	return m
+}
+
+// handleTimeRangeSwitching handles time range switching
+func (m REPLModel) handleTimeRangeSwitching(key string) REPLModel {
+	timeRanges := map[string]string{"d": "day", "w": "week", "m": "month"}
+	if tr, ok := timeRanges[key]; ok {
+		m.timeRange = tr
+		if m.viewMode == ViewModeAnalytics {
 			m.loadAnalyticsData()
 		}
-		return m
-	case "1", "2", "3", "4":
-		// Quick chart switching in analytics mode
-		if m.viewMode == ViewModeAnalytics {
-			charts := []string{"productivity", "velocity", "completion", "patterns"}
-			if idx := int(msg.String()[0] - '1'); idx < len(charts) {
-				m.chartType = charts[idx]
-			}
-		}
-		return m
-	case "d", "w", "m":
-		// Time range switching
-		timeRanges := map[string]string{"d": "day", "w": "week", "m": "month"}
-		if tr, ok := timeRanges[msg.String()]; ok {
-			m.timeRange = tr
-			if m.viewMode == ViewModeAnalytics {
-				m.loadAnalyticsData()
-			}
-		}
-		return m
 	}
 	return m
 }
@@ -1289,7 +1393,7 @@ func (m REPLModel) renderHeader(title string) string {
 	}
 
 	// Build mode buttons
-	var modeButtons []string
+	modeButtons := make([]string, 0, len(modes))
 	for _, mode := range modes {
 		style := lipgloss.NewStyle().
 			Padding(0, 1).

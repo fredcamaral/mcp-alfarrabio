@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -75,7 +76,7 @@ func (mc *MetricsCalculator) CountActiveDays(sessions []*entities.Session) int {
 func (mc *MetricsCalculator) CountCompletedTasks(tasks []*entities.Task) int {
 	count := 0
 	for _, task := range tasks {
-		if task.Status == "completed" {
+		if task.Status == constants.StatusStringCompleted {
 			count++
 		}
 	}
@@ -91,7 +92,7 @@ func (mc *MetricsCalculator) CalculateCompletionByPriority(tasks []*entities.Tas
 	for _, task := range tasks {
 		priorityStr := string(task.Priority)
 		priorityCounts[priorityStr]++
-		if string(task.Status) == "completed" {
+		if string(task.Status) == constants.StatusStringCompleted {
 			priorityCompleted[priorityStr]++
 		}
 	}
@@ -113,7 +114,7 @@ func (mc *MetricsCalculator) CalculateCompletionByType(tasks []*entities.Task) m
 
 	for _, task := range tasks {
 		typeCounts[task.Type]++
-		if task.Status == "completed" {
+		if task.Status == constants.StatusStringCompleted {
 			typeCompleted[task.Type]++
 		}
 	}
@@ -318,7 +319,7 @@ func (mc *MetricsCalculator) CalculateQualityScore(tasks []*entities.Task) float
 	qualityCount := 0
 
 	for _, task := range tasks {
-		if task.Status == "completed" {
+		if task.Status == constants.StatusStringCompleted {
 			// Quality indicators:
 			// 1. Task completed on time
 			// 2. No rework needed (no status changes back to in_progress)
@@ -563,8 +564,8 @@ func (mc *MetricsCalculator) CalculateProductivityTrend(
 	// Group tasks by week and calculate weekly productivity
 	weeklyTasks := mc.GroupTasksByWeek(tasks, period)
 
-	var trendPoints []entities.TrendPoint
 	weekNumbers := make([]int, 0, len(weeklyTasks))
+	trendPoints := make([]entities.TrendPoint, 0, len(weeklyTasks))
 
 	for week := range weeklyTasks {
 		weekNumbers = append(weekNumbers, week)
@@ -600,8 +601,8 @@ func (mc *MetricsCalculator) CalculateVelocityTrend(
 ) entities.Trend {
 	weeklyTasks := mc.GroupTasksByWeek(tasks, period)
 
-	var trendPoints []entities.TrendPoint
 	weekNumbers := make([]int, 0, len(weeklyTasks))
+	trendPoints := make([]entities.TrendPoint, 0, len(weeklyTasks))
 
 	for week := range weeklyTasks {
 		weekNumbers = append(weekNumbers, week)
@@ -630,8 +631,8 @@ func (mc *MetricsCalculator) CalculateQualityTrend(
 ) entities.Trend {
 	weeklyTasks := mc.GroupTasksByWeek(tasks, period)
 
-	var trendPoints []entities.TrendPoint
 	weekNumbers := make([]int, 0, len(weeklyTasks))
+	trendPoints := make([]entities.TrendPoint, 0, len(weeklyTasks))
 
 	for week := range weeklyTasks {
 		weekNumbers = append(weekNumbers, week)

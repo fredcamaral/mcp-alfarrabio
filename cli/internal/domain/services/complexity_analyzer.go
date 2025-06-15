@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strconv"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -659,11 +660,11 @@ func (a *DefaultComplexityAnalyzer) extractComplexityFactors(breakdown Complexit
 func (a *DefaultComplexityAnalyzer) scoreToLevel(score float64) string {
 	switch {
 	case score >= 7.0:
-		return "high"
+		return constants.SeverityHigh
 	case score >= 4.0:
-		return "medium"
+		return constants.SeverityMedium
 	default:
-		return "low"
+		return constants.SeverityLow
 	}
 }
 
@@ -734,16 +735,16 @@ func (a *DefaultComplexityAnalyzer) generateRecommendations(breakdown Complexity
 	var recommendations []string
 
 	switch level {
-	case "high":
+	case constants.SeverityHigh:
 		recommendations = append(recommendations, "Consider breaking this into smaller, more manageable tasks")
 		recommendations = append(recommendations, "Plan for additional testing and validation time")
 		recommendations = append(recommendations, "Consider involving senior developers or architects")
 
-	case "medium":
+	case constants.SeverityMedium:
 		recommendations = append(recommendations, "Ensure proper planning and design before implementation")
 		recommendations = append(recommendations, "Include time for code review and testing")
 
-	case "low":
+	case constants.SeverityLow:
 		recommendations = append(recommendations, "Good candidate for junior developers or quick implementation")
 		recommendations = append(recommendations, "Consider using existing templates or patterns")
 	}

@@ -455,7 +455,7 @@ func (ica *IntelligentContextAnalyzer) parsePredictionResponse(response *ports.A
 // Conversion methods
 
 func (ica *IntelligentContextAnalyzer) convertBehaviorPatterns(patterns []*BehaviorPattern) []*entities.Pattern {
-	var entityPatterns []*entities.Pattern
+	entityPatterns := make([]*entities.Pattern, 0, len(patterns))
 
 	for _, pattern := range patterns {
 		entityPattern := &entities.Pattern{
@@ -481,7 +481,7 @@ func (ica *IntelligentContextAnalyzer) convertBehaviorPatterns(patterns []*Behav
 }
 
 func (ica *IntelligentContextAnalyzer) convertProductivityInsights(insights []*ProductivityInsight) []map[string]interface{} {
-	var converted []map[string]interface{}
+	converted := make([]map[string]interface{}, 0, len(insights))
 
 	for _, insight := range insights {
 		converted = append(converted, map[string]interface{}{
@@ -500,7 +500,7 @@ func (ica *IntelligentContextAnalyzer) convertProductivityInsights(insights []*P
 }
 
 func (ica *IntelligentContextAnalyzer) convertPredictions(predictions []*ContextPrediction) []map[string]interface{} {
-	var converted []map[string]interface{}
+	converted := make([]map[string]interface{}, 0, len(predictions))
 
 	for _, prediction := range predictions {
 		converted = append(converted, map[string]interface{}{

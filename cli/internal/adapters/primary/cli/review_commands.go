@@ -436,31 +436,47 @@ func (c *CLI) runReviewStart(path, phase, _, aiProvider, model, output string) e
 }
 
 func (c *CLI) runReviewStatus(sessionID string) error {
-	// Check if review service is available
 	if c.reviewService == nil {
 		return errors.New("review service not initialized")
 	}
 
-	// If no session ID provided, try to get from current session
-	if sessionID == "" {
-		sessionData, err := c.loadSession()
-		if err == nil && sessionData.Values != nil {
-			if stored, exists := sessionData.Values["review_session_id"]; exists {
-				sessionID = stored
-			}
-		}
-		if sessionID == "" {
-			return errors.New("no session ID provided and no recent session found")
-		}
+	resolvedSessionID, err := c.resolveSessionID(sessionID)
+	if err != nil {
+		return err
 	}
 
-	// Get session status
-	session, err := c.reviewService.GetSession(sessionID)
+	session, err := c.reviewService.GetSession(resolvedSessionID)
 	if err != nil {
 		return fmt.Errorf("failed to get session: %w", err)
 	}
 
-	// Display status
+	c.displayReviewHeader(session)
+	c.displayReviewProgress(session)
+	c.displayPhaseProgress(session)
+	c.displayFindingsSummary(session)
+	c.displayNextSteps(session)
+
+	return nil
+}
+
+// resolveSessionID resolves the session ID from parameter or current session
+func (c *CLI) resolveSessionID(sessionID string) (string, error) {
+	if sessionID != "" {
+		return sessionID, nil
+	}
+
+	sessionData, err := c.loadSession()
+	if err == nil && sessionData.Values != nil {
+		if stored, exists := sessionData.Values["review_session_id"]; exists {
+			return stored, nil
+		}
+	}
+
+	return "", errors.New("no session ID provided and no recent session found")
+}
+
+// displayReviewHeader displays the basic session information
+func (c *CLI) displayReviewHeader(session *entities.ReviewSession) {
 	fmt.Printf("📊 Review Session Status\n")
 	fmt.Printf("=======================\n\n")
 
@@ -472,14 +488,7 @@ func (c *CLI) runReviewStatus(sessionID string) error {
 	fmt.Printf("🚀 Mode: %s\n", session.Mode)
 	fmt.Printf("📅 Started: %s\n", session.StartedAt.Format("2006-01-02 15:04:05"))
 
-	// Status with emoji
-	statusEmoji := map[entities.ReviewStatus]string{
-		entities.ReviewStatusPending:    "⏳",
-		entities.ReviewStatusInProgress: "🔄",
-		entities.ReviewStatusCompleted:  "✅",
-		entities.ReviewStatusFailed:     "❌",
-		entities.ReviewStatusCancelled:  "🚫",
-	}
+	statusEmoji := c.getStatusEmoji()
 	fmt.Printf("📈 Status: %s %s\n", statusEmoji[session.Status], session.Status)
 
 	if session.CompletedAt != nil {
@@ -487,8 +496,10 @@ func (c *CLI) runReviewStatus(sessionID string) error {
 		duration := session.CompletedAt.Sub(session.StartedAt)
 		fmt.Printf("⏱️  Duration: %s\n", duration.Round(time.Second))
 	}
+}
 
-	// Progress
+// displayReviewProgress displays overall progress information
+func (c *CLI) displayReviewProgress(session *entities.ReviewSession) {
 	fmt.Printf("\n📊 Progress\n")
 	fmt.Printf("----------\n")
 	fmt.Printf("Total Prompts: %d / %d (%.0f%%)\n",
@@ -499,10 +510,13 @@ func (c *CLI) runReviewStatus(sessionID string) error {
 	if session.Progress.CurrentPromptID != "" && session.Status == entities.ReviewStatusInProgress {
 		fmt.Printf("Current: %s (Phase: %s)\n", session.Progress.CurrentPromptID, session.Progress.CurrentPhase)
 	}
+}
 
-	// Phase breakdown
+// displayPhaseProgress displays progress for each phase
+func (c *CLI) displayPhaseProgress(session *entities.ReviewSession) {
 	fmt.Printf("\n📈 Phase Progress\n")
 	fmt.Printf("----------------\n")
+	
 	phaseOrder := []entities.ReviewPhase{
 		entities.PhaseFoundation,
 		entities.PhaseSecurity,
@@ -512,45 +526,67 @@ func (c *CLI) runReviewStatus(sessionID string) error {
 		entities.PhaseSynthesis,
 	}
 
+	statusEmoji := c.getStatusEmoji()
 	for _, phase := range phaseOrder {
 		if progress, exists := session.Progress.PhaseProgress[phase]; exists {
 			phaseEmoji := statusEmoji[progress.Status]
 			fmt.Printf("%s %s: %d/%d prompts\n", phaseEmoji, phase, progress.CompletedPrompts, progress.TotalPrompts)
 		}
 	}
+}
 
-	// Findings summary
-	if len(session.Findings) > 0 || session.Summary != nil {
-		fmt.Printf("\n🔍 Findings Summary\n")
-		fmt.Printf("------------------\n")
-
-		if session.Summary != nil {
-			fmt.Printf("🔴 Critical: %d\n", session.Summary.FindingsBySeverity[entities.SeverityCritical])
-			fmt.Printf("🟡 High: %d\n", session.Summary.FindingsBySeverity[entities.SeverityHigh])
-			fmt.Printf("🟢 Medium: %d\n", session.Summary.FindingsBySeverity[entities.SeverityMedium])
-			fmt.Printf("🔵 Low: %d\n", session.Summary.FindingsBySeverity[entities.SeverityLow])
-			fmt.Printf("\n📋 Total: %d findings\n", session.Summary.TotalFindings)
-
-			if session.Summary.ProductionReadiness != "" {
-				fmt.Printf("\n🚀 Production Readiness: %s\n", session.Summary.ProductionReadiness)
-			}
-		} else {
-			fmt.Printf("Total findings so far: %d\n", len(session.Findings))
-		}
+// displayFindingsSummary displays the findings summary if available
+func (c *CLI) displayFindingsSummary(session *entities.ReviewSession) {
+	if len(session.Findings) == 0 && session.Summary == nil {
+		return
 	}
 
-	// Next steps
-	if session.Status == entities.ReviewStatusCompleted {
+	fmt.Printf("\n🔍 Findings Summary\n")
+	fmt.Printf("------------------\n")
+
+	if session.Summary != nil {
+		c.displayDetailedSummary(session.Summary)
+	} else {
+		fmt.Printf("Total findings so far: %d\n", len(session.Findings))
+	}
+}
+
+// displayDetailedSummary displays detailed findings summary
+func (c *CLI) displayDetailedSummary(summary *entities.ReviewSummary) {
+	fmt.Printf("🔴 Critical: %d\n", summary.FindingsBySeverity[entities.SeverityCritical])
+	fmt.Printf("🟡 High: %d\n", summary.FindingsBySeverity[entities.SeverityHigh])
+	fmt.Printf("🟢 Medium: %d\n", summary.FindingsBySeverity[entities.SeverityMedium])
+	fmt.Printf("🔵 Low: %d\n", summary.FindingsBySeverity[entities.SeverityLow])
+	fmt.Printf("\n📋 Total: %d findings\n", summary.TotalFindings)
+
+	if summary.ProductionReadiness != "" {
+		fmt.Printf("\n🚀 Production Readiness: %s\n", summary.ProductionReadiness)
+	}
+}
+
+// displayNextSteps displays appropriate next steps based on session status
+func (c *CLI) displayNextSteps(session *entities.ReviewSession) {
+	switch session.Status {
+	case entities.ReviewStatusCompleted:
 		fmt.Printf("\n✅ Review Complete!\n")
 		fmt.Printf("\n💡 Next steps:\n")
 		fmt.Printf("   - Review findings: lmmc review todos list\n")
 		fmt.Printf("   - Export todos: lmmc review todos export\n")
-	} else if session.Status == entities.ReviewStatusInProgress {
+	case entities.ReviewStatusInProgress:
 		fmt.Printf("\n⏳ Review in progress...\n")
 		fmt.Printf("Check again later or wait for completion.\n")
 	}
+}
 
-	return nil
+// getStatusEmoji returns a map of status to emoji mappings
+func (c *CLI) getStatusEmoji() map[entities.ReviewStatus]string {
+	return map[entities.ReviewStatus]string{
+		entities.ReviewStatusPending:    "⏳",
+		entities.ReviewStatusInProgress: "🔄",
+		entities.ReviewStatusCompleted:  "✅",
+		entities.ReviewStatusFailed:     "❌",
+		entities.ReviewStatusCancelled:  "🚫",
+	}
 }
 
 func (c *CLI) runReviewOrchestrate(_ string, quick bool, focus, _ string) error {
@@ -664,7 +700,7 @@ func (c *CLI) runReviewTodosList(severity, phase string) error {
 	fmt.Printf("📋 Review Todo List\n")
 	fmt.Printf("===================\n\n")
 
-	if severity != "all" {
+	if severity != string(PhaseAll) {
 		fmt.Printf("Filter: %s severity\n", severity)
 	}
 	if phase != "" {

@@ -454,7 +454,7 @@ func (s *DefaultDocumentChainService) GenerateMainTasksFromTRD(ctx context.Conte
 	}
 
 	// Convert AI response to main task entities
-	var mainTasks []*MainTask
+	mainTasks := make([]*MainTask, 0, len(response.Tasks))
 	for _, task := range response.Tasks {
 		mainTask := &MainTask{
 			ID:               task.ID,
@@ -506,7 +506,7 @@ func (s *DefaultDocumentChainService) GenerateSubTasksFromMain(ctx context.Conte
 	}
 
 	// Convert AI response to sub-task entities
-	var subTasks []*SubTask
+	subTasks := make([]*SubTask, 0, len(response.Tasks))
 	for _, task := range response.Tasks {
 		subTask := &SubTask{
 			ID:                 task.ID,
@@ -553,7 +553,7 @@ func (s *DefaultDocumentChainService) GetChainProgress(chainID string) (*ChainPr
 
 // ListChains returns all chain progress records
 func (s *DefaultDocumentChainService) ListChains() ([]*ChainProgress, error) {
-	var chains []*ChainProgress
+	chains := make([]*ChainProgress, 0, len(s.chains))
 	for _, progress := range s.chains {
 		chains = append(chains, progress)
 	}
@@ -653,7 +653,7 @@ func (s *DefaultDocumentChainService) generateTechStack(prd *PRDEntity) []string
 }
 
 func (s *DefaultDocumentChainService) generateTechnicalRequirements(prd *PRDEntity) []string {
-	var reqs []string
+	reqs := make([]string, 0, len(prd.Features))
 	for _, feature := range prd.Features {
 		reqs = append(reqs, "Implement "+feature)
 	}
@@ -970,7 +970,7 @@ func (s *DefaultDocumentChainService) generateMockTRD(prd *PRDEntity) *TRDEntity
 
 // generateMockMainTasks creates mock main tasks when AI service fails
 func (s *DefaultDocumentChainService) generateMockMainTasks(trd *TRDEntity) []*MainTask {
-	var mainTasks []*MainTask
+	mainTasks := make([]*MainTask, 0, len(trd.Implementation))
 
 	// Generate tasks based on implementation steps
 	for i, step := range trd.Implementation {
@@ -995,10 +995,9 @@ func (s *DefaultDocumentChainService) generateMockMainTasks(trd *TRDEntity) []*M
 
 // generateMockSubTasks creates mock sub-tasks when AI service fails
 func (s *DefaultDocumentChainService) generateMockSubTasks(mainTask *MainTask) []*SubTask {
-	var subTasks []*SubTask
-
 	// Break down main task into 2-4 hour sub-tasks
 	steps := s.breakDownTask(mainTask.Content)
+	subTasks := make([]*SubTask, 0, len(steps))
 	for i, step := range steps {
 		subTask := &SubTask{
 			ID:                 fmt.Sprintf("ST-%s-%03d", mainTask.ID, i+1),

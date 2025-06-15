@@ -251,12 +251,39 @@ func (c *CLI) buildExportFilters(repository, status, priority string, tags []str
 func (c *CLI) executeExport(opts *ExportOptions, fields []string, splitBy string, batchSize int) (*ExportStats, error) {
 	startTime := time.Now()
 
-	// Apply date range if specified
 	if err := c.applyDateRange(opts); err != nil {
 		return nil, err
 	}
 
-	// Get tasks to export
+	tasks, err := c.fetchTasksForExport(opts)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("📊 Preparing to export %d tasks in %s format...\n", len(tasks), opts.Format)
+
+	// Handle splitting
+	if splitBy != "" {
+		return c.exportWithSplitting(tasks, opts, fields, splitBy, batchSize, startTime)
+	}
+
+	// Regular export
+	outputSize, err := c.performExport(tasks, opts, fields)
+	if err != nil {
+		return nil, err
+	}
+
+	// Handle compression if needed
+	outputSize, err = c.handleCompressionIfNeeded(opts, outputSize)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.createExportStats(tasks, opts, outputSize, time.Since(startTime)), nil
+}
+
+// fetchTasksForExport fetches tasks based on export options
+func (c *CLI) fetchTasksForExport(opts *ExportOptions) ([]*entities.Task, error) {
 	var tasks []*entities.Task
 	var err error
 
@@ -272,55 +299,54 @@ func (c *CLI) executeExport(opts *ExportOptions, fields []string, splitBy string
 		return nil, fmt.Errorf("failed to fetch tasks: %w", err)
 	}
 
-	fmt.Printf("📊 Preparing to export %d tasks in %s format...\n", len(tasks), opts.Format)
+	return tasks, nil
+}
 
-	// Handle splitting
-	if splitBy != "" {
-		return c.exportWithSplitting(tasks, opts, fields, splitBy, batchSize, startTime)
-	}
-
-	// Regular export
+// performExport executes the export operation based on format
+func (c *CLI) performExport(tasks []*entities.Task, opts *ExportOptions, fields []string) (int64, error) {
 	outputFile := c.generateOutputFileName(opts)
 
-	var outputSize int64
-	switch strings.ToLower(opts.Format) {
-	case constants.OutputFormatJSON:
-		outputSize, err = c.exportJSON(tasks, outputFile, opts, fields)
-	case constants.FormatYAML, "yml":
-		outputSize, err = c.exportYAML(tasks, outputFile, opts, fields)
-	case constants.FormatCSV:
-		outputSize, err = c.exportCSV(tasks, outputFile, opts, fields)
-	case constants.FormatTSV:
-		outputSize, err = c.exportTSV(tasks, outputFile, opts, fields)
-	case constants.FormatXML:
-		outputSize, err = c.exportXML(tasks, outputFile, opts, fields)
-	case constants.FormatPDF:
-		outputSize, err = c.exportPDF(tasks, outputFile, opts, fields)
-	case constants.FormatHTML:
-		outputSize, err = c.exportHTML(tasks, outputFile, opts, fields)
-	case constants.FormatMarkdown, "md":
-		outputSize, err = c.exportMarkdown(tasks, outputFile, opts, fields)
-	case "archive", constants.FormatZip:
-		outputSize, err = c.exportArchive(tasks, outputFile, opts, fields)
-	default:
-		return nil, fmt.Errorf("unsupported export format: %s", opts.Format)
+	exportFunctions := map[string]func([]*entities.Task, string, *ExportOptions, []string) (int64, error){
+		constants.OutputFormatJSON:              c.exportJSON,
+		constants.FormatYAML:                    c.exportYAML,
+		"yml":                                   c.exportYAML,
+		constants.FormatCSV:                     c.exportCSV,
+		constants.FormatTSV:                     c.exportTSV,
+		constants.FormatXML:                     c.exportXML,
+		constants.FormatPDF:                     c.exportPDF,
+		constants.FormatHTML:                    c.exportHTML,
+		constants.FormatMarkdown:                c.exportMarkdown,
+		"md":                                    c.exportMarkdown,
+		"archive":                               c.exportArchive,
+		constants.FormatZip:                     c.exportArchive,
 	}
 
+	exportFunc, exists := exportFunctions[strings.ToLower(opts.Format)]
+	if !exists {
+		return 0, fmt.Errorf("unsupported export format: %s", opts.Format)
+	}
+
+	return exportFunc(tasks, outputFile, opts, fields)
+}
+
+// handleCompressionIfNeeded handles compression if enabled and format supports it
+func (c *CLI) handleCompressionIfNeeded(opts *ExportOptions, outputSize int64) (int64, error) {
+	if !opts.Compress || strings.HasSuffix(strings.ToLower(opts.Format), "zip") {
+		return outputSize, nil
+	}
+
+	outputFile := c.generateOutputFileName(opts)
+	compressedSize, err := c.compressFile(outputFile)
 	if err != nil {
-		return nil, err
+		return 0, fmt.Errorf("compression failed: %w", err)
 	}
 
-	// Handle compression
-	if opts.Compress && !strings.HasSuffix(strings.ToLower(opts.Format), "zip") {
-		outputSize, err = c.compressFile(outputFile)
-		if err != nil {
-			return nil, fmt.Errorf("compression failed: %w", err)
-		}
-	}
+	return compressedSize, nil
+}
 
-	exportTime := time.Since(startTime)
-
-	stats := &ExportStats{
+// createExportStats creates export statistics
+func (c *CLI) createExportStats(tasks []*entities.Task, opts *ExportOptions, outputSize int64, exportTime time.Duration) *ExportStats {
+	return &ExportStats{
 		TotalTasks:     len(tasks),
 		ExportedTasks:  len(tasks),
 		ExportTime:     exportTime,
@@ -328,8 +354,6 @@ func (c *CLI) executeExport(opts *ExportOptions, fields []string, splitBy string
 		Format:         opts.Format,
 		FiltersApplied: c.getAppliedFilters(opts.Filters),
 	}
-
-	return stats, nil
 }
 
 // Export format implementations

@@ -636,7 +636,7 @@ func (ca *contextAnalyzerImpl) AnalyzeVelocityTrends(
 	// Count completed tasks
 	completedTasks := 0
 	for _, task := range tasks {
-		if task.Status == "completed" {
+		if task.Status == constants.StatusStringCompleted {
 			completedTasks++
 		}
 	}
@@ -751,7 +751,7 @@ func (ca *contextAnalyzerImpl) getRecentCompletedTasks(ctx context.Context, repo
 
 	var completedTasks []*entities.Task
 	for _, task := range tasks {
-		if task.Status == "completed" {
+		if task.Status == constants.StatusStringCompleted {
 			completedTasks = append(completedTasks, task)
 		}
 	}

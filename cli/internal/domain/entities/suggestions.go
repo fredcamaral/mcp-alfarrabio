@@ -360,7 +360,7 @@ func (wc *WorkContext) GetActiveTaskTypes() []string {
 		}
 	}
 
-	var types []string
+	types := make([]string, 0, len(typeSet))
 	for taskType := range typeSet {
 		types = append(types, taskType)
 	}

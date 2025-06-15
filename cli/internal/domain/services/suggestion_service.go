@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/repositories"
 )
@@ -428,7 +429,7 @@ func (ss *suggestionServiceImpl) GenerateBreakSuggestions(
 		suggestion.AddAction("stretch", "Do some light stretching", 1)
 		suggestion.AddAction("walk", "Take a short walk", 2)
 		suggestion.SetEstimatedTime(10*time.Minute, "standard short break duration")
-	case "medium":
+	case constants.SeverityMedium:
 		suggestion.AddAction("walk_outside", "Take a walk outside", 1)
 		suggestion.AddAction("mindfulness", "Practice mindfulness or meditation", 2)
 		suggestion.SetEstimatedTime(20*time.Minute, "standard medium break duration")
@@ -634,11 +635,11 @@ func (ss *suggestionServiceImpl) getPriorityScore(priority string) float64 {
 	switch strings.ToLower(priority) {
 	case "critical", "urgent":
 		return 1.0
-	case "high":
+	case constants.SeverityHigh:
 		return 0.8
-	case "medium", "normal":
+	case constants.SeverityMedium, "normal":
 		return 0.6
-	case "low":
+	case constants.SeverityLow:
 		return 0.4
 	default:
 		return 0.5
