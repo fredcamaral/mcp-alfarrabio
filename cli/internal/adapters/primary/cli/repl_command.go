@@ -35,7 +35,7 @@ Navigation:
 - Type 'help' in command mode for full instructions`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			// Validate mode
-			replMode := tui.Interactive
+			var replMode tui.ReplMode
 			switch mode {
 			case "interactive":
 				replMode = tui.Interactive

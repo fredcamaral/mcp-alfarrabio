@@ -819,13 +819,10 @@ func (ae *analyticsEngineImpl) generateCompletionPredictions(
 	windowSize := min(7, len(completions))
 	recent := completions[len(completions)-windowSize:]
 
-	avgRate := 0.0
 	avgTasks := 0.0
 	for _, completion := range recent {
-		avgRate += completion.Rate
 		avgTasks += float64(completion.Completed)
 	}
-	avgRate /= float64(len(recent))
 	avgTasks /= float64(len(recent))
 
 	var predictions []CompletionPrediction

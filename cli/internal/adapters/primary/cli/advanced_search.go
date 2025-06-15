@@ -72,7 +72,6 @@ func (c *CLI) buildAdvancedFilters(repository, status, priority string, tags, ex
 	dueAfter, dueBefore, completedAfter, completedBefore string,
 	overdue, dueSoon, hasDueDate bool, sessionID, parentID string,
 	estimatedMin, estimatedMax int) (*ports.TaskFilters, error) {
-
 	filters := c.initializeBaseFilters(repository, tags, sessionID, parentID, overdue, dueSoon, hasDueDate)
 
 	if err := c.setStatusAndPriorityFilters(filters, status, priority); err != nil {
@@ -136,7 +135,6 @@ func (c *CLI) setStatusAndPriorityFilters(filters *ports.TaskFilters, status, pr
 // setDateFilters sets all date-related filters
 func (c *CLI) setDateFilters(filters *ports.TaskFilters, createdAfter, createdBefore, updatedAfter, updatedBefore,
 	dueAfter, dueBefore, completedAfter, completedBefore string) error {
-
 	dateFields := []struct {
 		value  string
 		target **string

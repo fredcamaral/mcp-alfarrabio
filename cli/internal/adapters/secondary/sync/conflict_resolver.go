@@ -47,7 +47,6 @@ func (r *SimpleConflictResolver) DetectConflict(localTask, remoteTask *entities.
 	// Consider it a conflict if both have been updated and have different content
 	if localTask.UpdatedAt.After(remoteTask.CreatedAt) &&
 		remoteTask.UpdatedAt.After(localTask.CreatedAt) {
-
 		// Check if key fields differ
 		if localTask.Content != remoteTask.Content ||
 			localTask.Type != remoteTask.Type ||

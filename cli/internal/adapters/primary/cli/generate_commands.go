@@ -147,7 +147,6 @@ func (c *CLI) createGenerateSampleProjectCommand() *cobra.Command {
 // Implementation functions
 
 func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, priority string, tags []string, withSubtasks bool) error {
-
 	// Sample task templates
 	taskTemplates := []struct {
 		content  string

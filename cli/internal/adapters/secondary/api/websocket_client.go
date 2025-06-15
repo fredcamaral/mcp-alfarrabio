@@ -175,7 +175,7 @@ func (c *WebSocketClient) Connect(ctx context.Context) error {
 	}
 
 	// Start message handling goroutines
-	go c.readPump()
+	go c.readPump(ctx)
 	go c.pingPump()
 
 	// Subscribe to repositories if any
@@ -246,10 +246,7 @@ func (c *WebSocketClient) sendSubscribe() error {
 }
 
 // readPump handles incoming WebSocket messages
-func (c *WebSocketClient) readPump() {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
-
+func (c *WebSocketClient) readPump(ctx context.Context) {
 	defer func() {
 		c.mu.Lock()
 		if c.conn != nil {

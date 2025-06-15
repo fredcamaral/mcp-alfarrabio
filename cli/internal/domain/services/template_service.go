@@ -339,14 +339,15 @@ func (ts *templateServiceImpl) InstantiateTemplate(
 		}
 
 		task := &entities.Task{
-			ID:         uuid.New().String(),
-			Content:    content,
-			Status:     entities.StatusPending,
-			Priority:   entities.Priority(tmplTask.Priority),
-			Repository: repository,
-			Tags:       tmplTask.Tags,
-			CreatedAt:  time.Now(),
-			UpdatedAt:  time.Now(),
+			ID:          uuid.New().String(),
+			Content:     content,
+			Description: description,
+			Status:      entities.StatusPending,
+			Priority:    entities.Priority(tmplTask.Priority),
+			Repository:  repository,
+			Tags:        tmplTask.Tags,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
 		}
 
 		tasks = append(tasks, task)

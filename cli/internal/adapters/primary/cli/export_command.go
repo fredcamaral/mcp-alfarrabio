@@ -198,7 +198,6 @@ Templates (for PDF/HTML/Markdown):
 // buildExportFilters constructs filters for export
 func (c *CLI) buildExportFilters(repository, status, priority string, tags []string,
 	createdAfter, createdBefore string, allRepos bool) (*ports.TaskFilters, error) {
-
 	filters := &ports.TaskFilters{
 		Tags: tags,
 	}
