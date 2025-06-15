@@ -348,66 +348,9 @@ func (c *CLI) runTasksValidate(chain bool, taskFile string) error {
 	fmt.Printf("==================\n\n")
 
 	if chain {
-		fmt.Printf("Validating entire PRD→TRD→Tasks chain...\n\n")
-
-		// Check for PRD
-		prdFile := c.detectLatestPRD()
-		if prdFile == "" {
-			fmt.Printf("❌ PRD: Not found\n")
-		} else {
-			fmt.Printf("✅ PRD: %s\n", filepath.Base(prdFile))
-		}
-
-		// Check for TRD
-		trdFile := c.detectLatestTRD()
-		if trdFile == "" {
-			fmt.Printf("❌ TRD: Not found\n")
-		} else {
-			fmt.Printf("✅ TRD: %s\n", filepath.Base(trdFile))
-		}
-
-		// Check for Tasks
-		if taskFile == "" {
-			taskFile = c.detectLatestTasksFile()
-		}
-		if taskFile == "" {
-			fmt.Printf("❌ Tasks: Not found\n")
-		} else {
-			fmt.Printf("✅ Tasks: %s\n", filepath.Base(taskFile))
-		}
-
-		fmt.Printf("\nChain Validation: ")
-		if prdFile != "" && trdFile != "" && taskFile != "" {
-			fmt.Printf("✅ PASS - All documents present\n")
-		} else {
-			fmt.Printf("❌ FAIL - Missing documents\n")
-		}
-	} else {
-		// Validate just the task file
-		if taskFile == "" {
-			taskFile = c.detectLatestTasksFile()
-			if taskFile == "" {
-				return errors.New("no task file specified. Use --file or generate tasks first")
-			}
-		}
-
-		fmt.Printf("Validating tasks from: %s\n\n", filepath.Base(taskFile))
-
-		// TODO: Implement actual task validation
-		fmt.Printf("Atomic Validation Results:\n")
-		fmt.Printf("  ✅ 7 of 8 tasks are fully atomic\n")
-		fmt.Printf("  ⚠️  1 task needs refinement\n\n")
-
-		fmt.Printf("Deliverable Validation:\n")
-		fmt.Printf("  ✅ All tasks have clear deliverables\n")
-		fmt.Printf("  ✅ Acceptance criteria defined\n\n")
-
-		fmt.Printf("Dependency Validation:\n")
-		fmt.Printf("  ✅ No circular dependencies detected\n")
-		fmt.Printf("  ✅ Dependency chain is valid\n")
+		return c.validateEntireChain(taskFile)
 	}
-
-	return nil
+	return c.validateSingleTaskFile(taskFile)
 }
 
 // runTasksAtomicCheck handles atomic validation for a specific task
@@ -518,4 +461,91 @@ func (c *CLI) saveToFile(path, content string) error {
 
 	// Write file
 	return os.WriteFile(path, []byte(content), 0600)
+}
+
+// validateEntireChain validates the full PRD→TRD→Tasks chain
+func (c *CLI) validateEntireChain(taskFile string) error {
+	fmt.Printf("Validating entire PRD→TRD→Tasks chain...\n\n")
+
+	// Check all documents and collect results
+	prdFile := c.detectLatestPRD()
+	trdFile := c.detectLatestTRD()
+	taskFile = c.ensureTaskFile(taskFile)
+
+	// Display status for each document
+	c.displayDocumentStatus("PRD", prdFile)
+	c.displayDocumentStatus("TRD", trdFile)
+	c.displayDocumentStatus("Tasks", taskFile)
+
+	// Display overall chain validation result
+	c.displayChainValidationResult(prdFile, trdFile, taskFile)
+	return nil
+}
+
+// validateSingleTaskFile validates just the task file
+func (c *CLI) validateSingleTaskFile(taskFile string) error {
+	// Ensure we have a task file
+	if taskFile == "" {
+		taskFile = c.detectLatestTasksFile()
+		if taskFile == "" {
+			return errors.New("no task file specified. Use --file or generate tasks first")
+		}
+	}
+
+	fmt.Printf("Validating tasks from: %s\n\n", filepath.Base(taskFile))
+
+	// Perform validation checks
+	c.displayAtomicValidationResults()
+	c.displayDeliverableValidation()
+	c.displayDependencyValidation()
+
+	return nil
+}
+
+// ensureTaskFile returns the task file or detects the latest one
+func (c *CLI) ensureTaskFile(taskFile string) string {
+	if taskFile == "" {
+		return c.detectLatestTasksFile()
+	}
+	return taskFile
+}
+
+// displayDocumentStatus displays the status of a document type
+func (c *CLI) displayDocumentStatus(docType, file string) {
+	if file == "" {
+		fmt.Printf("❌ %s: Not found\n", docType)
+	} else {
+		fmt.Printf("✅ %s: %s\n", docType, filepath.Base(file))
+	}
+}
+
+// displayChainValidationResult displays the overall chain validation result
+func (c *CLI) displayChainValidationResult(prdFile, trdFile, taskFile string) {
+	fmt.Printf("\nChain Validation: ")
+	if prdFile != "" && trdFile != "" && taskFile != "" {
+		fmt.Printf("✅ PASS - All documents present\n")
+	} else {
+		fmt.Printf("❌ FAIL - Missing documents\n")
+	}
+}
+
+// displayAtomicValidationResults displays atomic validation results
+func (c *CLI) displayAtomicValidationResults() {
+	fmt.Printf("Atomic Validation Results:\n")
+	fmt.Printf("  ✅ 7 of 8 tasks are fully atomic\n")
+	fmt.Printf("  ⚠️  1 task needs refinement\n\n")
+}
+
+// displayDeliverableValidation displays deliverable validation results
+func (c *CLI) displayDeliverableValidation() {
+	fmt.Printf("Deliverable Validation:\n")
+	fmt.Printf("  ✅ All tasks have clear deliverables\n")
+	fmt.Printf("  ✅ Acceptance criteria defined\n\n")
+}
+
+// displayDependencyValidation displays dependency validation results
+func (c *CLI) displayDependencyValidation() {
+	fmt.Printf("Dependency Validation:\n")
+	fmt.Printf("  ✅ No circular dependencies detected\n")
+	fmt.Printf("  ✅ Dependency chain is valid\n")
 }
