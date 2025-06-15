@@ -198,8 +198,6 @@ func (ss *suggestionServiceImpl) GenerateNextTaskSuggestions(
 	ctx context.Context,
 	workContext *entities.WorkContext,
 ) ([]*entities.TaskSuggestion, error) {
-	var suggestions []*entities.TaskSuggestion
-
 	// Get pending tasks
 	endTime := time.Now().AddDate(0, 0, 7)    // Next week
 	startTime := time.Now().AddDate(0, 0, -1) // Yesterday
@@ -236,7 +234,13 @@ func (ss *suggestionServiceImpl) GenerateNextTaskSuggestions(
 		return scoredTasks[i].score > scoredTasks[j].score
 	})
 
-	// Create suggestions for top tasks
+	// Create suggestions for top tasks - pre-allocate with max possible size
+	maxSuggestions := ss.config.MaxSuggestionsPerType
+	if len(scoredTasks) < maxSuggestions {
+		maxSuggestions = len(scoredTasks)
+	}
+	suggestions := make([]*entities.TaskSuggestion, 0, maxSuggestions)
+	
 	for i, ts := range scoredTasks {
 		if i >= ss.config.MaxSuggestionsPerType {
 			break
@@ -475,7 +479,7 @@ func (ss *suggestionServiceImpl) FilterSuggestions(
 		return suggestions
 	}
 
-	var filtered []*entities.TaskSuggestion
+	filtered := make([]*entities.TaskSuggestion, 0, len(suggestions))
 
 	for _, suggestion := range suggestions {
 		// Check if suggestion type is preferred

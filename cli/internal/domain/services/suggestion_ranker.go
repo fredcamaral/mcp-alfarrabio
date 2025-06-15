@@ -170,7 +170,7 @@ func (sr *suggestionRankerImpl) RankWithCriteria(
 		slog.String("repository", workContext.Repository))
 
 	// Calculate composite scores for all suggestions
-	var scored []scoredSuggestion
+	scored := make([]scoredSuggestion, 0, len(suggestions))
 	for _, suggestion := range suggestions {
 		score := sr.CalculateCompositeScore(suggestion, criteria, workContext)
 		components := sr.calculateScoringComponents(suggestion, criteria, workContext)

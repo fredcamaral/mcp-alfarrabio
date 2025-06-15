@@ -226,7 +226,7 @@ func (s *EnhancedSuggestionService) parseAISuggestionResponse(response *ports.AI
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
-	var suggestions []*entities.TaskSuggestion
+	suggestions := make([]*entities.TaskSuggestion, 0, len(aiResponse.Suggestions))
 
 	for _, aiSuggestion := range aiResponse.Suggestions {
 		// Convert AI suggestion type to entity type
@@ -291,9 +291,8 @@ func (s *EnhancedSuggestionService) generateTemplateSuggestions(workContext *ent
 		return []*entities.TaskSuggestion{}
 	}
 
-	var suggestions []*entities.TaskSuggestion
-
 	// Convert templates to suggestions
+	suggestions := make([]*entities.TaskSuggestion, 0, len(searchResponse.Results))
 	for _, result := range searchResponse.Results {
 		suggestion := entities.NewTaskSuggestion(
 			entities.SuggestionTypeTemplate,
@@ -572,7 +571,7 @@ func (s *EnhancedSuggestionService) applyDefaultRanking(suggestions []*entities.
 		score      float64
 	}
 
-	var scored []scoredSuggestion
+	scored := make([]scoredSuggestion, 0, len(suggestions))
 	for _, suggestion := range suggestions {
 		score := (suggestion.Confidence + suggestion.Relevance + suggestion.Urgency) / 3.0
 		scored = append(scored, scoredSuggestion{suggestion, score})
@@ -587,7 +586,7 @@ func (s *EnhancedSuggestionService) applyDefaultRanking(suggestions []*entities.
 		}
 	}
 
-	var ranked []*entities.TaskSuggestion
+	ranked := make([]*entities.TaskSuggestion, 0, len(scored))
 	for _, s := range scored {
 		ranked = append(ranked, s.suggestion)
 	}

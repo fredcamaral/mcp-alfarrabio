@@ -510,7 +510,7 @@ func (g *DefaultTaskGeneratorService) generateSubTasksFromTask(parentTask *entit
 	// Break down complex task into smaller sub-tasks
 	subTaskDescriptions := g.breakDownComplexTask(parentTask.Content)
 
-	var subTasks []*entities.Task
+	subTasks := make([]*entities.Task, 0, len(subTaskDescriptions))
 	for _, desc := range subTaskDescriptions {
 		subTask := &entities.Task{
 			ID:            uuid.New().String(),
@@ -751,7 +751,7 @@ func (g *DefaultTaskGeneratorService) parseMainTasksFromAI(aiResponse string, _ 
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
-	var mainTasks []*MainTask
+	mainTasks := make([]*MainTask, 0, len(rawTasks))
 	for _, rawTask := range rawTasks {
 		task := &MainTask{
 			Name:        getStringFromMap(rawTask, "name"),
@@ -782,7 +782,7 @@ func (g *DefaultTaskGeneratorService) parseSubTasksFromAI(aiResponse string, _ *
 		return nil, fmt.Errorf("failed to parse AI response: %w", err)
 	}
 
-	var subTasks []*SubTask
+	subTasks := make([]*SubTask, 0, len(rawTasks))
 	for _, rawTask := range rawTasks {
 		task := &SubTask{
 			Name:     getStringFromMap(rawTask, "name"),

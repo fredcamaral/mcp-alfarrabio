@@ -319,7 +319,7 @@ func (ts *templateServiceImpl) InstantiateTemplate(
 	vars["repository"] = repository
 
 	// Create tasks from template
-	var tasks []*entities.Task
+	tasks := make([]*entities.Task, 0, len(template.Tasks))
 	taskMap := make(map[int]*entities.Task) // For dependency resolution
 
 	for _, tmplTask := range template.Tasks {

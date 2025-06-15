@@ -295,7 +295,7 @@ func (h *HealthCheckHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK) // Still return 200 but mark as degraded
 	}
 
-	_, _ = fmt.Fprintf(w, `{
+	if _, err := fmt.Fprintf(w, `{
   "status": "%s",
   "timestamp": "%s",
   "version": "%s",
@@ -312,7 +312,10 @@ func (h *HealthCheckHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
     "websocket": "/ws",
     "sse": "/sse"
   }
-}`, health["status"], health["timestamp"], health["version"], health["uptime"])
+}`, health["status"], health["timestamp"], health["version"], health["uptime"]); err != nil {
+		http.Error(w, "Failed to write health response", http.StatusInternalServerError)
+		return
+	}
 }
 
 // APIExampleGenerator generates example requests and responses for API endpoints

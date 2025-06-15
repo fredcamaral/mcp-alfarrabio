@@ -161,8 +161,11 @@ func (c *Cache) generateKey(req *Request) string {
 			if s, ok := v.(string); ok {
 				h.Write([]byte(s))
 			} else {
-				// Error is ignored as hash.Hash.Write never returns an error
-				_, _ = fmt.Fprintf(h, "%v", v)
+				// hash.Hash.Write never returns an error, but fmt.Fprintf to a hash can fail
+				if _, err := fmt.Fprintf(h, "%v", v); err != nil {
+					// This should never happen with hash.Hash, but handle defensively
+					h.Write([]byte(fmt.Sprintf("%v", v)))
+				}
 			}
 		}
 	}

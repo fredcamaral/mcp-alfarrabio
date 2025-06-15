@@ -417,7 +417,11 @@ func (pd *patternDetectorImpl) GetPatternSuggestions(
 	})
 
 	// Return top patterns
-	var suggestions []*entities.TaskPattern
+	maxPatterns := 5
+	if len(scoredPatterns) < maxPatterns {
+		maxPatterns = len(scoredPatterns)
+	}
+	suggestions := make([]*entities.TaskPattern, 0, maxPatterns)
 	for i, sp := range scoredPatterns {
 		if i >= 5 { // Limit to top 5
 			break
@@ -437,8 +441,8 @@ func (pd *patternDetectorImpl) extractTaskSequences(tasks []*entities.Task) [][]
 		return tasks[i].UpdatedAt.Before(tasks[j].UpdatedAt)
 	})
 
-	var sequences [][]*entities.Task
-	var currentSeq []*entities.Task
+	sequences := make([][]*entities.Task, 0, len(tasks)/3) // Estimate: sequences might be ~1/3 of tasks
+	currentSeq := make([]*entities.Task, 0, 10)           // Estimate: ~10 tasks per sequence
 
 	for i, task := range tasks {
 		if task.Status != "completed" {
@@ -488,7 +492,7 @@ func (pd *patternDetectorImpl) generateSubsequences(
 
 // generatePatternKey creates a unique key for a task sequence
 func (pd *patternDetectorImpl) generatePatternKey(sequence []*entities.Task) string {
-	var keyParts []string
+	keyParts := make([]string, 0, len(sequence))
 	for _, task := range sequence {
 		keyParts = append(keyParts, fmt.Sprintf("%s:%s", task.Type, task.Priority))
 	}
@@ -730,7 +734,7 @@ func (pd *patternDetectorImpl) identifyWorkflowPhases(tasks []*entities.Task) []
 	}
 
 	// Convert to ordered list
-	var phases []string
+	phases := make([]string, 0, len(phaseMap))
 	for phase := range phaseMap {
 		phases = append(phases, phase)
 	}

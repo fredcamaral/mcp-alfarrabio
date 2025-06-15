@@ -324,7 +324,9 @@ func setupHealthHandler(mux *http.ServeMux) {
 			w.Header().Set("Access-Control-Allow-Credentials", "true")
 		}
 		w.Header().Set("Content-Type", "application/json")
-		_, _ = fmt.Fprintf(w, `{"status": "healthy", "server": "lerian-mcp-memory", "mode": "development with hot-reload"}`)
+		if _, err := fmt.Fprintf(w, `{"status": "healthy", "server": "lerian-mcp-memory", "mode": "development with hot-reload"}`); err != nil {
+			log.Printf("Failed to write health check response: %v", err)
+		}
 	})
 }
 

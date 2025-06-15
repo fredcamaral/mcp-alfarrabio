@@ -250,7 +250,7 @@ func (ca *contextAnalyzerImpl) ExtractKeywords(tasks []*entities.Task) []string 
 		count int
 	}
 
-	var pairs []keywordPair
+	pairs := make([]keywordPair, 0, len(keywordFreq))
 	for word, count := range keywordFreq {
 		pairs = append(pairs, keywordPair{word, count})
 	}
@@ -541,7 +541,8 @@ func (ca *contextAnalyzerImpl) AnalyzeWorkingHours(sessions []*entities.Session)
 	}
 
 	// Analyze start and end times
-	var startTimes, endTimes []time.Time
+	startTimes := make([]time.Time, 0, len(sessions))
+	endTimes := make([]time.Time, 0, len(sessions))
 	energyPattern := make(map[string]float64)
 	weekDays := make(map[time.Weekday]bool)
 
@@ -1306,7 +1307,7 @@ func (ca *contextAnalyzerImpl) findPeakHours(energyPattern map[string]float64) [
 		energy float64
 	}
 
-	var pairs []hourEnergy
+	pairs := make([]hourEnergy, 0, len(energyPattern))
 	for hour, energy := range energyPattern {
 		pairs = append(pairs, hourEnergy{hour, energy})
 	}

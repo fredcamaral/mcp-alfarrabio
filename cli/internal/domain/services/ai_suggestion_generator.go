@@ -148,10 +148,9 @@ func (ai *aiSuggestionGeneratorImpl) GenerateCreativeSuggestions(
 
 	ai.logger.Info("generating creative AI suggestions")
 
-	var suggestions []*entities.TaskSuggestion
-
 	// Analyze potential for creative work
 	creativeOpportunities := ai.identifyCreativeOpportunities(workContext)
+	suggestions := make([]*entities.TaskSuggestion, 0, len(creativeOpportunities))
 
 	for _, opportunity := range creativeOpportunities {
 		suggestion := entities.NewTaskSuggestion(
@@ -194,10 +193,9 @@ func (ai *aiSuggestionGeneratorImpl) GenerateLearningPathSuggestions(
 
 	ai.logger.Info("generating learning path AI suggestions")
 
-	var suggestions []*entities.TaskSuggestion
-
 	// Identify knowledge gaps and learning opportunities
 	learningGaps := ai.identifyLearningGaps(workContext)
+	suggestions := make([]*entities.TaskSuggestion, 0, len(learningGaps))
 
 	for _, gap := range learningGaps {
 		suggestion := entities.NewTaskSuggestion(
@@ -238,10 +236,9 @@ func (ai *aiSuggestionGeneratorImpl) GenerateProductivityOptimizations(
 ) ([]*entities.TaskSuggestion, error) {
 	ai.logger.Info("generating productivity optimization suggestions")
 
-	var suggestions []*entities.TaskSuggestion
-
 	// Analyze productivity bottlenecks
 	bottlenecks := ai.analyzeProductivityBottlenecks(workContext)
+	suggestions := make([]*entities.TaskSuggestion, 0, len(bottlenecks))
 
 	for _, bottleneck := range bottlenecks {
 		suggestion := entities.NewTaskSuggestion(
@@ -281,10 +278,9 @@ func (ai *aiSuggestionGeneratorImpl) GenerateWorkflowImprovements(
 ) ([]*entities.TaskSuggestion, error) {
 	ai.logger.Info("generating workflow improvement suggestions")
 
-	var suggestions []*entities.TaskSuggestion
-
 	// Analyze workflow inefficiencies
 	improvements := ai.analyzeWorkflowImprovements(workContext)
+	suggestions := make([]*entities.TaskSuggestion, 0, len(improvements))
 
 	for _, improvement := range improvements {
 		suggestion := entities.NewTaskSuggestion(
@@ -324,10 +320,9 @@ func (ai *aiSuggestionGeneratorImpl) GenerateGoalAlignedSuggestions(
 ) ([]*entities.TaskSuggestion, error) {
 	ai.logger.Info("generating goal-aligned suggestions")
 
-	var suggestions []*entities.TaskSuggestion
-
 	// Analyze goal alignment opportunities
 	alignments := ai.analyzeGoalAlignment(workContext)
+	suggestions := make([]*entities.TaskSuggestion, 0, len(alignments))
 
 	for _, alignment := range alignments {
 		suggestion := entities.NewTaskSuggestion(
@@ -567,10 +562,9 @@ func (ai *aiSuggestionGeneratorImpl) GenerateTaskBreakdown(task *entities.Task) 
 		return nil, nil // No breakdown needed
 	}
 
-	var suggestions []*entities.TaskSuggestion
-
 	// Generate breakdown based on task type and content
 	breakdownSteps := ai.generateBreakdownSteps(task, complexity)
+	suggestions := make([]*entities.TaskSuggestion, 0, len(breakdownSteps))
 
 	for i, step := range breakdownSteps {
 		suggestion := entities.NewTaskSuggestion(
@@ -619,16 +613,15 @@ func (ai *aiSuggestionGeneratorImpl) SuggestTaskOptimizations(
 ) ([]*entities.TaskSuggestion, error) {
 	ai.logger.Debug("generating task optimizations", slog.String("task_id", task.ID))
 
-	var suggestions []*entities.TaskSuggestion
-
 	// Analyze similar historical tasks
 	similarTasks := ai.findSimilarTasks(task, historical)
 	if len(similarTasks) == 0 {
-		return suggestions, nil
+		return nil, nil
 	}
 
 	// Generate optimization insights
 	optimizations := ai.analyzeTaskOptimizations(task, similarTasks)
+	suggestions := make([]*entities.TaskSuggestion, 0, len(optimizations))
 
 	for _, opt := range optimizations {
 		suggestion := entities.NewTaskSuggestion(
