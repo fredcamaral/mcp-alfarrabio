@@ -393,16 +393,17 @@ func (te *TemplateEngine) calculateTotalEstimatedTime(tasks []GeneratedTask) str
 	}
 
 	// Convert to human readable format
-	if totalMinutes < 60 {
+	switch {
+	case totalMinutes < 60:
 		return fmt.Sprintf("%dm", totalMinutes)
-	} else if totalMinutes < 60*24 {
+	case totalMinutes < 60*24:
 		hours := totalMinutes / 60
 		remainingMinutes := totalMinutes % 60
 		if remainingMinutes == 0 {
 			return fmt.Sprintf("%dh", hours)
 		}
 		return fmt.Sprintf("%dh %dm", hours, remainingMinutes)
-	} else {
+	default:
 		days := totalMinutes / (60 * 24)
 		remainingHours := (totalMinutes % (60 * 24)) / 60
 		if remainingHours == 0 {

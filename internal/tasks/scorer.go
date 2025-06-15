@@ -605,13 +605,14 @@ func (s *Scorer) generateRecommendations(task *types.Task, issues []types.Qualit
 
 // GetQualityLevel returns a human-readable quality level based on score
 func (s *Scorer) GetQualityLevel(score float64) string {
-	if score >= s.config.QualityThresholds.Excellent {
+	switch {
+	case score >= s.config.QualityThresholds.Excellent:
 		return "Excellent"
-	} else if score >= s.config.QualityThresholds.Good {
+	case score >= s.config.QualityThresholds.Good:
 		return "Good"
-	} else if score >= s.config.QualityThresholds.Fair {
+	case score >= s.config.QualityThresholds.Fair:
 		return "Fair"
-	} else {
+	default:
 		return "Poor"
 	}
 }

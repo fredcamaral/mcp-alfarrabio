@@ -128,25 +128,26 @@ func (c *Container) initializeAIService(cfg *config.Config) error {
 	var timeout time.Duration
 
 	// Check which provider is enabled and configured
-	if cfg.AI.Claude.Enabled && cfg.AI.Claude.APIKey != "" {
+	switch {
+	case cfg.AI.Claude.Enabled && cfg.AI.Claude.APIKey != "":
 		provider = "claude"
 		apiKey = cfg.AI.Claude.APIKey
 		baseURL = cfg.AI.Claude.BaseURL
 		model = cfg.AI.Claude.Model
 		timeout = cfg.AI.Claude.Timeout
-	} else if cfg.AI.OpenAI.Enabled && cfg.AI.OpenAI.APIKey != "" {
+	case cfg.AI.OpenAI.Enabled && cfg.AI.OpenAI.APIKey != "":
 		provider = "openai"
 		apiKey = cfg.AI.OpenAI.APIKey
 		baseURL = cfg.AI.OpenAI.BaseURL
 		model = cfg.AI.OpenAI.Model
 		timeout = cfg.AI.OpenAI.Timeout
-	} else if cfg.AI.Perplexity.Enabled && cfg.AI.Perplexity.APIKey != "" {
+	case cfg.AI.Perplexity.Enabled && cfg.AI.Perplexity.APIKey != "":
 		provider = "perplexity"
 		apiKey = cfg.AI.Perplexity.APIKey
 		baseURL = cfg.AI.Perplexity.BaseURL
 		model = cfg.AI.Perplexity.Model
 		timeout = cfg.AI.Perplexity.Timeout
-	} else {
+	default:
 		// No real AI provider is configured - return a configuration error
 		return errors.New("no AI provider configured: please configure at least one AI provider (Claude, OpenAI, or Perplexity) in your environment variables or config file. Set API keys via CLAUDE_API_KEY, OPENAI_API_KEY, or PERPLEXITY_API_KEY and enable them via CLAUDE_ENABLED=true, OPENAI_ENABLED=true, or PERPLEXITY_ENABLED=true")
 	}

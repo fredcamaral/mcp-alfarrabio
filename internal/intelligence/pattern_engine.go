@@ -1471,13 +1471,14 @@ func (pe *PatternEngine) createBasicPattern(chunks []types.ConversationChunk, ou
 
 	// Determine pattern type based on content
 	var patternType PatternType
-	if pe.patternRegexes["error"].MatchString(strings.ToLower(text)) {
+	switch {
+	case pe.patternRegexes["error"].MatchString(strings.ToLower(text)):
 		patternType = PatternTypeError
-	} else if pe.patternRegexes["code"].MatchString(text) {
+	case pe.patternRegexes["code"].MatchString(text):
 		patternType = PatternTypeCode
-	} else if pe.patternRegexes["command"].MatchString(strings.ToLower(text)) {
+	case pe.patternRegexes["command"].MatchString(strings.ToLower(text)):
 		patternType = PatternTypeWorkflow
-	} else {
+	default:
 		patternType = PatternTypeBehavioral
 	}
 

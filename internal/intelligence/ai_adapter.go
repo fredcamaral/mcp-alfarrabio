@@ -52,13 +52,14 @@ func (a *AIServiceAdapter) ProcessRequest(ctx context.Context, req *internalAI.R
 
 	// Generate different responses based on the system prompt context
 	var responseContent string
-	if contains(systemPrompt, "pattern recognition") {
+	switch {
+	case contains(systemPrompt, "pattern recognition"):
 		responseContent = a.generatePatternIdentificationResponse(userContent, complexity)
-	} else if contains(systemPrompt, "pattern learning") {
+	case contains(systemPrompt, "pattern learning"):
 		responseContent = a.generatePatternLearningResponse(userContent, complexity)
-	} else if contains(systemPrompt, "pattern suggestion") {
+	case contains(systemPrompt, "pattern suggestion"):
 		responseContent = a.generatePatternSuggestionResponse(userContent, complexity)
-	} else {
+	default:
 		// Default pattern response
 		responseContent = a.generatePatternResponse(content, complexity)
 	}
@@ -84,11 +85,12 @@ func (a *AIServiceAdapter) generatePatternResponse(_ string, complexity int) str
 	// In a real implementation, this would use the AI service to generate actual pattern analysis
 
 	patternType := "workflow"
-	if complexity > 7 {
+	switch {
+	case complexity > 7:
 		patternType = "architectural"
-	} else if complexity > 5 {
+	case complexity > 5:
 		patternType = "code"
-	} else if complexity < 3 {
+	case complexity < 3:
 		patternType = "behavioral"
 	}
 
@@ -185,16 +187,17 @@ func (a *AIServiceAdapter) generatePatternLearningResponse(content string, compl
 	patternType := "behavioral"
 	category := "general"
 
-	if strings.Contains(contentLower, "code") || strings.Contains(contentLower, "function") {
+	switch {
+	case strings.Contains(contentLower, "code") || strings.Contains(contentLower, "function"):
 		patternType = "code"
 		category = "programming"
-	} else if strings.Contains(contentLower, "error") || strings.Contains(contentLower, "bug") {
+	case strings.Contains(contentLower, "error") || strings.Contains(contentLower, "bug"):
 		patternType = "error"
 		category = "troubleshooting"
-	} else if strings.Contains(contentLower, "workflow") || strings.Contains(contentLower, "process") {
+	case strings.Contains(contentLower, "workflow") || strings.Contains(contentLower, "process"):
 		patternType = "workflow"
 		category = "process"
-	} else if complexity > 7 {
+	case complexity > 7:
 		patternType = "architectural"
 		category = "design"
 	}
