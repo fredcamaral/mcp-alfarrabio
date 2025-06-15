@@ -224,27 +224,27 @@ func (m REPLModel) handleWindowResize(msg tea.WindowSizeMsg) REPLModel {
 // handleKeyInput handles keyboard input
 func (m REPLModel) handleKeyInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	key := msg.String()
-	
+
 	// Handle global keys first
 	if model, cmd := m.handleGlobalKeys(key); cmd != nil {
 		return model, cmd
 	}
-	
+
 	// Handle view mode switches
 	if newModel := m.handleViewModeKeys(key); newModel.viewMode != m.viewMode {
 		return newModel, nil
 	}
-	
+
 	// Handle help keys
 	if m.handleHelpKeys(key) {
 		return m, nil
 	}
-	
+
 	// Handle tab navigation
 	if m.handleTabNavigation(key) {
 		return m, nil
 	}
-	
+
 	// Handle input based on current view mode
 	return m.handleModeSpecificInput(msg), nil
 }
@@ -272,10 +272,10 @@ func (m REPLModel) handleViewModeKeys(key string) REPLModel {
 		"f5": ViewModePatterns, "F5": ViewModePatterns, "ctrl+5": ViewModePatterns, "alt+5": ViewModePatterns,
 		"f6": ViewModeInsights, "F6": ViewModeInsights, "ctrl+6": ViewModeInsights, "alt+6": ViewModeInsights,
 	}
-	
+
 	if mode, exists := viewModes[key]; exists {
 		m.viewMode = mode
-		
+
 		// Load data for specific modes
 		switch mode {
 		case ViewModeDashboard:
@@ -284,7 +284,7 @@ func (m REPLModel) handleViewModeKeys(key string) REPLModel {
 			m.loadAnalyticsData()
 		}
 	}
-	
+
 	return m
 }
 
@@ -317,7 +317,7 @@ func (m REPLModel) handleModeSpecificInput(msg tea.KeyMsg) REPLModel {
 // handleCommandInput handles input in command mode
 func (m REPLModel) handleCommandInput(msg tea.KeyMsg) REPLModel {
 	key := msg.String()
-	
+
 	switch key {
 	case "enter":
 		return m.handleEnterKey()
@@ -378,7 +378,7 @@ func (m REPLModel) handleCursorLeft() REPLModel {
 	return m
 }
 
-// handleCursorRight handles right arrow key  
+// handleCursorRight handles right arrow key
 func (m REPLModel) handleCursorRight() REPLModel {
 	if m.cursor < len(m.input) {
 		m.cursor++
@@ -415,7 +415,7 @@ func (m REPLModel) handleCharacterInput(key string) REPLModel {
 // handleNavigationInput handles input in dashboard/analytics modes
 func (m REPLModel) handleNavigationInput(msg tea.KeyMsg) REPLModel {
 	key := msg.String()
-	
+
 	switch {
 	case key == "j" || key == "down":
 		return m.handleVerticalNavigation(true)
@@ -432,7 +432,7 @@ func (m REPLModel) handleNavigationInput(msg tea.KeyMsg) REPLModel {
 	case key == "d" || key == "w" || key == "m":
 		return m.handleTimeRangeSwitching(key)
 	}
-	
+
 	return m
 }
 
@@ -469,7 +469,7 @@ func (m REPLModel) handleChartSwitching(key string) REPLModel {
 	if m.viewMode != ViewModeAnalytics {
 		return m
 	}
-	
+
 	charts := []string{"productivity", "velocity", "completion", "patterns"}
 	if idx := int(key[0] - '1'); idx < len(charts) {
 		m.chartType = charts[idx]

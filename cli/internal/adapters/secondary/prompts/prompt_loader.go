@@ -11,9 +11,10 @@ import (
 	"strconv"
 	"strings"
 
+	"lerian-mcp-memory-cli/internal/domain/entities"
+
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
 // PromptLoader loads review prompts from the filesystem

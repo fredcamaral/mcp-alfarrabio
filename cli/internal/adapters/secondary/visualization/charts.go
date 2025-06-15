@@ -6,9 +6,10 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/entities"
+
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
 // Visualizer interface for generating different types of visualizations

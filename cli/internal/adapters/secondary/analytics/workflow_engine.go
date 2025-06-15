@@ -36,7 +36,7 @@ func (ae *workflowAnalyticsEngine) CalculateProductivityMetrics(ctx context.Cont
 
 	taskMetrics := ae.analyzeTaskMetrics(tasks)
 	sessionMetrics := ae.analyzeSessionMetrics(sessions)
-	
+
 	completionRate := taskMetrics.completionRate
 	deepWorkRatio := sessionMetrics.deepWorkRatio
 	tasksPerDay := float64(len(tasks)) / 7.0 // Assume weekly data
@@ -58,16 +58,16 @@ func (ae *workflowAnalyticsEngine) CalculateProductivityMetrics(ctx context.Cont
 
 // taskAnalysisResult holds the results of task analysis
 type taskAnalysisResult struct {
-	completionRate   float64
-	totalFocusTime   time.Duration
-	byPriority       map[string]float64
-	byType           map[string]float64
+	completionRate float64
+	totalFocusTime time.Duration
+	byPriority     map[string]float64
+	byType         map[string]float64
 }
 
 // sessionAnalysisResult holds the results of session analysis
 type sessionAnalysisResult struct {
-	deepWorkRatio     float64
-	contextSwitches   int
+	deepWorkRatio   float64
+	contextSwitches int
 }
 
 // analyzeTaskMetrics analyzes task-related metrics
@@ -75,7 +75,7 @@ func (ae *workflowAnalyticsEngine) analyzeTaskMetrics(tasks []*entities.Task) ta
 	totalTasks := float64(len(tasks))
 	completedTasks := 0
 	totalFocusTime := time.Duration(0)
-	
+
 	byPriority := make(map[string]float64)
 	byType := make(map[string]float64)
 	priorityCounts := make(map[string]int)
@@ -110,7 +110,7 @@ func (ae *workflowAnalyticsEngine) updateCounts(task *entities.Task, priorityCou
 	priority := string(task.Priority)
 	priorityCounts[priority]++
 	typeCounts[task.Type]++
-	
+
 	if task.Status == entities.StatusCompleted {
 		byPriority[priority]++
 		byType[task.Type]++

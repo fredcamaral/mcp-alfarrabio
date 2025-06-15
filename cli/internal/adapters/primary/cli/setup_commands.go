@@ -87,7 +87,7 @@ func (c *CLI) runInteractiveSetup(cmd *cobra.Command) error {
 	}
 
 	availableProviders := c.configureAIProviders(out, config)
-	
+
 	if err := c.setupProjectStructure(out, reader); err != nil {
 		return err
 	}

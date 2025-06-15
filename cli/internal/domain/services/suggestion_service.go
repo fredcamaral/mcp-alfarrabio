@@ -240,7 +240,7 @@ func (ss *suggestionServiceImpl) GenerateNextTaskSuggestions(
 		maxSuggestions = len(scoredTasks)
 	}
 	suggestions := make([]*entities.TaskSuggestion, 0, maxSuggestions)
-	
+
 	for i, ts := range scoredTasks {
 		if i >= ss.config.MaxSuggestionsPerType {
 			break

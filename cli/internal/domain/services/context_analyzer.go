@@ -415,7 +415,7 @@ func (ca *contextAnalyzerImpl) checkVelocityStress(
 
 // checkWorkPeriodStress checks for stress from long work periods
 func (ca *contextAnalyzerImpl) checkWorkPeriodStress(
-	currentSession *entities.WorkSession,
+	currentSession *entities.Session,
 	indicators *[]entities.StressIndicator,
 	stressFactors *[]float64,
 ) {
@@ -436,7 +436,7 @@ func (ca *contextAnalyzerImpl) checkWorkPeriodStress(
 
 // checkInterruptionStress checks for stress from high interruption rate
 func (ca *contextAnalyzerImpl) checkInterruptionStress(
-	currentSession *entities.WorkSession,
+	currentSession *entities.Session,
 	indicators *[]entities.StressIndicator,
 	stressFactors *[]float64,
 ) {

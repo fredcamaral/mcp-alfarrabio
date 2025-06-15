@@ -10,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/entities"
+
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
-	"lerian-mcp-memory-cli/internal/domain/entities"
 
 	"github.com/spf13/cobra"
 )
@@ -516,7 +517,7 @@ func (c *CLI) displayReviewProgress(session *entities.ReviewSession) {
 func (c *CLI) displayPhaseProgress(session *entities.ReviewSession) {
 	fmt.Printf("\n📈 Phase Progress\n")
 	fmt.Printf("----------------\n")
-	
+
 	phaseOrder := []entities.ReviewPhase{
 		entities.PhaseFoundation,
 		entities.PhaseSecurity,

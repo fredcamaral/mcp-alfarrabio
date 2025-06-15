@@ -164,7 +164,8 @@ func (c *Cache) generateKey(req *Request) string {
 				// hash.Hash.Write never returns an error, but fmt.Fprintf to a hash can fail
 				if _, err := fmt.Fprintf(h, "%v", v); err != nil {
 					// This should never happen with hash.Hash, but handle defensively
-					h.Write([]byte(fmt.Sprintf("%v", v)))
+					// Use fmt.Fprintf as gocritic prefers it over fmt.Sprintf + Write
+					_, _ = fmt.Fprintf(h, "%v", v) // Safe to ignore error for hash.Hash
 				}
 			}
 		}

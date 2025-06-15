@@ -8,10 +8,11 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/text/cases"
-	"golang.org/x/text/language"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 	"lerian-mcp-memory-cli/internal/domain/services"
+
+	"golang.org/x/text/cases"
+	"golang.org/x/text/language"
 
 	"github.com/spf13/cobra"
 )

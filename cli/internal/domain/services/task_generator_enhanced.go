@@ -129,7 +129,7 @@ func (g *DefaultTaskGeneratorService) GenerateFromAnalysis(ctx context.Context, 
 		slog.Int("features", len(analysis.KeyFeatures)),
 		slog.Int("tech_reqs", len(analysis.TechnicalReqs)))
 
-	// Pre-allocate with estimate: features + technical requirements  
+	// Pre-allocate with estimate: features + technical requirements
 	estimatedTasks := len(analysis.KeyFeatures) + len(analysis.TechnicalReqs)
 	tasks := make([]*entities.Task, 0, estimatedTasks)
 

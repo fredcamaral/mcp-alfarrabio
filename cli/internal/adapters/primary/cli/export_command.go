@@ -307,18 +307,18 @@ func (c *CLI) performExport(tasks []*entities.Task, opts *ExportOptions, fields 
 	outputFile := c.generateOutputFileName(opts)
 
 	exportFunctions := map[string]func([]*entities.Task, string, *ExportOptions, []string) (int64, error){
-		constants.OutputFormatJSON:              c.exportJSON,
-		constants.FormatYAML:                    c.exportYAML,
-		"yml":                                   c.exportYAML,
-		constants.FormatCSV:                     c.exportCSV,
-		constants.FormatTSV:                     c.exportTSV,
-		constants.FormatXML:                     c.exportXML,
-		constants.FormatPDF:                     c.exportPDF,
-		constants.FormatHTML:                    c.exportHTML,
-		constants.FormatMarkdown:                c.exportMarkdown,
-		"md":                                    c.exportMarkdown,
-		"archive":                               c.exportArchive,
-		constants.FormatZip:                     c.exportArchive,
+		constants.OutputFormatJSON: c.exportJSON,
+		constants.FormatYAML:       c.exportYAML,
+		"yml":                      c.exportYAML,
+		constants.FormatCSV:        c.exportCSV,
+		constants.FormatTSV:        c.exportTSV,
+		constants.FormatXML:        c.exportXML,
+		constants.FormatPDF:        c.exportPDF,
+		constants.FormatHTML:       c.exportHTML,
+		constants.FormatMarkdown:   c.exportMarkdown,
+		"md":                       c.exportMarkdown,
+		"archive":                  c.exportArchive,
+		constants.FormatZip:        c.exportArchive,
 	}
 
 	exportFunc, exists := exportFunctions[strings.ToLower(opts.Format)]

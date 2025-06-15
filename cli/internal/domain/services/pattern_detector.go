@@ -442,7 +442,7 @@ func (pd *patternDetectorImpl) extractTaskSequences(tasks []*entities.Task) [][]
 	})
 
 	sequences := make([][]*entities.Task, 0, len(tasks)/3) // Estimate: sequences might be ~1/3 of tasks
-	currentSeq := make([]*entities.Task, 0, 10)           // Estimate: ~10 tasks per sequence
+	currentSeq := make([]*entities.Task, 0, 10)            // Estimate: ~10 tasks per sequence
 
 	for i, task := range tasks {
 		if task.Status != "completed" {

@@ -370,9 +370,7 @@ func (h *RealtimeHandler) handleTaskDeleted(ctx context.Context, event *MemoryCh
 
 // convertEventToTask converts a memory change event to a task entity
 func (h *RealtimeHandler) convertEventToTask(event *MemoryChangeEvent) (*entities.Task, error) {
-	// Extract task data from the event metadata
-	metadata := event.Metadata
-	if metadata == nil {
+	if event.Metadata == nil {
 		return nil, errors.New("no metadata in task event")
 	}
 
@@ -383,7 +381,15 @@ func (h *RealtimeHandler) convertEventToTask(event *MemoryChangeEvent) (*entitie
 		CreatedAt:  event.Timestamp,
 	}
 
-	// Extract fields from metadata
+	h.extractTaskFields(task, event.Metadata)
+	h.extractTaskTags(task, event.Metadata)
+	h.storeRemainingMetadata(task, event.Metadata)
+
+	return task, nil
+}
+
+// extractTaskFields extracts basic task fields from metadata
+func (h *RealtimeHandler) extractTaskFields(task *entities.Task, metadata map[string]interface{}) {
 	if content, ok := metadata["content"].(string); ok {
 		task.Content = content
 	}
@@ -403,25 +409,40 @@ func (h *RealtimeHandler) convertEventToTask(event *MemoryChangeEvent) (*entitie
 	if estimatedMins, ok := metadata["estimated_mins"].(float64); ok {
 		task.EstimatedMins = int(estimatedMins)
 	}
+}
 
-	if tags, ok := metadata["tags"].([]interface{}); ok {
-		task.Tags = make([]string, len(tags))
-		for i, tag := range tags {
-			if tagStr, ok := tag.(string); ok {
-				task.Tags[i] = tagStr
-			}
-		}
+// extractTaskTags extracts tags from metadata
+func (h *RealtimeHandler) extractTaskTags(task *entities.Task, metadata map[string]interface{}) {
+	tags, ok := metadata["tags"].([]interface{})
+	if !ok {
+		return
 	}
 
-	// Store additional metadata if available
+	task.Tags = make([]string, len(tags))
+	for i, tag := range tags {
+		if tagStr, ok := tag.(string); ok {
+			task.Tags[i] = tagStr
+		}
+	}
+}
+
+// storeRemainingMetadata stores non-standard fields in task metadata
+func (h *RealtimeHandler) storeRemainingMetadata(task *entities.Task, metadata map[string]interface{}) {
+	standardFields := map[string]bool{
+		"content":        true,
+		"type":           true,
+		"status":         true,
+		"priority":       true,
+		"estimated_mins": true,
+		"tags":           true,
+	}
+
 	task.Metadata = make(map[string]interface{})
 	for k, v := range metadata {
-		if k != "content" && k != "type" && k != "status" && k != "priority" && k != "estimated_mins" && k != "tags" {
+		if !standardFields[k] {
 			task.Metadata[k] = v
 		}
 	}
-
-	return task, nil
 }
 
 // Enable enables real-time sync handling
