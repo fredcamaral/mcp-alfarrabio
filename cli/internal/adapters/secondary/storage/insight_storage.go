@@ -78,12 +78,7 @@ func (s *FileInsightStorage) Create(ctx context.Context, insight *entities.Cross
 
 	insights = append(insights, insight)
 
-	if err := s.saveInsightsToFile(filePath, insights); err != nil {
-		return fmt.Errorf("failed to save insights: %w", err)
-	}
-
-	s.logger.Debug("insight created", slog.String("id", insight.ID))
-	return nil
+	return s.saveInsightsWithLogging(filePath, insights, "created", insight.ID)
 }
 
 // Update updates an existing insight
@@ -114,11 +109,17 @@ func (s *FileInsightStorage) Update(ctx context.Context, insight *entities.Cross
 		return fmt.Errorf("insight with ID %s not found", insight.ID)
 	}
 
+	return s.saveInsightsWithLogging(filePath, insights, "updated", insight.ID)
+}
+
+// saveInsightsWithLogging saves insights to file with consistent error handling and logging
+// This eliminates code duplication between Create and Update methods
+func (s *FileInsightStorage) saveInsightsWithLogging(filePath string, insights []*entities.CrossRepoInsight, operation string, insightID string) error {
 	if err := s.saveInsightsToFile(filePath, insights); err != nil {
 		return fmt.Errorf("failed to save insights: %w", err)
 	}
-
-	s.logger.Debug("insight updated", slog.String("id", insight.ID))
+	
+	s.logger.Debug("insight "+operation, slog.String("id", insightID))
 	return nil
 }
 
