@@ -509,6 +509,7 @@ func (c *CLI) testMCPConnection(url string) error {
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 

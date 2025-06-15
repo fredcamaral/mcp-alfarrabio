@@ -207,14 +207,14 @@ func (fa *fileAnalyzerImpl) walkDirectory(ctx context.Context, basePath, relativ
 			}
 		} else {
 			// Analyze file
-			fa.analyzeFile(entryPath, relativeEntryPath, entry, analysis)
+			fa.analyzeFile(relativeEntryPath, entry, analysis)
 		}
 	}
 
 	return nil
 }
 
-func (fa *fileAnalyzerImpl) analyzeFile(_, relativePath string, entry fs.DirEntry, analysis *services.DirectoryAnalysis) {
+func (fa *fileAnalyzerImpl) analyzeFile(relativePath string, entry fs.DirEntry, analysis *services.DirectoryAnalysis) {
 	analysis.TotalFiles++
 
 	// Get file extension

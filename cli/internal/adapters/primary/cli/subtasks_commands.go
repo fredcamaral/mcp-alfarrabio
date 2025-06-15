@@ -153,6 +153,7 @@ func (c *CLI) loadMainTask(taskID string) *services.MainTask {
 	if tasksFile != "" {
 		// TODO: Implement actual task loading from file
 		// For now, check if it's a known format
+		_ = tasksFile // Acknowledge we're not using this yet
 	}
 
 	// For now, return a mock task

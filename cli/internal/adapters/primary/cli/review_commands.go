@@ -372,6 +372,7 @@ func (c *CLI) runReviewStart(path, phase, _, aiProvider, model, output string) e
 	defer func() {
 		if err := os.Chdir(originalDir); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 

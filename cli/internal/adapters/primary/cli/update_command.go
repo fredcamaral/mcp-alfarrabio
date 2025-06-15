@@ -154,6 +154,7 @@ func (c *CLI) getLatestRelease(includePrerelease bool) (*GitHubRelease, error) {
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 
@@ -217,6 +218,7 @@ func (c *CLI) downloadAndInstall(downloadURL, filename string) error {
 	defer func() {
 		if err := os.RemoveAll(tempDir); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 
@@ -287,6 +289,7 @@ func (c *CLI) downloadFile(url, filePath string) error {
 	defer func() {
 		if err := resp.Body.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 
@@ -301,6 +304,7 @@ func (c *CLI) downloadFile(url, filePath string) error {
 	defer func() {
 		if err := out.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 
@@ -328,6 +332,7 @@ func (c *CLI) extractFromZip(zipPath, extractDir string) (string, error) {
 	defer func() {
 		if err := r.Close(); err != nil {
 			// Log error but don't return as we're in defer
+			_ = err // Explicitly acknowledge we're discarding the error
 		}
 	}()
 

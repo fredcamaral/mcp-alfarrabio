@@ -253,6 +253,7 @@ func (s *HTTPAIService) makeRequest(ctx context.Context, method, endpoint string
 	defer func() {
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			// Log error but don't return it as the main response is more important
+			_ = closeErr // Explicitly acknowledge we're discarding the error
 		}
 	}()
 

@@ -644,10 +644,10 @@ func (c *CLI) formatSearchChunks(cmd *cobra.Command, chunks []interface{}, proje
 			continue
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "ID: %s\n", chunkMap["id"].(string))
-		fmt.Fprintf(cmd.OutOrStdout(), "Content: %s\n", chunkMap["content"].(string))
-		fmt.Fprintf(cmd.OutOrStdout(), "Repository: %s\n", project)
-		fmt.Fprintf(cmd.OutOrStdout(), "Score: %.2f\n\n", chunkMap["score"])
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ID: %s\n", chunkMap["id"].(string))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Content: %s\n", chunkMap["content"].(string))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Repository: %s\n", project)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Score: %.2f\n\n", chunkMap["score"])
 	}
 }
 
@@ -676,12 +676,12 @@ func (c *CLI) runMemoryGet(cmd *cobra.Command, _, id, format string) error {
 	// Format output
 	if format == constants.OutputFormatJSON {
 		jsonData, _ := json.MarshalIndent(result, "", "  ")
-		fmt.Fprintf(cmd.OutOrStdout(), "%s\n", string(jsonData))
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", string(jsonData))
 	} else {
 		if content, ok := result["content"].(string); ok {
-			fmt.Fprintf(cmd.OutOrStdout(), "%s\n", content)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%s\n", content)
 		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), "%v\n", result)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%v\n", result)
 		}
 	}
 
@@ -724,13 +724,13 @@ func (c *CLI) runMemoryList(cmd *cobra.Command, memoryType, project string, limi
 	if chunks, ok := result["recent_chunks"].([]interface{}); ok {
 		for _, chunk := range chunks {
 			if chunkMap, ok := chunk.(map[string]interface{}); ok {
-				fmt.Fprintf(cmd.OutOrStdout(), "ID: %s\n", chunkMap["id"].(string))
-				fmt.Fprintf(cmd.OutOrStdout(), "Type: [%s]\n", chunkMap["type"])
-				fmt.Fprintf(cmd.OutOrStdout(), "Repository: %s\n\n", project)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "ID: %s\n", chunkMap["id"].(string))
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Type: [%s]\n", chunkMap["type"])
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Repository: %s\n\n", project)
 			}
 		}
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "No memories found\n")
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "No memories found\n")
 	}
 
 	return nil
