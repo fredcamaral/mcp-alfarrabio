@@ -457,6 +457,16 @@ func (s *Session) Validate() error {
 	return validate.Struct(s)
 }
 
+// GetID returns the session ID (implements Entity interface)
+func (s *Session) GetID() string {
+	return s.ID
+}
+
+// GetRepository returns the session repository (implements Entity interface)
+func (s *Session) GetRepository() string {
+	return s.Repository
+}
+
 // ToJSON converts the session to JSON
 func (s *Session) ToJSON() ([]byte, error) {
 	return json.Marshal(s)

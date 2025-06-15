@@ -157,6 +157,16 @@ func (p *TaskPattern) Validate() error {
 	return validate.Struct(p)
 }
 
+// GetID returns the pattern ID (implements Entity interface)
+func (p *TaskPattern) GetID() string {
+	return p.ID
+}
+
+// GetRepository returns the pattern repository (implements Entity interface)
+func (p *TaskPattern) GetRepository() string {
+	return p.Repository
+}
+
 // AddOccurrence updates pattern statistics with a new occurrence
 func (p *TaskPattern) AddOccurrence(outcome *PatternOutcome) {
 	p.Occurrences++
