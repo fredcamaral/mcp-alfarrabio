@@ -561,80 +561,58 @@ func (s *TaskService) matchesAdvancedFilters(task *entities.Task, filters *ports
 	}
 
 	// Search filter
-	if filters.Search != "" {
-		if !s.taskMatchesSearch(task, filters.Search) {
-			return false
-		}
+	if !s.matchesSearchFilter(task, filters.Search) {
+		return false
 	}
 
+	// Date filters
+	if !s.matchesDateFilters(task, filters) {
+		return false
+	}
+
+	// Status-based filters
+	if !s.matchesStatusFilters(task, filters) {
+		return false
+	}
+
+	return true
+}
+
+// matchesSearchFilter checks if task matches search criteria
+func (s *TaskService) matchesSearchFilter(task *entities.Task, search string) bool {
+	if search == "" {
+		return true
+	}
+	return s.taskMatchesSearch(task, search)
+}
+
+// matchesDateFilters checks all date-based filters
+func (s *TaskService) matchesDateFilters(task *entities.Task, filters *ports.TaskFilters) bool {
 	// Creation date filters
-	if filters.CreatedAfter != nil {
-		if after, err := time.Parse(time.RFC3339, *filters.CreatedAfter); err == nil {
-			if task.CreatedAt.Before(after) {
-				return false
-			}
-		}
-	}
-
-	if filters.CreatedBefore != nil {
-		if before, err := time.Parse(time.RFC3339, *filters.CreatedBefore); err == nil {
-			if task.CreatedAt.After(before) {
-				return false
-			}
-		}
+	if !s.matchesDateRange(task.CreatedAt, filters.CreatedAfter, filters.CreatedBefore) {
+		return false
 	}
 
 	// Update date filters
-	if filters.UpdatedAfter != nil {
-		if after, err := time.Parse(time.RFC3339, *filters.UpdatedAfter); err == nil {
-			if task.UpdatedAt.Before(after) {
-				return false
-			}
-		}
+	if !s.matchesDateRange(task.UpdatedAt, filters.UpdatedAfter, filters.UpdatedBefore) {
+		return false
 	}
 
-	if filters.UpdatedBefore != nil {
-		if before, err := time.Parse(time.RFC3339, *filters.UpdatedBefore); err == nil {
-			if task.UpdatedAt.After(before) {
-				return false
-			}
-		}
+	// Due date filters (handle nil due dates)
+	if !s.matchesOptionalDateRange(task.DueDate, filters.DueAfter, filters.DueBefore) {
+		return false
 	}
 
-	// Due date filters
-	if filters.DueAfter != nil {
-		if after, err := time.Parse(time.RFC3339, *filters.DueAfter); err == nil {
-			if task.DueDate == nil || task.DueDate.Before(after) {
-				return false
-			}
-		}
+	// Completion date filters (handle nil completion dates)
+	if !s.matchesOptionalDateRange(task.CompletedAt, filters.CompletedAfter, filters.CompletedBefore) {
+		return false
 	}
 
-	if filters.DueBefore != nil {
-		if before, err := time.Parse(time.RFC3339, *filters.DueBefore); err == nil {
-			if task.DueDate == nil || task.DueDate.After(before) {
-				return false
-			}
-		}
-	}
+	return true
+}
 
-	// Completion date filters
-	if filters.CompletedAfter != nil {
-		if after, err := time.Parse(time.RFC3339, *filters.CompletedAfter); err == nil {
-			if task.CompletedAt == nil || task.CompletedAt.Before(after) {
-				return false
-			}
-		}
-	}
-
-	if filters.CompletedBefore != nil {
-		if before, err := time.Parse(time.RFC3339, *filters.CompletedBefore); err == nil {
-			if task.CompletedAt == nil || task.CompletedAt.After(before) {
-				return false
-			}
-		}
-	}
-
+// matchesStatusFilters checks status-based filters
+func (s *TaskService) matchesStatusFilters(task *entities.Task, filters *ports.TaskFilters) bool {
 	// Overdue filter
 	if filters.OverdueOnly && !task.IsOverdue() {
 		return false
@@ -653,6 +631,48 @@ func (s *TaskService) matchesAdvancedFilters(task *entities.Task, filters *ports
 		hasDueDate := task.DueDate != nil
 		if *filters.HasDueDate != hasDueDate {
 			return false
+		}
+	}
+
+	return true
+}
+
+// matchesDateRange checks if a date falls within the specified range
+func (s *TaskService) matchesDateRange(date time.Time, after, before *string) bool {
+	if after != nil {
+		if afterDate, err := time.Parse(time.RFC3339, *after); err == nil {
+			if date.Before(afterDate) {
+				return false
+			}
+		}
+	}
+
+	if before != nil {
+		if beforeDate, err := time.Parse(time.RFC3339, *before); err == nil {
+			if date.After(beforeDate) {
+				return false
+			}
+		}
+	}
+
+	return true
+}
+
+// matchesOptionalDateRange checks if an optional date (can be nil) falls within the specified range
+func (s *TaskService) matchesOptionalDateRange(date *time.Time, after, before *string) bool {
+	if after != nil {
+		if afterDate, err := time.Parse(time.RFC3339, *after); err == nil {
+			if date == nil || date.Before(afterDate) {
+				return false
+			}
+		}
+	}
+
+	if before != nil {
+		if beforeDate, err := time.Parse(time.RFC3339, *before); err == nil {
+			if date == nil || date.After(beforeDate) {
+				return false
+			}
 		}
 	}
 

@@ -73,13 +73,13 @@ func (ae *workflowAnalyticsEngine) CalculateProductivityMetrics(ctx context.Cont
 	// Calculate completion rates
 	for priority, count := range priorityCounts {
 		if count > 0 {
-			byPriority[priority] = byPriority[priority] / float64(count)
+			byPriority[priority] /= float64(count)
 		}
 	}
 
 	for taskType, count := range typeCounts {
 		if count > 0 {
-			byType[taskType] = byType[taskType] / float64(count)
+			byType[taskType] /= float64(count)
 		}
 	}
 

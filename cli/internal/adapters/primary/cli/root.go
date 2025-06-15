@@ -326,5 +326,5 @@ func (c *CLI) createAnalyticsCommand() *cobra.Command {
 		// Add other dependencies as needed
 	}
 
-	return commands.NewAnalyticsCommand(deps)
+	return commands.NewAnalyticsCommand(&deps)
 }

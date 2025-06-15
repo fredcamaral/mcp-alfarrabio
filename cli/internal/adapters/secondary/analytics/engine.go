@@ -580,8 +580,8 @@ func (ae *analyticsEngineImpl) AnalyzeTaskDurations(tasks []*entities.Task) *Dur
 
 // Helper methods
 
-func (ae *analyticsEngineImpl) groupSessionsByDay(sessions []*entities.Session) map[time.Time]([]*entities.Session) {
-	groups := make(map[time.Time]([]*entities.Session))
+func (ae *analyticsEngineImpl) groupSessionsByDay(sessions []*entities.Session) map[time.Time][]*entities.Session {
+	groups := make(map[time.Time][]*entities.Session)
 
 	for _, session := range sessions {
 		date := time.Date(
@@ -597,8 +597,8 @@ func (ae *analyticsEngineImpl) groupSessionsByDay(sessions []*entities.Session) 
 	return groups
 }
 
-func (ae *analyticsEngineImpl) groupTasksByDay(tasks []*entities.Task) map[time.Time]([]*entities.Task) {
-	groups := make(map[time.Time]([]*entities.Task))
+func (ae *analyticsEngineImpl) groupTasksByDay(tasks []*entities.Task) map[time.Time][]*entities.Task {
+	groups := make(map[time.Time][]*entities.Task)
 
 	for _, task := range tasks {
 		date := time.Date(
@@ -776,7 +776,7 @@ func (ae *analyticsEngineImpl) calculateCompletionTrend(completions []DailyCompl
 	}
 
 	// Look at last 7 days vs previous 7 days
-	recentLen := min(7, len(completions))
+	recentLen := minInt(7, len(completions))
 	recent := completions[len(completions)-recentLen:]
 
 	recentAvg := 0.0
@@ -789,7 +789,7 @@ func (ae *analyticsEngineImpl) calculateCompletionTrend(completions []DailyCompl
 		return constants.StatusStable
 	}
 
-	previousLen := min(recentLen, len(completions)-recentLen)
+	previousLen := minInt(recentLen, len(completions)-recentLen)
 	previous := completions[len(completions)-recentLen-previousLen : len(completions)-recentLen]
 
 	previousAvg := 0.0
@@ -816,7 +816,7 @@ func (ae *analyticsEngineImpl) generateCompletionPredictions(
 	}
 
 	// Simple moving average prediction
-	windowSize := min(7, len(completions))
+	windowSize := minInt(7, len(completions))
 	recent := completions[len(completions)-windowSize:]
 
 	avgTasks := 0.0
@@ -928,7 +928,7 @@ func average(values []float64) float64 {
 	return sum / float64(len(values))
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -1573,7 +1573,7 @@ func (ae *analyticsEngineImpl) DetectBottlenecks(
 
 			bottleneck := &entities.Bottleneck{
 				Type:          "task_duration",
-				Description:   fmt.Sprintf("Task '%s' took %.1f%% longer than expected", outlier.Content[:min(50, len(outlier.Content))], outlier.DeviationPct),
+				Description:   fmt.Sprintf("Task '%s' took %.1f%% longer than expected", outlier.Content[:minInt(50, len(outlier.Content))], outlier.DeviationPct),
 				Impact:        outlier.Duration.Hours(),
 				Frequency:     1,
 				Severity:      severity,

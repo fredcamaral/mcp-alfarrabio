@@ -341,7 +341,7 @@ func (eas *EnhancedAIService) updateWorkContext(result *TaskProcessingResult) {
 	// Update work context based on AI processing results
 	if len(result.Suggestions) > 0 {
 		// Update productivity indicators based on AI suggestions
-		eas.workContext.ProductivityScore = eas.workContext.ProductivityScore * 1.05 // Slight boost for AI suggestions
+		eas.workContext.ProductivityScore *= 1.05 // Slight boost for AI suggestions
 		if eas.workContext.ProductivityScore > 1.0 {
 			eas.workContext.ProductivityScore = 1.0
 		}
@@ -349,7 +349,7 @@ func (eas *EnhancedAIService) updateWorkContext(result *TaskProcessingResult) {
 
 	// Update productivity indicators based on AI enhancements
 	if len(result.ProcessingNotes) > 0 {
-		eas.workContext.ProductivityScore = eas.workContext.ProductivityScore * 1.1 // Slight boost
+		eas.workContext.ProductivityScore *= 1.1 // Slight boost
 		if eas.workContext.ProductivityScore > 1.0 {
 			eas.workContext.ProductivityScore = 1.0
 		}
@@ -467,7 +467,7 @@ func (eas *EnhancedAIService) StartInteractiveSession(ctx context.Context, docTy
 	return eas.baseAIService.StartInteractiveSession(ctx, docType)
 }
 
-func (eas *EnhancedAIService) ContinueSession(ctx context.Context, sessionID string, userInput string) (*ports.SessionResponse, error) {
+func (eas *EnhancedAIService) ContinueSession(ctx context.Context, sessionID, userInput string) (*ports.SessionResponse, error) {
 	return eas.baseAIService.ContinueSession(ctx, sessionID, userInput)
 }
 

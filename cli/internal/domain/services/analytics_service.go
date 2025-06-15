@@ -833,7 +833,8 @@ func (a *analyticsServiceImpl) GenerateRecommendations(
 	var recommendations []*entities.Recommendation
 
 	// High-impact bottleneck recommendations
-	for _, bottleneck := range metrics.Bottlenecks {
+	for i := range metrics.Bottlenecks {
+		bottleneck := &metrics.Bottlenecks[i]
 		if bottleneck.IsHighImpact() {
 			recommendation := &entities.Recommendation{
 				ID:          "bottleneck_" + bottleneck.Type,

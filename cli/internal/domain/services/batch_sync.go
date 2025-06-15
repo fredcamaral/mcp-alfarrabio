@@ -283,12 +283,14 @@ func (s *BatchSyncService) performServerSync(ctx context.Context, request *api.B
 
 	// Create local task map
 	localTaskMap := make(map[string]api.TaskSyncItem)
-	for _, task := range request.LocalTasks {
-		localTaskMap[task.ID] = task
+	for i := range request.LocalTasks {
+		task := &request.LocalTasks[i]
+		localTaskMap[task.ID] = *task
 	}
 
 	// Detect conflicts and operations
-	for _, localTask := range request.LocalTasks {
+	for i := range request.LocalTasks {
+		localTask := &request.LocalTasks[i]
 		serverTask, exists := serverTaskMap[localTask.ID]
 
 		if !exists {
@@ -298,7 +300,7 @@ func (s *BatchSyncService) performServerSync(ctx context.Context, request *api.B
 			// Check for conflicts
 			serverItem := api.FromTask(serverTask)
 			if localTask.HasConflictWith(&serverItem) {
-				conflict := s.conflictResolver.DetectConflict(ctx, &localTask, &serverItem)
+				conflict := s.conflictResolver.DetectConflict(ctx, localTask, &serverItem)
 				if conflict != nil {
 					response.Conflicts = append(response.Conflicts, *conflict)
 				}
@@ -359,7 +361,8 @@ func (s *BatchSyncService) processSyncResponse(ctx context.Context, response *ap
 
 	// Apply server changes for tasks that don't have conflicts
 	conflictTaskIDs := make(map[string]bool)
-	for _, conflict := range response.Conflicts {
+	for i := range response.Conflicts {
+		conflict := &response.Conflicts[i]
 		conflictTaskIDs[conflict.TaskID] = true
 	}
 

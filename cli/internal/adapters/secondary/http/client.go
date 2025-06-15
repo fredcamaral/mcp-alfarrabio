@@ -140,7 +140,7 @@ func (c *HTTPRestClient) GetTasks(ctx context.Context, repository string) ([]*en
 	url := fmt.Sprintf("%s/api/v1/tasks?repository=%s", c.baseURL, repository)
 
 	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", url, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
@@ -476,192 +476,164 @@ func (c *HTTPRestClient) convertServerTaskToCliTask(serverTask map[string]interf
 		Metadata: make(map[string]interface{}),
 	}
 
-	// Map server fields to CLI fields
+	// Extract basic fields
+	c.extractBasicFields(serverTask, task)
+	
+	// Extract repository information
+	c.extractRepository(serverTask, task)
+	
+	// Extract arrays and complex fields
+	c.extractArrayFields(serverTask, task)
+	
+	// Extract timestamps
+	c.extractTimestamps(serverTask, task)
+	
+	// Validate and set defaults
+	return c.validateAndSetDefaults(task)
+}
+
+// extractBasicFields extracts simple string and scalar fields
+func (c *HTTPRestClient) extractBasicFields(serverTask map[string]interface{}, task *entities.Task) {
 	if id, ok := serverTask["id"].(string); ok {
 		task.ID = id
 	}
-
 	if title, ok := serverTask["title"].(string); ok {
 		task.Title = title
 		task.Content = title // Keep Content for backward compatibility
 	}
-
 	if description, ok := serverTask["description"].(string); ok {
 		task.Description = description
 	}
-
 	if taskType, ok := serverTask["type"].(string); ok {
 		task.Type = taskType
 	}
-
 	if priority, ok := serverTask["priority"].(string); ok {
 		task.Priority = entities.Priority(priority)
 	}
-
 	if status, ok := serverTask["status"].(string); ok {
 		task.Status = entities.Status(status)
 	}
-
-	// Check for repository at top level first
-	if repository, ok := serverTask["repository"].(string); ok {
-		task.Repository = repository
-	} else {
-		// Check in metadata.extended_data.repository
-		if metadata, ok := serverTask["metadata"].(map[string]interface{}); ok {
-			if extendedData, ok := metadata["extended_data"].(map[string]interface{}); ok {
-				if repo, ok := extendedData["repository"].(string); ok {
-					task.Repository = repo
-				}
-			}
-		}
-	}
-
-	// Map server fields to CLI fields
 	if assignee, ok := serverTask["assignee"].(string); ok {
 		task.Assignee = assignee
 	}
-
-	if acceptanceCriteria, ok := serverTask["acceptance_criteria"].([]interface{}); ok {
-		criteria := make([]string, 0, len(acceptanceCriteria))
-		for _, c := range acceptanceCriteria {
-			if str, ok := c.(string); ok {
-				criteria = append(criteria, str)
-			}
-		}
-		task.AcceptanceCriteria = criteria
-	}
-
-	if dependencies, ok := serverTask["dependencies"].([]interface{}); ok {
-		deps := make([]string, 0, len(dependencies))
-		for _, d := range dependencies {
-			if str, ok := d.(string); ok {
-				deps = append(deps, str)
-			}
-		}
-		task.Dependencies = deps
-	}
-
 	if sourcePRDID, ok := serverTask["source_prd_id"].(string); ok {
 		task.SourcePRDID = sourcePRDID
 	}
-
 	if branch, ok := serverTask["branch"].(string); ok {
 		task.Branch = branch
 	}
-
-	if blockedBy, ok := serverTask["blocked_by"].([]interface{}); ok {
-		blocked := make([]string, 0, len(blockedBy))
-		for _, b := range blockedBy {
-			if str, ok := b.(string); ok {
-				blocked = append(blocked, str)
-			}
-		}
-		task.BlockedBy = blocked
-	}
-
-	if blocking, ok := serverTask["blocking"].([]interface{}); ok {
-		blocks := make([]string, 0, len(blocking))
-		for _, b := range blocking {
-			if str, ok := b.(string); ok {
-				blocks = append(blocks, str)
-			}
-		}
-		task.Blocking = blocks
-	}
-
 	if timeTracked, ok := serverTask["time_tracked"].(float64); ok {
 		task.TimeTracked = int(timeTracked)
 	}
-
 	if confidence, ok := serverTask["confidence"].(float64); ok {
 		task.Confidence = confidence
 	}
-
 	if complexity, ok := serverTask["complexity"].(string); ok {
 		task.Complexity = complexity
 	}
-
 	if riskLevel, ok := serverTask["risk_level"].(string); ok {
 		task.RiskLevel = riskLevel
 	}
+}
 
-	// Handle tags array
-	if tagsInterface, ok := serverTask["tags"]; ok {
-		if tagsArray, ok := tagsInterface.([]interface{}); ok {
-			tags := make([]string, 0, len(tagsArray))
-			for _, tag := range tagsArray {
-				if tagStr, ok := tag.(string); ok {
-					tags = append(tags, tagStr)
-				}
+// extractRepository extracts repository information from various locations
+func (c *HTTPRestClient) extractRepository(serverTask map[string]interface{}, task *entities.Task) {
+	// Check for repository at top level first
+	if repository, ok := serverTask["repository"].(string); ok {
+		task.Repository = repository
+		return
+	}
+	
+	// Check in metadata.extended_data.repository
+	if metadata, ok := serverTask["metadata"].(map[string]interface{}); ok {
+		if extendedData, ok := metadata["extended_data"].(map[string]interface{}); ok {
+			if repo, ok := extendedData["repository"].(string); ok {
+				task.Repository = repo
 			}
-			task.Tags = tags
 		}
 	}
+}
 
-	// Handle timestamps - check both direct fields and nested timestamps object
+// extractArrayFields extracts array fields from server task
+func (c *HTTPRestClient) extractArrayFields(serverTask map[string]interface{}, task *entities.Task) {
+	task.AcceptanceCriteria = c.extractStringArray(serverTask["acceptance_criteria"])
+	task.Dependencies = c.extractStringArray(serverTask["dependencies"])
+	task.BlockedBy = c.extractStringArray(serverTask["blocked_by"])
+	task.Blocking = c.extractStringArray(serverTask["blocking"])
+	task.Tags = c.extractStringArray(serverTask["tags"])
+}
+
+// extractStringArray converts interface{} to []string
+func (c *HTTPRestClient) extractStringArray(value interface{}) []string {
+	if arr, ok := value.([]interface{}); ok {
+		result := make([]string, 0, len(arr))
+		for _, item := range arr {
+			if str, ok := item.(string); ok {
+				result = append(result, str)
+			}
+		}
+		return result
+	}
+	return nil
+}
+
+// extractTimestamps handles both nested and direct timestamp formats
+func (c *HTTPRestClient) extractTimestamps(serverTask map[string]interface{}, task *entities.Task) {
+	// Try nested timestamps first
 	if timestamps, ok := serverTask["timestamps"].(map[string]interface{}); ok {
-		if createdStr, ok := timestamps["created"].(string); ok {
-			if created, err := time.Parse(time.RFC3339, createdStr); err == nil {
-				task.CreatedAt = created
-			}
-		}
-		if updatedStr, ok := timestamps["updated"].(string); ok {
-			if updated, err := time.Parse(time.RFC3339, updatedStr); err == nil {
-				task.UpdatedAt = updated
-			}
-		}
+		c.parseTimestamp(timestamps["created"], &task.CreatedAt)
+		c.parseTimestamp(timestamps["updated"], &task.UpdatedAt)
 	} else {
 		// Fall back to direct timestamp fields
-		if createdAtStr, ok := serverTask["created_at"].(string); ok {
-			if createdAt, err := time.Parse(time.RFC3339, createdAtStr); err == nil {
-				task.CreatedAt = createdAt
-			}
-		}
+		c.parseTimestamp(serverTask["created_at"], &task.CreatedAt)
 	}
-
-	if updatedAtStr, ok := serverTask["updated_at"].(string); ok {
-		if updatedAt, err := time.Parse(time.RFC3339, updatedAtStr); err == nil {
-			task.UpdatedAt = updatedAt
-		}
-	}
-
+	
+	c.parseTimestamp(serverTask["updated_at"], &task.UpdatedAt)
+	
+	// Handle completed_at separately as it's a pointer
 	if completedAtStr, ok := serverTask["completed_at"].(string); ok && completedAtStr != "" {
 		if completedAt, err := time.Parse(time.RFC3339, completedAtStr); err == nil {
 			task.CompletedAt = &completedAt
 		}
 	}
+}
 
-	// Validate and set defaults
-	if task.ID == "" {
-		return nil // Skip tasks without ID
+// parseTimestamp parses a timestamp string and sets the target time
+func (c *HTTPRestClient) parseTimestamp(value interface{}, target *time.Time) {
+	if timeStr, ok := value.(string); ok {
+		if parsed, err := time.Parse(time.RFC3339, timeStr); err == nil {
+			*target = parsed
+		}
 	}
+}
 
-	if task.Content == "" {
-		return nil // Skip tasks without content
+// validateAndSetDefaults validates required fields and sets defaults
+func (c *HTTPRestClient) validateAndSetDefaults(task *entities.Task) *entities.Task {
+	// Early return for invalid tasks
+	if task.ID == "" || task.Content == "" {
+		return nil
 	}
-
+	
+	// Set defaults for empty fields
 	if task.Priority == "" {
 		task.Priority = entities.PriorityMedium
 	}
-
 	if task.Status == "" {
 		task.Status = entities.StatusPending
 	}
-
-	// Set default repository if missing
 	if task.Repository == "" {
 		task.Repository = "default"
 	}
-
-	// Set creation time if missing
+	
+	// Set default timestamps if missing
+	now := time.Now()
 	if task.CreatedAt.IsZero() {
-		task.CreatedAt = time.Now()
+		task.CreatedAt = now
 	}
-
 	if task.UpdatedAt.IsZero() {
-		task.UpdatedAt = time.Now()
+		task.UpdatedAt = now
 	}
-
+	
 	return task
 }
 

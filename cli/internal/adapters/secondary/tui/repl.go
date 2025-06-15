@@ -463,7 +463,24 @@ func (m *REPLModel) loadAnalyticsData() {
 }
 
 func (m REPLModel) executeCommand(cmd string) REPLModel {
-	// Add to history
+	// Update command history
+	m.updateHistory(cmd)
+
+	// Add command to output
+	m.output = append(m.output, "lmmc> "+cmd)
+
+	// Process command and update model
+	m = m.processCommand(cmd)
+
+	// Clear input
+	m.input = ""
+	m.cursor = 0
+
+	return m
+}
+
+// updateHistory adds command to history if not duplicate
+func (m *REPLModel) updateHistory(cmd string) {
 	if cmd != "" && (len(m.history) == 0 || m.history[len(m.history)-1] != cmd) {
 		m.history = append(m.history, cmd)
 		if len(m.history) > 100 { // Keep last 100 commands
@@ -471,43 +488,102 @@ func (m REPLModel) executeCommand(cmd string) REPLModel {
 		}
 	}
 	m.historyIndex = -1
+}
 
-	// Add command to output
-	m.output = append(m.output, "lmmc> "+cmd)
-
-	// Process command
+// processCommand handles the actual command execution
+func (m REPLModel) processCommand(cmd string) REPLModel {
 	switch {
 	case cmd == "help":
-		m.output = append(m.output, m.getHelpText()...)
+		return m.handleHelpCommand()
 	case cmd == "clear":
-		m.output = []string{}
+		return m.handleClearCommand()
 	case cmd == "exit" || cmd == "quit":
-		if m.server != nil {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-			_ = m.server.Shutdown(ctx)
+		return m.handleExitCommand()
+	case m.isViewCommand(cmd):
+		return m.handleViewCommand(cmd)
+	case m.isFeatureCommand(cmd):
+		return m.handleFeatureCommand(cmd)
+	case strings.HasPrefix(cmd, "status"):
+		return m.handleStatusCommand()
+	default:
+		return m.handleUnknownCommand(cmd)
+	}
+}
+
+// isViewCommand checks if command is a view navigation command
+func (m REPLModel) isViewCommand(cmd string) bool {
+	viewCommands := []string{"dashboard", "dash", "analytics", "stats", "tasks", "list", "patterns", "insights", "command", "cmd"}
+	for _, viewCmd := range viewCommands {
+		if cmd == viewCmd {
+			return true
 		}
-		return m
-	case cmd == "dashboard" || cmd == "dash":
+	}
+	return false
+}
+
+// isFeatureCommand checks if command is a feature command
+func (m REPLModel) isFeatureCommand(cmd string) bool {
+	featurePrefixes := []string{"prd create", "trd create", "workflow run"}
+	for _, prefix := range featurePrefixes {
+		if strings.HasPrefix(cmd, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+// handleHelpCommand shows help text
+func (m REPLModel) handleHelpCommand() REPLModel {
+	m.output = append(m.output, m.getHelpText()...)
+	return m
+}
+
+// handleClearCommand clears the output
+func (m REPLModel) handleClearCommand() REPLModel {
+	m.output = []string{}
+	return m
+}
+
+// handleExitCommand handles exit/quit commands
+func (m REPLModel) handleExitCommand() REPLModel {
+	if m.server != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = m.server.Shutdown(ctx)
+	}
+	return m
+}
+
+// handleViewCommand handles view navigation commands
+func (m REPLModel) handleViewCommand(cmd string) REPLModel {
+	switch cmd {
+	case "dashboard", "dash":
 		m.viewMode = ViewModeDashboard
 		m.loadDashboardData()
 		m.output = append(m.output, "Switched to dashboard view (F2)")
-	case cmd == "analytics" || cmd == "stats":
+	case "analytics", "stats":
 		m.viewMode = ViewModeAnalytics
 		m.loadAnalyticsData()
 		m.output = append(m.output, "Switched to analytics view (F3)")
-	case cmd == "tasks" || cmd == "list":
+	case "tasks", "list":
 		m.viewMode = ViewModeTaskList
 		m.output = append(m.output, "Switched to task list view (F4)")
-	case cmd == "patterns":
+	case "patterns":
 		m.viewMode = ViewModePatterns
 		m.output = append(m.output, "Switched to patterns view (F5)")
-	case cmd == "insights":
+	case "insights":
 		m.viewMode = ViewModeInsights
 		m.output = append(m.output, "Switched to insights view (F6)")
-	case cmd == "command" || cmd == "cmd":
+	case "command", "cmd":
 		m.viewMode = ViewModeCommand
 		m.output = append(m.output, "Switched to command mode (F1)")
+	}
+	return m
+}
+
+// handleFeatureCommand handles feature commands (PRD, TRD, workflow)
+func (m REPLModel) handleFeatureCommand(cmd string) REPLModel {
+	switch {
 	case strings.HasPrefix(cmd, "prd create"):
 		m.output = append(m.output, "Starting interactive PRD creation...")
 		m.output = append(m.output, "Feature not yet implemented - coming soon!")
@@ -517,17 +593,20 @@ func (m REPLModel) executeCommand(cmd string) REPLModel {
 	case strings.HasPrefix(cmd, "workflow run"):
 		m.output = append(m.output, "Running complete workflow automation...")
 		m.output = append(m.output, "Feature not yet implemented - coming soon!")
-	case strings.HasPrefix(cmd, "status"):
-		m.output = append(m.output, m.getStatusInfo()...)
-	default:
-		m.output = append(m.output, "Unknown command: "+cmd)
-		m.output = append(m.output, "Type 'help' for available commands")
 	}
+	return m
+}
 
-	// Clear input
-	m.input = ""
-	m.cursor = 0
+// handleStatusCommand shows status information
+func (m REPLModel) handleStatusCommand() REPLModel {
+	m.output = append(m.output, m.getStatusInfo()...)
+	return m
+}
 
+// handleUnknownCommand handles unrecognized commands
+func (m REPLModel) handleUnknownCommand(cmd string) REPLModel {
+	m.output = append(m.output, "Unknown command: "+cmd)
+	m.output = append(m.output, "Type 'help' for available commands")
 	return m
 }
 

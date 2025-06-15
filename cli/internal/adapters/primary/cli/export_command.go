@@ -741,10 +741,7 @@ func (c *CLI) generateMarkdown(tasks []*entities.Task, _ *ExportOptions, _ []str
 	md.WriteString(fmt.Sprintf("Total tasks: %d\n\n", len(tasks)))
 
 	// Group by status
-	statusGroups := make(map[entities.Status][]*entities.Task)
-	for _, task := range tasks {
-		statusGroups[task.Status] = append(statusGroups[task.Status], task)
-	}
+	statusGroups := groupTasksByStatus(tasks)
 
 	for status, statusTasks := range statusGroups {
 		md.WriteString(fmt.Sprintf("## %s (%d tasks)\n\n", strings.Title(string(status)), len(statusTasks)))
@@ -800,11 +797,7 @@ func (c *CLI) generateHTML(tasks []*entities.Task, _ *ExportOptions, _ []string,
 		html.WriteString(fmt.Sprintf("<p><strong>Created:</strong> %s</p>\n", task.CreatedAt.Format("2006-01-02 15:04")))
 
 		if len(task.Tags) > 0 {
-			html.WriteString(`<div class="tags">`)
-			for _, tag := range task.Tags {
-				html.WriteString(fmt.Sprintf(`<span class="tag">%s</span>`, tag))
-			}
-			html.WriteString("</div>")
+			html.WriteString(buildTagsHTML(task.Tags))
 		}
 
 		html.WriteString("</div>\n")
@@ -831,11 +824,7 @@ func (c *CLI) generateXML(tasks []*entities.Task, _ *ExportOptions, _ []string) 
 		xml.WriteString(fmt.Sprintf("    <created_at>%s</created_at>\n", task.CreatedAt.Format(time.RFC3339)))
 
 		if len(task.Tags) > 0 {
-			xml.WriteString("    <tags>\n")
-			for _, tag := range task.Tags {
-				xml.WriteString(fmt.Sprintf("      <tag>%s</tag>\n", tag))
-			}
-			xml.WriteString("    </tags>\n")
+			xml.WriteString(buildTagsXML(task.Tags))
 		}
 
 		xml.WriteString("  </task>\n")

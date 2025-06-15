@@ -44,50 +44,99 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	var request MCPRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+	request, err := m.parseRequest(r)
+	if err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		return
 	}
 
-	// Check if this is a health check request
-	isHealthCheck := false
-	if request.Method == constants.MCPMethodMemorySystem {
-		if paramsMap, ok := request.Params.(map[string]interface{}); ok {
-			if operation, ok := paramsMap["operation"].(string); ok && operation == constants.MCPOperationHealth {
-				isHealthCheck = true
-			}
-		}
-	} else if request.Method == "tools/call" {
-		if params, ok := request.Params.(map[string]interface{}); ok {
-			if toolName, ok := params["name"].(string); ok && toolName == constants.MCPMethodMemorySystem {
-				if args, ok := params["arguments"].(map[string]interface{}); ok {
-					if operation, ok := args["operation"].(string); ok && operation == constants.MCPOperationHealth {
-						isHealthCheck = true
-					}
-				}
-			}
-		}
+	isHealthCheck := m.isHealthCheckRequest(&request)
+
+	// Handle context cancellation and simulated failures
+	if m.shouldSimulateFailure(w, r.Context(), isHealthCheck) {
+		return
 	}
 
+	response := m.processRequest(&request)
+	m.writeResponse(w, response)
+}
+
+// parseRequest decodes the JSON request
+func (m *mockMCPServer) parseRequest(r *http.Request) (MCPRequest, error) {
+	var request MCPRequest
+	err := json.NewDecoder(r.Body).Decode(&request)
+	return request, err
+}
+
+// isHealthCheckRequest determines if this is a health check request
+func (m *mockMCPServer) isHealthCheckRequest(request *MCPRequest) bool {
+	if request.Method == constants.MCPMethodMemorySystem {
+		return m.hasHealthOperation(request.Params)
+	}
+	
+	if request.Method == "tools/call" {
+		return m.isToolsCallHealthCheck(request.Params)
+	}
+	
+	return false
+}
+
+// hasHealthOperation checks if params contain a health operation
+func (m *mockMCPServer) hasHealthOperation(params interface{}) bool {
+	paramsMap, ok := params.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	
+	operation, ok := paramsMap["operation"].(string)
+	return ok && operation == constants.MCPOperationHealth
+}
+
+// isToolsCallHealthCheck checks if tools/call is a health check
+func (m *mockMCPServer) isToolsCallHealthCheck(params interface{}) bool {
+	paramsMap, ok := params.(map[string]interface{})
+	if !ok {
+		return false
+	}
+	
+	toolName, ok := paramsMap["name"].(string)
+	if !ok || toolName != constants.MCPMethodMemorySystem {
+		return false
+	}
+	
+	args, ok := paramsMap["arguments"].(map[string]interface{})
+	if !ok {
+		return false
+	}
+	
+	return m.hasHealthOperation(args)
+}
+
+// shouldSimulateFailure handles context cancellation and simulated failures
+func (m *mockMCPServer) shouldSimulateFailure(w http.ResponseWriter, ctx context.Context, isHealthCheck bool) bool {
 	// Add delay for non-health requests to allow context cancellation testing
 	if !isHealthCheck {
 		select {
 		case <-time.After(5 * time.Millisecond):
 			// Continue processing
-		case <-r.Context().Done():
+		case <-ctx.Done():
 			// Request was cancelled
-			return
+			return true
 		}
 	}
 
-	// Simulate failures for retry testing (only for non-health requests)
+	// Simulate failures for retry testing
 	if m.failCount < m.maxFailures {
 		m.failCount++
 		http.Error(w, "Simulated failure", http.StatusInternalServerError)
-		return
+		return true
 	}
+	
+	return false
+}
 
+// processRequest routes the request to appropriate handlers
+func (m *mockMCPServer) processRequest(request *MCPRequest) MCPResponse {
 	response := MCPResponse{
 		JSONRPC: "2.0",
 		ID:      request.ID,
@@ -105,25 +154,7 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 	case "memory_system":
 		m.handleMemorySystem(request.Params, &response)
 	case "tools/call":
-		// Handle tools/call wrapper
-		if params, ok := request.Params.(map[string]interface{}); ok {
-			if toolName, ok := params["name"].(string); ok && toolName == constants.MCPMethodMemorySystem {
-				if args, ok := params["arguments"].(map[string]interface{}); ok {
-					m.handleMemorySystem(args, &response)
-					// Don't return early - let the response be written below
-				}
-			} else {
-				response.Error = &MCPError{
-					Code:    -32601,
-					Message: "Method not found",
-				}
-			}
-		} else {
-			response.Error = &MCPError{
-				Code:    -32602,
-				Message: "Invalid params",
-			}
-		}
+		m.handleToolsCall(request.Params, &response)
 	default:
 		response.Error = &MCPError{
 			Code:    -32601,
@@ -131,6 +162,43 @@ func (m *mockMCPServer) handleMCPRequest(w http.ResponseWriter, r *http.Request)
 		}
 	}
 
+	return response
+}
+
+// handleToolsCall handles the tools/call method
+func (m *mockMCPServer) handleToolsCall(params interface{}, response *MCPResponse) {
+	paramsMap, ok := params.(map[string]interface{})
+	if !ok {
+		response.Error = &MCPError{
+			Code:    -32602,
+			Message: "Invalid params",
+		}
+		return
+	}
+
+	toolName, ok := paramsMap["name"].(string)
+	if !ok || toolName != constants.MCPMethodMemorySystem {
+		response.Error = &MCPError{
+			Code:    -32601,
+			Message: "Method not found",
+		}
+		return
+	}
+
+	args, ok := paramsMap["arguments"].(map[string]interface{})
+	if !ok {
+		response.Error = &MCPError{
+			Code:    -32602,
+			Message: "Invalid params",
+		}
+		return
+	}
+
+	m.handleMemorySystem(args, response)
+}
+
+// writeResponse writes the JSON response
+func (m *mockMCPServer) writeResponse(w http.ResponseWriter, response MCPResponse) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(response)
 }

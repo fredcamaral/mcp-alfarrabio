@@ -218,7 +218,33 @@ func (c *projectClassifierImpl) SuggestProjectType(
 ) (entities.ProjectType, float64) {
 	scores := make(map[entities.ProjectType]float64)
 
-	// Web App indicators
+	// Calculate scores for each project type
+	c.scoreWebApp(chars, scores)
+	c.scoreCLI(chars, scores)
+	c.scoreAPI(chars, scores)
+	c.scoreLibrary(chars, scores)
+	c.scoreMicroservice(chars, scores)
+	c.scoreMobile(chars, scores)
+	c.scoreDesktop(chars, scores)
+	c.scoreDataPipeline(chars, scores)
+	c.scoreGame(chars, scores)
+
+	// Find best match
+	bestType, bestScore := c.findBestMatch(scores)
+
+	// Normalize confidence
+	confidence := c.normalizeConfidence(bestScore)
+
+	// Use fallback if confidence is low
+	if confidence < 0.5 {
+		bestType, confidence = c.fallbackClassification(chars)
+	}
+
+	return bestType, confidence
+}
+
+// scoreWebApp calculates web application indicators
+func (c *projectClassifierImpl) scoreWebApp(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.HasFrontend && (chars.HasAPI || chars.HasBackend) {
 		scores[entities.ProjectTypeWebApp] += 0.8
 	}
@@ -228,8 +254,10 @@ func (c *projectClassifierImpl) SuggestProjectType(
 	if chars.HasFrontend && chars.HasDatabase {
 		scores[entities.ProjectTypeWebApp] += 0.2
 	}
+}
 
-	// CLI indicators
+// scoreCLI calculates command-line application indicators
+func (c *projectClassifierImpl) scoreCLI(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.HasMainFile() && !chars.HasFrontend && !chars.HasAPI {
 		scores[entities.ProjectTypeCLI] += 0.7
 	}
@@ -240,8 +268,10 @@ func (c *projectClassifierImpl) SuggestProjectType(
 	if (primaryLang == "go" || primaryLang == "rust" || primaryLang == "c") && !chars.HasFrontend {
 		scores[entities.ProjectTypeCLI] += 0.3
 	}
+}
 
-	// API indicators
+// scoreAPI calculates API service indicators
+func (c *projectClassifierImpl) scoreAPI(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.HasAPI && !chars.HasFrontend {
 		scores[entities.ProjectTypeAPI] += 0.8
 	}
@@ -251,56 +281,74 @@ func (c *projectClassifierImpl) SuggestProjectType(
 	if chars.HasDatabase && chars.HasBackend && !chars.HasFrontend {
 		scores[entities.ProjectTypeAPI] += 0.3
 	}
+}
 
-	// Library indicators
+// scoreLibrary calculates library/package indicators
+func (c *projectClassifierImpl) scoreLibrary(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.TotalFiles < 50 && !chars.HasMainFile() && !chars.HasFrontend {
 		scores[entities.ProjectTypeLibrary] += 0.6
 	}
 	if len(chars.Dependencies) < 5 && chars.TotalFiles < 100 {
 		scores[entities.ProjectTypeLibrary] += 0.3
 	}
+}
 
-	// Microservice indicators
+// scoreMicroservice calculates microservice indicators
+func (c *projectClassifierImpl) scoreMicroservice(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.HasDocker && chars.HasAPI && chars.DirectoryDepth <= 4 && chars.TotalFiles < 200 {
 		scores[entities.ProjectTypeMicroservice] += 0.7
 	}
 	if chars.HasKubernetes() || chars.HasServiceMesh() {
 		scores[entities.ProjectTypeMicroservice] += 0.4
 	}
+}
 
-	// Mobile indicators
+// scoreMobile calculates mobile application indicators
+func (c *projectClassifierImpl) scoreMobile(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.HasFramework("react-native", "flutter", "ionic", "xamarin") {
 		scores[entities.ProjectTypeMobile] += 0.9
 	}
+	primaryLang := chars.GetPrimaryLanguage()
 	if primaryLang == "swift" || primaryLang == "kotlin" || primaryLang == "dart" {
 		scores[entities.ProjectTypeMobile] += 0.6
 	}
+}
 
-	// Desktop indicators
+// scoreDesktop calculates desktop application indicators
+func (c *projectClassifierImpl) scoreDesktop(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.HasFramework("electron", "tauri", "qt", "gtk") {
 		scores[entities.ProjectTypeDesktop] += 0.8
 	}
+	primaryLang := chars.GetPrimaryLanguage()
 	if primaryLang == "cpp" || primaryLang == "csharp" || primaryLang == "java" {
 		scores[entities.ProjectTypeDesktop] += 0.4
 	}
+}
 
-	// Data Pipeline indicators
+// scoreDataPipeline calculates data pipeline indicators
+func (c *projectClassifierImpl) scoreDataPipeline(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.HasFramework("airflow", "kafka", "spark", "flink") {
 		scores[entities.ProjectTypeDataPipeline] += 0.8
 	}
+	primaryLang := chars.GetPrimaryLanguage()
 	if primaryLang == "python" && chars.HasDatabase {
 		scores[entities.ProjectTypeDataPipeline] += 0.4
 	}
+}
 
-	// Game indicators
+// scoreGame calculates game development indicators
+func (c *projectClassifierImpl) scoreGame(chars *entities.ProjectCharacteristics, scores map[entities.ProjectType]float64) {
 	if chars.HasFramework("unity", "unreal", "godot", "pygame") {
 		scores[entities.ProjectTypeGame] += 0.9
 	}
+	primaryLang := chars.GetPrimaryLanguage()
 	if primaryLang == "csharp" || primaryLang == "cpp" {
 		scores[entities.ProjectTypeGame] += 0.3
 	}
+}
 
-	// Find highest score
+// findBestMatch finds the project type with highest score
+func (c *projectClassifierImpl) findBestMatch(scores map[entities.ProjectType]float64) (entities.ProjectType, float64) {
 	var bestType entities.ProjectType = entities.ProjectTypeUnknown
 	var bestScore float64 = 0
 
@@ -311,18 +359,15 @@ func (c *projectClassifierImpl) SuggestProjectType(
 		}
 	}
 
-	// Normalize confidence to 0-1 range
-	confidence := bestScore
-	if confidence > 1.0 {
-		confidence = 1.0
-	}
+	return bestType, bestScore
+}
 
-	// If no strong match, try fallback classification
-	if confidence < 0.5 {
-		bestType, confidence = c.fallbackClassification(chars)
+// normalizeConfidence ensures confidence is in 0-1 range
+func (c *projectClassifierImpl) normalizeConfidence(score float64) float64 {
+	if score > 1.0 {
+		return 1.0
 	}
-
-	return bestType, confidence
+	return score
 }
 
 // AnalyzeProjectStructure provides detailed project structure analysis
@@ -404,75 +449,117 @@ func (c *projectClassifierImpl) extractDependencies(configFiles map[string]inter
 	var dependencies []string
 	depSet := make(map[string]bool)
 
-	// Extract from package.json
-	if packageJSON, exists := configFiles["package.json"]; exists {
-		if packageData, ok := packageJSON.(map[string]interface{}); ok {
-			if deps, exists := packageData["dependencies"]; exists {
-				if depsMap, ok := deps.(map[string]interface{}); ok {
-					for dep := range depsMap {
-						if !depSet[dep] {
-							dependencies = append(dependencies, dep)
-							depSet[dep] = true
-						}
-					}
-				}
-			}
-			if devDeps, exists := packageData["devDependencies"]; exists {
-				if devDepsMap, ok := devDeps.(map[string]interface{}); ok {
-					for dep := range devDepsMap {
-						if !depSet[dep] {
-							dependencies = append(dependencies, dep)
-							depSet[dep] = true
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Extract from go.mod
-	if goMod, exists := configFiles["go.mod"]; exists {
-		if goModStr, ok := goMod.(string); ok {
-			lines := strings.Split(goModStr, "\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if strings.Contains(line, "require") && !strings.HasPrefix(line, "//") {
-					parts := strings.Fields(line)
-					if len(parts) >= 2 {
-						dep := strings.TrimPrefix(parts[1], "require")
-						dep = strings.TrimSpace(dep)
-						if dep != "" && !depSet[dep] {
-							dependencies = append(dependencies, dep)
-							depSet[dep] = true
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Extract from requirements.txt
-	if reqTxt, exists := configFiles["requirements.txt"]; exists {
-		if reqStr, ok := reqTxt.(string); ok {
-			lines := strings.Split(reqStr, "\n")
-			for _, line := range lines {
-				line = strings.TrimSpace(line)
-				if line != "" && !strings.HasPrefix(line, "#") {
-					// Split on == or >= or <= etc.
-					dep := strings.FieldsFunc(line, func(r rune) bool {
-						return r == '=' || r == '>' || r == '<' || r == '!' || r == '~'
-					})[0]
-					dep = strings.TrimSpace(dep)
-					if !depSet[dep] {
-						dependencies = append(dependencies, dep)
-						depSet[dep] = true
-					}
-				}
-			}
-		}
-	}
+	// Extract from different config file types
+	c.extractPackageJSONDeps(configFiles, &dependencies, depSet)
+	c.extractGoModDeps(configFiles, &dependencies, depSet)
+	c.extractPythonDeps(configFiles, &dependencies, depSet)
 
 	return dependencies
+}
+
+// extractPackageJSONDeps extracts dependencies from package.json
+func (c *projectClassifierImpl) extractPackageJSONDeps(configFiles map[string]interface{}, dependencies *[]string, depSet map[string]bool) {
+	packageJSON, exists := configFiles["package.json"]
+	if !exists {
+		return
+	}
+
+	packageData, ok := packageJSON.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	// Extract regular dependencies
+	c.extractJSONDepsSection(packageData, "dependencies", dependencies, depSet)
+	
+	// Extract dev dependencies
+	c.extractJSONDepsSection(packageData, "devDependencies", dependencies, depSet)
+}
+
+// extractJSONDepsSection extracts a specific dependency section from package.json
+func (c *projectClassifierImpl) extractJSONDepsSection(packageData map[string]interface{}, section string, dependencies *[]string, depSet map[string]bool) {
+	deps, exists := packageData[section]
+	if !exists {
+		return
+	}
+
+	depsMap, ok := deps.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	for dep := range depsMap {
+		c.addDependency(dep, dependencies, depSet)
+	}
+}
+
+// extractGoModDeps extracts dependencies from go.mod
+func (c *projectClassifierImpl) extractGoModDeps(configFiles map[string]interface{}, dependencies *[]string, depSet map[string]bool) {
+	goMod, exists := configFiles["go.mod"]
+	if !exists {
+		return
+	}
+
+	goModStr, ok := goMod.(string)
+	if !ok {
+		return
+	}
+
+	lines := strings.Split(goModStr, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if !strings.Contains(line, "require") || strings.HasPrefix(line, "//") {
+			continue
+		}
+
+		parts := strings.Fields(line)
+		if len(parts) < 2 {
+			continue
+		}
+
+		dep := strings.TrimPrefix(parts[1], "require")
+		dep = strings.TrimSpace(dep)
+		if dep != "" {
+			c.addDependency(dep, dependencies, depSet)
+		}
+	}
+}
+
+// extractPythonDeps extracts dependencies from requirements.txt
+func (c *projectClassifierImpl) extractPythonDeps(configFiles map[string]interface{}, dependencies *[]string, depSet map[string]bool) {
+	reqTxt, exists := configFiles["requirements.txt"]
+	if !exists {
+		return
+	}
+
+	reqStr, ok := reqTxt.(string)
+	if !ok {
+		return
+	}
+
+	lines := strings.Split(reqStr, "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+
+		// Split on version specifiers (==, >=, <=, etc.)
+		dep := strings.FieldsFunc(line, func(r rune) bool {
+			return r == '=' || r == '>' || r == '<' || r == '!' || r == '~'
+		})[0]
+		
+		dep = strings.TrimSpace(dep)
+		c.addDependency(dep, dependencies, depSet)
+	}
+}
+
+// addDependency adds a dependency if it's not already present
+func (c *projectClassifierImpl) addDependency(dep string, dependencies *[]string, depSet map[string]bool) {
+	if dep != "" && !depSet[dep] {
+		*dependencies = append(*dependencies, dep)
+		depSet[dep] = true
+	}
 }
 
 func (c *projectClassifierImpl) analyzeFilePatterns(analysis *DirectoryAnalysis) map[string]int {

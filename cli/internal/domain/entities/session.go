@@ -326,7 +326,8 @@ func (s *Session) calculateEfficiencyScore() float64 {
 	var totalEfficiency float64
 	validEntries := 0
 
-	for _, entry := range s.TaskDurations {
+	for i := range s.TaskDurations {
+		entry := &s.TaskDurations[i]
 		if entry.Estimated > 0 {
 			efficiency := float64(entry.Estimated) / float64(entry.Actual)
 			if efficiency > 2.0 {
@@ -395,7 +396,8 @@ func (s *Session) calculateQualityScore() float64 {
 	var totalQuality int
 	validEntries := 0
 
-	for _, entry := range s.TaskDurations {
+	for i := range s.TaskDurations {
+		entry := &s.TaskDurations[i]
 		if entry.Quality > 0 {
 			totalQuality += entry.Quality
 			validEntries++

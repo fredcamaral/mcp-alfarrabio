@@ -4,8 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -207,8 +205,7 @@ func (c *CLI) createMemorySearchCommand() *cobra.Command {
 	}
 
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project")
-	cmd.Flags().IntVarP(&limit, "limit", "l", 10, "Maximum number of results")
-	cmd.Flags().StringVarP(&format, "format", "f", constants.OutputFormatTable, "Output format ("+constants.OutputFormatTable+", "+constants.OutputFormatJSON+", "+constants.OutputFormatPlain+")")
+	addCommonFlags(cmd, &format, &limit)
 
 	return cmd
 }
@@ -233,7 +230,7 @@ func (c *CLI) createMemoryGetCommand() *cobra.Command {
 		ValidArgs: []string{"prd", "trd", "review", "decision"},
 	}
 
-	cmd.Flags().StringVarP(&format, "format", "f", constants.OutputFormatTable, "Output format ("+constants.OutputFormatTable+", "+constants.OutputFormatJSON+", "+constants.OutputFormatPlain+")")
+	addFormatFlag(cmd, &format, constants.OutputFormatTable)
 
 	return cmd
 }
@@ -265,7 +262,7 @@ func (c *CLI) createMemoryListCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&memoryType, "type", "t", "", "Filter by type (prd, trd, review, decision)")
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project")
 	cmd.Flags().IntVarP(&limit, "limit", "l", 20, "Maximum number of results")
-	cmd.Flags().StringVarP(&format, "format", "f", constants.OutputFormatTable, "Output format ("+constants.OutputFormatTable+", "+constants.OutputFormatJSON+", "+constants.OutputFormatPlain+")")
+	addFormatFlag(cmd, &format, constants.OutputFormatTable)
 
 	return cmd
 }
@@ -325,7 +322,7 @@ func (c *CLI) createMemoryPatternsCommand() *cobra.Command {
 
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Filter by project (required)")
 	cmd.Flags().StringVarP(&patternType, "type", "t", "", "Filter by pattern type")
-	cmd.Flags().StringVarP(&format, "format", "f", constants.OutputFormatTable, "Output format ("+constants.OutputFormatTable+", "+constants.OutputFormatJSON+", "+constants.OutputFormatPlain+")")
+	addFormatFlag(cmd, &format, constants.OutputFormatTable)
 
 	markFlagRequired(cmd, "project")
 
@@ -388,7 +385,7 @@ func (c *CLI) createMemoryInsightsCommand() *cobra.Command {
 	cmd.Flags().StringVarP(&topic, "topic", "t", "", "Topic to analyze")
 	cmd.Flags().StringVarP(&project, "project", "p", "", "Project to analyze")
 	cmd.Flags().BoolVar(&crossProject, "cross-project", false, "Include cross-project insights")
-	cmd.Flags().StringVarP(&format, "format", "f", constants.OutputFormatTable, "Output format ("+constants.OutputFormatTable+", "+constants.OutputFormatJSON+", "+constants.OutputFormatPlain+")")
+	addFormatFlag(cmd, &format, constants.OutputFormatTable)
 
 	return cmd
 }
@@ -415,7 +412,7 @@ func (c *CLI) createMemoryCompareCommand() *cobra.Command {
 
 	cmd.Flags().StringSliceVar(&projects, "projects", []string{}, "Projects to compare (comma-separated)")
 	cmd.Flags().StringVarP(&aspect, "aspect", "a", "", "Specific aspect to compare")
-	cmd.Flags().StringVarP(&format, "format", "f", constants.OutputFormatTable, "Output format ("+constants.OutputFormatTable+", "+constants.OutputFormatJSON+", "+constants.OutputFormatPlain+")")
+	addFormatFlag(cmd, &format, constants.OutputFormatTable)
 
 	markFlagRequired(cmd, "projects")
 
@@ -425,23 +422,8 @@ func (c *CLI) createMemoryCompareCommand() *cobra.Command {
 // Implementation methods
 
 func (c *CLI) runMemoryStorePRD(cmd *cobra.Command, file, project string, tags []string) error {
-	// Validate file path
-	cleanPath := filepath.Clean(file)
-	if filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "/") && !strings.HasPrefix(cleanPath, filepath.Clean(".")) {
-		return fmt.Errorf("invalid file path")
-	}
-
-	// Check file exists and is regular file
-	info, err := os.Stat(cleanPath)
-	if err != nil {
-		return fmt.Errorf("cannot access file: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("not a regular file: %s", cleanPath)
-	}
-
 	// Read PRD file content
-	content, err := os.ReadFile(cleanPath) // #nosec G304 - Path validated above
+	content, err := validateAndReadFile(file)
 	if err != nil {
 		return fmt.Errorf("failed to read PRD file: %w", err)
 	}
@@ -479,23 +461,8 @@ func (c *CLI) runMemoryStorePRD(cmd *cobra.Command, file, project string, tags [
 }
 
 func (c *CLI) runMemoryStoreTRD(cmd *cobra.Command, file, project, prdID string, tags []string) error {
-	// Validate file path
-	cleanPath := filepath.Clean(file)
-	if filepath.IsAbs(cleanPath) && !strings.HasPrefix(cleanPath, "/") && !strings.HasPrefix(cleanPath, filepath.Clean(".")) {
-		return fmt.Errorf("invalid file path")
-	}
-
-	// Check file exists and is regular file
-	info, err := os.Stat(cleanPath)
-	if err != nil {
-		return fmt.Errorf("cannot access file: %w", err)
-	}
-	if !info.Mode().IsRegular() {
-		return fmt.Errorf("not a regular file: %s", cleanPath)
-	}
-
 	// Read TRD file content
-	content, err := os.ReadFile(cleanPath) // #nosec G304 - Path validated above
+	content, err := validateAndReadFile(file)
 	if err != nil {
 		return fmt.Errorf("failed to read TRD file: %w", err)
 	}

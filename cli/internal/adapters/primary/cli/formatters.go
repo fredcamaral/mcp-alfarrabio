@@ -14,6 +14,25 @@ import (
 	"lerian-mcp-memory-cli/internal/domain/ports"
 )
 
+// marshalAndWrite marshals data to JSON and writes it to the writer
+func (f *JSONFormatter) marshalAndWrite(data interface{}, errMsg string) error {
+	var jsonData []byte
+	var err error
+
+	if f.pretty {
+		jsonData, err = json.MarshalIndent(data, "", "  ")
+	} else {
+		jsonData, err = json.Marshal(data)
+	}
+
+	if err != nil {
+		return fmt.Errorf("%s: %w", errMsg, err)
+	}
+
+	_, _ = fmt.Fprintln(f.writer, string(jsonData))
+	return nil
+}
+
 // OutputFormatter defines the interface for formatting task output
 type OutputFormatter interface {
 	FormatTask(task *entities.Task) error
@@ -136,64 +155,21 @@ func NewJSONFormatter(w io.Writer, pretty bool) OutputFormatter {
 
 // FormatTask formats a single task as JSON
 func (f *JSONFormatter) FormatTask(task *entities.Task) error {
-	var data []byte
-	var err error
-
-	if f.pretty {
-		data, err = json.MarshalIndent(task, "", "  ")
-	} else {
-		data, err = json.Marshal(task)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to marshal task: %w", err)
-	}
-
-	_, _ = fmt.Fprintln(f.writer, string(data))
-	return nil
+	return f.marshalAndWrite(task, "failed to marshal task")
 }
 
 // FormatTaskList formats multiple tasks as JSON
 func (f *JSONFormatter) FormatTaskList(tasks []*entities.Task) error {
-	var data []byte
-	var err error
-
 	result := map[string]interface{}{
 		"tasks": tasks,
 		"count": len(tasks),
 	}
-
-	if f.pretty {
-		data, err = json.MarshalIndent(result, "", "  ")
-	} else {
-		data, err = json.Marshal(result)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to marshal tasks: %w", err)
-	}
-
-	_, _ = fmt.Fprintln(f.writer, string(data))
-	return nil
+	return f.marshalAndWrite(result, "failed to marshal tasks")
 }
 
 // FormatStats formats repository statistics as JSON
 func (f *JSONFormatter) FormatStats(stats *ports.RepositoryStats) error {
-	var data []byte
-	var err error
-
-	if f.pretty {
-		data, err = json.MarshalIndent(stats, "", "  ")
-	} else {
-		data, err = json.Marshal(stats)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to marshal stats: %w", err)
-	}
-
-	_, _ = fmt.Fprintln(f.writer, string(data))
-	return nil
+	return f.marshalAndWrite(stats, "failed to marshal stats")
 }
 
 // FormatError formats an error as JSON
@@ -201,41 +177,12 @@ func (f *JSONFormatter) FormatError(err error) error {
 	result := map[string]string{
 		"error": err.Error(),
 	}
-
-	var data []byte
-	var marshalErr error
-
-	if f.pretty {
-		data, marshalErr = json.MarshalIndent(result, "", "  ")
-	} else {
-		data, marshalErr = json.Marshal(result)
-	}
-
-	if marshalErr != nil {
-		return fmt.Errorf("failed to marshal error: %w", marshalErr)
-	}
-
-	_, _ = fmt.Fprintln(f.writer, string(data))
-	return nil
+	return f.marshalAndWrite(result, "failed to marshal error")
 }
 
 // FormatDocument formats a document as JSON
 func (f *JSONFormatter) FormatDocument(doc interface{}) error {
-	var data []byte
-	var err error
-
-	if f.pretty {
-		data, err = json.MarshalIndent(doc, "", "  ")
-	} else {
-		data, err = json.Marshal(doc)
-	}
-
-	if err != nil {
-		return fmt.Errorf("failed to marshal document: %w", err)
-	}
-
-	_, _ = fmt.Fprintln(f.writer, string(data))
-	return nil
+	return f.marshalAndWrite(doc, "failed to marshal document")
 }
 
 // PlainFormatter formats output as plain text

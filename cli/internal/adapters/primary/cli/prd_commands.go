@@ -392,13 +392,7 @@ func (c *CLI) formatPRDAsMarkdown(prd *services.PRDEntity) string {
 		content.WriteString("\n")
 	}
 
-	if len(prd.UserStories) > 0 {
-		content.WriteString("## User Stories\n\n")
-		for _, story := range prd.UserStories {
-			content.WriteString(fmt.Sprintf("- %s\n", story))
-		}
-		content.WriteString("\n")
-	}
+	content.WriteString(buildMarkdownList("User Stories", prd.UserStories))
 
 	content.WriteString("## Metadata\n\n")
 	if generatedBy, ok := prd.Metadata["generated_by"]; ok {

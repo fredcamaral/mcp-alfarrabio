@@ -732,7 +732,7 @@ func (pa *patternAggregatorImpl) isSensitiveMetadataKey(key string) bool {
 	return false
 }
 
-func (pa *patternAggregatorImpl) mergeKeywords(existing []string, new []string) []string {
+func (pa *patternAggregatorImpl) mergeKeywords(existing []string, newKeywords []string) []string {
 	keywordSet := make(map[string]bool)
 
 	// Add existing keywords
@@ -744,7 +744,7 @@ func (pa *patternAggregatorImpl) mergeKeywords(existing []string, new []string) 
 	var result []string
 	result = append(result, existing...)
 
-	for _, keyword := range new {
+	for _, keyword := range newKeywords {
 		if !keywordSet[keyword] {
 			result = append(result, keyword)
 			keywordSet[keyword] = true

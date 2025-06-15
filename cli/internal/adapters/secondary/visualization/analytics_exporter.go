@@ -139,7 +139,7 @@ func (e *AnalyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, filena
 	}
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -150,7 +150,7 @@ func (e *AnalyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, filena
 	}
 
 	// Write to file
-	if err := os.WriteFile(filename, jsonData, 0600); err != nil {
+	if err := os.WriteFile(filename, jsonData, 0o600); err != nil {
 		return "", fmt.Errorf("failed to write JSON file: %w", err)
 	}
 
@@ -162,7 +162,7 @@ func (e *AnalyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filenam
 	e.logger.Debug("exporting to CSV", slog.String("filename", filename))
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -314,7 +314,7 @@ func (e *AnalyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, filena
 	e.logger.Debug("exporting to HTML", slog.String("filename", filename))
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -512,7 +512,7 @@ func (e *AnalyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, filena
 	}
 
 	// Write to file
-	if err := os.WriteFile(filename, htmlBuffer.Bytes(), 0600); err != nil {
+	if err := os.WriteFile(filename, htmlBuffer.Bytes(), 0o600); err != nil {
 		return "", fmt.Errorf("failed to write HTML file: %w", err)
 	}
 
@@ -528,7 +528,7 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 	// For now, we'll create a well-formatted text report with PDF extension
 
 	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(filename), 0750); err != nil {
+	if err := os.MkdirAll(filepath.Dir(filename), 0o750); err != nil {
 		return "", fmt.Errorf("failed to create output directory: %w", err)
 	}
 
@@ -679,7 +679,7 @@ func (e *AnalyticsExporter) exportPDF(metrics *entities.WorkflowMetrics, filenam
 	report.WriteString("with graphics and charts, consider using a dedicated PDF library.\n")
 
 	// Write to file
-	if err := os.WriteFile(filename, []byte(report.String()), 0600); err != nil {
+	if err := os.WriteFile(filename, []byte(report.String()), 0o600); err != nil {
 		return "", fmt.Errorf("failed to write PDF file: %w", err)
 	}
 

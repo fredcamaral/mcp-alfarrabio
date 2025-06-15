@@ -227,7 +227,7 @@ func (s *SharedAIService) StartInteractiveSession(ctx context.Context, docType s
 }
 
 // ContinueSession continues an interactive session
-func (s *SharedAIService) ContinueSession(ctx context.Context, sessionID string, userInput string) (*ports.SessionResponse, error) {
+func (s *SharedAIService) ContinueSession(ctx context.Context, sessionID, userInput string) (*ports.SessionResponse, error) {
 	sharedResponse, err := s.aiService.ContinueSession(ctx, sessionID, userInput)
 	if err != nil {
 		return nil, fmt.Errorf("failed to continue session: %w", err)

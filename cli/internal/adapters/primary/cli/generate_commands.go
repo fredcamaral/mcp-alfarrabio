@@ -435,11 +435,7 @@ func (c *CLI) runGenerateSamplePRD(cmd *cobra.Command, projectType, output strin
 	}
 
 	content.WriteString("## Technical Requirements\n\n")
-	content.WriteString("### Technology Stack\n")
-	for _, tech := range template.tech {
-		content.WriteString(fmt.Sprintf("- %s\n", tech))
-	}
-	content.WriteString("\n")
+	content.WriteString(buildTechListMarkdown(template.tech))
 
 	content.WriteString("### Non-Functional Requirements\n")
 	content.WriteString("- **Performance**: Response time < 200ms for 95% of requests\n")

@@ -300,7 +300,7 @@ func (c *CLI) createAIListProvidersCommand() *cobra.Command {
 				fmt.Printf("   Type: %s\n", provider.Type)
 
 				if provider.APIKey != "" {
-					maskedKey := provider.APIKey[:min(8, len(provider.APIKey))] + "..."
+					maskedKey := provider.APIKey[:minInt(8, len(provider.APIKey))] + "..."
 					fmt.Printf("   API Key: %s\n", maskedKey)
 				}
 
@@ -939,7 +939,7 @@ func (c *CLI) getAIConfigDir() string {
 
 func (c *CLI) saveAIProviderConfig(config *AIProviderConfig) error {
 	configDir := c.getAIConfigDir()
-	if err := os.MkdirAll(configDir, 0700); err != nil {
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		return err
 	}
 
@@ -1004,7 +1004,7 @@ func (c *CLI) loadAIProviders() ([]AIProviderConfig, error) {
 
 func (c *CLI) saveAIDefaults(defaults map[string]AIDefaultConfig) error {
 	configDir := c.getAIConfigDir()
-	if err := os.MkdirAll(configDir, 0700); err != nil {
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		return err
 	}
 
@@ -1043,7 +1043,7 @@ func (c *CLI) loadAIDefaults() (map[string]AIDefaultConfig, error) {
 
 func (c *CLI) saveAIBudget(budget *AICostBudget) error {
 	configDir := c.getAIConfigDir()
-	if err := os.MkdirAll(configDir, 0700); err != nil {
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		return err
 	}
 
@@ -1086,7 +1086,7 @@ func (c *CLI) loadAIBudget() (*AICostBudget, error) {
 
 func (c *CLI) saveAIFallbackChain(chain AIFallbackChain) error {
 	configDir := c.getAIConfigDir()
-	if err := os.MkdirAll(configDir, 0700); err != nil {
+	if err := os.MkdirAll(configDir, 0o700); err != nil {
 		return err
 	}
 
@@ -1150,7 +1150,7 @@ func formatNumber(n int) string {
 	return fmt.Sprintf("%.1fM", float64(n)/1000000)
 }
 
-func min(a, b int) int {
+func minInt(a, b int) int {
 	if a < b {
 		return a
 	}
@@ -1331,7 +1331,7 @@ func (c *CLI) calculateCostEstimations(providers []AIProviderConfig, inputTokens
 	var estimations []CostEstimation
 
 	for _, p := range providers {
-		if !c.shouldIncludeProvider(p, provider) {
+		if !c.shouldIncludeProvider(&p, provider) {
 			continue
 		}
 
@@ -1349,7 +1349,7 @@ func (c *CLI) calculateCostEstimations(providers []AIProviderConfig, inputTokens
 }
 
 // shouldIncludeProvider checks if a provider should be included in estimations
-func (c *CLI) shouldIncludeProvider(p AIProviderConfig, provider string) bool {
+func (c *CLI) shouldIncludeProvider(p *AIProviderConfig, provider string) bool {
 	return provider == "" || p.Name == provider || p.Type == provider
 }
 

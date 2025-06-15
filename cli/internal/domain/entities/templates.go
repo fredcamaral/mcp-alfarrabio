@@ -230,9 +230,9 @@ func (pc *ProjectCharacteristics) GetComplexityScore() float64 {
 
 // GetTaskByOrder returns a task by its order
 func (tt *TaskTemplate) GetTaskByOrder(order int) *TemplateTask {
-	for _, task := range tt.Tasks {
-		if task.Order == order {
-			return &task
+	for i := range tt.Tasks {
+		if tt.Tasks[i].Order == order {
+			return &tt.Tasks[i]
 		}
 	}
 	return nil
@@ -241,10 +241,11 @@ func (tt *TaskTemplate) GetTaskByOrder(order int) *TemplateTask {
 // GetDependentTasks returns tasks that depend on the given task order
 func (tt *TaskTemplate) GetDependentTasks(order int) []TemplateTask {
 	var dependents []TemplateTask
-	for _, task := range tt.Tasks {
+	for i := range tt.Tasks {
+		task := &tt.Tasks[i]
 		for _, dep := range task.Dependencies {
 			if dep == order {
-				dependents = append(dependents, task)
+				dependents = append(dependents, *task)
 				break
 			}
 		}
@@ -255,8 +256,8 @@ func (tt *TaskTemplate) GetDependentTasks(order int) []TemplateTask {
 // GetEstimatedTotalHours returns the total estimated hours for all tasks
 func (tt *TaskTemplate) GetEstimatedTotalHours() float64 {
 	total := 0.0
-	for _, task := range tt.Tasks {
-		total += task.EstimatedHours
+	for i := range tt.Tasks {
+		total += tt.Tasks[i].EstimatedHours
 	}
 	return total
 }

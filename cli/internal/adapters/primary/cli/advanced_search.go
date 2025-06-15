@@ -175,12 +175,12 @@ func (c *CLI) setDateField(target **string, value, fieldName string) error {
 // setTimeEstimationFilters sets estimated time filters
 func (c *CLI) setTimeEstimationFilters(filters *ports.TaskFilters, estimatedMin, estimatedMax int) {
 	if estimatedMin > 0 {
-		min := time.Duration(estimatedMin) * time.Minute
-		filters.EstimatedTimeMin = &min
+		minDuration := time.Duration(estimatedMin) * time.Minute
+		filters.EstimatedTimeMin = &minDuration
 	}
 	if estimatedMax > 0 {
-		max := time.Duration(estimatedMax) * time.Minute
-		filters.EstimatedTimeMax = &max
+		maxDuration := time.Duration(estimatedMax) * time.Minute
+		filters.EstimatedTimeMax = &maxDuration
 	}
 }
 

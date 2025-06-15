@@ -371,14 +371,31 @@ func (ai *aiSuggestionGeneratorImpl) AnalyzeTaskComplexity(task *entities.Task) 
 		Recommendations:   make([]string, 0),
 	}
 
-	// Analyze content complexity
 	content := strings.ToLower(task.Content)
 	contentLength := len(task.Content)
 
-	// Base complexity scoring
+	// Calculate base complexity score
+	complexityScore := ai.calculateBaseComplexity(content, contentLength, analysis)
+
+	// Analyze different aspects
+	complexityScore += ai.analyzeComplexityKeywords(content, analysis)
+	ai.analyzeSkillRequirements(content, analysis)
+	complexityScore += ai.analyzeDependencies(content, analysis)
+	complexityScore += ai.analyzeRiskFactors(content, analysis)
+
+	// Finalize analysis
+	analysis.ComplexityScore = ai.normalizeScore(complexityScore)
+	analysis.EstimatedDuration = ai.calculateDuration(analysis.ComplexityScore)
+	ai.generateRecommendations(analysis)
+	analysis.Confidence = ai.calculateConfidence(analysis, contentLength)
+
+	return analysis, nil
+}
+
+// calculateBaseComplexity determines initial complexity based on content length
+func (ai *aiSuggestionGeneratorImpl) calculateBaseComplexity(content string, contentLength int, analysis *TaskComplexityAnalysis) float64 {
 	complexityScore := 0.5 // Start with neutral
 
-	// Content length factor
 	if contentLength > 200 {
 		complexityScore += 0.2
 		analysis.FactorsIdentified = append(analysis.FactorsIdentified, "long_description")
@@ -387,7 +404,11 @@ func (ai *aiSuggestionGeneratorImpl) AnalyzeTaskComplexity(task *entities.Task) 
 		analysis.FactorsIdentified = append(analysis.FactorsIdentified, "short_description")
 	}
 
-	// Complexity keywords analysis
+	return complexityScore
+}
+
+// analyzeComplexityKeywords analyzes content for complexity-indicating keywords
+func (ai *aiSuggestionGeneratorImpl) analyzeComplexityKeywords(content string, analysis *TaskComplexityAnalysis) float64 {
 	complexityKeywords := map[string]float64{
 		"complex":     0.3,
 		"difficult":   0.2,
@@ -406,14 +427,19 @@ func (ai *aiSuggestionGeneratorImpl) AnalyzeTaskComplexity(task *entities.Task) 
 		"easy":        -0.1,
 	}
 
+	scoreAdjustment := 0.0
 	for keyword, weight := range complexityKeywords {
 		if strings.Contains(content, keyword) {
-			complexityScore += weight
+			scoreAdjustment += weight
 			analysis.FactorsIdentified = append(analysis.FactorsIdentified, keyword)
 		}
 	}
 
-	// Skill analysis
+	return scoreAdjustment
+}
+
+// analyzeSkillRequirements identifies required skills from content
+func (ai *aiSuggestionGeneratorImpl) analyzeSkillRequirements(content string, analysis *TaskComplexityAnalysis) {
 	skillKeywords := map[string][]string{
 		"programming":   {"code", "implement", "debug", "algorithm"},
 		"design":        {"design", "ui", "ux", "interface", "prototype"},
@@ -430,18 +456,24 @@ func (ai *aiSuggestionGeneratorImpl) AnalyzeTaskComplexity(task *entities.Task) 
 			}
 		}
 	}
+}
 
-	// Dependency analysis
+// analyzeDependencies checks for external dependencies
+func (ai *aiSuggestionGeneratorImpl) analyzeDependencies(content string, analysis *TaskComplexityAnalysis) float64 {
 	dependencyKeywords := []string{"depends", "requires", "needs", "after", "before", "prerequisite"}
+	
 	for _, keyword := range dependencyKeywords {
 		if strings.Contains(content, keyword) {
 			analysis.Dependencies = append(analysis.Dependencies, "external_dependency")
-			complexityScore += 0.1
-			break
+			return 0.1
 		}
 	}
+	
+	return 0.0
+}
 
-	// Risk factor analysis
+// analyzeRiskFactors identifies potential risk factors
+func (ai *aiSuggestionGeneratorImpl) analyzeRiskFactors(content string, analysis *TaskComplexityAnalysis) float64 {
 	riskKeywords := map[string]string{
 		"deadline":     "time_pressure",
 		"urgent":       "urgency_risk",
@@ -451,36 +483,45 @@ func (ai *aiSuggestionGeneratorImpl) AnalyzeTaskComplexity(task *entities.Task) 
 		"experimental": "uncertainty_risk",
 	}
 
+	scoreAdjustment := 0.0
 	for keyword, risk := range riskKeywords {
 		if strings.Contains(content, keyword) {
 			analysis.RiskFactors = append(analysis.RiskFactors, risk)
-			complexityScore += 0.05
+			scoreAdjustment += 0.05
 		}
 	}
 
-	// Normalize complexity score
-	if complexityScore > 1.0 {
-		complexityScore = 1.0
-	} else if complexityScore < 0.0 {
-		complexityScore = 0.0
+	return scoreAdjustment
+}
+
+// normalizeScore ensures score is within valid range
+func (ai *aiSuggestionGeneratorImpl) normalizeScore(score float64) float64 {
+	if score > 1.0 {
+		return 1.0
 	}
-
-	analysis.ComplexityScore = complexityScore
-
-	// Generate duration estimate
-	baseTime := time.Hour
-	if complexityScore > 0.8 {
-		baseTime = 4 * time.Hour
-	} else if complexityScore > 0.6 {
-		baseTime = 2 * time.Hour
-	} else if complexityScore < 0.3 {
-		baseTime = 30 * time.Minute
+	if score < 0.0 {
+		return 0.0
 	}
+	return score
+}
 
-	analysis.EstimatedDuration = baseTime
+// calculateDuration estimates task duration based on complexity
+func (ai *aiSuggestionGeneratorImpl) calculateDuration(complexityScore float64) time.Duration {
+	switch {
+	case complexityScore > 0.8:
+		return 4 * time.Hour
+	case complexityScore > 0.6:
+		return 2 * time.Hour
+	case complexityScore < 0.3:
+		return 30 * time.Minute
+	default:
+		return time.Hour
+	}
+}
 
-	// Generate recommendations
-	if complexityScore > 0.7 {
+// generateRecommendations creates actionable recommendations
+func (ai *aiSuggestionGeneratorImpl) generateRecommendations(analysis *TaskComplexityAnalysis) {
+	if analysis.ComplexityScore > 0.7 {
 		analysis.BreakdownSuggested = true
 		analysis.Recommendations = append(analysis.Recommendations, "Consider breaking this task into smaller subtasks")
 	}
@@ -492,9 +533,12 @@ func (ai *aiSuggestionGeneratorImpl) AnalyzeTaskComplexity(task *entities.Task) 
 	if len(analysis.RiskFactors) > 0 {
 		analysis.Recommendations = append(analysis.Recommendations, "Risk factors identified - plan mitigation strategies")
 	}
+}
 
-	// Set confidence based on analysis completeness
+// calculateConfidence determines analysis confidence level
+func (ai *aiSuggestionGeneratorImpl) calculateConfidence(analysis *TaskComplexityAnalysis, contentLength int) float64 {
 	confidence := 0.6 // Base confidence
+	
 	if len(analysis.FactorsIdentified) > 2 {
 		confidence += 0.2
 	}
@@ -505,9 +549,7 @@ func (ai *aiSuggestionGeneratorImpl) AnalyzeTaskComplexity(task *entities.Task) 
 		confidence += 0.1 // More content = better analysis
 	}
 
-	analysis.Confidence = math.Min(confidence, 1.0)
-
-	return analysis, nil
+	return math.Min(confidence, 1.0)
 }
 
 // GenerateTaskBreakdown generates subtask suggestions for complex tasks

@@ -366,11 +366,11 @@ func (sa *similarityAnalyzerImpl) calculateLanguageSimilarity(langsA, langsB map
 			weight = w
 		}
 
-		min := math.Min(countA, countB) * weight
-		max := math.Max(countA, countB) * weight
+		minVal := math.Min(countA, countB) * weight
+		maxVal := math.Max(countA, countB) * weight
 
-		intersection += min
-		union += max
+		intersection += minVal
+		union += maxVal
 	}
 
 	if union == 0 {
@@ -553,7 +553,7 @@ func (sa *similarityAnalyzerImpl) calculateWorkPatternsSimilarity(patternsA, pat
 		totalPatterns++
 		if patternA, exists := mapA[patternB.Type]; exists {
 			// Calculate similarity between the specific patterns
-			similarity := sa.calculateIndividualPatternSimilarity(patternA, patternB)
+			similarity := sa.calculateIndividualPatternSimilarity(&patternA, &patternB)
 			intersection += similarity
 		}
 	}
@@ -579,7 +579,7 @@ func (sa *similarityAnalyzerImpl) calculateWorkPatternsSimilarity(patternsA, pat
 	return intersection / totalPatterns
 }
 
-func (sa *similarityAnalyzerImpl) calculateIndividualPatternSimilarity(patternA, patternB entities.WorkPattern) float64 {
+func (sa *similarityAnalyzerImpl) calculateIndividualPatternSimilarity(patternA, patternB *entities.WorkPattern) float64 {
 	// Compare frequency
 	freqSimilarity := 1.0 - math.Abs(patternA.Frequency-patternB.Frequency)
 

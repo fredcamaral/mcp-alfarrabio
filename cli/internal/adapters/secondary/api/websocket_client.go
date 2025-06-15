@@ -304,7 +304,7 @@ func (c *WebSocketClient) readPump(ctx context.Context) {
 			break
 		}
 
-		c.handleEvent(event)
+		c.handleEvent(&event)
 	}
 }
 
@@ -341,7 +341,7 @@ func (c *WebSocketClient) pingPump() {
 }
 
 // handleEvent processes incoming WebSocket events
-func (c *WebSocketClient) handleEvent(event Event) {
+func (c *WebSocketClient) handleEvent(event *Event) {
 	c.logger.Debug("received websocket event",
 		slog.String("type", event.Type),
 		slog.String("timestamp", event.Timestamp.Format(time.RFC3339)))
@@ -370,7 +370,7 @@ func (c *WebSocketClient) handleEvent(event Event) {
 }
 
 // handleTaskEvent processes task-related events
-func (c *WebSocketClient) handleTaskEvent(event Event) {
+func (c *WebSocketClient) handleTaskEvent(event *Event) {
 	if c.hub == nil {
 		return
 	}
@@ -467,7 +467,7 @@ func (c *WebSocketClient) handlePing() {
 }
 
 // handleSystemEvent processes system-level events
-func (c *WebSocketClient) handleSystemEvent(event Event) {
+func (c *WebSocketClient) handleSystemEvent(event *Event) {
 	if c.hub == nil {
 		return
 	}
@@ -496,7 +496,7 @@ func (c *WebSocketClient) handleSystemEvent(event Event) {
 }
 
 // handleRepositorySync processes repository synchronization events
-func (c *WebSocketClient) handleRepositorySync(event Event) {
+func (c *WebSocketClient) handleRepositorySync(event *Event) {
 	c.logger.Info("repository sync event received",
 		slog.String("timestamp", event.Timestamp.Format(time.RFC3339)))
 

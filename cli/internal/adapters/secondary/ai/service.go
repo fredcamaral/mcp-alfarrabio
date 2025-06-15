@@ -146,7 +146,7 @@ func (s *HTTPAIService) StartInteractiveSession(ctx context.Context, docType str
 }
 
 // ContinueSession continues an interactive AI session
-func (s *HTTPAIService) ContinueSession(ctx context.Context, sessionID string, userInput string) (*ports.SessionResponse, error) {
+func (s *HTTPAIService) ContinueSession(ctx context.Context, sessionID, userInput string) (*ports.SessionResponse, error) {
 	endpoint := fmt.Sprintf("/ai/session/%s/continue", sessionID)
 
 	request := map[string]string{
@@ -215,7 +215,7 @@ func (s *HTTPAIService) GetAvailableModels() []string {
 }
 
 // makeRequest makes an HTTP request to the AI service
-func (s *HTTPAIService) makeRequest(ctx context.Context, method, endpoint string, body interface{}, result interface{}) error {
+func (s *HTTPAIService) makeRequest(ctx context.Context, method, endpoint string, body, result interface{}) error {
 	// Build URL
 	reqURL, err := url.JoinPath(s.baseURL, endpoint)
 	if err != nil {

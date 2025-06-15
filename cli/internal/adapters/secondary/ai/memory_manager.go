@@ -374,17 +374,15 @@ func (mm *MemoryManager) executeSyncStrategy(ctx context.Context, files []string
 				continue
 			}
 			result.MemoriesCreated++
-		} else {
+		} else if mm.fileHasChanged(file, mapping) {
 			// Existing file - check for changes
-			if mm.fileHasChanged(file, mapping) {
-				if err := mm.updateExistingFile(ctx, file, mapping); err != nil {
-					mm.logger.Warn("failed to update existing file",
-						slog.String("file", file),
-						slog.String("error", err.Error()))
-					continue
-				}
-				result.MemoriesUpdated++
+			if err := mm.updateExistingFile(ctx, file, mapping); err != nil {
+				mm.logger.Warn("failed to update existing file",
+					slog.String("file", file),
+					slog.String("error", err.Error()))
+				continue
 			}
+			result.MemoriesUpdated++
 		}
 	}
 

@@ -232,7 +232,8 @@ func (r *BatchSyncRequest) ValidateSync() error {
 	}
 
 	// Validate task items
-	for i, task := range r.LocalTasks {
+	for i := range r.LocalTasks {
+		task := &r.LocalTasks[i]
 		if task.ID == "" {
 			return fmt.Errorf("task %d: id is required", i)
 		}

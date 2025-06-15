@@ -15,7 +15,7 @@ import (
 )
 
 // AnalyticsCommand creates the analytics command
-func NewAnalyticsCommand(deps CommandDeps) *cobra.Command {
+func NewAnalyticsCommand(deps *CommandDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "analytics [repository]",
 		Short: "View productivity analytics and insights",
@@ -59,7 +59,7 @@ Examples:
 }
 
 // runAnalyticsCommand executes the analytics command
-func runAnalyticsCommand(cmd *cobra.Command, args []string, deps CommandDeps) error {
+func runAnalyticsCommand(cmd *cobra.Command, args []string, deps *CommandDeps) error {
 	ctx := cmd.Context()
 
 	// Get repository
@@ -210,7 +210,8 @@ func runReportGeneration(
 	// Show recommendations
 	if len(report.Recommendations) > 0 {
 		fmt.Printf("🎯 RECOMMENDATIONS:\n")
-		for i, rec := range report.Recommendations {
+		for i := range report.Recommendations {
+			rec := &report.Recommendations[i]
 			if i >= 3 { // Limit to top 3
 				break
 			}
@@ -307,7 +308,7 @@ func runTrendAnalysis(
 
 	// Show velocity trends
 	if sv, ok := visualizer.(*simpleVisualizer); ok {
-		fmt.Print(sv.RenderVelocityChart(metrics.Velocity))
+		fmt.Print(sv.RenderVelocityChart(&metrics.Velocity))
 		fmt.Print("\n")
 	}
 
@@ -317,7 +318,7 @@ func runTrendAnalysis(
 
 	// Render detailed trend visualization
 	if sv, ok := visualizer.(*simpleVisualizer); ok {
-		trendViz := sv.RenderTrendAnalysis(metrics.Trends)
+		trendViz := sv.RenderTrendAnalysis(&metrics.Trends)
 		fmt.Print(trendViz)
 	}
 
@@ -354,7 +355,8 @@ func runTrendAnalysis(
 	// Show predictions if available
 	if len(metrics.Trends.Predictions) > 0 {
 		fmt.Printf("\n🔮 PREDICTIONS:\n")
-		for _, prediction := range metrics.Trends.Predictions {
+		for i := range metrics.Trends.Predictions {
+			prediction := &metrics.Trends.Predictions[i]
 			if prediction.Confidence > 0.6 {
 				fmt.Printf("• %s: %.1f (%.0f%% confidence)\n",
 					strings.Title(string(prediction.Metric)),
@@ -528,7 +530,7 @@ type simpleVisualizer struct {
 	config *VisualizerConfig
 }
 
-func (v *simpleVisualizer) RenderVelocityChart(metrics entities.VelocityMetrics) string {
+func (v *simpleVisualizer) RenderVelocityChart(metrics *entities.VelocityMetrics) string {
 	return fmt.Sprintf("📊 Velocity Chart: Current=%.1f, Trend=%s\n",
 		metrics.CurrentVelocity, metrics.TrendDirection)
 }
@@ -549,7 +551,7 @@ func (v *simpleVisualizer) RenderBottlenecks(bottlenecks []*entities.Bottleneck)
 	return result
 }
 
-func (v *simpleVisualizer) RenderTrendAnalysis(trends entities.TrendAnalysis) string {
+func (v *simpleVisualizer) RenderTrendAnalysis(trends *entities.TrendAnalysis) string {
 	result := ""
 
 	// Render individual trend charts
@@ -564,8 +566,9 @@ func (v *simpleVisualizer) RenderTrendAnalysis(trends entities.TrendAnalysis) st
 		{"Efficiency", trends.EfficiencyTrend, "⚡"},
 	}
 
-	for _, item := range trendItems {
-		result += v.renderSingleTrend(item.name, item.trend, item.icon)
+	for i := range trendItems {
+		item := &trendItems[i]
+		result += v.renderSingleTrend(item.name, &item.trend, item.icon)
 		result += "\n"
 	}
 
@@ -584,7 +587,7 @@ func (v *simpleVisualizer) RenderTrendAnalysis(trends entities.TrendAnalysis) st
 	return result
 }
 
-func (v *simpleVisualizer) renderSingleTrend(name string, trend entities.Trend, icon string) string {
+func (v *simpleVisualizer) renderSingleTrend(name string, trend *entities.Trend, icon string) string {
 	var result strings.Builder
 
 	// Header with trend direction
@@ -661,7 +664,8 @@ func (v *simpleVisualizer) renderPredictions(predictions []entities.Prediction) 
 		return result + "  No predictions available\n"
 	}
 
-	for i, prediction := range predictions {
+	for i := range predictions {
+		prediction := &predictions[i]
 		if i >= 5 { // Limit to top 5 predictions
 			break
 		}
@@ -823,7 +827,8 @@ func (v *simpleVisualizer) GenerateVisualization(metrics *entities.WorkflowMetri
 
 	if len(metrics.Bottlenecks) > 0 {
 		output += "\n🚨 BOTTLENECKS:\n"
-		for i, bottleneck := range metrics.Bottlenecks {
+		for i := range metrics.Bottlenecks {
+			bottleneck := &metrics.Bottlenecks[i]
 			if i >= 3 { // Limit to top 3
 				break
 			}

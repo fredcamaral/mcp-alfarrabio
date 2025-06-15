@@ -254,7 +254,7 @@ func (cra *crossRepoAnalyzer) findCommonPatternTypes(patternsA, patternsB []*ent
 }
 
 // findUniquePatterns identifies patterns unique to a repository
-func (cra *crossRepoAnalyzer) findUniquePatterns(repoPatterns []*entities.TaskPattern, allPatterns []*entities.TaskPattern) []*entities.TaskPattern {
+func (cra *crossRepoAnalyzer) findUniquePatterns(repoPatterns, allPatterns []*entities.TaskPattern) []*entities.TaskPattern {
 	// Create a map of patterns from other repositories for comparison
 	otherPatterns := make(map[string]*entities.TaskPattern)
 	for _, pattern := range allPatterns {
