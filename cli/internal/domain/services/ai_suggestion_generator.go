@@ -573,19 +573,14 @@ func (ai *aiSuggestionGeneratorImpl) SuggestTaskOptimizations(
 	suggestions := make([]*entities.TaskSuggestion, 0, len(optimizations))
 
 	for _, opt := range optimizations {
-		suggestion := entities.NewTaskSuggestion(
+		suggestion := ai.createBasicTaskSuggestion(
 			entities.SuggestionTypeOptimize,
 			"Optimize: "+opt.title,
-			entities.SuggestionSource{
-				Type:       "ai",
-				Name:       "task_optimizer_ai",
-				Algorithm:  "historical_analysis",
-				Confidence: opt.confidence,
-			},
+			"task_optimizer_ai",
+			"historical_analysis",
+			opt.confidence,
 			task.Repository,
 		)
-
-		suggestion.Confidence = opt.confidence
 		suggestion.Relevance = opt.relevance
 		suggestion.Urgency = 0.5
 		suggestion.Reasoning = opt.reasoning
@@ -807,19 +802,14 @@ func (ai *aiSuggestionGeneratorImpl) analyzeContextInsights(workContext *entitie
 }
 
 func (ai *aiSuggestionGeneratorImpl) createInsightBasedSuggestion(insight contextInsight, workContext *entities.WorkContext) *entities.TaskSuggestion {
-	suggestion := entities.NewTaskSuggestion(
+	suggestion := ai.createBasicTaskSuggestion(
 		entities.SuggestionTypeOptimize,
 		insight.description,
-		entities.SuggestionSource{
-			Type:       "ai",
-			Name:       "context_insight_ai",
-			Algorithm:  "context_analysis",
-			Confidence: insight.confidence,
-		},
+		"context_insight_ai",
+		"context_analysis",
+		insight.confidence,
 		workContext.Repository,
 	)
-
-	suggestion.Confidence = insight.confidence
 	suggestion.Relevance = insight.relevance
 	suggestion.Urgency = 0.6
 	suggestion.Reasoning = insight.reasoning
