@@ -141,7 +141,37 @@ func (c *CLI) runTasksGenerate(fromPRD, fromTRD, output string, useSession bool)
 
 	ctx := context.Background()
 
-	// Smart context detection
+	// Auto-detect documents if using session
+	fromPRD, fromTRD = c.autoDetectDocuments(fromPRD, fromTRD, useSession)
+
+	// Validate we have at least one document
+	if err := c.validateDocumentInputs(fromPRD, fromTRD); err != nil {
+		return err
+	}
+
+	// Load the documents
+	prd, trd, err := c.loadDocuments(fromPRD, fromTRD)
+	if err != nil {
+		return err
+	}
+
+	// Generate tasks from available documents
+	mainTasks, err := c.generateMainTasks(ctx, prd, trd)
+	if err != nil {
+		return fmt.Errorf("failed to generate tasks: %w", err)
+	}
+
+	// Save and display results
+	if err := c.saveAndDisplayTasks(mainTasks, output, useSession); err != nil {
+		return err
+	}
+
+	c.printNextSteps()
+	return nil
+}
+
+// autoDetectDocuments auto-detects PRD and TRD files when using session
+func (c *CLI) autoDetectDocuments(fromPRD, fromTRD string, useSession bool) (string, string) {
 	if fromPRD == "" && useSession {
 		fromPRD = c.detectLatestPRD()
 		if fromPRD != "" {
@@ -156,19 +186,26 @@ func (c *CLI) runTasksGenerate(fromPRD, fromTRD, output string, useSession bool)
 		}
 	}
 
-	// Validate inputs
+	return fromPRD, fromTRD
+}
+
+// validateDocumentInputs ensures we have at least one document to work with
+func (c *CLI) validateDocumentInputs(fromPRD, fromTRD string) error {
 	if fromPRD == "" && fromTRD == "" {
 		return errors.New("no PRD or TRD specified. Use --from-prd and/or --from-trd, or run 'lmmc prd create' first")
 	}
+	return nil
+}
 
-	// Load documents
+// loadDocuments loads PRD and TRD files
+func (c *CLI) loadDocuments(fromPRD, fromTRD string) (*services.PRDEntity, *services.TRDEntity, error) {
 	var prd *services.PRDEntity
 	var trd *services.TRDEntity
 
 	if fromPRD != "" {
 		loadedPRD, err := c.loadPRDFromFile(fromPRD)
 		if err != nil {
-			return fmt.Errorf("failed to load PRD: %w", err)
+			return nil, nil, fmt.Errorf("failed to load PRD: %w", err)
 		}
 		prd = loadedPRD
 	}
@@ -176,49 +213,66 @@ func (c *CLI) runTasksGenerate(fromPRD, fromTRD, output string, useSession bool)
 	if fromTRD != "" {
 		loadedTRD, err := c.loadTRDFromFile(fromTRD)
 		if err != nil {
-			return fmt.Errorf("failed to load TRD: %w", err)
+			return nil, nil, fmt.Errorf("failed to load TRD: %w", err)
 		}
 		trd = loadedTRD
 	}
 
-	// Generate tasks based on available documents
-	var mainTasks []*services.MainTask
-	var err error
+	return prd, trd, nil
+}
 
+// generateMainTasks generates tasks from available documents
+func (c *CLI) generateMainTasks(ctx context.Context, prd *services.PRDEntity, trd *services.TRDEntity) ([]*services.MainTask, error) {
 	if trd != nil {
 		fmt.Printf("🔧 Generating tasks from TRD...\n")
-		mainTasks, err = c.documentChain.GenerateMainTasksFromTRD(ctx, trd)
-	} else if prd != nil {
+		return c.documentChain.GenerateMainTasksFromTRD(ctx, trd)
+	}
+
+	if prd != nil {
 		fmt.Printf("🔧 Generating tasks from PRD...\n")
-		// Fallback to PRD-only generation
-		mainTasks, err = c.generateTasksFromPRDOnly(ctx, prd)
+		return c.generateTasksFromPRDOnly(ctx, prd)
 	}
 
-	if err != nil {
-		return fmt.Errorf("failed to generate tasks: %w", err)
-	}
+	return nil, errors.New("no valid documents available for task generation")
+}
 
+// saveAndDisplayTasks saves tasks to file and displays results
+func (c *CLI) saveAndDisplayTasks(mainTasks []*services.MainTask, output string, useSession bool) error {
 	// Determine output file
 	if output == "" && useSession {
-		// Default output location
 		output = c.getDefaultTasksOutputPath()
 	}
 
 	// Save tasks if output specified
 	if output != "" {
-		content := c.formatMainTasksAsMarkdown(mainTasks)
-		if err := c.saveToFile(output, content); err != nil {
-			return fmt.Errorf("failed to save tasks: %w", err)
-		}
-		fmt.Printf("\n📄 Tasks saved to: %s\n", output)
-
-		// Update session
-		if useSession {
-			c.updateSession("tasks_file", output)
+		if err := c.saveTasksToFile(mainTasks, output, useSession); err != nil {
+			return err
 		}
 	}
 
 	// Display results
+	c.displayGeneratedTasks(mainTasks)
+	return nil
+}
+
+// saveTasksToFile saves tasks to the specified file
+func (c *CLI) saveTasksToFile(mainTasks []*services.MainTask, output string, useSession bool) error {
+	content := c.formatMainTasksAsMarkdown(mainTasks)
+	if err := c.saveToFile(output, content); err != nil {
+		return fmt.Errorf("failed to save tasks: %w", err)
+	}
+
+	fmt.Printf("\n📄 Tasks saved to: %s\n", output)
+
+	if useSession {
+		c.updateSession("tasks_file", output)
+	}
+
+	return nil
+}
+
+// displayGeneratedTasks displays the generated tasks summary
+func (c *CLI) displayGeneratedTasks(mainTasks []*services.MainTask) {
 	fmt.Printf("\n✅ Generated %d tasks successfully!\n\n", len(mainTasks))
 
 	for i, task := range mainTasks {
@@ -230,13 +284,14 @@ func (c *CLI) runTasksGenerate(fromPRD, fromTRD, output string, useSession bool)
 		}
 		fmt.Println()
 	}
+}
 
+// printNextSteps displays helpful next steps for the user
+func (c *CLI) printNextSteps() {
 	fmt.Printf("💡 Next steps:\n")
 	fmt.Printf("   - Run 'lmmc tasks validate' to verify atomicity\n")
 	fmt.Printf("   - Run 'lmmc subtasks generate --from-task MT-001' for detailed sub-tasks\n")
 	fmt.Printf("   - Run 'lmmc workflow continue' to proceed with implementation\n")
-
-	return nil
 }
 
 // runTasksAnalyze handles task analysis

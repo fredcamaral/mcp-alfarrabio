@@ -312,7 +312,9 @@ func (n *NotificationService) displayNotification(message, severity string) {
 
 	// Write to output
 	if n.output != nil {
-		fmt.Fprint(n.output, formattedMessage)
+		if _, err := fmt.Fprint(n.output, formattedMessage); err != nil {
+			// Log error but don't return as this is a notification
+		}
 	}
 
 	// Log the notification

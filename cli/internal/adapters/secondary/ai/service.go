@@ -289,68 +289,60 @@ func WithOptions(req interface{}, opts *RequestOptions) interface{} {
 	// Use type assertion to add options to specific request types
 	switch r := req.(type) {
 	case *ports.PRDGenerationRequest:
-		if opts.Model != "" {
-			r.Model = opts.Model
-		}
-		if opts.Metadata != nil {
-			if r.Metadata == nil {
-				r.Metadata = make(map[string]interface{})
-			}
-			for k, v := range opts.Metadata {
-				r.Metadata[k] = v
-			}
-		}
+		applyModelOption(&r.Model, opts.Model)
+		applyMetadataToRequest(&r.Metadata, opts.Metadata)
 	case *ports.TRDGenerationRequest:
-		if opts.Model != "" {
-			r.Model = opts.Model
-		}
-		if opts.Metadata != nil {
-			if r.Metadata == nil {
-				r.Metadata = make(map[string]interface{})
-			}
-			for k, v := range opts.Metadata {
-				r.Metadata[k] = v
-			}
-		}
+		applyModelOption(&r.Model, opts.Model)
+		applyMetadataToRequest(&r.Metadata, opts.Metadata)
 	case *ports.MainTaskGenerationRequest:
-		if opts.Model != "" {
-			r.Model = opts.Model
-		}
-		if opts.Metadata != nil {
-			if r.Metadata == nil {
-				r.Metadata = make(map[string]interface{})
-			}
-			for k, v := range opts.Metadata {
-				r.Metadata[k] = v
-			}
-		}
+		applyModelOption(&r.Model, opts.Model)
+		applyMetadataToRequest(&r.Metadata, opts.Metadata)
 	case *ports.SubTaskGenerationRequest:
-		if opts.Model != "" {
-			r.Model = opts.Model
-		}
-		if opts.Metadata != nil {
-			if r.Metadata == nil {
-				r.Metadata = make(map[string]interface{})
-			}
-			for k, v := range opts.Metadata {
-				r.Metadata[k] = v
-			}
-		}
+		applyModelOption(&r.Model, opts.Model)
+		applyMetadataToRequest(&r.Metadata, opts.Metadata)
 	case *ports.ContentAnalysisRequest:
-		if opts.Model != "" {
-			r.Model = opts.Model
-		}
-		if r.Context == nil {
-			r.Context = make(map[string]interface{})
-		}
-		if opts.Metadata != nil {
-			for k, v := range opts.Metadata {
-				r.Context[k] = v
-			}
-		}
+		applyModelOption(&r.Model, opts.Model)
+		applyMetadataToContext(&r.Context, opts.Metadata)
 	}
 
 	return req
+}
+
+// applyModelOption sets the model if provided
+func applyModelOption(targetModel *string, optionModel string) {
+	if optionModel != "" {
+		*targetModel = optionModel
+	}
+}
+
+// applyMetadataToRequest applies metadata to a request's metadata field
+func applyMetadataToRequest(targetMetadata *map[string]interface{}, optionMetadata map[string]string) {
+	if optionMetadata == nil {
+		return
+	}
+
+	if *targetMetadata == nil {
+		*targetMetadata = make(map[string]interface{})
+	}
+
+	for k, v := range optionMetadata {
+		(*targetMetadata)[k] = v
+	}
+}
+
+// applyMetadataToContext applies metadata to a context field
+func applyMetadataToContext(targetContext *map[string]interface{}, optionMetadata map[string]string) {
+	if optionMetadata == nil {
+		return
+	}
+
+	if *targetContext == nil {
+		*targetContext = make(map[string]interface{})
+	}
+
+	for k, v := range optionMetadata {
+		(*targetContext)[k] = v
+	}
 }
 
 // RetryConfig contains configuration for request retries

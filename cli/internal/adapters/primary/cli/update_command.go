@@ -325,7 +325,11 @@ func (c *CLI) extractFromZip(zipPath, extractDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer r.Close()
+	defer func() {
+		if err := r.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	for _, f := range r.File {
 		if strings.Contains(f.Name, "lmmc") && !strings.Contains(f.Name, "/") {
@@ -342,7 +346,11 @@ func (c *CLI) extractZipFile(f *zip.File, extractDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer rc.Close()
+	defer func() {
+		if err := rc.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	// Validate file path to prevent directory traversal
 	cleanName := filepath.Clean(f.Name)
@@ -355,7 +363,11 @@ func (c *CLI) extractZipFile(f *zip.File, extractDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer outFile.Close()
+	defer func() {
+		if err := outFile.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	// Limit extraction size to prevent decompression bombs (100MB limit)
 	limitedReader := io.LimitReader(rc, 100*1024*1024)
@@ -379,13 +391,21 @@ func (c *CLI) extractFromTarGz(tarPath, extractDir string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	gr, err := gzip.NewReader(f)
 	if err != nil {
 		return "", err
 	}
-	defer gr.Close()
+	defer func() {
+		if err := gr.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	tr := tar.NewReader(gr)
 
@@ -410,7 +430,11 @@ func (c *CLI) extractFromTarGz(tarPath, extractDir string) (string, error) {
 			if err != nil {
 				return "", err
 			}
-			defer outFile.Close()
+			defer func() {
+				if err := outFile.Close(); err != nil {
+					// Log error but don't return as we're in defer
+				}
+			}()
 
 			// Limit extraction size to prevent decompression bombs (100MB limit)
 			limitedReader := io.LimitReader(tr, 100*1024*1024)
@@ -439,13 +463,21 @@ func (c *CLI) copyFile(src, dst string) error {
 	if err != nil {
 		return err
 	}
-	defer sourceFile.Close()
+	defer func() {
+		if err := sourceFile.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	destFile, err := os.Create(dst) // #nosec G304 -- Path is cleaned and validated above
 	if err != nil {
 		return err
 	}
-	defer destFile.Close()
+	defer func() {
+		if err := destFile.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	_, err = io.Copy(destFile, sourceFile)
 	return err

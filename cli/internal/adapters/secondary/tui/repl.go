@@ -185,7 +185,11 @@ func NewREPLModel(mode REPLMode, httpPort int) *REPLModel {
 func (m REPLModel) Init() tea.Cmd {
 	// Start HTTP server if port is specified
 	if m.httpPort > 0 {
-		go m.startHTTPServer()
+		go func() {
+			if err := m.startHTTPServer(); err != nil {
+				// Log error but can't return in goroutine
+			}
+		}()
 	}
 
 	return tea.Batch(

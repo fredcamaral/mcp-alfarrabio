@@ -73,6 +73,26 @@ func (c *CLI) buildAdvancedFilters(cmd *cobra.Command, repository, status, prior
 	overdue, dueSoon, hasDueDate bool, sessionID, parentID string,
 	estimatedMin, estimatedMax int) (*ports.TaskFilters, error) {
 
+	filters := c.initializeBaseFilters(repository, tags, sessionID, parentID, overdue, dueSoon, hasDueDate)
+
+	if err := c.setStatusAndPriorityFilters(filters, status, priority); err != nil {
+		return nil, err
+	}
+
+	if err := c.setDateFilters(filters, createdAfter, createdBefore, updatedAfter, updatedBefore,
+		dueAfter, dueBefore, completedAfter, completedBefore); err != nil {
+		return nil, err
+	}
+
+	c.setTimeEstimationFilters(filters, estimatedMin, estimatedMax)
+	c.setExcludeTagsFilter(filters, excludeTags)
+
+	return filters, nil
+}
+
+// initializeBaseFilters creates a TaskFilters instance with basic fields
+func (c *CLI) initializeBaseFilters(repository string, tags []string, sessionID, parentID string,
+	overdue, dueSoon, hasDueDate bool) *ports.TaskFilters {
 	filters := &ports.TaskFilters{
 		Repository:  repository,
 		Tags:        tags,
@@ -81,7 +101,6 @@ func (c *CLI) buildAdvancedFilters(cmd *cobra.Command, repository, status, prior
 		OverdueOnly: overdue,
 	}
 
-	// Handle DueSoon and HasDueDate as pointers for backward compatibility
 	if dueSoon {
 		hours := 72 // 3 days in hours
 		filters.DueSoon = &hours
@@ -90,91 +109,73 @@ func (c *CLI) buildAdvancedFilters(cmd *cobra.Command, repository, status, prior
 		filters.HasDueDate = &hasDueDate
 	}
 
-	// Parse status filter
+	return filters
+}
+
+// setStatusAndPriorityFilters sets status and priority filters
+func (c *CLI) setStatusAndPriorityFilters(filters *ports.TaskFilters, status, priority string) error {
 	if status != "" {
 		s, err := parseStatus(status)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		filters.Status = &s
 	}
 
-	// Parse priority filter
 	if priority != "" {
 		p, err := parsePriority(priority)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		filters.Priority = &p
 	}
 
-	// Parse date filters and convert to ISO strings
-	if createdAfter != "" {
-		if date, err := c.parseDate(createdAfter); err != nil {
-			return nil, fmt.Errorf("invalid created-after date: %w", err)
-		} else {
-			dateStr := date.Format(time.RFC3339)
-			filters.CreatedAfter = &dateStr
-		}
+	return nil
+}
+
+// setDateFilters sets all date-related filters
+func (c *CLI) setDateFilters(filters *ports.TaskFilters, createdAfter, createdBefore, updatedAfter, updatedBefore,
+	dueAfter, dueBefore, completedAfter, completedBefore string) error {
+
+	dateFields := []struct {
+		value  string
+		target **string
+		field  string
+	}{
+		{createdAfter, &filters.CreatedAfter, "created-after"},
+		{createdBefore, &filters.CreatedBefore, "created-before"},
+		{updatedAfter, &filters.UpdatedAfter, "updated-after"},
+		{updatedBefore, &filters.UpdatedBefore, "updated-before"},
+		{dueAfter, &filters.DueAfter, "due-after"},
+		{dueBefore, &filters.DueBefore, "due-before"},
+		{completedAfter, &filters.CompletedAfter, "completed-after"},
+		{completedBefore, &filters.CompletedBefore, "completed-before"},
 	}
-	if createdBefore != "" {
-		if date, err := c.parseDate(createdBefore); err != nil {
-			return nil, fmt.Errorf("invalid created-before date: %w", err)
-		} else {
-			dateStr := date.Format(time.RFC3339)
-			filters.CreatedBefore = &dateStr
-		}
-	}
-	if updatedAfter != "" {
-		if date, err := c.parseDate(updatedAfter); err != nil {
-			return nil, fmt.Errorf("invalid updated-after date: %w", err)
-		} else {
-			dateStr := date.Format(time.RFC3339)
-			filters.UpdatedAfter = &dateStr
-		}
-	}
-	if updatedBefore != "" {
-		if date, err := c.parseDate(updatedBefore); err != nil {
-			return nil, fmt.Errorf("invalid updated-before date: %w", err)
-		} else {
-			dateStr := date.Format(time.RFC3339)
-			filters.UpdatedBefore = &dateStr
-		}
-	}
-	if dueAfter != "" {
-		if date, err := c.parseDate(dueAfter); err != nil {
-			return nil, fmt.Errorf("invalid due-after date: %w", err)
-		} else {
-			dateStr := date.Format(time.RFC3339)
-			filters.DueAfter = &dateStr
-		}
-	}
-	if dueBefore != "" {
-		if date, err := c.parseDate(dueBefore); err != nil {
-			return nil, fmt.Errorf("invalid due-before date: %w", err)
-		} else {
-			dateStr := date.Format(time.RFC3339)
-			filters.DueBefore = &dateStr
-		}
-	}
-	if completedAfter != "" {
-		if date, err := c.parseDate(completedAfter); err != nil {
-			return nil, fmt.Errorf("invalid completed-after date: %w", err)
-		} else {
-			dateStr := date.Format(time.RFC3339)
-			filters.CompletedAfter = &dateStr
-		}
-	}
-	if completedBefore != "" {
-		if date, err := c.parseDate(completedBefore); err != nil {
-			return nil, fmt.Errorf("invalid completed-before date: %w", err)
-		} else {
-			dateStr := date.Format(time.RFC3339)
-			filters.CompletedBefore = &dateStr
+
+	for _, field := range dateFields {
+		if field.value != "" {
+			if err := c.setDateField(field.target, field.value, field.field); err != nil {
+				return err
+			}
 		}
 	}
 
-	// Estimated time filters
+	return nil
+}
+
+// setDateField sets a single date field with error handling
+func (c *CLI) setDateField(target **string, value, fieldName string) error {
+	date, err := c.parseDate(value)
+	if err != nil {
+		return fmt.Errorf("invalid %s date: %w", fieldName, err)
+	}
+	dateStr := date.Format(time.RFC3339)
+	*target = &dateStr
+	return nil
+}
+
+// setTimeEstimationFilters sets estimated time filters
+func (c *CLI) setTimeEstimationFilters(filters *ports.TaskFilters, estimatedMin, estimatedMax int) {
 	if estimatedMin > 0 {
 		min := time.Duration(estimatedMin) * time.Minute
 		filters.EstimatedTimeMin = &min
@@ -183,13 +184,13 @@ func (c *CLI) buildAdvancedFilters(cmd *cobra.Command, repository, status, prior
 		max := time.Duration(estimatedMax) * time.Minute
 		filters.EstimatedTimeMax = &max
 	}
+}
 
-	// Store exclude tags for later processing
+// setExcludeTagsFilter sets exclude tags filter
+func (c *CLI) setExcludeTagsFilter(filters *ports.TaskFilters, excludeTags []string) {
 	if len(excludeTags) > 0 {
 		filters.ExcludeTags = excludeTags
 	}
-
-	return filters, nil
 }
 
 // parseDate parses various date formats including relative dates

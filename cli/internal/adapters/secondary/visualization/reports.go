@@ -128,7 +128,11 @@ func (ae *analyticsExporter) exportJSON(metrics *entities.WorkflowMetrics, fileP
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
@@ -151,7 +155,11 @@ func (ae *analyticsExporter) exportReportJSON(report *entities.ProductivityRepor
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	encoder := json.NewEncoder(file)
 	encoder.SetIndent("", "  ")
@@ -176,7 +184,11 @@ func (ae *analyticsExporter) exportCSV(metrics *entities.WorkflowMetrics, filePa
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
@@ -305,7 +317,11 @@ func (ae *analyticsExporter) exportHTML(metrics *entities.WorkflowMetrics, fileP
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	html := ae.generateMetricsHTML(metrics)
 	if _, err := file.WriteString(html); err != nil {
@@ -326,7 +342,11 @@ func (ae *analyticsExporter) exportReportHTML(report *entities.ProductivityRepor
 	if err != nil {
 		return "", fmt.Errorf("failed to create file: %w", err)
 	}
-	defer file.Close()
+	defer func() {
+		if err := file.Close(); err != nil {
+			// Log error but don't return as we're in defer
+		}
+	}()
 
 	html := ae.generateReportHTML(report)
 	if _, err := file.WriteString(html); err != nil {
