@@ -220,7 +220,7 @@ func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, 
 			return fmt.Errorf("failed to create task %d: %w", i+1, err)
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "Created task %d/%d: %s\n", i+1, count, task.ID[:8])
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Created task %d/%d: %s\n", i+1, count, task.ID[:8])
 
 		// Generate subtasks if requested
 		n3, _ := cryptorand.Int(cryptorand.Reader, big.NewInt(10))
@@ -235,13 +235,13 @@ func (c *CLI) runGenerateSampleTasks(cmd *cobra.Command, count int, repository, 
 				if err != nil {
 					c.logger.Warn("Failed to create subtask", "error", err)
 				} else {
-					fmt.Fprintf(cmd.OutOrStdout(), "  └─ Created subtask: %s\n", subtask.ID[:8])
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), "  └─ Created subtask: %s\n", subtask.ID[:8])
 				}
 			}
 		}
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "\n✅ Generated %d sample tasks in repository: %s\n", count, repository)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n✅ Generated %d sample tasks in repository: %s\n", count, repository)
 	return nil
 }
 
@@ -457,9 +457,9 @@ func (c *CLI) runGenerateSamplePRD(cmd *cobra.Command, projectType, output strin
 		return fmt.Errorf("failed to write PRD: %w", err)
 	}
 
-	fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated sample PRD: %s\n", output)
-	fmt.Fprintf(cmd.OutOrStdout(), "   Type: %s\n", projectType)
-	fmt.Fprintf(cmd.OutOrStdout(), "   Features: %d\n", featureCount)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Generated sample PRD: %s\n", output)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Type: %s\n", projectType)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   Features: %d\n", featureCount)
 
 	return nil
 }

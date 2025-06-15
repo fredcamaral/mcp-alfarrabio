@@ -688,7 +688,7 @@ Note: Suggestions improve with more task history and patterns in your repository
 			}
 
 			if len(suggestions) == 0 {
-				fmt.Fprintf(cmd.OutOrStdout(), "No suggestions available for the current context.\n")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "No suggestions available for the current context.\n")
 				return nil
 			}
 
@@ -752,11 +752,11 @@ func (c *CLI) formatSuggestions(cmd *cobra.Command, formatter OutputFormatter, s
 		return formatter.FormatDocument(suggestions)
 	default:
 		// Table/plain format - custom formatting for suggestions
-		fmt.Fprintf(cmd.OutOrStdout(), "\n🤖 AI Task Suggestions:\n\n")
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n🤖 AI Task Suggestions:\n\n")
 
 		for i, suggestion := range suggestions {
 			// Header with confidence score
-			fmt.Fprintf(cmd.OutOrStdout(), "%d. %s ", i+1, suggestion.Content)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "%d. %s ", i+1, suggestion.Content)
 
 			// Show confidence with colored indicators
 			confidence := suggestion.Confidence
@@ -771,31 +771,31 @@ func (c *CLI) formatSuggestions(cmd *cobra.Command, formatter OutputFormatter, s
 			default:
 				indicator = "🔴 Very Low"
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "(%s confidence: %.0f%%)\n", indicator, confidence*100)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "(%s confidence: %.0f%%)\n", indicator, confidence*100)
 
 			// Description if available
 			if suggestion.Description != "" {
-				fmt.Fprintf(cmd.OutOrStdout(), "   %s\n", suggestion.Description)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   %s\n", suggestion.Description)
 			}
 
 			// Show reasoning if available
 			if suggestion.Reasoning != "" {
-				fmt.Fprintf(cmd.OutOrStdout(), "   💡 Why: %s\n", suggestion.Reasoning)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   💡 Why: %s\n", suggestion.Reasoning)
 			}
 
 			// Show suggested priority/tags if available
 			if suggestion.Priority != "" {
-				fmt.Fprintf(cmd.OutOrStdout(), "   📌 Priority: %s", suggestion.Priority)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "   📌 Priority: %s", suggestion.Priority)
 				if len(suggestion.Tags) > 0 {
-					fmt.Fprintf(cmd.OutOrStdout(), " | Tags: %s", strings.Join(suggestion.Tags, ", "))
+					_, _ = fmt.Fprintf(cmd.OutOrStdout(), " | Tags: %s", strings.Join(suggestion.Tags, ", "))
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "\n")
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
 			}
 
-			fmt.Fprintf(cmd.OutOrStdout(), "\n")
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\n")
 		}
 
-		fmt.Fprintf(cmd.OutOrStdout(), "💡 Use 'lmmc add \"<suggestion>\"' to create a task from these suggestions.\n\n")
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "💡 Use 'lmmc add \"<suggestion>\"' to create a task from these suggestions.\n\n")
 		return nil
 	}
 }

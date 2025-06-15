@@ -405,7 +405,7 @@ func (c *CLI) runReviewStart(path, phase, _, aiProvider, model, output string) e
 	}
 
 	// Add phase filtering if specific phase requested
-	if phase != "all" && phase != "" {
+	if phase != string(PhaseAll) && phase != "" {
 		reviewPhase := c.mapStringToReviewPhase(phase)
 		if reviewPhase != "" {
 			config.IncludePhases = []entities.ReviewPhase{reviewPhase}

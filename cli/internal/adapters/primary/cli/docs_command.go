@@ -14,6 +14,8 @@ import (
 	"golang.org/x/text/cases"
 	"golang.org/x/text/language"
 	"gopkg.in/yaml.v3"
+
+	"lerian-mcp-memory-cli/internal/domain/constants"
 )
 
 // DocsGenerator represents the CLI documentation generator
@@ -35,7 +37,7 @@ func (c *CLI) createDocsCommand() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "docs",
+		Use:   constants.DirectoryDocs,
 		Short: "Generate and manage OpenAPI documentation",
 		Long: `Generate OpenAPI documentation for the lmmc CLI with auto-generation capabilities.
 
@@ -79,7 +81,7 @@ Examples:
 	cmd.AddCommand(c.createDocsValidateCommand())
 
 	// Flags
-	cmd.Flags().StringVar(&outputDir, "output", "docs", "Output directory for generated documentation")
+	cmd.Flags().StringVar(&outputDir, "output", constants.DirectoryDocs, "Output directory for generated documentation")
 	cmd.Flags().StringVar(&format, "format", "yaml", "Output format (json, yaml)")
 	cmd.Flags().BoolVar(&serve, "serve", false, "Serve documentation with Swagger UI")
 	cmd.Flags().StringVar(&port, "port", "8080", "Port for documentation server")
@@ -130,7 +132,7 @@ The generated documentation provides both CLI usage and potential REST API patte
 		},
 	}
 
-	cmd.Flags().StringVar(&outputDir, "output", "docs", "Output directory")
+	cmd.Flags().StringVar(&outputDir, "output", constants.DirectoryDocs, "Output directory")
 	cmd.Flags().StringVar(&format, "format", "yaml", "Output format (json, yaml)")
 	cmd.Flags().BoolVar(&watch, "watch", false, "Watch files and auto-regenerate")
 
@@ -223,7 +225,7 @@ func (g *DocsGenerator) generateDocumentation(format string) error {
 
 	// Set default output directory if empty
 	if g.outputDir == "" {
-		g.outputDir = "docs"
+		g.outputDir = constants.DirectoryDocs
 	}
 
 	// Create output directory
@@ -245,7 +247,7 @@ func (g *DocsGenerator) generateDocumentation(format string) error {
 	case "json":
 		filename = "openapi.json"
 		data, err = json.MarshalIndent(spec, "", "  ")
-	case "yaml", "yml":
+	case constants.FormatYAML, constants.FormatYML:
 		filename = "openapi.yaml"
 		data, err = yaml.Marshal(spec)
 	default:
@@ -632,7 +634,7 @@ func (g *DocsGenerator) generateSwaggerUI() string {
 func (g *DocsGenerator) serveDocumentation(autoRefresh bool) error {
 	// Set default output directory if empty
 	if g.outputDir == "" {
-		g.outputDir = "docs"
+		g.outputDir = constants.DirectoryDocs
 	}
 
 	// Generate docs if they don't exist

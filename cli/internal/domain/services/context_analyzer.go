@@ -288,7 +288,7 @@ func (ca *contextAnalyzerImpl) DetermineProjectType(
 	}
 
 	if len(tasks) == 0 {
-		return "general", nil
+		return constants.ProjectTypeGeneral, nil
 	}
 
 	// Analyze task types and content
@@ -319,7 +319,7 @@ func (ca *contextAnalyzerImpl) DetermineProjectType(
 		return projectType, nil
 	}
 
-	return "general", nil
+	return constants.ProjectTypeGeneral, nil
 }
 
 // CalculateFocusLevel calculates focus level based on session data
@@ -429,7 +429,7 @@ func (ca *contextAnalyzerImpl) CalculateStressLevel(
 // PredictOptimalTaskType predicts the best task type for current context
 func (ca *contextAnalyzerImpl) PredictOptimalTaskType(context *entities.WorkContext) string {
 	if context == nil {
-		return "general"
+		return constants.ProjectTypeGeneral
 	}
 
 	// Score different task types based on context
@@ -460,7 +460,7 @@ func (ca *contextAnalyzerImpl) PredictOptimalTaskType(context *entities.WorkCont
 	}
 
 	// Find highest scoring task type
-	bestType := "general"
+	bestType := constants.ProjectTypeGeneral
 	bestScore := 0.0
 
 	for taskType, score := range scores {

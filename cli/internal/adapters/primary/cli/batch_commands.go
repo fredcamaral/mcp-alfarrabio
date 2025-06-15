@@ -138,7 +138,7 @@ func (c *CLI) updatePriorityCommandForBatch() {
 		}
 
 		// Summary
-		fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d updated, %d failed\n", successCount, failCount)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d updated, %d failed\n", successCount, failCount)
 
 		if failCount > 0 {
 			return fmt.Errorf("%d tasks failed", failCount)
@@ -197,7 +197,7 @@ func (c *CLI) processDoneTasks(cmd *cobra.Command, taskIDs []string, actualTime 
 	}
 
 	// Summary
-	fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d completed, %d failed\n", successCount, failCount)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d completed, %d failed\n", successCount, failCount)
 
 	if failCount > 0 {
 		return fmt.Errorf("%d tasks failed", failCount)
@@ -210,14 +210,14 @@ func (c *CLI) processSingleDoneTask(cmd *cobra.Command, taskID string, actualTim
 	// Resolve task ID from short form
 	fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
 	if err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
 		return false
 	}
 
 	// Update status
 	err = c.taskService.UpdateTaskStatus(c.getContext(), fullTaskID, entities.StatusCompleted)
 	if err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to complete task %s: %v\n", taskID, err)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to complete task %s: %v\n", taskID, err)
 		return false
 	}
 
@@ -226,7 +226,7 @@ func (c *CLI) processSingleDoneTask(cmd *cobra.Command, taskID string, actualTim
 
 	// Display success message
 	displayID := c.formatDisplayID(fullTaskID)
-	fmt.Fprintf(cmd.OutOrStdout(), "✅ Task %s marked as completed\n", displayID)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Task %s marked as completed\n", displayID)
 	return true
 }
 
@@ -270,7 +270,7 @@ func (c *CLI) processTagTasks(cmd *cobra.Command, taskIDs []string, tags []strin
 
 	// Summary
 	action := c.getTagAction(removeTags)
-	fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d tasks %s, %d failed\n", successCount, action, failCount)
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "\nSummary: %d tasks %s, %d failed\n", successCount, action, failCount)
 
 	if failCount > 0 {
 		return fmt.Errorf("%d tasks failed", failCount)
@@ -283,7 +283,7 @@ func (c *CLI) processSingleTagTask(cmd *cobra.Command, taskID string, tags []str
 	// Resolve task ID from short form
 	fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
 	if err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
 		return false
 	}
 
@@ -291,7 +291,7 @@ func (c *CLI) processSingleTagTask(cmd *cobra.Command, taskID string, tags []str
 	updates := c.buildTagUpdates(tags, removeTags)
 	err = c.taskService.UpdateTask(c.getContext(), fullTaskID, &updates)
 	if err != nil {
-		fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to update task %s: %v\n", taskID, err)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to update task %s: %v\n", taskID, err)
 		return false
 	}
 
@@ -323,8 +323,8 @@ func (c *CLI) getTagAction(removeTags bool) string {
 // displayTagSuccessMessage displays the appropriate success message for tag operations
 func (c *CLI) displayTagSuccessMessage(cmd *cobra.Command, displayID string, removeTags bool) {
 	if removeTags {
-		fmt.Fprintf(cmd.OutOrStdout(), "✅ Removed tags from task %s\n", displayID)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Removed tags from task %s\n", displayID)
 	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "✅ Added tags to task %s\n", displayID)
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Added tags to task %s\n", displayID)
 	}
 }

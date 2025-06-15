@@ -153,7 +153,7 @@ func (c *CLI) getWorkflowStatus() string {
 		return "ready_for_trd"
 	}
 
-	return "ready_to_start"
+	return constants.WorkflowStatusReadyToStart
 }
 
 // generateSessionID creates a new session ID

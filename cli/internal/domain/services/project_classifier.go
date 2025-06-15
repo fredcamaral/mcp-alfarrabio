@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -320,7 +321,7 @@ func (c *projectClassifierImpl) scoreDesktop(chars *entities.ProjectCharacterist
 		scores[entities.ProjectTypeDesktop] += 0.8
 	}
 	primaryLang := chars.GetPrimaryLanguage()
-	if primaryLang == "cpp" || primaryLang == "csharp" || primaryLang == "java" {
+	if primaryLang == "cpp" || primaryLang == constants.LanguageCSharp || primaryLang == "java" {
 		scores[entities.ProjectTypeDesktop] += 0.4
 	}
 }
@@ -331,7 +332,7 @@ func (c *projectClassifierImpl) scoreDataPipeline(chars *entities.ProjectCharact
 		scores[entities.ProjectTypeDataPipeline] += 0.8
 	}
 	primaryLang := chars.GetPrimaryLanguage()
-	if primaryLang == "python" && chars.HasDatabase {
+	if primaryLang == constants.LanguagePython && chars.HasDatabase {
 		scores[entities.ProjectTypeDataPipeline] += 0.4
 	}
 }
@@ -342,7 +343,7 @@ func (c *projectClassifierImpl) scoreGame(chars *entities.ProjectCharacteristics
 		scores[entities.ProjectTypeGame] += 0.9
 	}
 	primaryLang := chars.GetPrimaryLanguage()
-	if primaryLang == "csharp" || primaryLang == "cpp" {
+	if primaryLang == constants.LanguageCSharp || primaryLang == "cpp" {
 		scores[entities.ProjectTypeGame] += 0.3
 	}
 }
@@ -760,16 +761,16 @@ func (c *projectClassifierImpl) fallbackClassification(chars *entities.ProjectCh
 
 	// Language-based fallback
 	switch primaryLang {
-	case "javascript", "typescript":
+	case constants.LanguageJavaScript, constants.LanguageTypeScript:
 		if chars.HasFrontend {
 			return entities.ProjectTypeWebApp, 0.4
 		}
 		return entities.ProjectTypeAPI, 0.3
 	case "go", "rust":
 		return entities.ProjectTypeCLI, 0.4
-	case "python":
+	case constants.LanguagePython:
 		return entities.ProjectTypeAPI, 0.3
-	case "java", "csharp":
+	case "java", constants.LanguageCSharp:
 		return entities.ProjectTypeAPI, 0.3
 	}
 

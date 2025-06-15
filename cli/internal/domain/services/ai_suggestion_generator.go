@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	"lerian-mcp-memory-cli/internal/domain/constants"
 	"lerian-mcp-memory-cli/internal/domain/entities"
 )
 
@@ -587,9 +588,9 @@ func (ai *aiSuggestionGeneratorImpl) GenerateTaskBreakdown(task *entities.Task) 
 		suggestion.Confidence = step.confidence
 		suggestion.Relevance = 0.9 // Subtasks are highly relevant
 		// Convert priority to urgency score
-		if string(task.Priority) == "high" {
+		if string(task.Priority) == constants.SeverityHigh {
 			suggestion.Urgency = 0.8
-		} else if string(task.Priority) == "medium" {
+		} else if string(task.Priority) == constants.SeverityMedium {
 			suggestion.Urgency = 0.5
 		} else {
 			suggestion.Urgency = 0.3
@@ -869,7 +870,7 @@ func (ai *aiSuggestionGeneratorImpl) identifyLearningGaps(workContext *entities.
 
 	for _, taskType := range taskTypes {
 		switch taskType {
-		case "research":
+		case constants.TaskTypeResearch:
 			gaps = append(gaps, learningGap{
 				topic:         "Advanced research methodologies",
 				confidence:    0.6,

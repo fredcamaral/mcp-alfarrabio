@@ -603,7 +603,7 @@ func (s *DefaultDocumentChainService) detectProjectType(input string) string {
 	case contains(input, "mobile", "app", "ios", "android"):
 		return "mobile"
 	default:
-		return "general"
+		return constants.ProjectTypeGeneral
 	}
 }
 
@@ -688,7 +688,7 @@ func (s *DefaultDocumentChainService) determinePhase(_ string, index, total int)
 	case ratio < 0.7:
 		return "development"
 	default:
-		return "testing"
+		return constants.TaskTypeTesting
 	}
 }
 
@@ -773,11 +773,11 @@ func (s *DefaultDocumentChainService) determineImplementationType(step string) s
 func (s *DefaultDocumentChainService) extractDeliverables(step string) []string {
 	stepType := s.determineImplementationType(step)
 	switch stepType {
-	case "testing":
+	case constants.TaskTypeTesting:
 		return []string{"test cases", "test results"}
 	case "documentation":
 		return []string{"documentation files", "code comments"}
-	case "research":
+	case constants.TaskTypeResearch:
 		return []string{"research notes", "design decisions"}
 	default:
 		return []string{"working code", "unit tests"}

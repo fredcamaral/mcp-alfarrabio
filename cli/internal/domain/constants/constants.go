@@ -11,6 +11,7 @@ const (
 // Export format constants
 const (
 	FormatYAML     = "yaml"
+	FormatYML      = "yml"
 	FormatCSV      = "csv"
 	FormatTSV      = "tsv"
 	FormatXML      = "xml"
@@ -88,8 +89,10 @@ const (
 // Language constants
 const (
 	LanguageJavaScript = "javascript"
+	LanguageTypeScript = "typescript"
 	LanguagePython     = "python"
 	LanguageCSharp     = "csharp"
+	LanguageJava       = "java"
 	LanguagePostgreSQL = "postgresql"
 )
 
@@ -108,4 +111,5 @@ const (
 // Directory constants
 const (
 	DefaultPreDevelopmentDir = "docs/pre-development"
+	DirectoryDocs            = "docs"
 )

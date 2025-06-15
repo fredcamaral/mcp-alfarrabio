@@ -177,7 +177,7 @@ func markFlagRequired(cmd *cobra.Command, flags ...string) {
 		if err := cmd.MarkFlagRequired(flag); err != nil {
 			// Log the error but don't fail - this is a setup issue
 			// that should be caught during development
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to mark flag '%s' as required: %v\n", flag, err)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to mark flag '%s' as required: %v\n", flag, err)
 		}
 	}
 }
@@ -188,7 +188,7 @@ func markFlagHidden(cmd *cobra.Command, flags ...string) {
 		if err := cmd.Flags().MarkHidden(flag); err != nil {
 			// Log the error but don't fail - this is a setup issue
 			// that should be caught during development
-			fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to mark flag '%s' as hidden: %v\n", flag, err)
+			_, _ = fmt.Fprintf(cmd.ErrOrStderr(), "Warning: failed to mark flag '%s' as hidden: %v\n", flag, err)
 		}
 	}
 }
