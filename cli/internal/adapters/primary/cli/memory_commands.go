@@ -456,7 +456,7 @@ func (c *CLI) runMemoryStorePRD(cmd *cobra.Command, file, project string, tags [
 	}
 
 	// Format output
-	fmt.Fprintf(cmd.OutOrStdout(), "PRD stored successfully: %s\n", result["id"])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "PRD stored successfully: %s\n", result["id"])
 	return nil
 }
 
@@ -501,7 +501,7 @@ func (c *CLI) runMemoryStoreTRD(cmd *cobra.Command, file, project, prdID string,
 	}
 
 	// Format output
-	fmt.Fprintf(cmd.OutOrStdout(), "TRD stored successfully: %s\n", result["id"])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "TRD stored successfully: %s\n", result["id"])
 	return nil
 }
 
@@ -552,7 +552,7 @@ func (c *CLI) runMemoryStoreReview(cmd *cobra.Command, sessionID, project string
 	}
 
 	// Format output
-	fmt.Fprintf(cmd.OutOrStdout(), "Review stored successfully: %s\n", result["id"])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Review stored successfully: %s\n", result["id"])
 	return nil
 }
 
@@ -585,7 +585,7 @@ func (c *CLI) runMemoryStoreDecision(cmd *cobra.Command, decision, rationale, pr
 	}
 
 	// Format output
-	fmt.Fprintf(cmd.OutOrStdout(), "Decision stored successfully: %s\n", result["id"])
+	_, _ = fmt.Fprintf(cmd.OutOrStdout(), "Decision stored successfully: %s\n", result["id"])
 	return nil
 }
 
@@ -627,7 +627,7 @@ func (c *CLI) runMemorySearch(cmd *cobra.Command, query, project string, limit i
 	// Format output
 	chunks, hasChunks := result["chunks"].([]interface{})
 	if !hasChunks || len(chunks) == 0 {
-		fmt.Fprintf(cmd.OutOrStdout(), "No results found\n")
+		_, _ = fmt.Fprintf(cmd.OutOrStdout(), "No results found\n")
 		return nil
 	}
 
