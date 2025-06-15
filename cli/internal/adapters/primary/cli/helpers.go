@@ -12,12 +12,12 @@ import (
 )
 
 // addFormatFlag adds the common format flag to a command
-func addFormatFlag(cmd *cobra.Command, format *string, defaultFormat string) {
+func addFormatFlag(cmd *cobra.Command, format *string, _ string) {
 	validFormats := fmt.Sprintf("%s, %s, %s", 
 		constants.OutputFormatTable, 
 		constants.OutputFormatJSON, 
 		constants.OutputFormatPlain)
-	cmd.Flags().StringVarP(format, "format", "f", defaultFormat, 
+	cmd.Flags().StringVarP(format, "format", "f", constants.OutputFormatTable, 
 		fmt.Sprintf("Output format (%s)", validFormats))
 }
 

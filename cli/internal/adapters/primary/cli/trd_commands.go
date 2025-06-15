@@ -140,22 +140,7 @@ func (c *CLI) runTRDCreate(fromPRD, output string, useSession bool) error {
 	}
 
 	// Load PRD
-	prd, err := c.loadPRDFromFile(fromPRD)
-	if err != nil {
-		// Fallback to mock for demonstration
-		prd = &services.PRDEntity{
-			ID:          "prd-001",
-			Title:       "Sample Project",
-			Description: "A sample project for TRD generation",
-			Features:    []string{"Feature 1", "Feature 2", "Feature 3"},
-			UserStories: []string{"As a user, I want feature 1", "As a user, I want feature 2"},
-			Metadata: map[string]interface{}{
-				"repository":   c.detectRepository(c.getContext()),
-				"project_type": "general",
-			},
-			CreatedAt: time.Now(),
-		}
-	}
+	prd := c.loadPRDFromFile(fromPRD)
 
 	fmt.Printf("🔄 Generating TRD from: %s\n\n", prd.Title)
 

@@ -375,7 +375,7 @@ func runComparisonAnalysis(
 	analyticsService services.AnalyticsService,
 	repository string,
 	period entities.TimePeriod,
-	visualizerConfig *VisualizerConfig,
+	_ *VisualizerConfig,
 ) error {
 	fmt.Printf("📊 Comparing periods for %s...\n\n", repository)
 

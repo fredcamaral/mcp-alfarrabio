@@ -230,7 +230,7 @@ func (c *CLI) detectLatestTasksFile() string {
 }
 
 // loadPRDFromFile loads a PRD from a file (placeholder)
-func (c *CLI) loadPRDFromFile(path string) (*services.PRDEntity, error) {
+func (c *CLI) loadPRDFromFile(path string) *services.PRDEntity {
 	// TODO: Implement actual PRD loading from markdown
 	// For now, return a mock
 	return &services.PRDEntity{
@@ -238,11 +238,11 @@ func (c *CLI) loadPRDFromFile(path string) (*services.PRDEntity, error) {
 		Title:       "Loaded PRD",
 		Description: "PRD loaded from " + path,
 		CreatedAt:   time.Now(),
-	}, nil
+	}
 }
 
 // loadTRDFromFile loads a TRD from a file (placeholder)
-func (c *CLI) loadTRDFromFile(path string) (*services.TRDEntity, error) {
+func (c *CLI) loadTRDFromFile(_ string) (*services.TRDEntity, error) {
 	// TODO: Implement actual TRD loading from markdown
 	// For now, return a mock
 	return &services.TRDEntity{

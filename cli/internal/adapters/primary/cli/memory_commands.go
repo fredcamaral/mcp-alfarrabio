@@ -909,30 +909,7 @@ func (c *CLI) runMemoryInsights(cmd *cobra.Command, topic, project string, cross
 	}
 
 	// Format output
-	if insights, ok := result["insights"].([]interface{}); ok {
-		title := "Insights"
-		if topic != "" {
-			title = fmt.Sprintf("Insights for '%s'", topic)
-		}
-		if crossProject {
-			title += " (cross-project)"
-		}
-		fmt.Fprintf(cmd.OutOrStdout(), "%s:\n", title)
-
-		for _, insight := range insights {
-			if insightMap, ok := insight.(map[string]interface{}); ok {
-				fmt.Fprintf(cmd.OutOrStdout(), "\n• %s\n", insightMap["insight"])
-				if evidence, ok := insightMap["evidence"]; ok {
-					fmt.Fprintf(cmd.OutOrStdout(), "  Evidence: %v\n", evidence)
-				}
-				if recommendation, ok := insightMap["recommendation"]; ok {
-					fmt.Fprintf(cmd.OutOrStdout(), "  Recommendation: %v\n", recommendation)
-				}
-			}
-		}
-	} else {
-		fmt.Fprintf(cmd.OutOrStdout(), "No insights available\n")
-	}
+	c.formatInsightsOutput(cmd, result, topic, crossProject)
 	return nil
 }
 
@@ -996,4 +973,54 @@ func (c *CLI) runMemoryCompare(cmd *cobra.Command, projects []string, aspect, _ 
 		fmt.Fprintf(cmd.OutOrStdout(), "Comparison completed\n")
 	}
 	return nil
+}
+
+// formatInsightsOutput formats and displays insights from MCP result
+func (c *CLI) formatInsightsOutput(cmd *cobra.Command, result map[string]interface{}, topic string, crossProject bool) {
+	insights, ok := result["insights"].([]interface{})
+	if !ok {
+		fmt.Fprintf(cmd.OutOrStdout(), "No insights available\n")
+		return
+	}
+
+	// Build title
+	title := c.buildInsightsTitle(topic, crossProject)
+	fmt.Fprintf(cmd.OutOrStdout(), "%s:\n", title)
+
+	// Display each insight
+	for _, insight := range insights {
+		c.displaySingleInsight(cmd, insight)
+	}
+}
+
+// buildInsightsTitle builds the appropriate title for insights display
+func (c *CLI) buildInsightsTitle(topic string, crossProject bool) string {
+	title := "Insights"
+	if topic != "" {
+		title = fmt.Sprintf("Insights for '%s'", topic)
+	}
+	if crossProject {
+		title += " (cross-project)"
+	}
+	return title
+}
+
+// displaySingleInsight displays a single insight with its details
+func (c *CLI) displaySingleInsight(cmd *cobra.Command, insight interface{}) {
+	insightMap, ok := insight.(map[string]interface{})
+	if !ok {
+		return
+	}
+
+	fmt.Fprintf(cmd.OutOrStdout(), "\n• %s\n", insightMap["insight"])
+	
+	c.displayInsightDetail(cmd, insightMap, "evidence", "Evidence")
+	c.displayInsightDetail(cmd, insightMap, "recommendation", "Recommendation")
+}
+
+// displayInsightDetail displays a specific detail of an insight if it exists
+func (c *CLI) displayInsightDetail(cmd *cobra.Command, insightMap map[string]interface{}, key, label string) {
+	if value, exists := insightMap[key]; exists {
+		fmt.Fprintf(cmd.OutOrStdout(), "  %s: %v\n", label, value)
+	}
 }

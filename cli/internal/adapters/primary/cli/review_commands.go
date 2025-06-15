@@ -347,7 +347,7 @@ func (c *CLI) createReviewTodosSyncCommand() *cobra.Command {
 
 // Implementation stubs - to be filled with actual logic
 
-func (c *CLI) runReviewStart(path, phase, mode, aiProvider, model, output string) error {
+func (c *CLI) runReviewStart(path, phase, _, aiProvider, model, output string) error {
 	fmt.Printf("🔍 Starting Code Review\n")
 	fmt.Printf("======================\n\n")
 
@@ -551,7 +551,7 @@ func (c *CLI) runReviewStatus(sessionID string) error {
 	return nil
 }
 
-func (c *CLI) runReviewOrchestrate(path string, quick bool, focus, output string) error {
+func (c *CLI) runReviewOrchestrate(_ string, quick bool, focus, output string) error {
 	fmt.Printf("🎯 Orchestrating Code Review\n")
 	fmt.Printf("============================\n\n")
 
@@ -580,7 +580,7 @@ func (c *CLI) runReviewOrchestrate(path string, quick bool, focus, output string
 	return nil
 }
 
-func (c *CLI) runReviewPhase(path string, phase ReviewPhase) error {
+func (c *CLI) runReviewPhase(_ string, phase ReviewPhase) error {
 	fmt.Printf("🔄 Running Review Phase: %s\n", strings.Title(string(phase)))
 	fmt.Printf("================================\n\n")
 

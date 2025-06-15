@@ -199,12 +199,7 @@ func (eas *EnhancedAIService) OptimizeWorkflow(ctx context.Context) (*AICommandR
 	}
 
 	// Generate workflow optimization suggestions
-	optimizations, err := eas.generateWorkflowOptimizations(ctx, memoryInsights)
-	if err != nil {
-		result.ErrorMessages = append(result.ErrorMessages, fmt.Sprintf("Workflow optimization failed: %v", err))
-		result.ProcessingTime = time.Since(startTime)
-		return result, err
-	}
+	optimizations := eas.generateWorkflowOptimizations(ctx, memoryInsights)
 
 	result.ContextInsights = optimizations
 	result.Success = true
@@ -382,7 +377,7 @@ func (eas *EnhancedAIService) extractMemoryInsights(result *MemoryOperationResul
 	return insights
 }
 
-func (eas *EnhancedAIService) generateWorkflowOptimizations(_ context.Context, memoryInsights []*MemoryInsight) ([]string, error) {
+func (eas *EnhancedAIService) generateWorkflowOptimizations(_ context.Context, memoryInsights []*MemoryInsight) []string {
 	// Generate AI-powered optimization suggestions based on memory insights
 	suggestions := []string{
 		"Optimize file organization based on access patterns",
@@ -401,7 +396,7 @@ func (eas *EnhancedAIService) generateWorkflowOptimizations(_ context.Context, m
 		}
 	}
 
-	return suggestions, nil
+	return suggestions
 }
 
 func (eas *EnhancedAIService) processPerformanceAnalytics(ctx context.Context, analytics map[string]interface{}) ([]string, error) {

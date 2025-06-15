@@ -537,10 +537,7 @@ Examples:
   lmmc ai cost usage --provider anthropic --period week
   lmmc ai cost usage --breakdown-by task-type`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			stats, err := c.loadAIUsageStats(period, provider)
-			if err != nil {
-				return fmt.Errorf("failed to load usage stats: %w", err)
-			}
+			stats := c.loadAIUsageStats(period, provider)
 
 			fmt.Printf("💰 AI Usage Report\n")
 			fmt.Printf("═════════════════\n\n")
@@ -1098,7 +1095,7 @@ func (c *CLI) saveAIFallbackChain(chain AIFallbackChain) error {
 	return os.WriteFile(filepath.Join(configDir, "fallback.yaml"), data, 0600)
 }
 
-func (c *CLI) loadAIUsageStats(_, _ string) ([]AIUsageStats, error) {
+func (c *CLI) loadAIUsageStats(_, _ string) []AIUsageStats {
 	// For now, return mock data - in production, this would read from a database
 	// This is a placeholder for the actual implementation
 	return []AIUsageStats{
@@ -1120,7 +1117,7 @@ func (c *CLI) loadAIUsageStats(_, _ string) ([]AIUsageStats, error) {
 			Timestamp:    time.Now().Add(-48 * time.Hour),
 			Command:      "review start",
 		},
-	}, nil
+	}
 }
 
 func (c *CLI) testAIProvider(_ *AIProviderConfig) error {

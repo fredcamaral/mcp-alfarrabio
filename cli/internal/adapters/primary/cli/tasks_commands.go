@@ -203,11 +203,7 @@ func (c *CLI) loadDocuments(fromPRD, fromTRD string) (*services.PRDEntity, *serv
 	var trd *services.TRDEntity
 
 	if fromPRD != "" {
-		loadedPRD, err := c.loadPRDFromFile(fromPRD)
-		if err != nil {
-			return nil, nil, fmt.Errorf("failed to load PRD: %w", err)
-		}
-		prd = loadedPRD
+		prd = c.loadPRDFromFile(fromPRD)
 	}
 
 	if fromTRD != "" {
@@ -389,7 +385,7 @@ func (c *CLI) getDefaultTasksOutputPath() string {
 	return filepath.Join(preDev, fmt.Sprintf("tasks-%s.md", timestamp))
 }
 
-func (c *CLI) generateTasksFromPRDOnly(ctx context.Context, prd *services.PRDEntity) ([]*services.MainTask, error) {
+func (c *CLI) generateTasksFromPRDOnly(_ context.Context, prd *services.PRDEntity) ([]*services.MainTask, error) {
 	// TODO: Implement PRD-only task generation
 	// For now, return mock tasks
 	return []*services.MainTask{

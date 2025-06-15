@@ -117,18 +117,10 @@ func (mm *MemoryManager) SyncLocalFiles(ctx context.Context, localPath string) (
 	result.FilesProcessed = len(files)
 
 	// Step 2: Get existing file mappings
-	mappings, err := mm.getFileMappings(ctx)
-	if err != nil {
-		mm.logger.Warn("failed to get file mappings", slog.String("error", err.Error()))
-		mappings = make(map[string]*FileMemoryMapping)
-	}
+	mappings := mm.getFileMappings(ctx)
 
 	// Step 3: Determine sync strategy using AI
-	syncStrategy, err := mm.determineSyncStrategy(ctx, files, mappings)
-	if err != nil {
-		mm.logger.Warn("AI sync strategy failed, using default", slog.String("error", err.Error()))
-		syncStrategy = mm.getDefaultSyncStrategy()
-	}
+	syncStrategy := mm.determineSyncStrategy(ctx, files, mappings)
 
 	// Step 4: Execute intelligent sync
 	if err := mm.executeSyncStrategy(ctx, files, mappings, syncStrategy, result); err != nil {
@@ -314,17 +306,17 @@ func (mm *MemoryManager) shouldIncludeFile(path string, info os.FileInfo) bool {
 	return includedExts[ext]
 }
 
-func (mm *MemoryManager) getFileMappings(_ context.Context) (map[string]*FileMemoryMapping, error) {
+func (mm *MemoryManager) getFileMappings(_ context.Context) map[string]*FileMemoryMapping {
 	mappings := make(map[string]*FileMemoryMapping)
 
 	// For now, file mappings are stored in memory only
 	// In a real implementation, these would be persisted to a dedicated storage
 	mm.logger.Debug("loading file mappings from memory (no persistence yet)")
 
-	return mappings, nil
+	return mappings
 }
 
-func (mm *MemoryManager) determineSyncStrategy(_ context.Context, files []string, mappings map[string]*FileMemoryMapping) (map[string]string, error) {
+func (mm *MemoryManager) determineSyncStrategy(_ context.Context, files []string, mappings map[string]*FileMemoryMapping) map[string]string {
 	// Use intelligent heuristics to determine sync strategy
 	strategy := make(map[string]string)
 
@@ -349,7 +341,7 @@ func (mm *MemoryManager) determineSyncStrategy(_ context.Context, files []string
 		strategy["incremental_sync"] = constants.BoolStringTrue
 	}
 
-	return strategy, nil
+	return strategy
 }
 
 func (mm *MemoryManager) getDefaultSyncStrategy() map[string]string {
@@ -361,7 +353,7 @@ func (mm *MemoryManager) getDefaultSyncStrategy() map[string]string {
 	}
 }
 
-func (mm *MemoryManager) executeSyncStrategy(ctx context.Context, files []string, mappings map[string]*FileMemoryMapping, strategy map[string]string, result *MemoryOperationResult) error {
+func (mm *MemoryManager) executeSyncStrategy(ctx context.Context, files []string, mappings map[string]*FileMemoryMapping, _ map[string]string, result *MemoryOperationResult) error {
 	for _, file := range files {
 		mapping, exists := mappings[file]
 
@@ -508,7 +500,7 @@ func (mm *MemoryManager) extractChunkID(response map[string]interface{}) string 
 	return fmt.Sprintf("chunk_%d", time.Now().UnixNano())
 }
 
-func (mm *MemoryManager) updateFileMappings(ctx context.Context, mappings map[string]*FileMemoryMapping) error {
+func (mm *MemoryManager) updateFileMappings(_ context.Context, mappings map[string]*FileMemoryMapping) error {
 	// For now, file mappings are stored in memory only
 	// In a real implementation, these would be persisted to a dedicated storage
 	mm.logger.Debug("updating file mappings in memory (no persistence yet)",

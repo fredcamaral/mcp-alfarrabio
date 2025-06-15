@@ -87,10 +87,7 @@ func (c *CLI) runSubtasksGenerate(fromTask, output string, useSession bool) erro
 	ctx := context.Background()
 
 	// Load the main task
-	mainTask, err := c.loadMainTask(fromTask)
-	if err != nil {
-		return fmt.Errorf("failed to load main task: %w", err)
-	}
+	mainTask := c.loadMainTask(fromTask)
 
 	fmt.Printf("Main Task: %s\n", mainTask.Name)
 	fmt.Printf("Phase: %s | Duration: %s\n\n", mainTask.Phase, mainTask.Duration)
@@ -150,7 +147,7 @@ func (c *CLI) runSubtasksGenerate(fromTask, output string, useSession bool) erro
 
 // Helper methods
 
-func (c *CLI) loadMainTask(taskID string) (*services.MainTask, error) {
+func (c *CLI) loadMainTask(taskID string) *services.MainTask {
 	// First try to load from tasks file
 	tasksFile := c.detectLatestTasksFile()
 	if tasksFile != "" {
@@ -170,7 +167,7 @@ func (c *CLI) loadMainTask(taskID string) (*services.MainTask, error) {
 		Dependencies:     []string{},
 		Content:          "Implement core business logic with proper validation and error handling",
 		CreatedAt:        time.Now(),
-	}, nil
+	}
 }
 
 func (c *CLI) getDefaultSubtasksOutputPath(taskID string) string {
