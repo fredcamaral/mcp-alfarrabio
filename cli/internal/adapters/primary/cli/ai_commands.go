@@ -606,12 +606,12 @@ func (c *CLI) printAIProviderKeys(out io.Writer) bool {
 			_, _ = fmt.Fprintf(out, "  ✓ %s: %s (key: %s)\n", envVar, provider, masked)
 			foundKey = true
 		} else {
-			fmt.Fprintf(out, "  ✗ %s: not set\n", envVar)
+			_, _ = fmt.Fprintf(out, "  ✗ %s: not set\n", envVar)
 		}
 	}
 
 	if !foundKey {
-		fmt.Fprintf(out, "\n⚠️  No AI provider API keys found!\n")
+		_, _ = fmt.Fprintf(out, "\n⚠️  No AI provider API keys found!\n")
 	}
 	return foundKey
 }
@@ -626,10 +626,10 @@ func (c *CLI) maskAPIKey(key string) string {
 
 // printAIServiceStatus prints AI service status information
 func (c *CLI) printAIServiceStatus(out io.Writer) {
-	fmt.Fprintf(out, "\nAI Service Status:\n")
+	_, _ = fmt.Fprintf(out, "\nAI Service Status:\n")
 
 	if c.aiService == nil {
-		fmt.Fprintf(out, "  ✗ AI Service: not initialized\n")
+		_, _ = fmt.Fprintf(out, "  ✗ AI Service: not initialized\n")
 		return
 	}
 
@@ -639,10 +639,10 @@ func (c *CLI) printAIServiceStatus(out io.Writer) {
 // printEnhancedServiceInfo prints enhanced service specific information
 func (c *CLI) printEnhancedServiceInfo(out io.Writer) {
 	if _, ok := c.aiService.(*ai.EnhancedAIService); ok {
-		fmt.Fprintf(out, "  ✓ AI Service Type: Enhanced (with task processing)\n")
+		_, _ = fmt.Fprintf(out, "  ✓ AI Service Type: Enhanced (with task processing)\n")
 		c.testAIServiceConnection(out)
 	} else {
-		fmt.Fprintf(out, "  ✓ AI Service Type: Basic\n")
+		_, _ = fmt.Fprintf(out, "  ✓ AI Service Type: Basic\n")
 	}
 }
 
@@ -652,23 +652,23 @@ func (c *CLI) testAIServiceConnection(out io.Writer) {
 	defer cancel()
 
 	if err := c.aiService.TestConnection(ctx); err != nil {
-		fmt.Fprintf(out, "  ✗ AI Service Test: failed (%v)\n", err)
+		_, _ = fmt.Fprintf(out, "  ✗ AI Service Test: failed (%v)\n", err)
 		return
 	}
 
 	if c.aiService.IsOnline() {
-		fmt.Fprintf(out, "  ✓ AI Service Mode: REAL (connected to AI provider)\n")
+		_, _ = fmt.Fprintf(out, "  ✓ AI Service Mode: REAL (connected to AI provider)\n")
 	} else {
-		fmt.Fprintf(out, "  ⚠️  AI Service Mode: MOCK or OFFLINE\n")
+		_, _ = fmt.Fprintf(out, "  ⚠️  AI Service Mode: MOCK or OFFLINE\n")
 	}
 }
 
 // printMCPServerStatus prints MCP server connectivity information
 func (c *CLI) printMCPServerStatus(out io.Writer) {
-	fmt.Fprintf(out, "\nMCP Server Status:\n")
+	_, _ = fmt.Fprintf(out, "\nMCP Server Status:\n")
 
 	if c.taskService == nil || c.taskService.GetMCPClient() == nil {
-		fmt.Fprintf(out, "  ✗ MCP Server: not configured\n")
+		_, _ = fmt.Fprintf(out, "  ✗ MCP Server: not configured\n")
 		return
 	}
 
@@ -677,27 +677,27 @@ func (c *CLI) printMCPServerStatus(out io.Writer) {
 	defer cancel()
 
 	if err := client.TestConnection(ctx); err != nil {
-		fmt.Fprintf(out, "  ✗ MCP Server: offline (%v)\n", err)
+		_, _ = fmt.Fprintf(out, "  ✗ MCP Server: offline (%v)\n", err)
 	} else {
-		fmt.Fprintf(out, "  ✓ MCP Server: online\n")
+		_, _ = fmt.Fprintf(out, "  ✓ MCP Server: online\n")
 	}
 }
 
 // printTroubleshootingTips prints troubleshooting tips
 func (c *CLI) printTroubleshootingTips(out io.Writer, foundKey bool, aiProvider string) {
-	fmt.Fprintf(out, "\n💡 Troubleshooting Tips:\n")
+	_, _ = fmt.Fprintf(out, "\n💡 Troubleshooting Tips:\n")
 
 	if !foundKey {
-		fmt.Fprintf(out, "  • Set OPENAI_API_KEY environment variable for OpenAI\n")
-		fmt.Fprintf(out, "  • Set ANTHROPIC_API_KEY for Claude\n")
-		fmt.Fprintf(out, "  • Set PERPLEXITY_API_KEY for Perplexity\n")
+		_, _ = fmt.Fprintf(out, "  • Set OPENAI_API_KEY environment variable for OpenAI\n")
+		_, _ = fmt.Fprintf(out, "  • Set ANTHROPIC_API_KEY for Claude\n")
+		_, _ = fmt.Fprintf(out, "  • Set PERPLEXITY_API_KEY for Perplexity\n")
 	}
 
 	if aiProvider == "" {
-		fmt.Fprintf(out, "  • Set AI_PROVIDER to force a specific provider\n")
+		_, _ = fmt.Fprintf(out, "  • Set AI_PROVIDER to force a specific provider\n")
 	}
 
-	fmt.Fprintf(out, "  • Run 'lmmc config list' to check server configuration\n")
-	fmt.Fprintf(out, "  • Use --verbose flag for more detailed logs\n")
-	fmt.Fprintf(out, "\n")
+	_, _ = fmt.Fprintf(out, "  • Run 'lmmc config list' to check server configuration\n")
+	_, _ = fmt.Fprintf(out, "  • Use --verbose flag for more detailed logs\n")
+	_, _ = fmt.Fprintf(out, "\n")
 }

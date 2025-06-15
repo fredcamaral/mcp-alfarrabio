@@ -116,7 +116,7 @@ func (c *CLI) updatePriorityCommandForBatch() {
 			// Resolve task ID from short form
 			fullTaskID, err := c.resolveTaskID(c.getContext(), taskID, "")
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to resolve task %s: %v\n", taskID, err)
 				failCount++
 				continue
 			}
@@ -124,7 +124,7 @@ func (c *CLI) updatePriorityCommandForBatch() {
 			// Apply updates
 			err = c.taskService.UpdateTask(c.getContext(), fullTaskID, &updates)
 			if err != nil {
-				fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to update task %s: %v\n", taskID, err)
+				_, _ = fmt.Fprintf(cmd.OutOrStdout(), "❌ Failed to update task %s: %v\n", taskID, err)
 				failCount++
 				continue
 			}
@@ -133,7 +133,7 @@ func (c *CLI) updatePriorityCommandForBatch() {
 			if len(displayID) > 8 {
 				displayID = displayID[:8]
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "✅ Task %s updated\n", displayID)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "✅ Task %s updated\n", displayID)
 			successCount++
 		}
 
